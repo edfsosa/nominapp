@@ -13,13 +13,14 @@ return new class extends Migration
     {
         Schema::create('employees', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained()->onDelete('cascade'); // Relación con User
             $table->integer('ci')->unique()->comment('Cédula de Identidad Paraguaya');
             $table->string('first_name');
             $table->string('last_name');
             $table->string('email')->unique();
             $table->integer('salary');
+            $table->enum('contract_type', ['jornalero', 'mensualero'])->default('mensualero');
             $table->string('department');
+            $table->string('branch');
             $table->date('hire_date');
             $table->enum('status', ['activo', 'inactivo'])->default('activo');
             $table->timestamps();

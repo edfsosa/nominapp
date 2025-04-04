@@ -4,11 +4,13 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
+use App\Filament\Resources\EmployeeResource\RelationManagers\PayrollsRelationManager;
 use App\Models\Employee;
 use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -45,10 +47,25 @@ class EmployeeResource extends Resource
                     ->required(),
                 Select::make('department')
                     ->options(fn() => [
-                        'contabilidad' => 'Contabilidad',
-                        'ventas' => 'Ventas',
+                        'Contabilidad' => 'Contabilidad',
+                        'Ventas' => 'Ventas',
                         'TI' => 'TI',
                     ]),
+                Select::make('branch')
+                    ->options([
+                        'Asuncion' => 'Asunción',
+                        'Luque' => 'Luque',
+                        'Capiata' => 'Capiatá',
+                    ])
+                    ->required()
+                    ->native(false),
+                Radio::make('contract_type')
+                    ->options([
+                        'mensualero' => 'Mensualero',
+                        'jornalero' => 'Jornalero',
+                    ])
+                    ->inline()
+                    ->required(),
                 DatePicker::make('hire_date')
                     ->required(),
                 FileUpload::make('documents')
@@ -66,8 +83,13 @@ class EmployeeResource extends Resource
                 TextColumn::make('full_name') // Usa el accessor del modelo
                     ->searchable(['first_name', 'last_name']),
                 TextColumn::make('department'),
+
                 TextColumn::make('salary')
                     ->money('PGY'),
+                TextColumn::make('branch')
+                    ->searchable(),
+                TextColumn::make('contract_type')
+                    ->searchable(),
                 IconColumn::make('status')
                     ->icon(fn(string $state): string => match ($state) {
                         'inactivo' => 'heroicon-o-x-circle',
@@ -90,7 +112,7 @@ class EmployeeResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            PayrollsRelationManager::class,
         ];
     }
 

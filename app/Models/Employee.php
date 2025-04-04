@@ -2,18 +2,23 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Employee extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'user_id',
         'ci',
         'first_name',
         'last_name',
         'email',
         'salary',
         'department',
+        'branch',
+        'contract_type',
         'hire_date',
         'status'
     ];
@@ -24,15 +29,9 @@ class Employee extends Model
         return "{$this->first_name} {$this->last_name}";
     }
 
-    // Relación con User
-    public function user()
-    {
-        return $this->belongsTo(User::class);
-    }
-
     // Relación con Payroll
-/*     public function payrolls()
+    public function payrolls(): HasMany
     {
         return $this->hasMany(Payroll::class);
-    } */
+    }
 }
