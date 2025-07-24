@@ -3,8 +3,9 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-class DeductionType extends Model
+class Perception extends Model
 {
     protected $fillable = [
         'name',
@@ -14,10 +15,14 @@ class DeductionType extends Model
         'applies_to_all',
     ];
 
-    // Una deducción puede aplicarse a muchos empleados
-    public function employees()
+    public function employees(): BelongsToMany
     {
-        return $this->belongsToMany(Employee::class);
+        return $this->belongsToMany(
+            Employee::class,
+            'employee_perception',
+            'perception_id',
+            'employee_id'
+        )->withPivot('effective_from', 'effective_to', 'value_override')->withTimestamps();
     }
 
     // Calcular monto para un empleado específico

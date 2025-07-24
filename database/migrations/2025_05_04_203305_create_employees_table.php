@@ -23,9 +23,9 @@ return new class extends Migration
             $table->enum('contract_type', ['mensualero', 'jornalero']); // tipo de contrato
             $table->integer('base_salary'); // salario base en Guaranies (PYG)
             $table->enum('payment_method', ['debito', 'efectivo', 'cheque']); // forma de pago
-            $table->foreignId('position_id')->constrained('positions')->onDelete('cascade'); // posición
-            $table->foreignId('branch_id')->constrained('branches')->onDelete('cascade'); // sucursal
-            $table->foreignId('schedule_id')->nullable()->constrained('schedule_types')->onDelete('set null'); // horario
+            $table->foreignId('position_id')->nullable()->constrained()->onDelete('set null'); // posición
+            $table->foreignId('branch_id')->nullable()->constrained()->onDelete('set null'); // sucursal
+            $table->foreignId('schedule_id')->nullable()->constrained()->onDelete('set null'); // horario
             $table->enum('status', ['activo', 'inactivo', 'suspendido'])->default('activo'); // estado
             $table->timestamps();
         });

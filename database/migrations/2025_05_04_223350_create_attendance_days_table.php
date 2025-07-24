@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('schedule_types', function (Blueprint $table) {
+        Schema::create('attendance_days', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 60)->comment('Ej: Estándar, Sucursal A, etc'); // Nombre del tipo de turno
-            $table->boolean('is_default')->default(false); // Indica si es el tipo de turno por defecto
+            $table->foreignId('employee_id')->constrained()->onDelete('cascade');
+            $table->date('date');
+            $table->enum('status', ['present', 'absent', 'on_leave', 'holiday'])->default('absent');
             $table->timestamps();
+            $table->unique(['employee_id', 'date']);
         });
     }
 
@@ -24,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('schedule_types');
+        Schema::dropIfExists('attendance_days');
     }
 };

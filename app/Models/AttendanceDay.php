@@ -4,20 +4,18 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
-class EmployeePerception extends Model
+class AttendanceDay extends Model
 {
     protected $fillable = [
         'employee_id',
-        'perception_id',
-        'start_date',
-        'end_date',
-        'custom_amount',
+        'date',
+        'status',
     ];
 
     protected $casts = [
-        'start_date'    => 'date',
-        'end_date'      => 'date',
+        'date' => 'date',
     ];
 
     public function employee(): BelongsTo
@@ -25,8 +23,8 @@ class EmployeePerception extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function perception(): BelongsTo
+    public function events(): HasMany
     {
-        return $this->belongsTo(Perception::class);
+        return $this->hasMany(AttendanceEvent::class);
     }
 }

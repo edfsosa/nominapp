@@ -6,6 +6,9 @@ use App\Services\PayrollService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Testing\Fluent\Concerns\Has;
 
 class Employee extends Model
@@ -13,6 +16,7 @@ class Employee extends Model
     use HasFactory;
 
     protected $fillable = [
+        'photo',
         'first_name',
         'last_name',
         'ci',
@@ -26,12 +30,14 @@ class Employee extends Model
         'branch_id',
         'schedule_id',
         'status',
-        'photo',
     ];
 
     protected $casts = [
-        'hire_date' => 'date',
-        'base_salary' => 'integer',
+        'hire_date'     => 'date',
+        'base_salary'   => 'integer',
+        'contract_type' => 'string',
+        'payment_method' => 'string',
+        'status'        => 'string',
     ];
 
     /**
@@ -53,48 +59,46 @@ class Employee extends Model
     /**
      * Deducciones aplicadas al empleado
      */
-    public function deductions()
+    public function deductions(): BelongsToMany
     {
-        return $this->hasMany(EmployeeDeduction::class);
+        return $this->belongsToMany(
+            Deduction::class,
+            'employee_deductions'
+        )->using(EmployeeDeduction::class)
+        ->withPivot('start_date', 'end_date', 'custom_amount')
+        ->withTimestamps();
     }
 
     /**
      * Percepciones aplicadas al empleado
      */
-    public function perceptions()
+    public function perceptions(): BelongsToMany
     {
-        return $this->hasMany(EmployeePerception::class);
+        return $this->belongsToMany(
+            Perception::class,
+            'employee_perceptions'
+        )->using(EmployeePerception::class)
+        ->withPivot('start_date', 'end_date', 'custom_amount')
+        ->withTimestamps();
     }
 
-    // IPS como relación dinámica
-    public function getIpsAttribute()
+    public function payrolls(): HasMany
     {
-        return $this->base_salary * 0.09;
+        return $this->hasMany(Payroll::class);
     }
-
-    public function payrollItems()
-    {
-        return $this->hasMany(PayrollItem::class);
-    }
-
-    public function payrolls()
-    {
-        return $this->belongsToMany(Payroll::class, 'payroll_items');
-    }
-
 
     // Relación con el modelo Attendance, un empleado puede tener muchas asistencias
-    public function attendances()
+    public function attendanceDays(): HasMany
     {
-        return $this->hasMany(Attendance::class);
+        return $this->hasMany(AttendanceDay::class);
     }
 
     /**
      * Relación con el modelo ScheduleType, un empleado puede tener un horario asignado
      */
-    public function schedule()
+    public function schedule(): BelongsTo
     {
-        return $this->belongsTo(ScheduleType::class);
+        return $this->belongsTo(Schedule::class);
     }
 
     /**
@@ -108,143 +112,8 @@ class Employee extends Model
     /**
      * Relación con el modelo Vacationm, un empleado puede tener muchas vacaciones
      */
-    public function vacations()
+    public function vacations(): HasMany
     {
         return $this->hasMany(Vacation::class);
-    }
-
-
-    /**
-     * Turno asignado al empleado para una fecha dada.
-     */
-    public function scheduleForDate(string $fecha)
-    {
-        return $this->schedules()
-            ->where(function ($q) use ($fecha) {
-                $q->whereNull('valid_from')->orWhere('valid_from', '<=', $fecha);
-            })
-            ->where(function ($q) use ($fecha) {
-                $q->whereNull('valid_to')->orWhere('valid_to', '>=', $fecha);
-            })
-            ->with(['scheduleType.daySchedules', 'scheduleType.breakPeriods'])
-            ->first()
-            ->scheduleType ?? null;
-    }
-
-    /**
-     * Helper: devuelve los DaySchedule para el día de la semana dado.
-     */
-    public function dayScheduleForDate(string $fecha)
-    {
-        $st = $this->scheduleForDate($fecha);
-        if (! $st) return null;
-        $dow = Carbon::parse($fecha)->dayOfWeek;
-        return $st->daySchedules->first(fn($ds) => $ds->day_of_week == $dow);
-    }
-
-    /**
-     * Helper: devuelve los BreakPeriod para ese turno.
-     */
-    public function breaksForDate(string $fecha)
-    {
-        $st = $this->scheduleForDate($fecha);
-        return $st
-            ? $st->breakPeriods
-            : collect();
-    }
-
-    /**
-     * Calcula horas trabajadas, desglosadas en diurnas, nocturnas y extras.
-     *
-     * @return array [
-     *   'diurno'    => float (horas normales diurnas),
-     *   'nocturno'  => float (horas normales nocturnas),
-     *   'extras'    => float (horas fuera de la jornada prevista)
-     * ]
-     */
-    public function calculateHours(string $fecha): array
-    {
-        $logs = Attendance::where('employee_id', $this->id)
-            ->whereDate('created_at', $fecha)
-            ->orderBy('created_at')
-            ->get();
-        $in  = $logs->first(fn($l) => $l->type === 'entrada');
-        $out = $logs->last(fn($l)  => $l->type === 'salida');
-        if (! $in || ! $out) {
-            return ['diurno' => 0, 'nocturno' => 0, 'extras' => 0];
-        }
-
-        // Obtengo los límites legales
-        $startDay = Carbon::parse("$fecha 06:00");
-        $endDay   = Carbon::parse("$fecha 20:00");
-        $startNight = $endDay;
-        $endNight   = Carbon::parse("$fecha 23:59:59")->addSecond();
-        // (y también la franja 00:00–06:00 del día siguiente)
-        $startNight2 = Carbon::parse("$fecha 00:00");
-        $endNight2   = Carbon::parse("$fecha 06:00");
-
-        // Jornada prevista
-        $ds = $this->dayScheduleForDate($fecha);
-        $plannedStart = Carbon::parse("$fecha {$ds->start_time}");
-        $plannedEnd   = Carbon::parse("$fecha {$ds->end_time}");
-
-        // Rango efectivo
-        $workStart = $in->created_at;
-        $workEnd   = $out->created_at;
-
-        // Funcion para restar solapamientos con descansos
-        $subtractBreaks = function ($from, $to) use ($fecha) {
-            $mins = 0;
-            foreach ($this->breaksForDate($fecha) as $b) {
-                $bs = Carbon::parse("$fecha {$b->start_time}");
-                $be = Carbon::parse("$fecha {$b->end_time}");
-                $ovStart = $from->greaterThan($bs) ? $from : $bs;
-                $ovEnd   = $to->lessThan($be)   ? $to   : $be;
-                if ($ovEnd->greaterThan($ovStart)) {
-                    $mins += $ovEnd->diffInMinutes($ovStart);
-                }
-            }
-            return $mins;
-        };
-
-        // Calcula minutos de un rango solapado con otro rango
-        $overlapMins = function ($from, $to, $segFrom, $segTo) {
-            $a = $from->greaterThan($segFrom) ? $from : $segFrom;
-            $b = $to->lessThan($segTo)       ? $to   : $segTo;
-            return $b->greaterThan($a)
-                ? $b->diffInMinutes($a)
-                : 0;
-        };
-
-        // 1) Minutos totales
-        $totalMins = $workEnd->diffInMinutes($workStart)
-            - $subtractBreaks($workStart, $workEnd);
-
-        // 2) Normal diurno
-        $mDiurno =
-            $overlapMins($workStart, $workEnd, $startDay, $endDay)
-            - $subtractBreaks(
-                max($workStart, $startDay),
-                min($workEnd, $endDay)
-            );
-
-        // 3) Normal nocturno (parte 1)
-        $mNoct1 = $overlapMins($workStart, $workEnd, $startNight, $endNight);
-        // nocturno (parte 2, madrugada)
-        $mNoct2 = $overlapMins($workStart, $workEnd, $startNight2, $endNight2);
-        $mNoct = $mNoct1 + $mNoct2;
-
-        // 4) Horas previstas en jornada
-        $plannedMins = $plannedEnd->diffInMinutes($plannedStart)
-            - $subtractBreaks($plannedStart, $plannedEnd);
-
-        // 5) Extras = total menos jornada prevista (si >0)
-        $mExtras = max(0, $totalMins - $plannedMins);
-
-        return [
-            'diurno'   => round($mDiurno / 60, 2),
-            'nocturno' => round($mNoct / 60,   2),
-            'extras'   => round($mExtras / 60,  2),
-        ];
     }
 }

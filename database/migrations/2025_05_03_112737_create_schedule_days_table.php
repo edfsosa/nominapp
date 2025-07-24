@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('day_schedules', function (Blueprint $table) {
+        Schema::create('schedule_days', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('schedule_type_id')->constrained()->onDelete('cascade'); // Relación con la tabla schedule_types
-            $table->tinyInteger('day_of_week');   // 0=domingo … 6=sábado
+            $table->foreignId('schedule_id')->constrained()->onDelete('cascade'); // Relación con la tabla schedules
+            $table->tinyInteger('day_of_week'); // 1=Monday...7=Sunday
             $table->time('start_time'); // Hora de inicio
             $table->time('end_time'); // Hora de fin
             $table->timestamps();
@@ -26,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('day_schedules');
+        Schema::dropIfExists('schedule_days');
     }
 };

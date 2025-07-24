@@ -3,26 +3,32 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class EmployeeDeduction extends Model
 {
+    protected $table = 'employee_deductions';
+
     protected $fillable = [
         'employee_id',
-        'deduction_type_id',
+        'deduction_id',
         'start_date',
         'end_date',
-        'installments',
-        'remaining_installments',
         'custom_amount',
     ];
 
-    public function employee()
+    protected $casts = [
+        'start_date'    => 'date',
+        'end_date'      => 'date',
+    ];
+
+    public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
-    public function type()
+    public function deduction(): BelongsTo
     {
-        return $this->belongsTo(DeductionType::class);
+        return $this->belongsTo(Deduction::class);
     }
 }

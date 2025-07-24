@@ -11,10 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('perception_types', function (Blueprint $table) {
+        Schema::create('perceptions', function (Blueprint $table) {
             $table->id();
-            $table->string('name'); // nombre de la percepción (e.g. horas extras, bonificaciones)
-            $table->string('description')->nullable(); // descripción opcional
+            $table->string('name', 60); // nombre de la percepción (e.g. horas extras, bonificaciones)
+            $table->text('description')->nullable(); // descripción opcional
             $table->enum('calculation', ['fixed', 'percentage'])->default('fixed'); // tipo de cálculo: fijo, por hora, porcentaje
             $table->decimal('value', 8, 2); // si hourly, valor por hora; porcentaje, relativo
             $table->boolean('applies_to_all')->default(false);
@@ -27,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('perception_types');
+        Schema::dropIfExists('perceptions');
     }
 };

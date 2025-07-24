@@ -11,10 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('departments', function (Blueprint $table) {
+        Schema::create('payroll_periods', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 60);
+            $table->enum('frequency', ['monthly', 'biweekly', 'weekly']);
+            $table->date('start_date');
+            $table->date('end_date');
             $table->timestamps();
+            $table->unique(['frequency', 'start_date', 'end_date']);
         });
     }
 
@@ -23,6 +26,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('departments');
+        Schema::dropIfExists('payroll_periods');
     }
 };

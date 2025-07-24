@@ -4,6 +4,8 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Payroll extends Model
 {
@@ -11,23 +13,26 @@ class Payroll extends Model
     use HasFactory;
 
     protected $fillable = [
-        'period',
-        'start_date',
-        'end_date',
-        'pay_date',
-        'notes',
-        'status',
+        'employee_id',
+        'payroll_period_id',
+        'gross_salary',
+        'total_deductions',
+        'total_perceptions',
+        'net_salary',
     ];
 
-    // Relación con el modelo PayrollItem, una nómina puede tener muchos items
-    public function items()
+    public function employee(): BelongsTo
     {
-        return $this->hasMany(PayrollItem::class);
+        return $this->belongsTo(Employee::class);
     }
 
-    // Relación con el modelo Employee, una nómina puede tener muchos empleados asociados
-    public function employees()
+    public function period(): BelongsTo
     {
-        return $this->belongsToMany(Employee::class, 'payroll_items');
+        return $this->belongsTo(PayrollPeriod::class, 'payroll_period_id');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(PayrollItem::class);
     }
 }
