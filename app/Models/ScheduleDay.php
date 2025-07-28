@@ -8,7 +8,12 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScheduleDay extends Model
 {
-    protected $fillable = ['schedule_id', 'day_of_week', 'start_time', 'end_time'];
+    protected $fillable = [
+        'schedule_id',
+        'day_of_week',
+        'start_time',
+        'end_time'
+    ];
 
     public function schedule(): BelongsTo
     {

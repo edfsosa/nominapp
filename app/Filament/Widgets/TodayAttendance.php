@@ -2,8 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Attendance;
-use Filament\Tables;
+use App\Models\AttendanceEvent;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -11,19 +10,18 @@ use Filament\Widgets\TableWidget as BaseWidget;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
-class TodayAttendance extends BaseWidget
+/* class TodayAttendance extends BaseWidget
 {
     protected static ?string $heading = 'Asistencias del día';
     public function table(Table $table): Table
     {
         return $table
             ->query(
-                Attendance::query()
+                AttendanceEvent::query()
                     ->whereDate('created_at', now()->toDateString())
-                    ->where('session', 'jornada')
-                    ->where('type', 'entrada')
+                    ->where('event_type', 'check_in')
                     ->with('employee')
-                    ->orderBy('created_at', 'desc')
+                    ->orderBy('recorded_at', 'desc')
             )
             ->columns([
                 TextColumn::make('employee.ci')
@@ -73,3 +71,4 @@ class TodayAttendance extends BaseWidget
             ]);
     }
 }
+ */

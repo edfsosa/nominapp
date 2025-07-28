@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Testing\Fluent\Concerns\Has;
 
 class Employee extends Model
@@ -65,8 +66,8 @@ class Employee extends Model
             Deduction::class,
             'employee_deductions'
         )->using(EmployeeDeduction::class)
-        ->withPivot('start_date', 'end_date', 'custom_amount')
-        ->withTimestamps();
+            ->withPivot('start_date', 'end_date', 'custom_amount')
+            ->withTimestamps();
     }
 
     /**
@@ -78,8 +79,8 @@ class Employee extends Model
             Perception::class,
             'employee_perceptions'
         )->using(EmployeePerception::class)
-        ->withPivot('start_date', 'end_date', 'custom_amount')
-        ->withTimestamps();
+            ->withPivot('start_date', 'end_date', 'custom_amount')
+            ->withTimestamps();
     }
 
     public function payrolls(): HasMany
@@ -91,6 +92,19 @@ class Employee extends Model
     public function attendanceDays(): HasMany
     {
         return $this->hasMany(AttendanceDay::class);
+    }
+
+    // Obtener todos los eventos de asistencia a través de los días
+    public function attendanceEvents(): HasManyThrough
+    {
+        return $this->hasManyThrough(
+            AttendanceEvent::class,
+            AttendanceDay::class,
+            'employee_id',        // FK en attendance_days
+            'attendance_day_id',   // FK en attendance_events
+            'id',                  // PK en employees
+            'id'                   // PK en attendance_days
+        );
     }
 
     /**

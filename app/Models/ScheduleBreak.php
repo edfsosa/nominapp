@@ -7,7 +7,12 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ScheduleBreak extends Model
 {
-    protected $fillable = ['schedule_day_id', 'name', 'start_time', 'end_time'];
+    protected $fillable = [
+        'schedule_day_id',
+        'name',
+        'start_time',
+        'end_time'
+    ];
 
     public function day(): BelongsTo
     {

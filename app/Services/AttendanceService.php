@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Attendance;
+use App\Models\AttendanceEvent;
 use Carbon\Carbon;
 
 class AttendanceService
@@ -10,8 +10,8 @@ class AttendanceService
     // Calcula las horas trabajadas de los empleados por rango de fecha
     public function calculateWorkedHours($employeeId, $startDate, $endDate)
     {
-        $attendances = Attendance::where('employee_id', $employeeId)
-            ->whereBetween('created_at', [$startDate, $endDate])
+        $attendances = AttendanceEvent::where('employee_id', $employeeId)
+            ->whereBetween('recorded_at', [$startDate, $endDate])
             ->get();
 
         $totalHours = 0;

@@ -48,14 +48,26 @@ class VacationResource extends Resource
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
+                Forms\Components\Select::make('type')
+                    ->label('Estado')
+                    ->options([
+                        'paid' => 'Pagado',
+                        'unpaid' => 'No pagado',
+                    ])
+                    ->default('paid')
+                    ->native(false)
+                    ->required(),
+                Forms\Components\TextInput::make('reason')
+                    ->label('Razón')
+                    ->nullable(),
                 Forms\Components\Select::make('status')
                     ->label('Estado')
                     ->options([
-                        'pendiente' => 'Pendiente',
-                        'aprobado' => 'Aprobado',
-                        'rechazado' => 'Rechazado',
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
                     ])
-                    ->default('pendiente')
+                    ->default('pending')
                     ->native(false)
                     ->hiddenOn('create')
                     ->required(),
@@ -91,15 +103,27 @@ class VacationResource extends Resource
                     ->label('Fin')
                     ->date('d/m/Y')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Tipo')
+                    ->sortable()
+                    ->searchable()
+                    ->badge()
+                    ->colors([
+                        'success' => 'paid',
+                        'danger' => 'unpaid',
+                    ]),
+                Tables\Columns\TextColumn::make('reason')
+                    ->label('Razón')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Estado')
                     ->sortable()
                     ->searchable()
                     ->badge()
                     ->colors([
-                        'warning' => 'pendiente',
-                        'success' => 'aprobado',
-                        'danger' => 'rechazado',
+                        'warning' => 'pending',
+                        'success' => 'approved',
+                        'danger' => 'rejected',
                     ]),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
@@ -117,9 +141,9 @@ class VacationResource extends Resource
                     ->label('Estado')
                     ->placeholder('Seleccionar estado')
                     ->options([
-                        'pendiente' => 'Pendiente',
-                        'aprobado' => 'Aprobado',
-                        'rechazado' => 'Rechazado',
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
                     ])
                     ->multiple()
                     ->preload()
@@ -128,8 +152,7 @@ class VacationResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
-                Tables\Actions\Action::make('Aprobar')
+                /* Tables\Actions\Action::make('Aprobar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->visible(fn($record) => $record->status === 'pendiente')
@@ -138,7 +161,7 @@ class VacationResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->visible(fn($record) => $record->status === 'pendiente')
-                    ->action(fn($record) => $record->update(['status' => 'rechazado'])),
+                    ->action(fn($record) => $record->update(['status' => 'rechazado'])), */
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

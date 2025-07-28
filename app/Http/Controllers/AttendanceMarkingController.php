@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Attendance;
+use App\Models\AttendanceEvent;
 use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -30,7 +31,7 @@ class AttendanceMarkingController extends Controller
             $today = now()->toDateString();
 
             // Traer todas las marcaciones del día del empleado
-            $attendances = Attendance::where('employee_id', $data['employee_id'])
+            $attendances = AttendanceEvent::where('employee_id', $data['employee_id'])
                 ->whereDate('created_at', $today)
                 ->orderBy('created_at')
                 ->get();
@@ -183,7 +184,7 @@ class AttendanceMarkingController extends Controller
             }
 
             // Registrar la marcación
-            Attendance::create([
+            AttendanceEvent::create([
                 'employee_id' => $data['employee_id'],
                 'type'        => $data['type'],
                 'session'     => $data['session'],

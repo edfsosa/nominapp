@@ -7,6 +7,7 @@ use App\Filament\Resources\BranchResource\RelationManagers;
 use App\Models\Branch;
 use Filament\Forms;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\KeyValue;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -54,10 +55,15 @@ class BranchResource extends Resource
                     ->label('Dirección')
                     ->maxLength(255)
                     ->required(),
-                TextInput::make('city')
-                    ->label('Ciudad')
-                    ->maxLength(100)
-                    ->required(),
+                KeyValue::make('coordinates')
+                    ->label('Coordenadas')
+                    ->keyLabel('Latitud')
+                    ->valueLabel('Longitud')
+                    ->keyPlaceholder('-25.303772')
+                    ->valuePlaceholder('-57.611112')
+                    ->nullable()
+                    ->columns(2),
+
             ]);
     }
 
@@ -86,6 +92,9 @@ class BranchResource extends Resource
                     ->label('Ciudad')
                     ->sortable()
                     ->searchable(),
+                TextColumn::make('coordinates')
+                    ->label('Coordenadas')
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')

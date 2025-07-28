@@ -1,7 +1,6 @@
 <?php
 namespace App\Filament\Widgets;
 
-use App\Models\Attendance;
 use App\Models\Branch;
 use App\Models\Employee;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
@@ -25,10 +24,9 @@ class AttendanceStatusWidget extends BaseWidget
 
             // Empleados que marcaron entrada de jornada hoy en la sucursal
             $empleadosConEntrada = Employee::where('branch_id', $sucursal->id)
-                ->whereHas('attendances', function ($query) use ($today) {
-                    $query->whereDate('created_at', $today)
-                    ->where('type', 'entrada')
-                    ->where('session', 'jornada');
+                ->whereHas('attendanceEvents', function ($query) use ($today) {
+                    $query->whereDate('recordeed_at', $today)
+                    ->where('event_type', 'check_in');
                 })
                 ->count();
 

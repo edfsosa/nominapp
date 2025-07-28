@@ -13,7 +13,7 @@ use App\Models\{
 class PayrollService
 {
     // Genera la nómina para todos los empleados
-    public function generatePayroll(Payroll $payroll)
+    /* public function generatePayroll(Payroll $payroll)
     {
         $employees = Employee::all();
 
@@ -53,9 +53,9 @@ class PayrollService
         }
 
         $payroll->update(['status' => 'processed']);
-    }
+    } */
 
-    private function processDeductions(Employee $employee, Payroll $payroll)
+    /* private function processDeductions(Employee $employee, Payroll $payroll)
     {
         // IPS (deducción global)
         PayrollItem::create([
@@ -97,5 +97,5 @@ class PayrollService
         return (!$pivot->start_date || $pivot->start_date <= $end) &&
             (!$pivot->end_date || $pivot->end_date >= $start) &&
             ($pivot->remaining_installments > 0);
-    }
+    } */
 }

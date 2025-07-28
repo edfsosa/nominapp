@@ -12,7 +12,6 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -148,6 +147,13 @@ class EmployeeResource extends Resource
                                     ->preload()
                                     ->native(false)
                                     ->required(),
+                                Select::make('schedule_id')
+                                    ->label('Horario')
+                                    ->relationship('schedule', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->required(),
                                 Select::make('status')
                                     ->label('Estado')
                                     ->options([
@@ -240,6 +246,11 @@ class EmployeeResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('position.department.name')
                     ->label('Departamento')
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('schedule.name')
+                    ->label('Horario')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),

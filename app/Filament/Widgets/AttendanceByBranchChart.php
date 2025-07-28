@@ -2,7 +2,7 @@
 
 namespace App\Filament\Widgets;
 
-use App\Models\Attendance;
+use App\Models\AttendanceEvent;
 use App\Models\Branch;
 use App\Models\Employee;
 use Filament\Widgets\ChartWidget;
@@ -32,8 +32,7 @@ class AttendanceByBranchChart extends ChartWidget
                 ->count();
 
             // Empleados que marcaron entrada de jornada hoy en la sucursal
-            $empleadosConEntrada = Attendance::where('session', 'jornada')
-                ->where('type', 'entrada')
+            $empleadosConEntrada = AttendanceEvent::where('event_type', 'entrada')
                 ->whereDate('created_at', $today)
                 ->whereIn('employee_id', Employee::where('branch_id', $sucursal->id)
                     ->pluck('id'))

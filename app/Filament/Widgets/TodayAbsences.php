@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Models\Employee;
-use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -11,7 +10,7 @@ use Filament\Widgets\TableWidget as BaseWidget;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
-class TodayAbsences extends BaseWidget
+/* class TodayAbsences extends BaseWidget
 {
     protected static ?string $heading = 'Ausencias del día';
     public function table(Table $table): Table
@@ -21,10 +20,9 @@ class TodayAbsences extends BaseWidget
                 // consulta que obtiene los empleados activos que no marcaron su entrada de jornada
                 Employee::query()
                     ->where('status', 'activo')
-                    ->whereDoesntHave('attendances', function ($query) {
-                        $query->where('session', 'jornada')
-                            ->where('type', 'entrada')
-                            ->whereDate('created_at', now()->toDateString());
+                    ->whereDoesntHave('attendanceEvents', function ($query) {
+                        $query->where('event_type', 'check_in')
+                            ->whereDate('recorded_at', now()->toDateString());
                     })
                     ->with('position')
             )
@@ -71,4 +69,4 @@ class TodayAbsences extends BaseWidget
                     ]),
             ]);
     }
-}
+} */
