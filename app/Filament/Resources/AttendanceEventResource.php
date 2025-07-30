@@ -62,16 +62,16 @@ class AttendanceEventResource extends Resource
                     ->label('Tipo')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'check_in' => 'Entrada jornada',
-                        'break_out' => 'Salida descanso',
-                        'break_in' => 'Entrada descanso',
+                        'break_start' => 'Inicio descanso',
+                        'break_end' => 'Fin descanso',
                         'check_out' => 'Salida jornada',
                         default => 'Desconocido',
                     })
                     ->badge()
                     ->color(fn($state) => match ($state) {
                         'check_in' => 'success',
-                        'break_out' => 'warning',
-                        'break_in' => 'warning',
+                        'break_start' => 'warning',
+                        'break_end' => 'warning',
                         'check_out' => 'info',
                         default => 'gray',
                     })

@@ -96,6 +96,17 @@ class AttendanceMarkingController extends Controller
                 }
             }
 
+            $lastEvent = $events->last();
+
+            if ($data['event_type'] === 'break_start') {
+                if ($lastEvent && $lastEvent->event_type === 'break_start') {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Ya has iniciado un descanso. Debes marcar su fin (break_end) antes de comenzar otro.',
+                    ], 400);
+                }
+            }
+
             // 4) Crear el nuevo evento
             $attendanceEvent = $attendanceDay->events()->create([
                 'event_type'  => $data['event_type'],

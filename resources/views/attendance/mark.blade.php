@@ -7,7 +7,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-    @vite(['resources/css/styles.css'])
+    @vite(['resources/css/attendance/styles.css'])
 </head>
 
 <body>
@@ -19,7 +19,6 @@
             <!-- Selección de sucursal -->
             <label for="branch">Sucursal:</label>
             <select id="branch" name="branch" required>
-                <option value="" disabled selected>Seleccione una sucursal</option>
                 @foreach ($branches as $branch)
                     <option value="{{ $branch->id }}">{{ $branch->name }}</option>
                 @endforeach
@@ -50,7 +49,7 @@
     <audio id="errorSound" src="{{ asset('sounds/error.mp3') }}" preload="auto" aria-label="Sonido de error" hidden></audio>
 
     <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    @vite(['resources/js/scripts.js'])
+    @vite(['resources/js/attendance/index.js'])
 </body>
 
 </html>
