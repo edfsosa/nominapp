@@ -20,6 +20,7 @@ class AttendanceEvent extends Model
 
     protected $casts = [
         'recorded_at' => 'datetime',
+        'location' => 'array',
     ];
 
     public function day(): BelongsTo

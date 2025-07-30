@@ -2,8 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Attendance;
-use App\Models\AttendanceEvent;
+use App\Models\AttendanceDay;
 use App\Models\Branch;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -22,179 +21,95 @@ class AttendanceMarkingController extends Controller
     {
         try {
             $data = $request->validate([
-                'type'        => 'required|in:entrada,salida',
-                'session'     => 'required|in:jornada,desayuno,almuerzo',
-                'employee_id' => 'required|exists:employees,id',
-                'location'    => 'string',
+                'event_type'  => ['required', 'in:check_in,break_start,break_end,check_out'],
+                'employee_id' => ['required', 'exists:employees,id'],
+                'location'    => ['nullable', 'array'],
             ]);
 
             $today = now()->toDateString();
 
-            // Traer todas las marcaciones del día del empleado
-            $attendances = AttendanceEvent::where('employee_id', $data['employee_id'])
-                ->whereDate('created_at', $today)
-                ->orderBy('created_at')
-                ->get();
+            // 1) Obtener o crear el registro de asistencia del día
+            $attendanceDay = AttendanceDay::firstOrCreate(
+                ['employee_id' => $data['employee_id'], 'date' => $today],
+                ['status'      => 'present']
+            );
 
-            // 1. La primera marcación debe ser entrada de jornada
-            if ($attendances->isEmpty()) {
-                if ($data['type'] !== 'entrada' || $data['session'] !== 'jornada') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "La primera marcación del día debe ser 'entrada' de 'jornada'."
-                    ], 400);
-                }
-            }
+            // 2) Eventos existentes ordenados
+            $events = $attendanceDay->events()->orderBy('recorded_at')->get();
 
-            // 2. Solo una entrada de jornada por día
-            $entradaJornada = $attendances->firstWhere(fn($a) => $a->type === 'entrada' && $a->session === 'jornada');
-            if ($data['type'] === 'entrada' && $data['session'] === 'jornada' && $entradaJornada) {
+            // 3) Validaciones de flujo
+
+            // 3a) Primera marcación debe ser check_in
+            if ($events->isEmpty() && $data['event_type'] !== 'check_in') {
                 return response()->json([
                     'success' => false,
-                    'message' => "Ya registraste la entrada de jornada hoy."
+                    'message' => 'La primera marcación del día debe ser entrada (check_in).',
                 ], 400);
             }
 
-            // 3. Solo una salida de jornada por día y debe ser la última marcación posible
-            if ($data['type'] === 'salida' && $data['session'] === 'jornada') {
-                $salidaJornada = $attendances->firstWhere(fn($a) => $a->type === 'salida' && $a->session === 'jornada');
-                if ($salidaJornada) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Ya registraste la salida de jornada hoy."
-                    ], 400);
-                }
-                if (!$entradaJornada) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Debes registrar primero la entrada de jornada."
-                    ], 400);
-                }
-                // No permitir salida de jornada si hay una salida de desayuno o almuerzo sin su respectiva entrada
-                foreach (['desayuno', 'almuerzo'] as $sesion) {
-                    $lastSalida = $attendances->where('type', 'salida')->where('session', $sesion)->last();
-                    $lastEntrada = $attendances->where('type', 'entrada')->where('session', $sesion)->last();
-                    if ($lastSalida && (!$lastEntrada || $lastEntrada->created_at < $lastSalida->created_at)) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Debes registrar la entrada de $sesion antes de salir de jornada."
-                        ], 400);
-                    }
-                }
-            }
-
-            // 4. Solo se puede desayunar y almorzar una vez al día
-            foreach (['desayuno', 'almuerzo'] as $sesion) {
-                if ($data['session'] === $sesion) {
-                    $salida = $attendances->where('type', 'salida')->where('session', $sesion)->count();
-                    if ($data['type'] === 'salida' && $salida >= 1) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Solo puedes salir a $sesion una vez por día."
-                        ], 400);
-                    }
-                    $entrada = $attendances->where('type', 'entrada')->where('session', $sesion)->count();
-                    if ($data['type'] === 'entrada' && $entrada >= 1) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Solo puedes registrar una entrada de $sesion por día."
-                        ], 400);
-                    }
-                }
-            }
-
-            // 5. Secuencia estricta: no permitir salida de desayuno después de salida de almuerzo
-            if ($data['type'] === 'salida' && $data['session'] === 'desayuno') {
-                $salidaAlmuerzo = $attendances->firstWhere(fn($a) => $a->type === 'salida' && $a->session === 'almuerzo');
-                if ($salidaAlmuerzo) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "No puedes salir a desayunar después de haber salido a almorzar."
-                    ], 400);
-                }
-            }
-
-            // 6. No permitir dos salidas seguidas de desayuno o almuerzo sin la entrada respectiva
+            // 3b) Solo un check_in por día
             if (
-                $data['type'] === 'salida' &&
-                in_array($data['session'], ['desayuno', 'almuerzo'])
+                $data['event_type'] === 'check_in'
+                && $events->contains(fn($e) => $e->event_type === 'check_in')
             ) {
-                $lastSameSession = $attendances->where('session', $data['session'])->last();
-                if ($lastSameSession && $lastSameSession->type === 'salida') {
-                    return response()->json([
-                        'success' => false,
-                        'message' => "Debes marcar la entrada de {$data['session']} antes de volver a registrar una salida."
-                    ], 400);
-                }
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Ya existe una entrada de jornada para este día.',
+                ], 400);
             }
 
-            // 7. Secuencia correcta desayuno/almuerzo: no puede haber dos salidas seguidas ni dos entradas seguidas
-            if (in_array($data['session'], ['desayuno', 'almuerzo'])) {
-                $last = $attendances->last();
-                if (
-                    $last &&
-                    $last->type === 'salida' &&
-                    in_array($last->session, ['desayuno', 'almuerzo'])
-                ) {
-                    // Si intenta marcar cualquier cosa que no sea la entrada de la misma sesión, bloquear
-                    if (
-                        !($data['type'] === 'entrada' && $data['session'] === $last->session)
-                    ) {
-                        return response()->json([
-                            'success' => false,
-                            'message' => "Debes marcar la entrada de {$last->session} antes de registrar otra marcación."
-                        ], 400);
-                    }
-                }
-                if ($last && $last->session === $data['session'] && $last->type === $data['type']) {
+            // 3c) Salida de jornada: debe ser última y única
+            if ($data['event_type'] === 'check_out') {
+                if (! $events->contains(fn($e) => $e->event_type === 'check_in')) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Ya registraste una {$data['type']} de {$data['session']}, debes marcar la otra opción."
+                        'message' => 'Debes registrar primero la entrada de jornada.',
                     ], 400);
                 }
-                // Para salida, debe haber entrada de jornada primero
-                if ($data['type'] === 'salida' && !$entradaJornada) {
+                if ($events->contains(fn($e) => $e->event_type === 'check_out')) {
                     return response()->json([
                         'success' => false,
-                        'message' => "Debes registrar primero la entrada de jornada antes de salir a {$data['session']}."
+                        'message' => 'Ya registraste la salida de jornada hoy.',
                     ], 400);
                 }
-                // Para entrada, debe haber salida previa de ese mismo
-                if ($data['type'] === 'entrada') {
-                    $lastSalida = $attendances->where('type', 'salida')->where('session', $data['session'])->last();
-                    $lastEntrada = $attendances->where('type', 'entrada')->where('session', $data['session'])->last();
-                    if (!$lastSalida || ($lastEntrada && $lastEntrada->created_at > $lastSalida->created_at)) {
+                // Verificar descansos abiertos antes de salir
+                foreach (['break_start' => 'break_end'] as $start => $end) {
+                    $lastStart = $events->last(fn($e) => $e->event_type === $start);
+                    $lastEnd   = $events->last(fn($e) => $e->event_type === $end);
+                    if ($lastStart && (! $lastEnd || $lastEnd->recorded_at < $lastStart->recorded_at)) {
                         return response()->json([
                             'success' => false,
-                            'message' => "Debes registrar la salida de {$data['session']} antes de marcar la entrada."
+                            'message' => 'Debes cerrar tu descanso antes de salir de jornada.',
                         ], 400);
                     }
                 }
             }
 
-            // 8. No permitir marcar desayuno o almuerzo después de la salida de jornada
-            if ($data['session'] !== 'jornada') {
-                $salidaJornada = $attendances->firstWhere(fn($a) => $a->type === 'salida' && $a->session === 'jornada');
-                if ($salidaJornada) {
+            // 3d) No cerrar descanso sin abrirlo
+            if ($data['event_type'] === 'break_end') {
+                $lastBreakStart = $events->last(fn($e) => $e->event_type === 'break_start');
+                if (! $lastBreakStart || now()->lt($lastBreakStart->recorded_at)) {
                     return response()->json([
                         'success' => false,
-                        'message' => "No puedes registrar marcaciones de {$data['session']} después de la salida de jornada."
+                        'message' => 'No puedes terminar un descanso sin haberlo iniciado primero.',
                     ], 400);
                 }
             }
 
-            // Registrar la marcación
-            AttendanceEvent::create([
-                'employee_id' => $data['employee_id'],
-                'type'        => $data['type'],
-                'session'     => $data['session'],
-                'location'    => $data['location'],
+            // 4) Crear el nuevo evento
+            $attendanceEvent = $attendanceDay->events()->create([
+                'event_type'  => $data['event_type'],
+                'recorded_at' => now(),
+                'location'    => $data['location'] ?? null,
             ]);
 
+            // 5) Devolver día y eventos actualizados
             return response()->json([
                 'success' => true,
-                'message' => "Marcación de {$data['type']} ({$data['session']}) registrada correctamente."
-            ]);
+                'event'   => $attendanceEvent,
+                'day'     => $attendanceDay,
+                'events'  => $attendanceDay->events()->orderBy('recorded_at')->get(),
+            ], 201);
         } catch (ValidationException $e) {
             return response()->json([
                 'success' => false,
@@ -204,7 +119,7 @@ class AttendanceMarkingController extends Controller
             Log::error('Error al registrar marcación: ' . $e->getMessage(), ['exception' => $e]);
             return response()->json([
                 'success' => false,
-                'message' => 'Ocurrió un error interno. Inténtalo de nuevo más tarde.'
+                'message' => 'Ocurrió un error interno. Inténtalo de nuevo más tarde.',
             ], 500);
         }
     }

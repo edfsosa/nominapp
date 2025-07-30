@@ -53,16 +53,51 @@ class AttendanceDayResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee.id')
-                    ->label('Empleado')
-                    ->numeric()
-                    ->sortable(),
+                Tables\Columns\TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('date')
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('employee.ci')
+                    ->label('CI')
+                    ->numeric()
+                    ->copyable()
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('employee.first_name')
+                    ->label('Nombre')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('employee.last_name')
+                    ->label('Apellido')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('employee.branch.name')
+                    ->label('Sucursal')
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('status')
-                    ->label('Estado'),
+                    ->label('Estado')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'present' => 'Presente',
+                        'absent' => 'Ausente',
+                        'on_leave' => 'De baja',
+                        'holiday' => 'Feriado',
+                        default => 'Desconocido',
+                    })
+                    ->badge()
+                    ->color(fn($state) => match ($state) {
+                        'present' => 'success',
+                        'absent' => 'warning',
+                        'on_leave' => 'warning',
+                        'holiday' => 'info',
+                        default => 'gray',
+                    })
+                    ->searchable()
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')

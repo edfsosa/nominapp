@@ -96,7 +96,8 @@ class ScheduleResource extends Resource
                             ->cloneable()
                             ->addActionLabel('Agregar')
                             ->deletable()
-                            ->reorderable(),
+                            ->reorderable()
+                            ->columnSpanFull(),
                     ])
                     ->columns(3)
                     ->required()

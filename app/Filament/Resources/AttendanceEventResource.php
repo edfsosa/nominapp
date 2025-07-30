@@ -53,12 +53,36 @@ class AttendanceEventResource extends Resource
                 Tables\Columns\TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
-                    ->searchable()
-                    ->copyable(),
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('recorded_at')
                     ->label('Marcado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
+                Tables\Columns\TextColumn::make('event_type')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'check_in' => 'Entrada jornada',
+                        'break_out' => 'Salida descanso',
+                        'break_in' => 'Entrada descanso',
+                        'check_out' => 'Salida jornada',
+                        default => 'Desconocido',
+                    })
+                    ->badge()
+                    ->color(fn($state) => match ($state) {
+                        'check_in' => 'success',
+                        'break_out' => 'warning',
+                        'break_in' => 'warning',
+                        'check_out' => 'info',
+                        default => 'gray',
+                    })
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('day.employee.ci')
+                    ->label('CI')
+                    ->numeric()
+                    ->copyable()
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('day.employee.first_name')
                     ->label('Nombre')
                     ->searchable()
@@ -67,8 +91,12 @@ class AttendanceEventResource extends Resource
                     ->label('Apellido')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('event_type')
-                    ->label('Tipo')
+                Tables\Columns\TextColumn::make('day.employee.branch.name')
+                    ->label('Sucursal')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('location')
+                    ->label('Ubicación')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
@@ -83,7 +111,7 @@ class AttendanceEventResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('employee')
+                /* SelectFilter::make('employee')
                     ->relationship('employee', 'ci')
                     ->label('Empleado')
                     ->placeholder('Seleccionar empleado')
@@ -130,8 +158,7 @@ class AttendanceEventResource extends Resource
                                 $data['recorded_until'],
                                 fn(Builder $query, $date): Builder => $query->whereDate('recorded_at', '<=', $date),
                             );
-                    })
-            ])
+                    }) */])
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),

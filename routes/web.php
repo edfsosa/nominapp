@@ -28,8 +28,8 @@ Route::get('/payroll/{payroll}/download-all', function (Payroll $payroll) {
 })->name('payroll.download.all')->middleware('signed');
 
 
-Route::get('/marcar', [AttendanceMarkingController::class, 'showForm'])->name('marcar.form');
-Route::post('/marcar', [AttendanceMarkingController::class, 'store'])->name('marcar.store');
+Route::get('/marcar', [AttendanceMarkingController::class, 'showForm'])->name('mark.form');
+Route::post('/marcar', [AttendanceMarkingController::class, 'store'])->name('mark.store');
 
 Route::get('/api/employees', function (Request $request) {
     $branch_id = $request->query('branch_id'); // Obtener branch_id del parámetro de consulta
