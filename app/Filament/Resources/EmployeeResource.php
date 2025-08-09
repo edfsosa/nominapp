@@ -68,6 +68,13 @@ class EmployeeResource extends Resource
                                     ->minValue(1)
                                     ->required()
                                     ->maxLength(20),
+                                DatePicker::make('birth_date')
+                                    ->label('Fecha de Nacimiento')
+                                    ->displayFormat('d/m/Y')
+                                    ->minDate(now()->subYears(100))
+                                    ->maxDate(now())
+                                    ->default(now()->subYears(18))
+                                    ->required(),
                                 TextInput::make('phone')
                                     ->label('Teléfono')
                                     ->tel()
@@ -94,20 +101,29 @@ class EmployeeResource extends Resource
                                     ->maxDate(now()->addYears(1))
                                     ->default(now())
                                     ->required(),
-                                Select::make('contract_type')
-                                    ->label('Tipo de Contrato')
+                                Select::make('payroll_type')
+                                    ->label('Tipo de Nómina')
                                     ->options([
-                                        'mensualero' => 'Mensualero',
-                                        'jornalero' => 'Jornalero',
+                                        'monthly' => 'Mensual',
+                                        'biweekly' => 'Quincenal',
+                                        'weekly' => 'Semanal',
+                                    ])
+                                    ->native(false)
+                                    ->required(),
+                                Select::make('employment_type')
+                                    ->label('Tipo de Empleo')
+                                    ->options([
+                                        'full_time' => 'Tiempo Completo',
+                                        'day_laborer' => 'Jornalero',
                                     ])
                                     ->native(false)
                                     ->required(),
                                 Select::make('payment_method')
                                     ->label('Método de Pago')
                                     ->options([
-                                        'debito' => 'Tarjeta de Débito',
-                                        'efectivo' => 'Efectivo',
-                                        'cheque' => 'Cheque',
+                                        'debit' => 'Tarjeta de Débito',
+                                        'cash' => 'Efectivo',
+                                        'check' => 'Cheque',
                                     ])
                                     ->native(false)
                                     ->required(),
@@ -116,6 +132,14 @@ class EmployeeResource extends Resource
                             ->schema([
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
+                                    ->required()
+                                    ->integer()
+                                    ->minValue(0)
+                                    ->maxLength(10)
+                                    ->prefix('Gs.')
+                                    ->default(0),
+                                TextInput::make('daily_rate')
+                                    ->label('Tarifa Diaria')
                                     ->required()
                                     ->integer()
                                     ->minValue(0)
@@ -166,6 +190,15 @@ class EmployeeResource extends Resource
                                     ->hiddenOn('create')
                                     ->default('activo')
                                     ->required(),
+                                // face_descriptor
+                                Forms\Components\Textarea::make('face_descriptor')
+                                    ->label('Descriptor Facial')
+                                    ->helperText('Este campo se utiliza para almacenar el descriptor facial del empleado. Se recomienda capturar el rostro del empleado utilizando la herramienta de captura facial.')
+                                    ->rows(3)
+                                    ->maxLength(65535)
+                                    ->hiddenOn('create')
+                                    ->default(json_encode([]))
+                                    ->dehydrated(fn($state) => !empty($state) ? json_decode($state, true) : []),
                             ]),
                     ]),
             ]);
@@ -187,6 +220,11 @@ class EmployeeResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->copyable(),
+                TextColumn::make('birth_date')
+                    ->label('Fecha de Nacimiento')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('first_name')
                     ->label('Nombre(s)')
                     ->sortable()
@@ -213,12 +251,23 @@ class EmployeeResource extends Resource
                     ->date('d/m/Y')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('contract_type')
-                    ->label('Tipo de Contrato')
+                TextColumn::make('payroll_type')
+                    ->label('Tipo de Nómina')
                     ->badge()
                     ->colors([
-                        'success' => 'mensualero',
-                        'warning' => 'jornalero',
+                        'primary' => 'monthly',
+                        'secondary' => 'biweekly',
+                        'info' => 'weekly',
+                    ])
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('employment_type')
+                    ->label('Tipo de Empleo')
+                    ->badge()
+                    ->colors([
+                        'success' => 'full_time',
+                        'warning' => 'day_laborer',
                     ])
                     ->sortable()
                     ->searchable()
@@ -228,13 +277,18 @@ class EmployeeResource extends Resource
                     ->numeric()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('daily_rate')
+                    ->label('Tarifa Diaria (₲)')
+                    ->numeric()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payment_method')
                     ->label('Método de Pago')
                     ->badge()
                     ->colors([
-                        'success' => 'debito',
-                        'warning' => 'efectivo',
-                        'danger' => 'cheque',
+                        'primary' => 'debit',
+                        'secondary' => 'cash',
+                        'info' => 'check',
                     ])
                     ->sortable()
                     ->searchable()
@@ -258,9 +312,9 @@ class EmployeeResource extends Resource
                     ->label('Estado')
                     ->badge()
                     ->colors([
-                        'success' => 'activo',
-                        'warning' => 'inactivo',
-                        'danger' => 'suspendido',
+                        'success' => 'active',
+                        'danger' => 'inactive',
+                        'warning' => 'suspended',
                     ])
                     ->sortable()
                     ->searchable(),
@@ -285,9 +339,9 @@ class EmployeeResource extends Resource
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
-                        'activo' => 'Activo',
-                        'inactivo' => 'Inactivo',
-                        'suspendido' => 'Suspendido',
+                        'active' => 'Activo',
+                        'inactive' => 'Inactivo',
+                        'suspended' => 'Suspendido',
                     ])
                     ->placeholder('Seleccionar estado')
                     ->native(false),
@@ -297,20 +351,21 @@ class EmployeeResource extends Resource
                     ->relationship('branch', 'name')
                     ->placeholder('Seleccionar sucursal')
                     ->native(false),
-                SelectFilter::make('contract_type')
-                    ->label('Tipo de Contrato')
+                SelectFilter::make('payroll_type')
+                    ->label('Tipo de Nómina')
                     ->options([
-                        'mensualero' => 'Mensualero',
-                        'jornalero' => 'Jornalero',
+                        'monthly' => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly' => 'Semanal',
                     ])
-                    ->placeholder('Seleccionar tipo de contrato')
+                    ->placeholder('Seleccionar tipo de nómina')
                     ->native(false),
                 SelectFilter::make('payment_method')
                     ->label('Método de Pago')
                     ->options([
-                        'debito' => 'Tarjeta de Débito',
-                        'efectivo' => 'Efectivo',
-                        'cheque' => 'Cheque',
+                        'debit' => 'Tarjeta de Débito',
+                        'cash' => 'Efectivo',
+                        'check' => 'Cheque',
                     ])
                     ->placeholder('Seleccionar método de pago')
                     ->native(false),
@@ -344,7 +399,13 @@ class EmployeeResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\Action::make('capturarRostro')
+                    ->label('Capturar Rostro')
+                    ->icon('heroicon-o-camera')
+                    //->url(fn(Employee $record): string => route('face.capture', ['employee' => $record->id]))
+                    ->openUrlInNewTab()
+                    ->color('success')
+                    ->tooltip('Abrir la herramienta de captura facial en una nueva pestaña'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

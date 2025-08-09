@@ -13,7 +13,7 @@ return new class extends Migration
     {
         Schema::create('schedules', function (Blueprint $table) {
             $table->id();
-            $table->string('name', 60)->comment('Ej: Estándar, Sucursal A, etc'); // Nombre del tipo de turno
+            $table->string('name', 60)->comment('Ej: Estándar, Sucursal A, Mañana, Tarde, etc'); // Nombre del tipo de turno
             $table->string('description', 100)->nullable(); // Descripción general del horario
             $table->timestamps();
         });

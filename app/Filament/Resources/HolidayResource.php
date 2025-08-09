@@ -44,7 +44,7 @@ class HolidayResource extends Resource
             ->columns([
                 Tables\Columns\TextColumn::make('date')
                     ->label('Fecha')
-                    ->date()
+                    ->date('d/m/Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('name')
                     ->label('Nombre')

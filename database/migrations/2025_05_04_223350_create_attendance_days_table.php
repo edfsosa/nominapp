@@ -15,7 +15,7 @@ return new class extends Migration
             $table->id();
             $table->foreignId('employee_id')->constrained()->onDelete('cascade');
             $table->date('date');
-            $table->enum('status', ['present', 'absent', 'on_leave', 'holiday'])->default('absent');
+            $table->enum('status', ['present', 'absent', 'on_leave'])->default('absent');
             $table->timestamps();
             $table->unique(['employee_id', 'date']);
         });

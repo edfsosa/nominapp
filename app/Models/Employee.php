@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\PayrollService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Casts\AsEncryptedArrayObject;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,16 +22,20 @@ class Employee extends Model
         'first_name',
         'last_name',
         'ci',
+        'birth_date',
         'phone',
         'email',
         'hire_date',
-        'contract_type',
+        'payroll_type',
+        'employment_type',
         'base_salary',
+        'daily_rate',
         'payment_method',
         'position_id',
         'branch_id',
         'schedule_id',
         'status',
+        'face_descriptor',
     ];
 
     protected $casts = [
@@ -39,6 +44,9 @@ class Employee extends Model
         'contract_type' => 'string',
         'payment_method' => 'string',
         'status'        => 'string',
+        'face_descriptor' => AsEncryptedArrayObject::class,
+        'birth_date'   => 'date',
+        'daily_rate'   => 'integer',
     ];
 
     /**
@@ -129,5 +137,13 @@ class Employee extends Model
     public function vacations(): HasMany
     {
         return $this->hasMany(Vacation::class);
+    }
+
+    /**
+     * Relación con el modelo EmployeeLeave, un empleado puede tener muchos permisos
+     */
+    public function leaves(): HasMany
+    {
+        return $this->hasMany(EmployeeLeave::class);
     }
 }

@@ -41,8 +41,7 @@ class AttendanceDayResource extends Resource
                     ->options([
                         'present' => 'Presente',
                         'absent' => 'Ausente',
-                        'on_leave' => 'De baja',
-                        'holiday' => 'Feriado',
+                        'on_leave' => 'De permiso',
                     ])
                     ->native(false)
                     ->required(),
@@ -84,16 +83,14 @@ class AttendanceDayResource extends Resource
                     ->formatStateUsing(fn($state) => match ($state) {
                         'present' => 'Presente',
                         'absent' => 'Ausente',
-                        'on_leave' => 'De baja',
-                        'holiday' => 'Feriado',
+                        'on_leave' => 'De permiso',
                         default => 'Desconocido',
                     })
                     ->badge()
                     ->color(fn($state) => match ($state) {
                         'present' => 'success',
                         'absent' => 'warning',
-                        'on_leave' => 'warning',
-                        'holiday' => 'info',
+                        'on_leave' => 'info',
                         default => 'gray',
                     })
                     ->searchable()
