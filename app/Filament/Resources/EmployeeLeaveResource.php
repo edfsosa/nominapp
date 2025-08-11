@@ -9,9 +9,12 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class EmployeeLeaveResource extends Resource
 {
@@ -26,21 +29,61 @@ class EmployeeLeaveResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('employee_id')
+                Forms\Components\Select::make('employee_id')
+                    ->label('Empleado')
+                    ->relationship('employee', 'first_name')
+                    ->searchable()
                     ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('type')
+                    ->preload(),
+                Forms\Components\Select::make('type')
+                    ->label('Tipo de Permiso')
+                    ->options([
+                        'medical_leave' => 'Reposo Médico',
+                        'vacation' => 'Vacaciones',
+                        'day_off' => 'Día Libre',
+                        'maternity_leave' => 'Permiso Maternidad',
+                        'paternity_leave' => 'Permiso Paternidad',
+                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
+                        'other' => 'Otro',
+                    ])
+                    ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('start_date')
+                    ->label('Desde')
+                    ->default(now())
+                    ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
+                    ->label('Hasta')
+                    ->default(now())
+                    ->native(false)
                     ->required(),
                 Forms\Components\Textarea::make('reason')
+                    ->label('Descripción/Motivo')
+                    ->maxLength(500)
+                    ->nullable()
                     ->columnSpanFull(),
-                Forms\Components\TextInput::make('document_path')
-                    ->maxLength(255)
-                    ->default(null),
-                Forms\Components\TextInput::make('status')
+                Forms\Components\FileUpload::make('document_path')
+                    ->label('Documento Comprobante')
+                    ->disk('public')
+                    ->directory('employee_leaves')
+                    ->visibility('public')
+                    ->nullable()
+                    ->acceptedFileTypes(['application/pdf', 'image/*'])
+                    ->maxSize(10240) // 10 MB
+                    ->downloadable()
+                    ->columnSpanFull(),
+                Forms\Components\Select::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
+                    ])
+                    ->native(false)
+                    ->default('pending')
+                    ->columnSpanFull()
+                    ->hiddenOn('create')
                     ->required(),
             ]);
     }
@@ -49,39 +92,122 @@ class EmployeeLeaveResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee_id')
+                Tables\Columns\TextColumn::make('employee.ci')
+                    ->label('CI')
                     ->numeric()
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('type'),
+                    ->sortable()
+                    ->searchable()
+                    ->copyable(),
+                Tables\Columns\TextColumn::make('employee.first_name')
+                    ->label('Nombre(s)')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('employee.last_name')
+                    ->label('Apellido(s)')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('employee.position.name')
+                    ->label('Cargo')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('employee.position.department.name')
+                    ->label('Departamento')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('employee.branch.name')
+                    ->label('Sucursal')
+                    ->sortable()
+                    ->searchable(),
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'medical_leave' => 'Reposo Médico',
+                        'vacation' => 'Vacaciones',
+                        'day_off' => 'Día Libre',
+                        'maternity_leave' => 'Permiso Maternidad',
+                        'paternity_leave' => 'Permiso Paternidad',
+                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
+                        'other' => 'Otro',
+                    })
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('start_date')
-                    ->date()
+                    ->label('Desde')
+                    ->date('d/m/Y')
                     ->sortable(),
                 Tables\Columns\TextColumn::make('end_date')
-                    ->date()
+                    ->label('Hasta')
+                    ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('document_path')
+                Tables\Columns\TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn($state) => match ($state) {
+                        'pending' => 'warning',
+                        'approved' => 'success',
+                        'rejected' => 'danger',
+                        default => 'secondary',
+                    })
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
+                    })
+                    ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('status'),
                 Tables\Columns\TextColumn::make('created_at')
-                    ->dateTime()
+                    ->label('Creado')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('updated_at')
-                    ->dateTime()
+                    ->label('Actualizado')
+                    ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
+                    ])
+                    ->placeholder('Seleccionar estado')
+                    ->native(false),
+                SelectFilter::make('type')
+                    ->label('Tipo')
+                    ->options([
+                        'medical_leave' => 'Reposo Médico',
+                        'vacation' => 'Vacaciones',
+                        'day_off' => 'Día Libre',
+                        'maternity_leave' => 'Permiso Maternidad',
+                        'paternity_leave' => 'Permiso Paternidad',
+                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
+                        'other' => 'Otro',
+                    ])
+                    ->placeholder('Seleccionar tipo')
+                    ->native(false),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                ExportBulkAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'created_at',
+                                'updated_at',
+                                'document_path',
+                            ])
+                            ->withFilename('permisos_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
             ]);
     }
 

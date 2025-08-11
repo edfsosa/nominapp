@@ -67,7 +67,8 @@ class BranchResource extends Resource
                     ->valuePlaceholder('-57.611112')
                     ->nullable()
                     ->columns(2)
-                    ->addable(false),
+                    ->addable(false)
+                    ->columnSpanFull(),
 
             ]);
     }
@@ -124,10 +125,19 @@ class BranchResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\EmployeesRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageBranches::route('/'),
+            'index' => Pages\ListBranches::route('/'),
+            'create' => Pages\CreateBranch::route('/create'),
+            'edit' => Pages\EditBranch::route('/{record}/edit'),
         ];
     }
 }

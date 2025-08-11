@@ -15,38 +15,35 @@ class EmployeeDeductionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeeDeductions';
     protected static ?string $title = 'Deducciones';
+    protected static ?string $modelLabel = 'Deducción';
+    protected static ?string $pluralModelLabel = 'Deducciones';
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Grid::make()
-                    ->schema([
-                        Forms\Components\Select::make('deduction_id')
-                            ->label('Deducción')
-                            ->relationship('deduction', 'name')
-                            ->required()
-                            ->searchable()
-                            ->preload(),
-                        Forms\Components\DatePicker::make('start_date')
-                            ->label('Desde')
-                            ->native(false)
-                            ->default(now())
-                            ->required(),
-                        Forms\Components\DatePicker::make('end_date')
-                            ->label('Hasta'),
-                        Forms\Components\TextInput::make('custom_amount')
-                            ->label('Monto (opcional)')
-                            ->numeric()
-                            ->default(0)
-                            ->minValue(0),
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Notas')
-                            ->rows(1)
-                            ->maxLength(500)
-                            ->columnSpanFull(),
-                    ])->columns(4),
-            ]);
+                Forms\Components\Select::make('deduction_id')
+                    ->label('Deducción')
+                    ->relationship('deduction', 'name')
+                    ->required()
+                    ->searchable()
+                    ->preload(),
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Desde')
+                    ->native(false)
+                    ->default(now())
+                    ->required(),
+                Forms\Components\DatePicker::make('end_date')
+                    ->label('Hasta')
+                    ->native(false)
+                    ->after('start_date'),
+                Forms\Components\Textarea::make('notes')
+                    ->label('Notas')
+                    ->rows(1)
+                    ->maxLength(500)
+                    ->columnSpanFull(),
+            ])
+            ->columns(3);
     }
 
     public function table(Table $table): Table

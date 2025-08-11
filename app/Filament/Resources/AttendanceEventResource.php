@@ -3,57 +3,30 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceEventResource\Pages;
-use App\Filament\Resources\AttendanceEventResource\RelationManagers;
 use App\Models\AttendanceEvent;
-use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class AttendanceEventResource extends Resource
 {
     protected static ?string $model = AttendanceEvent::class;
-    //protected static ?string $navigationGroup = 'Definiciones';
     protected static ?string $navigationLabel = 'Marcaciones';
     protected static ?string $label = 'Marcación';
     protected static ?string $pluralLabel = 'Marcaciones';
     protected static ?string $slug = 'marcaciones';
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
-    /* public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                Forms\Components\Select::make('attendance_day_id')
-                    ->label('Día')
-                    ->required()
-                    ->numeric(),
-                Forms\Components\TextInput::make('event_type')
-                    ->label('Tipo')
-                    ->required(),
-                Forms\Components\Textarea::make('location')
-                    ->label('Ubicación')
-                    ->columnSpanFull(),
-                Forms\Components\DateTimePicker::make('Grabado')
-                    ->label('Empleado')
-                    ->required(),
-            ]);
-    } */
-
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
-                    ->label('ID')
-                    ->sortable()
-                    ->searchable(),
                 Tables\Columns\TextColumn::make('recorded_at')
                     ->label('Marcado')
                     ->dateTime('d/m/Y H:i')
@@ -84,15 +57,23 @@ class AttendanceEventResource extends Resource
                     ->sortable()
                     ->searchable(),
                 Tables\Columns\TextColumn::make('day.employee.first_name')
-                    ->label('Nombre')
+                    ->label('Nombre(s)')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('day.employee.last_name')
-                    ->label('Apellido')
+                    ->label('Apellido(s)')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('day.employee.branch.name')
                     ->label('Sucursal')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('day.employee.position.name')
+                    ->label('Cargo')
+                    ->searchable()
+                    ->sortable(),
+                Tables\Columns\TextColumn::make('day.employee.position.department.name')
+                    ->label('Departamento')
                     ->searchable()
                     ->sortable(),
                 Tables\Columns\TextColumn::make('location')
@@ -111,39 +92,35 @@ class AttendanceEventResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                /* SelectFilter::make('employee')
-                    ->relationship('employee', 'ci')
+                SelectFilter::make('day.employee_id')
                     ->label('Empleado')
                     ->placeholder('Seleccionar empleado')
-                    ->options(function (Builder $query) {
-                        return $query->pluck('ci', 'id');
-                    })
-                    ->multiple()
-                    ->preload()
-                    ->searchable()
+                    ->relationship('day.employee', 'first_name')
+                    ->native(false),
+                SelectFilter::make('day.employee.branch_id')
+                    ->label('Sucursal')
+                    ->placeholder('Seleccionar sucursal')
+                    ->relationship('day.employee.branch', 'name')
                     ->native(false),
                 SelectFilter::make('event_type')
                     ->label('Tipo')
                     ->placeholder('Seleccionar tipo')
                     ->options([
                         'check_in' => 'Entrada jornada',
-                        'break_start' => 'Salida descanso',
-                        'break_end' => 'Entrada descanso',
+                        'break_start' => 'Inicio descanso',
+                        'break_end' => 'Fin descanso',
                         'check_out' => 'Salida jornada',
                     ])
                     ->native(false),
                 Filter::make('recorded_at')
+                    ->label('Fecha marcado')
                     ->form([
                         DatePicker::make('recorded_from')
                             ->label('Desde')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
                             ->native(false)
                             ->closeOnDateSelection(),
                         DatePicker::make('recorded_until')
                             ->label('Hasta')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
                             ->native(false)
                             ->closeOnDateSelection(),
                     ])
@@ -158,15 +135,23 @@ class AttendanceEventResource extends Resource
                                 $data['recorded_until'],
                                 fn(Builder $query, $date): Builder => $query->whereDate('recorded_at', '<=', $date),
                             );
-                    }) */])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                    })
             ])
+            ->actions([])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                ExportBulkAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'created_at',
+                                'updated_at',
+                            ])
+                            ->withFilename('marcaciones_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
             ]);
     }
 

@@ -27,5 +27,6 @@ class DatabaseSeeder extends Seeder
         $this->call(DeductionSeeder::class);
         $this->call(PerceptionSeeder::class);
         $this->call(HolidaySeeder::class);
+        $this->call(AttendanceDayWithEventsSeeder::class);
     }
 }

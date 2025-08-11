@@ -10,42 +10,55 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
-class VacationsRelationManager extends RelationManager
+class LeavesRelationManager extends RelationManager
 {
-    protected static string $relationship = 'vacations';
-    protected static ?string $title = 'Vacaciones';
-    protected static ?string $modelLabel = 'Vacación';
-    protected static ?string $pluralModelLabel = 'Vacaciones';
+    protected static string $relationship = 'leaves';
+    protected static ?string $title = 'Permisos';
+    protected static ?string $modelLabel = 'Permiso';
+    protected static ?string $pluralModelLabel = 'Permisos';
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
+                Forms\Components\Select::make('type')
+                    ->label('Tipo de Permiso')
+                    ->options([
+                        'medical_leave' => 'Reposo Médico',
+                        'vacation' => 'Vacaciones',
+                        'day_off' => 'Día Libre',
+                        'maternity_leave' => 'Permiso Maternidad',
+                        'paternity_leave' => 'Permiso Paternidad',
+                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
+                        'other' => 'Otro',
+                    ])
+                    ->native(false)
+                    ->searchable()
+                    ->required(),
                 Forms\Components\DatePicker::make('start_date')
-                    ->label('Inicio')
-                    ->closeOnDateSelection()
+                    ->label('Fecha de Inicio')
+                    ->default(now())
                     ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
-                    ->label('Fin')
-                    ->closeOnDateSelection()
-                    ->native(false)
-                    ->required()
-                    ->after('start_date'),
-                Forms\Components\Select::make('type')
-                    ->label('Tipo')
-                    ->options([
-                        'paid' => 'Remunerada',
-                        'unpaid' => 'No Remunerada',
-                    ])
-                    ->default('paid')
+                    ->label('Fecha de Fin')
+                    ->default(now())
                     ->native(false)
                     ->required(),
                 Forms\Components\Textarea::make('reason')
-                    ->label('Motivo')
-                    ->rows(1)
+                    ->label('Descripción/Motivo')
                     ->maxLength(500)
-                    ->nullable(),
+                    ->nullable()
+                    ->columnSpanFull(),
+                Forms\Components\FileUpload::make('document_path')
+                    ->label('Documento Comprobante')
+                    ->disk('public')
+                    ->directory('employee_leaves')
+                    ->visibility('public')
+                    ->nullable()
+                    ->acceptedFileTypes(['application/pdf', 'image/*'])
+                    ->maxSize(10240) // 10 MB
+                    ->columnSpanFull(),
                 Forms\Components\Select::make('status')
                     ->label('Estado')
                     ->options([
@@ -53,43 +66,58 @@ class VacationsRelationManager extends RelationManager
                         'approved' => 'Aprobado',
                         'rejected' => 'Rechazado',
                     ])
-                    ->default('pending')
                     ->native(false)
+                    ->default('pending')
                     ->hiddenOn('create')
                     ->required()
                     ->columnSpanFull(),
             ])
-            ->columns(2);
+            ->columns(3);
     }
 
     public function table(Table $table): Table
     {
         return $table
+            ->recordTitleAttribute('type')
             ->columns([
+                Tables\Columns\TextColumn::make('type')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'medical_leave' => 'Reposo Médico',
+                        'vacation' => 'Vacaciones',
+                        'day_off' => 'Día Libre',
+                        'maternity_leave' => 'Permiso Maternidad',
+                        'paternity_leave' => 'Permiso Paternidad',
+                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
+                        'other' => 'Otro',
+                    })
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('start_date')
-                    ->label('Inicio')
+                    ->label('Desde')
                     ->date('d/m/Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('end_date')
-                    ->label('Fin')
+                    ->label('Hasta')
                     ->date('d/m/Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
                 Tables\Columns\TextColumn::make('status')
                     ->label('Estado')
-                    ->sortable()
-                    ->searchable()
                     ->badge()
                     ->colors([
                         'warning' => 'pending',
                         'success' => 'approved',
                         'danger' => 'rejected',
                     ])
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                    ->formatStateUsing(fn($state) => match ($state) {
                         'pending' => 'Pendiente',
                         'approved' => 'Aprobado',
                         'rejected' => 'Rechazado',
-                        default => $state,
-                    }),
+                    })
+                    ->sortable()
+                    ->searchable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')

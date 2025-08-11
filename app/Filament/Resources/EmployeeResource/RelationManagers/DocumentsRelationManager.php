@@ -16,6 +16,9 @@ class DocumentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'documents';
     protected static ?string $title = 'Documentos';
+    protected static ?string $recordTitleAttribute = 'name';
+    protected static ?string $modelLabel = 'Documento';
+    protected static ?string $pluralModelLabel = 'Documentos';
 
     public function form(Form $form): Form
     {
@@ -39,6 +42,7 @@ class DocumentsRelationManager extends RelationManager
                         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // Excel 2007+
                         'application/vnd.openxmlformats-officedocument.presentationml.presentation', // PowerPoint 2007+
                     ])
+                    ->downloadable()
                     ->required(),
 
             ]);

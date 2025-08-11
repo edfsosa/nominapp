@@ -15,44 +15,40 @@ class EmployeePerceptionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeePerceptions';
     protected static ?string $title = 'Percepciones';
+    protected static ?string $modelLabel = 'Percepción';
+    protected static ?string $pluralModelLabel = 'Percepciones';
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Grid::make()
-                    ->schema([
-                        Forms\Components\Select::make('perception_id')
-                            ->label('Percepción')
-                            ->relationship('percepcion', 'name')
-                            ->required()
-                            ->searchable()
-                            ->preload(),
-                        Forms\Components\DatePicker::make('start_date')
-                            ->label('Desde')
-                            ->native(false)
-                            ->default(now())
-                            ->required(),
-                        Forms\Components\DatePicker::make('end_date')
-                            ->label('Hasta'),
-                        Forms\Components\TextInput::make('custom_amount')
-                            ->label('Monto (opcional)')
-                            ->numeric()
-                            ->default(0)
-                            ->minValue(0),
-                        Forms\Components\Textarea::make('notes')
-                            ->label('Notas')
-                            ->rows(1)
-                            ->maxLength(500)
-                            ->columnSpanFull(),
-                    ])->columns(4),
-            ]);
+                Forms\Components\Select::make('perception_id')
+                    ->label('Percepción')
+                    ->relationship('perception', 'name')
+                    ->required()
+                    ->searchable()
+                    ->preload(),
+                Forms\Components\DatePicker::make('start_date')
+                    ->label('Desde')
+                    ->native(false)
+                    ->default(now())
+                    ->required(),
+                Forms\Components\DatePicker::make('end_date')
+                    ->label('Hasta')
+                    ->native(false)
+                    ->after('start_date'),
+                Forms\Components\Textarea::make('notes')
+                    ->label('Notas')
+                    ->rows(1)
+                    ->maxLength(500)
+                    ->columnSpanFull(),
+            ])
+            ->columns(3);
     }
 
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('name')
             ->columns([
                 Tables\Columns\TextColumn::make('perception.name')
                     ->label('Percepción')

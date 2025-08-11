@@ -2,11 +2,11 @@
 
 namespace App\Filament\Resources;
 
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
-use App\Models\Deduction;
-use App\Models\Perception;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\DatePicker;
@@ -20,6 +20,7 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Columns\SelectColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -41,19 +42,26 @@ class EmployeeResource extends Resource
         return $form
             ->schema([
                 Section::make('Datos Personales')
-                    ->description('Información básica del empleado')
+                    ->description('Ingrese los datos personales del empleado.')
                     ->schema([
-                        FileUpload::make('photo')
-                            ->label('Foto')
-                            ->disk('public')
-                            ->directory('employees')
-                            ->image()
-                            ->avatar()
-                            ->imageEditor()
-                            ->circleCropper()
-                            ->nullable(),
-                        Grid::make(2)
+                        Grid::make(4)
                             ->schema([
+                                FileUpload::make('photo')
+                                    ->label('Foto')
+                                    ->disk('public')
+                                    ->directory('employees')
+                                    ->image()
+                                    ->avatar()
+                                    ->imageEditor()
+                                    ->circleCropper()
+                                    ->nullable()
+                                    ->downloadable(),
+                                TextInput::make('ci')
+                                    ->label('Cédula de Identidad')
+                                    ->integer()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->maxLength(20),
                                 TextInput::make('first_name')
                                     ->label('Nombre(s)')
                                     ->required()
@@ -65,12 +73,6 @@ class EmployeeResource extends Resource
                             ]),
                         Grid::make(3)
                             ->schema([
-                                TextInput::make('ci')
-                                    ->label('Cédula de Identidad')
-                                    ->integer()
-                                    ->minValue(1)
-                                    ->required()
-                                    ->maxLength(20),
                                 DatePicker::make('birth_date')
                                     ->label('Fecha de Nacimiento')
                                     ->displayFormat('d/m/Y')
@@ -87,15 +89,15 @@ class EmployeeResource extends Resource
                                 TextInput::make('email')
                                     ->label('Correo Electrónico')
                                     ->email()
-                                    ->required()
                                     ->maxLength(60)
                                     ->unique(Employee::class, 'email', ignoreRecord: true),
                             ]),
                     ]),
 
-                Section::make('Detalles de contratación')
+                Section::make('Detalles de Empleo')
+                    ->description('Ingrese los detalles de empleo del empleado.')
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(5)
                             ->schema([
                                 DatePicker::make('hire_date')
                                     ->label('Fecha de Contratación')
@@ -130,9 +132,6 @@ class EmployeeResource extends Resource
                                     ])
                                     ->native(false)
                                     ->required(),
-                            ]),
-                        Grid::make(4)
-                            ->schema([
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
                                     ->integer()
@@ -143,6 +142,9 @@ class EmployeeResource extends Resource
                                     ->visible(fn(Forms\Get $get) => $get('employment_type') === 'full_time')
                                     ->prefix('Gs.')
                                     ->default(0),
+                            ]),
+                        Grid::make(5)
+                            ->schema([
                                 TextInput::make('daily_rate')
                                     ->label('Tarifa Diaria')
                                     ->integer()
@@ -188,24 +190,21 @@ class EmployeeResource extends Resource
                                 Select::make('status')
                                     ->label('Estado')
                                     ->options([
-                                        'activo' => 'Activo',
-                                        'inactivo' => 'Inactivo',
-                                        'suspendido' => 'Suspendido',
+                                        'active' => 'Activo',
+                                        'inactive' => 'Inactivo',
+                                        'suspended' => 'Suspendido',
                                     ])
                                     ->searchable()
                                     ->native(false)
                                     ->hiddenOn('create')
                                     ->default('activo')
                                     ->required(),
-                                // face_descriptor
-                                Forms\Components\Textarea::make('face_descriptor')
+                                Textarea::make('face_descriptor')
                                     ->label('Descriptor Facial')
-                                    ->helperText('Este campo se utiliza para almacenar el descriptor facial del empleado. Se recomienda capturar el rostro del empleado utilizando la herramienta de captura facial.')
-                                    ->rows(3)
-                                    ->maxLength(65535)
+                                    ->rows(1)
+                                    ->maxLength(500)
                                     ->hiddenOn('create')
-                                    ->default(json_encode([]))
-                                    ->dehydrated(fn($state) => !empty($state) ? json_decode($state, true) : []),
+                                    ->readonly(),
                             ]),
                     ]),
             ]);
@@ -215,10 +214,6 @@ class EmployeeResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
-                    ->searchable()
-                    ->sortable(),
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular(),
@@ -266,6 +261,12 @@ class EmployeeResource extends Resource
                         'secondary' => 'biweekly',
                         'info' => 'weekly',
                     ])
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'monthly' => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly' => 'Semanal',
+                        default => $state,
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -276,6 +277,11 @@ class EmployeeResource extends Resource
                         'success' => 'full_time',
                         'warning' => 'day_laborer',
                     ])
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'full_time' => 'Tiempo Completo',
+                        'day_laborer' => 'Jornalero',
+                        default => $state,
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -297,6 +303,12 @@ class EmployeeResource extends Resource
                         'secondary' => 'cash',
                         'info' => 'check',
                     ])
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'debit' => 'Tarjeta de Débito',
+                        'cash' => 'Efectivo',
+                        'check' => 'Cheque',
+                        default => $state,
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -323,9 +335,14 @@ class EmployeeResource extends Resource
                         'danger' => 'inactive',
                         'warning' => 'suspended',
                     ])
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'active' => 'Activo',
+                        'inactive' => 'Inactivo',
+                        'suspended' => 'Suspendido',
+                        default => $state,
+                    })
                     ->sortable()
                     ->searchable(),
-                // Sucursal a la que pertenece
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->sortable()
@@ -352,7 +369,6 @@ class EmployeeResource extends Resource
                     ])
                     ->placeholder('Seleccionar estado')
                     ->native(false),
-                // SelectFilter para filtrar por sucursal
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->relationship('branch', 'name')
@@ -377,17 +393,14 @@ class EmployeeResource extends Resource
                     ->placeholder('Seleccionar método de pago')
                     ->native(false),
                 Filter::make('created_at')
+                    ->label('Fecha de Creación')
                     ->form([
                         DatePicker::make('created_from')
-                            ->label('Creados desde')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
+                            ->label('Desde')
                             ->native(false)
                             ->closeOnDateSelection(),
                         DatePicker::make('created_until')
-                            ->label('Creados hasta')
-                            ->format('d/m/Y')
-                            ->displayFormat('d/m/Y')
+                            ->label('Hasta')
                             ->native(false)
                             ->closeOnDateSelection(),
                     ])
@@ -415,9 +428,21 @@ class EmployeeResource extends Resource
                     ->tooltip('Abrir la herramienta de captura facial en una nueva pestaña'),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                ExportBulkAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'photo',
+                                'face_descriptor',
+                                'created_at',
+                                'updated_at',
+                            ])
+                            ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
             ]);
     }
 
@@ -426,6 +451,7 @@ class EmployeeResource extends Resource
         return [
             RelationManagers\DocumentsRelationManager::class,
             RelationManagers\VacationsRelationManager::class,
+            RelationManagers\LeavesRelationManager::class,
             RelationManagers\EmployeeDeductionsRelationManager::class,
             RelationManagers\EmployeePerceptionsRelationManager::class,
         ];
