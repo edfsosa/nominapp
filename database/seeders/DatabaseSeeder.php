@@ -26,8 +26,6 @@ class DatabaseSeeder extends Seeder
         $this->call(EmployeeSeeder::class);
         $this->call(DeductionSeeder::class);
         $this->call(PerceptionSeeder::class);
-        $this->call(EmployeeDeductionSeeder::class);
-        $this->call(EmployeePerceptionSeeder::class);
         $this->call(HolidaySeeder::class);
     }
 }

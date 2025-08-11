@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\EmployeeResource\Pages;
 use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Employee;
+use App\Models\Deduction;
+use App\Models\Perception;
 use Filament\Forms;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\DatePicker;
@@ -12,6 +14,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
@@ -132,18 +135,22 @@ class EmployeeResource extends Resource
                             ->schema([
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
-                                    ->required()
                                     ->integer()
                                     ->minValue(0)
                                     ->maxLength(10)
+                                    ->step(1.00)
+                                    ->nullable()
+                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'full_time')
                                     ->prefix('Gs.')
                                     ->default(0),
                                 TextInput::make('daily_rate')
                                     ->label('Tarifa Diaria')
-                                    ->required()
                                     ->integer()
                                     ->minValue(0)
                                     ->maxLength(10)
+                                    ->step(1.00)
+                                    ->nullable()
+                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'day_laborer')
                                     ->prefix('Gs.')
                                     ->default(0),
                                 Select::make('position_id')
@@ -418,9 +425,9 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\DocumentsRelationManager::class,
-            RelationManagers\DeductionsRelationManager::class,
-            RelationManagers\PerceptionsRelationManager::class,
             RelationManagers\VacationsRelationManager::class,
+            RelationManagers\EmployeeDeductionsRelationManager::class,
+            RelationManagers\EmployeePerceptionsRelationManager::class,
         ];
     }
 

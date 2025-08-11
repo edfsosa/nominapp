@@ -70,11 +70,9 @@ class Employee extends Model
      */
     public function deductions(): BelongsToMany
     {
-        return $this->belongsToMany(
-            Deduction::class,
-            'employee_deductions'
-        )->using(EmployeeDeduction::class)
-            ->withPivot('start_date', 'end_date', 'custom_amount')
+        return $this->belongsToMany(Deduction::class, 'employee_deductions')
+            ->using(EmployeeDeduction::class)
+            ->withPivot('start_date', 'end_date', 'custom_amount', 'notes')
             ->withTimestamps();
     }
 
@@ -83,12 +81,26 @@ class Employee extends Model
      */
     public function perceptions(): BelongsToMany
     {
-        return $this->belongsToMany(
-            Perception::class,
-            'employee_perceptions'
-        )->using(EmployeePerception::class)
-            ->withPivot('start_date', 'end_date', 'custom_amount')
+        return $this->belongsToMany(Perception::class, 'employee_perceptions')
+            ->using(EmployeePerception::class)
+            ->withPivot('start_date', 'end_date', 'custom_amount', 'notes')
             ->withTimestamps();
+    }
+
+    /**
+     * Relación con el modelo EmployeeDeduction, un empleado puede tener muchas deducciones
+     */
+    public function employeeDeductions(): HasMany
+    {
+        return $this->hasMany(EmployeeDeduction::class);
+    }
+
+    /**
+     * Relación con el modelo EmployeePerception, un empleado puede tener muchas percepciones
+     */
+    public function employeePerceptions(): HasMany
+    {
+        return $this->hasMany(EmployeePerception::class);
     }
 
     public function payrolls(): HasMany

@@ -11,29 +11,27 @@ class Deduction extends Model
         'name',
         'description',
         'calculation',
-        'value',
-        'applies_to_all',
+        'amount',
+        'percent',
+        'is_mandatory',
+        'is_active',
     ];
 
+    protected $casts = [
+        'amount' => 'decimal:2',
+        'percent' => 'decimal:2',
+        'is_mandatory' => 'boolean',
+        'is_active' => 'boolean',
+    ];
+
+    /**
+     * Relación con el modelo Employee, una deducción puede aplicarse a muchos empleados
+     */
     public function employees(): BelongsToMany
     {
-        return $this->belongsToMany(
-            Employee::class,
-            'employee_deduction',
-            'deduction_id',
-            'employee_id'
-        )->withPivot('effective_from', 'effective_to', 'value_override')->withTimestamps();
-    }
-
-    // Calcular monto para un empleado específico
-    public function calculateFor(Employee $employee)
-    {
-        if ($this->type === 'percentage') {
-            // Si es un porcentaje, calcular sobre el salario del empleado
-            return $employee->base_salary * ($this->value / 100);
-        } elseif ($this->calculation === 'fixed') {
-            // Si es un monto fijo, retornar el valor directamente
-            return $this->value;
-        }
+        return $this->belongsToMany(Employee::class, 'employee_deductions')
+            ->using(EmployeeDeduction::class)
+            ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
+            ->withTimestamps();
     }
 }

@@ -20,8 +20,10 @@ class DeductionSeeder extends Seeder
                 'name' => 'Aporte IPS',
                 'description' => 'Aporte al Instituto de Previsión Social (9% del salario)',
                 'calculation' => 'percentage',
-                'value' => 9.00,
-                'applies_to_all' => true,
+                'amount' => null, // No se usa para porcentaje
+                'percent' => 9.00, // Porcentaje del salario
+                'is_mandatory' => true, // Obligatorio
+                'is_active' => true, // Activo por defecto
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -29,8 +31,10 @@ class DeductionSeeder extends Seeder
                 'name' => 'Impuesto a la Renta Personal (IRP)',
                 'description' => 'Deducción de impuesto sobre la renta según la ley vigente',
                 'calculation' => 'percentage',
-                'value' => 10.00,
-                'applies_to_all' => false,
+                'amount' => null, // No se usa para porcentaje
+                'percent' => 8.00, // Porcentaje del salario
+                'is_mandatory' => true, // Obligatorio
+                'is_active' => true, // Activo por defecto
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -38,8 +42,10 @@ class DeductionSeeder extends Seeder
                 'name' => 'Seguro Médico Privado',
                 'description' => 'Prima mensual del seguro médico',
                 'calculation' => 'fixed',
-                'value' => 250000.00,
-                'applies_to_all' => false,
+                'amount' => 150000.00, // Monto fijo
+                'percent' => null, // No se usa para monto fijo
+                'is_mandatory' => false, // No obligatorio
+                'is_active' => true, // Activo por defecto
                 'created_at' => $now,
                 'updated_at' => $now,
             ],
@@ -47,8 +53,10 @@ class DeductionSeeder extends Seeder
                 'name' => 'Aporte Sindical',
                 'description' => 'Aporte mensual al sindicato de trabajadores',
                 'calculation' => 'fixed',
-                'value' => 50000.00,
-                'applies_to_all' => false,
+                'amount' => 50000.00, // Monto fijo
+                'percent' => null, // No se usa para monto fijo
+                'is_mandatory' => false, // No obligatorio
+                'is_active' => true, // Activo por defecto
                 'created_at' => $now,
                 'updated_at' => $now,
             ],

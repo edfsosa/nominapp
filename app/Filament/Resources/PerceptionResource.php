@@ -45,19 +45,26 @@ class PerceptionResource extends Resource
                     ->native(false)
                     ->reactive()
                     ->required(),
-                Forms\Components\TextInput::make('value')
-                    ->label('Valor')
-                    ->minValue(1)
-                    ->maxValue(fn($get) => $get('calculation') === 'fixed' ? 99999999 : 100)
-                    ->step(fn($get) => $get('calculation') === 'fixed' ? 1 : 0.1)
-                    ->default(1)
-                    ->reactive()
-                    ->required()
-                    ->numeric(),
-                Forms\Components\Toggle::make('applies_to_all')
-                    ->label('Aplica a todos')
-                    ->inline(false)
-                    ->required(),
+                Forms\Components\TextInput::make('amount')
+                    ->label('Monto Fijo')
+                    ->numeric()
+                    ->nullable()
+                    ->visible(fn(Forms\Get $get) => $get('calculation') === 'fixed')
+                    ->default(0.00),
+                Forms\Components\TextInput::make('percent')
+                    ->label('Porcentaje')
+                    ->numeric()
+                    ->nullable()
+                    ->visible(fn(Forms\Get $get) => $get('calculation') === 'percentage')
+                    ->default(0.00),
+                Forms\Components\Toggle::make('is_taxable')
+                    ->label('Gravable')
+                    ->default(false)
+                    ->inline(),
+                Forms\Components\Toggle::make('is_active')
+                    ->label('Activo')
+                    ->default(true)
+                    ->inline(),
             ]);
     }
 
@@ -74,7 +81,7 @@ class PerceptionResource extends Resource
                     ->searchable(),
                 Tables\Columns\TextColumn::make('calculation')
                     ->label('Cálculo')
-                    ->formatStateUsing(fn ($state) => $state === 'fixed' ? 'Fijo' : 'Porcentaje')
+                    ->formatStateUsing(fn($state) => $state === 'fixed' ? 'Fijo' : 'Porcentaje')
                     ->badge()
                     ->colors([
                         'success' => 'fixed',
@@ -82,13 +89,18 @@ class PerceptionResource extends Resource
                     ])
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('value')
-                    ->label('Valor')
-                    ->numeric()
+                Tables\Columns\IconColumn::make('is_taxable')
+                    ->label('Gravable')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('applies_to_all')
-                    ->label('Aplica a todos')
-                    ->boolean(),
+                Tables\Columns\IconColumn::make('is_active')
+                    ->label('Activo')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->sortable(),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')

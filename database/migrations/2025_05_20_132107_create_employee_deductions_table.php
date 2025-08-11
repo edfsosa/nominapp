@@ -15,11 +15,13 @@ return new class extends Migration
             $table->id();
             $table->foreignId('employee_id')->constrained()->cascadeOnDelete(); // Relación con la tabla employees
             $table->foreignId('deduction_id')->constrained()->cascadeOnDelete(); // Relación con la tabla deductions
-            $table->date('start_date')->nullable(); // Fecha de inicio de la deducción
+            $table->date('start_date'); // Fecha de inicio de la deducción
             $table->date('end_date')->nullable(); // Fecha de fin de la deducción (opcional)
             $table->decimal('custom_amount', 10, 2)->nullable(); // Monto personalizado de la deducción (opcional)
-            $table->unique(['employee_id', 'deduction_id', 'start_date'], 'emp_ded_sta_unique');
+            $table->string('notes', 500)->nullable(); // Notas adicionales sobre la deducción (opcional)
             $table->timestamps();
+            $table->unique(['employee_id', 'deduction_id', 'start_date'], 'emp_ded_sta_unique'); // Asegura que no haya duplicados de deducción por empleado y fecha de inicio
+            $table->index(['employee_id', 'deduction_id']); // Índice para optimizar consultas
         });
     }
 

@@ -13,33 +13,44 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 class VacationsRelationManager extends RelationManager
 {
     protected static string $relationship = 'vacations';
+    protected static ?string $title = 'Vacaciones';
 
     public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Forms\Components\DatePicker::make('start_date')
-                    ->label('Fecha de Inicio')
-                    ->displayFormat('d/m/Y')
-                    ->placeholder('dd/mm/aaaa')
+                    ->label('Inicio')
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
-                    ->label('Fecha de Fin')
-                    ->displayFormat('d/m/Y')
-                    ->placeholder('dd/mm/aaaa')
+                    ->label('Fin')
                     ->closeOnDateSelection()
                     ->native(false)
+                    ->required()
+                    ->after('start_date'),
+                Forms\Components\Select::make('type')
+                    ->label('Tipo')
+                    ->options([
+                        'paid' => 'Remunerada',
+                        'unpaid' => 'No Remunerada',
+                    ])
+                    ->default('paid')
+                    ->native(false)
                     ->required(),
+                Forms\Components\Textarea::make('reason')
+                    ->label('Motivo')
+                    ->maxLength(500)
+                    ->nullable(),
                 Forms\Components\Select::make('status')
                     ->label('Estado')
                     ->options([
-                        'pendiente' => 'Pendiente',
-                        'aprobado' => 'Aprobado',
-                        'rechazado' => 'Rechazado',
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
                     ])
-                    ->default('pendiente')
+                    ->default('pending')
                     ->native(false)
                     ->hiddenOn('create')
                     ->required(),
@@ -64,9 +75,9 @@ class VacationsRelationManager extends RelationManager
                     ->searchable()
                     ->badge()
                     ->colors([
-                        'warning' => 'pendiente',
-                        'success' => 'aprobado',
-                        'danger' => 'rechazado',
+                        'warning' => 'pending',
+                        'success' => 'approved',
+                        'danger' => 'rejected',
                     ]),
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Creado')
@@ -88,16 +99,6 @@ class VacationsRelationManager extends RelationManager
             ->actions([
                 Tables\Actions\EditAction::make(),
                 Tables\Actions\DeleteAction::make(),
-                Tables\Actions\Action::make('Aprobar')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn($record) => $record->status === 'pendiente')
-                    ->action(fn($record) => $record->update(['status' => 'aprobado'])),
-                Tables\Actions\Action::make('Rechazar')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn($record) => $record->status === 'pendiente')
-                    ->action(fn($record) => $record->update(['status' => 'rechazado'])),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

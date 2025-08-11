@@ -18,8 +18,10 @@ return new class extends Migration
             $table->date('start_date'); // Fecha de inicio de la percepción
             $table->date('end_date')->nullable(); // Fecha de fin de la percepción (opcional)
             $table->decimal('custom_amount', 10, 2)->nullable(); // Monto personalizado de la percepción (opcional)
-            $table->unique(['employee_id', 'perception_id', 'start_date'], 'emp_per_sta_unique');
+            $table->string('notes', 500)->nullable(); // Notas adicionales sobre la percepción (opcional)
             $table->timestamps();
+            $table->index(['employee_id', 'perception_id']); // Índice para optimizar consultas por empleado y percepción
+            $table->unique(['employee_id', 'perception_id', 'start_date']); // Asegura que no haya duplicados de percepciones para el mismo empleado en la misma fecha de inicio
         });
     }
 
