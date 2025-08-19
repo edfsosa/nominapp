@@ -44,7 +44,7 @@ class Employee extends Model
         'contract_type' => 'string',
         'payment_method' => 'string',
         'status'        => 'string',
-        'face_descriptor' => AsEncryptedArrayObject::class,
+        'face_descriptor' => 'array',
         'birth_date'   => 'date',
         'daily_rate'   => 'integer',
     ];

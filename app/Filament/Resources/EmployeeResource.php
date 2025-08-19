@@ -16,8 +16,10 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Columns\SelectColumn;
@@ -33,7 +35,6 @@ class EmployeeResource extends Resource
     protected static ?string $navigationLabel = 'Empleados';
     protected static ?string $label = 'Empleado';
     protected static ?string $pluralLabel = 'Empleados';
-    protected static ?string $slug = 'empleados';
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
 
     // Formulario de creación y edición
@@ -343,6 +344,13 @@ class EmployeeResource extends Resource
                     })
                     ->sortable()
                     ->searchable(),
+                IconColumn::make('has_face')
+                    ->label('Rostro')
+                    ->boolean()
+                    ->state(fn(Employee $r) => filled($r->face_descriptor))
+                    ->trueIcon('heroicon-m-check-circle')
+                    ->falseIcon('heroicon-m-x-circle')
+                    ->color(fn(bool $state) => $state ? 'success' : 'warning'),
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->sortable()
@@ -419,13 +427,13 @@ class EmployeeResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\Action::make('capturarRostro')
-                    ->label('Capturar Rostro')
+                Tables\Actions\Action::make('capture_face')
+                    ->label(fn(Employee $record): string => $record->face_descriptor ? 'Actualizar Rostro' : 'Capturar Rostro')
                     ->icon('heroicon-o-camera')
-                    //->url(fn(Employee $record): string => route('face.capture', ['employee' => $record->id]))
-                    ->openUrlInNewTab()
+                    ->url(fn(Employee $record): string => route('face.capture', $record))
                     ->color('success')
-                    ->tooltip('Abrir la herramienta de captura facial en una nueva pestaña'),
+                    ->tooltip('Ir a captura facial')
+                    ->visible(fn(Employee $record): string => $record->status === 'active'),
             ])
             ->bulkActions([
                 ExportBulkAction::make()

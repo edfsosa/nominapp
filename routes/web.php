@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\AttendanceMarkingController;
+use App\Http\Controllers\EmployeeFaceController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\PayrollController;
 use App\Models\Branch;
@@ -28,8 +30,12 @@ Route::get('/payroll/{payroll}/download-all', function (Payroll $payroll) {
 })->name('payroll.download.all')->middleware('signed');
 
 
-Route::get('/marcar', [AttendanceMarkingController::class, 'showForm'])->name('mark.form');
-Route::post('/marcar', [AttendanceMarkingController::class, 'store'])->name('mark.store');
+Route::middleware(['web']) // agrega 'auth' si querés restringir
+    ->group(function () {
+        Route::get('/mark', [AttendanceFaceMarkController::class, 'show'])->name('mark.show');
+        Route::post('/mark/identify', [AttendanceFaceMarkController::class, 'identify'])->name('mark.identify');
+        Route::post('/mark', [AttendanceFaceMarkController::class, 'store'])->name('mark.store');
+    });
 
 Route::get('/api/employees', function (Request $request) {
     $branch_id = $request->query('branch_id'); // Obtener branch_id del parámetro de consulta
@@ -46,4 +52,12 @@ Route::get('/api/employees', function (Request $request) {
 Route::get('/api/branches', function () {
     $branches = Branch::select('id', 'name')->get();
     return response()->json($branches);
+});
+
+
+Route::middleware(['auth'])->group(function () {
+    Route::get('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'show'])
+        ->name('face.capture');
+    Route::post('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'store'])
+        ->name('face.capture.store');
 });
