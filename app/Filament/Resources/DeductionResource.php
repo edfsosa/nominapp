@@ -21,7 +21,7 @@ class DeductionResource extends Resource
     protected static ?string $label = 'Deducción';
     protected static ?string $pluralLabel = 'Deducciones';
     protected static ?string $slug = 'deducciones';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-minus-circle';
 
     public static function form(Form $form): Form
     {

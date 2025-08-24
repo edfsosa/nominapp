@@ -24,7 +24,7 @@ class AttendanceDayResource extends Resource
     protected static ?string $label = 'Asistencia';
     protected static ?string $pluralLabel = 'Asistencias';
     protected static ?string $slug = 'asistencias';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-check-circle';
 
     public static function form(Form $form): Form
     {
@@ -116,7 +116,7 @@ class AttendanceDayResource extends Resource
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-            ])
+            ])->defaultSort('date', 'desc')
             ->filters([
                 SelectFilter::make('employee.ci')
                     ->label('CI')
@@ -163,9 +163,7 @@ class AttendanceDayResource extends Resource
                             ->when($data['to'], fn(Builder $query, $date): Builder => $query->whereDate('date', '<=', $date));
                     }),
             ])
-            ->actions([
-                Tables\Actions\EditAction::make(),
-            ])
+            ->actions([])
             ->bulkActions([
                 ExportBulkAction::make()
                     ->exports([

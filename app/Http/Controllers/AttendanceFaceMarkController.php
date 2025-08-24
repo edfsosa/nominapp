@@ -37,7 +37,7 @@ class AttendanceFaceMarkController extends Controller
             if (! $employee) {
                 return response()->json([
                     'ok'      => false,
-                    'message' => 'No se pudo identificar el rostro (sin coincidencias bajo el umbral).',
+                    'message' => 'No se pudo identificar el rostro.',
                 ], 422);
             }
     
@@ -79,10 +79,8 @@ class AttendanceFaceMarkController extends Controller
         $data = $request->validate([
             'employee_id'        => ['required', 'exists:employees,id'],
             'event_type'         => ['required', 'in:check_in,break_start,break_end,check_out'],
-            'branch_id'          => ['nullable', 'integer'],
             'location.lat'       => ['required', 'numeric'],
             'location.lng'       => ['required', 'numeric'],
-            'location.accuracy'  => ['nullable', 'numeric'],
         ]);
 
         $employee = Employee::findOrFail($data['employee_id']);
@@ -99,7 +97,7 @@ class AttendanceFaceMarkController extends Controller
         if (! in_array($data['event_type'], $allowed, true)) {
             return response()->json([
                 'ok' => false,
-                'message' => "Evento '{$data['event_type']}' no permitido. Último: '" . ($last->event_type ?? 'ninguno') . "'",
+                'message' => "Evento no permitido. Último: '" . ($last->event_type ?? 'ninguno') . "'",
             ], 422);
         }
 
@@ -109,8 +107,6 @@ class AttendanceFaceMarkController extends Controller
             'location'          => [
                 'lat' => (float)$data['location']['lat'],
                 'lng' => (float)$data['location']['lng'],
-                'accuracy' => isset($data['location']['accuracy']) ? (float)$data['location']['accuracy'] : null,
-                'branch_id' => $data['branch_id'] ?? null,
             ],
             'recorded_at'       => Carbon::now(),
         ]);

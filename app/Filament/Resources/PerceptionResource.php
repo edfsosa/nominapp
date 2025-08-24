@@ -21,7 +21,7 @@ class PerceptionResource extends Resource
     protected static ?string $label = 'Percepción';
     protected static ?string $pluralLabel = 'Percepciones';
     protected static ?string $slug = 'percepciones';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-plus-circle';
 
     public static function form(Form $form): Form
     {

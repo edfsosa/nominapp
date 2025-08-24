@@ -30,12 +30,9 @@ Route::get('/payroll/{payroll}/download-all', function (Payroll $payroll) {
 })->name('payroll.download.all')->middleware('signed');
 
 
-Route::middleware(['web']) // agrega 'auth' si querés restringir
-    ->group(function () {
-        Route::get('/mark', [AttendanceFaceMarkController::class, 'show'])->name('mark.show');
-        Route::post('/mark/identify', [AttendanceFaceMarkController::class, 'identify'])->name('mark.identify');
-        Route::post('/mark', [AttendanceFaceMarkController::class, 'store'])->name('mark.store');
-    });
+Route::get('/marcar', [AttendanceFaceMarkController::class, 'show'])->name('mark.show');
+Route::post('/marcar/identificar', [AttendanceFaceMarkController::class, 'identify'])->name('mark.identify');
+Route::post('/marcar', [AttendanceFaceMarkController::class, 'store'])->name('mark.store');
 
 Route::get('/api/employees', function (Request $request) {
     $branch_id = $request->query('branch_id'); // Obtener branch_id del parámetro de consulta

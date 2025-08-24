@@ -21,7 +21,7 @@ class AttendanceEventResource extends Resource
     protected static ?string $label = 'Marcación';
     protected static ?string $pluralLabel = 'Marcaciones';
     protected static ?string $slug = 'marcaciones';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-clock';
 
     public static function table(Table $table): Table
     {
@@ -90,7 +90,7 @@ class AttendanceEventResource extends Resource
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-            ])
+            ])->defaultSort('recorded_at', 'desc')
             ->filters([
                 SelectFilter::make('day.employee_id')
                     ->label('Empleado')
