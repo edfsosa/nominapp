@@ -136,7 +136,82 @@
             border-radius: 10px;
             margin-bottom: 10px;
         }
+
+        /* Fondo del modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            /* top:0; right:0; bottom:0; left:0 */
+            background: rgba(0, 0, 0, 0.6);
+            /* oscurece el fondo */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        /* Caja del modal */
+        .modal-content {
+            background: #1e293b;
+            /* gris azulado oscuro */
+            color: #f1f5f9;
+            /* texto claro */
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Título */
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 20px;
+            color: #22c55e;
+            /* verde éxito */
+        }
+
+        /* Texto */
+        .modal-content p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #e2e8f0;
+        }
+
+        /* Botón */
+        #closeModal {
+            background: #22c55e;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s ease-in-out;
+        }
+
+        #closeModal:hover {
+            background: #16a34a;
+            /* verde más oscuro */
+        }
+
+        /* Animación de entrada */
+        @keyframes fadeIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
     </style>
+    <script defer src="{{ asset('js/capture-face.js') }}"></script>
 </head>
 
 <body>
@@ -163,8 +238,6 @@
                 <h3>Paso 2 · Confirmación</h3>
 
                 <div class="emp">
-                    <img src="{{ $employee->avatar_url ?? ($employee->photo_url ?? ($employee->profile_photo_url ?? 'https://placehold.co/112x112?text=EMP')) }}"
-                        alt="avatar">
                     <div>
                         <div style="font-weight:600">
                             {{ $employee->name ?? trim(($employee->first_name ?? '') . ' ' . ($employee->last_name ?? '')) ?:
@@ -187,7 +260,8 @@
                     @csrf
                     <input type="hidden" name="face_descriptor" id="faceDescriptor">
                     <button type="submit" id="btnSave" class="btn btn-green" disabled>Guardar descriptor</button>
-                    <button type="button" id="btnCancel" class="btn btn-red" onclick="window.close()">Cancelar</button>
+                    <button type="button" id="btnCancel" class="btn btn-red"
+                        onclick="window.history.back()">Cancelar</button>
                 </form>
 
                 <p class="status" style="margin-top:6px">
@@ -197,117 +271,15 @@
         </div>
     </div>
 
+    <div id="confirmationModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>¡Guardado exitoso!</h2>
+            <p>El descriptor facial se ha guardado correctamente.</p>
+            <button id="closeModal">Aceptar</button>
+        </div>
+    </div>
+
     <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const video = document.getElementById('video');
-            const overlay = document.getElementById('overlay');
-            const ctx = overlay.getContext('2d');
-
-            const btnStart = document.getElementById('btnStart');
-            const btnCapture = document.getElementById('btnCapture');
-            const btnSave = document.getElementById('btnSave');
-            const statusEl = document.getElementById('status');
-            const descState = document.getElementById('descState');
-            const hiddenDescriptor = document.getElementById('faceDescriptor');
-
-            const MODELS_URI = '/models'; // asegurate de tener los pesos en public/models
-            let stream = null;
-
-            const tinyOptions = new faceapi.TinyFaceDetectorOptions({
-                inputSize: 320,
-                scoreThreshold: 0.5
-            });
-            const sleep = (ms) => new Promise(r => setTimeout(r, ms));
-            const logStatus = (m) => statusEl.textContent = m;
-
-            async function loadModels() {
-                logStatus('Cargando modelos...');
-                await Promise.all([
-                    faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
-                    faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI),
-                    faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URI),
-                ]);
-                logStatus('Modelos cargados');
-            }
-
-            async function startCamera() {
-                try {
-                    stream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            facingMode: 'user'
-                        },
-                        audio: false
-                    });
-                    video.srcObject = stream;
-                    await new Promise(res => video.onloadedmetadata = res);
-                    overlay.width = video.videoWidth;
-                    overlay.height = video.videoHeight;
-                    requestAnimationFrame(drawLoop);
-                    btnCapture.disabled = false;
-                } catch (e) {
-                    logStatus('No se pudo iniciar la cámara: ' + e.message);
-                }
-            }
-
-            async function drawLoop() {
-                const det = await faceapi.detectSingleFace(video, tinyOptions).withFaceLandmarks();
-                ctx.clearRect(0, 0, overlay.width, overlay.height);
-                if (det) {
-                    const dims = faceapi.matchDimensions(overlay, {
-                        width: video.videoWidth,
-                        height: video.videoHeight
-                    }, true);
-                    const resized = faceapi.resizeResults(det, dims);
-                    faceapi.draw.drawDetections(overlay, resized);
-                    faceapi.draw.drawFaceLandmarks(overlay, resized);
-                }
-                requestAnimationFrame(drawLoop);
-            }
-
-            async function captureDescriptor(samples = 5, intervalMs = 160) {
-                logStatus(`Capturando (${samples})… mantené la cara estable`);
-                const list = [];
-                while (list.length < samples) {
-                    const det = await faceapi
-                        .detectSingleFace(video, tinyOptions)
-                        .withFaceLandmarks()
-                        .withFaceDescriptor();
-                    if (det?.descriptor) list.push(det.descriptor);
-                    await sleep(intervalMs);
-                }
-                const avg = new Float32Array(128).fill(0);
-                for (const d of list)
-                    for (let i = 0; i < 128; i++) avg[i] += d[i];
-                for (let i = 0; i < 128; i++) avg[i] /= list.length;
-                return Array.from(avg);
-            }
-
-            btnStart.addEventListener('click', async () => {
-                btnStart.disabled = true;
-                await loadModels();
-                await startCamera();
-            });
-
-            btnCapture.addEventListener('click', async () => {
-                btnCapture.disabled = true;
-                try {
-                    const descriptor = await captureDescriptor(5, 160);
-                    hiddenDescriptor.value = JSON.stringify(descriptor);
-                    btnSave.disabled = false;
-                    descState.textContent = 'Descriptor: listo ✔';
-                    logStatus('Descriptor listo. Podés Guardar.');
-                } catch (e) {
-                    logStatus('Error al capturar: ' + e.message);
-                    btnCapture.disabled = false;
-                }
-            });
-
-            window.addEventListener('beforeunload', () => {
-                if (stream) stream.getTracks().forEach(t => t.stop());
-            });
-        });
-    </script>
 </body>
 
 </html>

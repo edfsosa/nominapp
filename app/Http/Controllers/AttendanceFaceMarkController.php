@@ -23,24 +23,24 @@ class AttendanceFaceMarkController extends Controller
     /** 1) Identifica al empleado por descriptor y devuelve data + eventos permitidos */
     public function identify(Request $request)
     {
-        try{
+        try {
             $data = $request->validate([
                 'face_descriptor' => ['required', new FaceDescriptor],
             ]);
-    
+
             $live = is_string($data['face_descriptor'])
                 ? json_decode($data['face_descriptor'], true)
                 : $data['face_descriptor'];
-    
+
             [$employee, $distance] = $this->identifyEmployeeByDescriptor($live, 0.60);
-    
+
             if (! $employee) {
                 return response()->json([
                     'ok'      => false,
                     'message' => 'No se pudo identificar el rostro.',
                 ], 422);
             }
-    
+
             $today = Carbon::now()->toDateString();
             $day   = AttendanceDay::where('employee_id', $employee->id)->where('date', $today)->first();
             $last = null;
@@ -50,7 +50,7 @@ class AttendanceFaceMarkController extends Controller
                     ->first();
             }
             $allowed = $this->allowedNextEvents($last?->event_type);
-    
+
             return response()->json([
                 'ok' => true,
                 'employee' => [
@@ -61,10 +61,9 @@ class AttendanceFaceMarkController extends Controller
                 ],
                 'distance' => $distance,
                 'last_event' => $last?->event_type,
-                'allowed_events' => $allowed,   // ej.: ['check_in'] o ['break_start','check_out']
+                'allowed_events' => $allowed ?? [],   // ej.: ['check_in'] o ['break_start','check_out']
             ]);
-        }
-        catch (Throwable $e) {
+        } catch (Throwable $e) {
             Log::error('identify() error', ['msg' => $e->getMessage(), 'trace' => $e->getTraceAsString()]);
             return response()->json([
                 'ok' => false,
@@ -86,10 +85,21 @@ class AttendanceFaceMarkController extends Controller
         $employee = Employee::findOrFail($data['employee_id']);
         $today    = Carbon::now()->toDateString();
 
-        $day = AttendanceDay::firstOrCreate(
-            ['employee_id' => $employee->id, 'date' => $today],
-            ['status' => 'present']
-        );
+        // Verificar si ya existe un AttendanceDay para hoy con un status distinto de 'present'
+        $day = AttendanceDay::where('employee_id', $employee->id)
+            ->where('date', $today)
+            ->first();
+
+        if ($day && $day->status !== 'present') {
+            // Si existe y el status no es 'present', actualizar el status a 'present'
+            $day->update(['status' => 'present']);
+        } else {
+            // Si no existe, crear un nuevo registro con status 'present'
+            $day = AttendanceDay::firstOrCreate(
+                ['employee_id' => $employee->id, 'date' => $today],
+                ['status' => 'present']
+            );
+        }
 
         $last    = $day->events()->latest('recorded_at')->first();
         $allowed = $this->allowedNextEvents($last?->event_type);
@@ -101,19 +111,16 @@ class AttendanceFaceMarkController extends Controller
             ], 422);
         }
 
-        AttendanceEvent::create([
-            'attendance_day_id' => $day->id,
-            'event_type'        => $data['event_type'],
-            'location'          => [
-                'lat' => (float)$data['location']['lat'],
-                'lng' => (float)$data['location']['lng'],
-            ],
-            'recorded_at'       => Carbon::now(),
+        // Registrar el evento de asistencia
+        $day->events()->create([
+            'event_type'  => $data['event_type'],
+            'recorded_at' => Carbon::now(),
+            'location'    => $data['location'],
         ]);
 
         return response()->json([
             'ok' => true,
-            'message' => "Marcación registrada para {$employee->first_name } ({$data['event_type']}).",
+            'message' => "Marcación registrada para {$employee->first_name} ({$data['event_type']}).",
         ]);
     }
 

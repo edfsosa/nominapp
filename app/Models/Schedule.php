@@ -57,4 +57,11 @@ class Schedule extends Model
             ->withPivot('effective_from', 'effective_to')
             ->withTimestamps();
     }
+
+    public function isDayOff($dayOfWeek)
+    {
+        // Verifica si el empleado tiene un horario asignado
+        $day = $this->days()->where('day_of_week', $dayOfWeek)->first();
+        return $day ? $day->is_day_off : true; // Si no hay día definido, se considera día libre
+    }
 }

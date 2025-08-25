@@ -136,6 +136,80 @@
             object-fit: cover;
             border: 1px solid #1f2937;
         }
+
+        /* Fondo del modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            /* top:0; right:0; bottom:0; left:0 */
+            background: rgba(0, 0, 0, 0.6);
+            /* oscurece el fondo */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        /* Caja del modal */
+        .modal-content {
+            background: #1e293b;
+            /* gris azulado oscuro */
+            color: #f1f5f9;
+            /* texto claro */
+            padding: 24px;
+            border-radius: 12px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+            animation: fadeIn 0.3s ease-out;
+        }
+
+        /* Título */
+        .modal-content h2 {
+            margin-top: 0;
+            margin-bottom: 12px;
+            font-size: 20px;
+            color: #22c55e;
+            /* verde éxito */
+        }
+
+        /* Texto */
+        .modal-content p {
+            margin-bottom: 20px;
+            font-size: 16px;
+            color: #e2e8f0;
+        }
+
+        /* Botón */
+        #closeModal {
+            background: #22c55e;
+            color: #fff;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-size: 15px;
+            cursor: pointer;
+            transition: background 0.2s ease-in-out;
+        }
+
+        #closeModal:hover {
+            background: #16a34a;
+            /* verde más oscuro */
+        }
+
+        /* Animación de entrada */
+        @keyframes fadeIn {
+            from {
+                transform: scale(0.9);
+                opacity: 0;
+            }
+
+            to {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
     </style>
     <script defer src="{{ asset('js/mark.js') }}"></script>
 </head>
@@ -194,6 +268,14 @@
                 </div>
                 <p class="status" style="margin-top:8px">La ubicación es **obligatoria** para confirmar.</p>
             </div>
+        </div>
+    </div>
+
+    <div id="successModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h2>¡Marcación registrada!</h2>
+            <p>Su marcación se ha registrado correctamente.</p>
+            <button id="closeModal">Aceptar</button>
         </div>
     </div>
 
