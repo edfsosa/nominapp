@@ -36,6 +36,7 @@ class EmployeeResource extends Resource
     protected static ?string $label = 'Empleado';
     protected static ?string $pluralLabel = 'Empleados';
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
+    protected static ?string $navigationGroup = 'Empleados';
 
     // Formulario de creación y edición
     public static function form(Form $form): Form

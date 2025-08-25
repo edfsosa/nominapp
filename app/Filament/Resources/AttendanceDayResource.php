@@ -25,6 +25,7 @@ class AttendanceDayResource extends Resource
     protected static ?string $pluralLabel = 'Asistencias';
     protected static ?string $slug = 'asistencias';
     protected static ?string $navigationIcon = 'heroicon-o-check-circle';
+    protected static ?string $navigationGroup = 'Asistencias';
 
     public static function form(Form $form): Form
     {

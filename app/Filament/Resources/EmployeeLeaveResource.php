@@ -24,6 +24,7 @@ class EmployeeLeaveResource extends Resource
     protected static ?string $pluralLabel = 'Permisos';
     protected static ?string $slug = 'permisos';
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static ?string $navigationGroup = 'Empleados';
 
     public static function form(Form $form): Form
     {
@@ -31,10 +32,16 @@ class EmployeeLeaveResource extends Resource
             ->schema([
                 Forms\Components\Select::make('employee_id')
                     ->label('Empleado')
-                    ->relationship('employee', 'first_name')
+                    ->relationship('employee', 'id', function ($query) {
+                        $query->where('status', 'active'); // Filtrar solo empleados activos
+                    })
                     ->searchable()
                     ->required()
-                    ->preload(),
+                    ->preload()
+                    ->native(false)
+                    ->getOptionLabelFromRecordUsing(function ($record) {
+                        return "{$record->first_name} {$record->last_name}"; // Combinar first_name y last_name
+                    }),
                 Forms\Components\Select::make('type')
                     ->label('Tipo de Permiso')
                     ->options([
@@ -50,12 +57,14 @@ class EmployeeLeaveResource extends Resource
                     ->required(),
                 Forms\Components\DatePicker::make('start_date')
                     ->label('Desde')
-                    ->default(now())
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
                     ->label('Hasta')
-                    ->default(now())
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
                 Forms\Components\Textarea::make('reason')

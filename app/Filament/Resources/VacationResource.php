@@ -22,6 +22,7 @@ class VacationResource extends Resource
     protected static ?string $pluralLabel = 'Vacaciones';
     protected static ?string $slug = 'vacaciones';
     protected static ?string $navigationIcon = 'heroicon-o-sun';
+    protected static ?string $navigationGroup = 'Empleados';
 
     public static function form(Form $form): Form
     {
@@ -29,33 +30,35 @@ class VacationResource extends Resource
             ->schema([
                 Forms\Components\Select::make('employee_id')
                     ->label('Empleado')
-                    ->relationship('employee', 'ci')
+                    ->relationship('employee', 'id', function ($query) {
+                        $query->where('status', 'active'); // Filtrar solo empleados activos
+                    })
                     ->searchable()
                     ->preload()
                     ->native(false)
-                    ->required(),
+                    ->required()
+                    ->getOptionLabelFromRecordUsing(function ($record) {
+                        return "{$record->first_name} {$record->last_name}"; // Combinar first_name y last_name
+                    }),
                 Forms\Components\DatePicker::make('start_date')
                     ->label('Fecha de Inicio')
                     ->displayFormat('d/m/Y')
-                    ->placeholder('dd/mm/aaaa')
-                    ->closeOnDateSelection()
                     ->native(false)
+                    ->closeOnDateSelection()
                     ->required(),
                 Forms\Components\DatePicker::make('end_date')
                     ->label('Fecha de Fin')
                     ->displayFormat('d/m/Y')
-                    ->placeholder('dd/mm/aaaa')
+                    ->native(false)
                     ->closeOnDateSelection()
-                    ->native(false)
                     ->required(),
-                Forms\Components\Select::make('type')
-                    ->label('Estado')
+                Forms\Components\Radio::make('type')
+                    ->label('Tipo')
                     ->options([
-                        'paid' => 'Pagado',
-                        'unpaid' => 'No pagado',
+                        'paid' => 'Pagadas',
+                        'unpaid' => 'No Pagadas',
                     ])
-                    ->default('paid')
-                    ->native(false)
+                    ->inline(false)
                     ->required(),
                 Forms\Components\TextInput::make('reason')
                     ->label('Razón')

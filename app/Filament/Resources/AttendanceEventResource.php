@@ -22,6 +22,7 @@ class AttendanceEventResource extends Resource
     protected static ?string $pluralLabel = 'Marcaciones';
     protected static ?string $slug = 'marcaciones';
     protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static ?string $navigationGroup = 'Asistencias';
 
     public static function table(Table $table): Table
     {
@@ -45,7 +46,7 @@ class AttendanceEventResource extends Resource
                         'check_in' => 'success',
                         'break_start' => 'warning',
                         'break_end' => 'warning',
-                        'check_out' => 'info',
+                        'check_out' => 'danger',
                         default => 'gray',
                     })
                     ->searchable()
