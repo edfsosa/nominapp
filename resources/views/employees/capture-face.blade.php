@@ -7,7 +7,6 @@
     <title>Capturar rostro</title>
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
-        /* === mismos estilos base que mark.blade.php === */
         body {
             font-family: system-ui, Arial;
             background: #0b1220;
@@ -19,6 +18,7 @@
         .container {
             max-width: 1000px;
             margin: 0 auto;
+            padding: 16px;
         }
 
         .grid {
@@ -141,9 +141,7 @@
         .modal {
             position: fixed;
             inset: 0;
-            /* top:0; right:0; bottom:0; left:0 */
             background: rgba(0, 0, 0, 0.6);
-            /* oscurece el fondo */
             display: flex;
             align-items: center;
             justify-content: center;
@@ -153,9 +151,7 @@
         /* Caja del modal */
         .modal-content {
             background: #1e293b;
-            /* gris azulado oscuro */
             color: #f1f5f9;
-            /* texto claro */
             padding: 24px;
             border-radius: 12px;
             max-width: 400px;
@@ -171,7 +167,6 @@
             margin-bottom: 12px;
             font-size: 20px;
             color: #22c55e;
-            /* verde éxito */
         }
 
         /* Texto */
@@ -195,7 +190,6 @@
 
         #closeModal:hover {
             background: #16a34a;
-            /* verde más oscuro */
         }
 
         /* Animación de entrada */
@@ -208,6 +202,34 @@
             to {
                 transform: scale(1);
                 opacity: 1;
+            }
+        }
+
+        /* Media queries para pantallas pequeñas */
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .row {
+                flex-direction: column;
+                gap: 8px;
+            }
+
+            .card {
+                padding: 12px;
+            }
+
+            button {
+                width: 100%;
+            }
+
+            input[type=text] {
+                width: 100%;
+            }
+
+            .modal-content {
+                padding: 16px;
             }
         }
     </style>

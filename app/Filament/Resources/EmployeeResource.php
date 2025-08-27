@@ -80,8 +80,7 @@ class EmployeeResource extends Resource
                                     ->displayFormat('d/m/Y')
                                     ->minDate(now()->subYears(100))
                                     ->maxDate(now())
-                                    ->default(now()->subYears(18))
-                                    ->required(),
+                                    ->default(now()->subYears(18)),
                                 TextInput::make('phone')
                                     ->label('Teléfono')
                                     ->tel()
