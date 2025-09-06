@@ -16,7 +16,7 @@ class EmployeeFaceController extends Controller
     public function store(Request $request, Employee $employee)
     {
         $data = $request->validate([
-            'face_descriptor' => ['required', new FaceDescriptor], // o ['required','json'] si no usas la Rule
+            'face_descriptor' => ['required', new FaceDescriptor],
         ]);
 
         // Acepta string JSON o array:
@@ -26,7 +26,9 @@ class EmployeeFaceController extends Controller
 
         $employee->update(['face_descriptor' => $descriptor]);
 
-        return redirect()->route('filament.admin.resources.employees.index')
-            ->with('success', 'Descriptor facial actualizado');
+        return response()->json([
+            'success' => true,
+            'message' => 'Descriptor guardado correctamente'
+        ]);
     }
 }

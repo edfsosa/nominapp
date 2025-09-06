@@ -21,7 +21,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const CSRF = document.querySelector("meta[name=csrf-token]").content;
     const MODELS_URI = "/models";
+
+    // Variables globales
     let stream = null;
+    let modelsLoaded = false;
+    let drawLoopActive = false;
     let state = {
         employee: null,
         allowed: [],
@@ -35,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     const logStatus = (m) => (statusEl.textContent = m);
 
-    // funcion asincrona para cargar los modelos de face-api.js
+    // Función asíncrona para cargar los modelos de face-api.js
     async function loadModels() {
         try {
             logStatus("Cargando modelos...");
@@ -44,16 +48,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URI),
             ]);
+            modelsLoaded = true;
             logStatus("Modelos cargados");
         } catch (error) {
+            modelsLoaded = false;
             logStatus(
                 "Error al cargar los modelos. Por favor, recarga la página."
             );
             console.error("Error al cargar los modelos:", error);
+            throw error;
         }
     }
 
-    // funcion asincrona para iniciar la cámara
+    // Función asíncrona para iniciar la cámara
     async function startCamera() {
         try {
             // Verificar soporte de getUserMedia
@@ -66,7 +73,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Solicitar acceso a la cámara
-            const stream = await navigator.mediaDevices.getUserMedia({
+            stream = await navigator.mediaDevices.getUserMedia({
                 video: {
                     facingMode: "user",
                 },
@@ -81,11 +88,21 @@ document.addEventListener("DOMContentLoaded", () => {
             overlay.width = video.videoWidth;
             overlay.height = video.videoHeight;
 
-            // Iniciar el bucle de dibujo
-            requestAnimationFrame(drawLoop);
+            // Verificar que los modelos estén cargados antes de iniciar el draw loop
+            if (modelsLoaded) {
+                // Iniciar el bucle de dibujo
+                drawLoopActive = true;
+                requestAnimationFrame(drawLoop);
+            } else {
+                logStatus("Los modelos no están cargados. Recarga la página.");
+                return;
+            }
 
             // Habilitar el botón
             btnIdentify.disabled = false;
+            logStatus(
+                "Cámara iniciada. Presiona 'Identificar' cuando estés listo."
+            );
         } catch (e) {
             // Manejo de errores
             if (e.name === "NotAllowedError") {
@@ -95,58 +112,76 @@ document.addEventListener("DOMContentLoaded", () => {
             } else {
                 logStatus("No se pudo iniciar la cámara: " + e.message);
             }
+            console.error("Error al iniciar la cámara:", e);
         }
     }
 
     let lastDetectionTime = 0; // Para limitar la frecuencia de detección
 
-    // funcion asincrona para el bucle de dibujo
+    // Función asíncrona para el bucle de dibujo
     async function drawLoop() {
+        if (!drawLoopActive) return;
+
         try {
             const now = performance.now();
-
             const DETECTION_INTERVAL = 200; // Reducir la frecuencia a 200 ms
-            // Limitar la frecuencia de detección (cada 100 ms)
+
+            // Limitar la frecuencia de detección (cada 200 ms)
             if (now - lastDetectionTime > DETECTION_INTERVAL) {
                 lastDetectionTime = now;
 
-                // Detectar rostro y puntos clave
-                const detection = await faceapi
-                    .detectSingleFace(video, tinyOptions)
-                    .withFaceLandmarks();
+                // Verificar que el video esté listo y los modelos cargados
+                if (video.readyState >= 2 && modelsLoaded) {
+                    // Detectar rostro y puntos clave
+                    const detection = await faceapi
+                        .detectSingleFace(video, tinyOptions)
+                        .withFaceLandmarks();
 
-                // Limpiar el lienzo
-                ctx.clearRect(0, 0, overlay.width, overlay.height);
+                    // Limpiar el lienzo
+                    ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-                if (detection) {
-                    // Ajustar dimensiones solo si es necesario
-                    if (
-                        overlay.width !== video.videoWidth ||
-                        overlay.height !== video.videoHeight
-                    ) {
-                        faceapi.matchDimensions(overlay, video);
+                    if (detection) {
+                        // Ajustar dimensiones solo si es necesario
+                        if (
+                            overlay.width !== video.videoWidth ||
+                            overlay.height !== video.videoHeight
+                        ) {
+                            faceapi.matchDimensions(overlay, video);
+                        }
+
+                        // Redimensionar resultados
+                        const resizedDetections = faceapi.resizeResults(
+                            detection,
+                            {
+                                width: video.videoWidth,
+                                height: video.videoHeight,
+                            }
+                        );
+
+                        // Dibujar detecciones y puntos clave
+                        faceapi.draw.drawDetections(overlay, resizedDetections);
+                        faceapi.draw.drawFaceLandmarks(
+                            overlay,
+                            resizedDetections
+                        );
                     }
-
-                    // Redimensionar resultados
-                    const resizedDetections = faceapi.resizeResults(detection, {
-                        width: video.videoWidth,
-                        height: video.videoHeight,
-                    });
-
-                    // Dibujar detecciones y puntos clave
-                    faceapi.draw.drawDetections(overlay, resizedDetections);
-                    faceapi.draw.drawFaceLandmarks(overlay, resizedDetections);
                 }
             }
 
-            // Continuar el bucle
-            requestAnimationFrame(drawLoop);
+            // Continuar el bucle solo si está activo
+            if (drawLoopActive) {
+                requestAnimationFrame(drawLoop);
+            }
         } catch (error) {
             console.error("Error en drawLoop:", error);
+            // Continuar el bucle a pesar del error
+            if (drawLoopActive) {
+                requestAnimationFrame(drawLoop);
+            }
         }
     }
 
-    // función para capturar descriptores de rostro
+    // Función para capturar descriptores de rostro
     async function captureDescriptor(samples = 5, intervalMs = 160) {
         // Validar parámetros
         if (!Number.isInteger(samples) || samples <= 0) {
@@ -158,12 +193,20 @@ document.addEventListener("DOMContentLoaded", () => {
             throw new Error("El intervalo debe ser un número positivo.");
         }
 
+        // Verificar que los modelos estén cargados
+        if (!modelsLoaded) {
+            throw new Error(
+                "Los modelos de reconocimiento facial no están cargados."
+            );
+        }
+
         logStatus(`Capturando (${samples})… mantené la cara estable`);
         const list = [];
         let attempts = 0;
+        const maxAttempts = samples * 3;
 
         try {
-            while (list.length < samples) {
+            while (list.length < samples && attempts < maxAttempts) {
                 // Mostrar progreso dinámico
                 logStatus(
                     `Capturando rostro (${list.length + 1} de ${samples})…`
@@ -182,15 +225,17 @@ document.addEventListener("DOMContentLoaded", () => {
                     console.warn("No se detectó un rostro en esta iteración.");
                 }
 
-                // Evitar bucles infinitos en caso de problemas
-                if (++attempts > samples * 3) {
-                    throw new Error(
-                        "No se pudieron capturar suficientes muestras de rostro."
-                    );
-                }
+                attempts++;
 
                 // Esperar antes de la siguiente captura
                 await sleep(intervalMs);
+            }
+
+            // Verificar si se capturaron suficientes muestras
+            if (list.length < samples) {
+                throw new Error(
+                    `No se pudieron capturar suficientes muestras de rostro. Se obtuvieron ${list.length} de ${samples}.`
+                );
             }
 
             // Calcular el promedio de los descriptores
@@ -209,7 +254,7 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             console.error("Error en captureDescriptor:", error);
             logStatus("Error al capturar el descriptor: " + error.message);
-            throw error; // Relanzar el error para que el llamador lo maneje
+            throw error;
         }
     }
 
@@ -244,21 +289,18 @@ document.addEventListener("DOMContentLoaded", () => {
                 return;
             }
 
-            // Crear un fragmento para optimizar la inserción de opciones
-            const fragment = document.createDocumentFragment();
+            // Agregar opción por defecto
+            addOption(eventTypeEl, "", "— selecciona el tipo —");
 
             // Agregar las opciones permitidas
             allowed.forEach((event) => {
-                const text = EVENT_TEXTS[event] || event; // Usar texto mapeado o el valor original
-                addOption(fragment, event, text);
+                const text = EVENT_TEXTS[event] || event;
+                addOption(eventTypeEl, event, text);
             });
-
-            // Agregar las opciones al elemento `eventTypeEl`
-            eventTypeEl.appendChild(fragment);
 
             // Habilitar los elementos necesarios
             enableElements([eventTypeEl, btnGeo]);
-            // btnMark se habilitará cuando tengamos ubicación
+            // btnMark se habilitará cuando tengamos ubicación y evento seleccionado
         } catch (error) {
             console.error("Error en enableStep2:", error);
         }
@@ -274,12 +316,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Función para deshabilitar múltiples elementos
     function disableElements(elements) {
-        elements.forEach((el) => (el.disabled = true));
+        elements.forEach((el) => {
+            if (el) el.disabled = true;
+        });
     }
 
     // Función para habilitar múltiples elementos
     function enableElements(elements) {
-        elements.forEach((el) => (el.disabled = false));
+        elements.forEach((el) => {
+            if (el) el.disabled = false;
+        });
     }
 
     // Función para verificar si se puede habilitar el botón de marcación
@@ -292,7 +338,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Verificar si el empleado está seleccionado
-            const isEmployeeSelected = !!state.employee;
+            const isEmployeeSelected = !!(state.employee && state.employee.id);
 
             // Verificar si el tipo de evento está seleccionado
             const isEventSelected = !!eventTypeEl.value;
@@ -311,22 +357,123 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    // Función para actualizar la interfaz de usuario con los datos del empleado
+    function updateEmployeeUI(employee, lastEvent) {
+        try {
+            empCard.style.display = "flex";
+            empName.textContent = `${employee.first_name || ""} ${
+                employee.last_name || ""
+            }`.trim();
+            empDoc.textContent = employee.ci
+                ? `Doc: ${employee.ci}`
+                : "Sin documento";
+            empInfo.textContent = `Última marcación: ${lastEvent || "—"}`;
+        } catch (error) {
+            console.error("Error al actualizar UI del empleado:", error);
+        }
+    }
+
+    // Variable para controlar si ya se agregó el listener al modal
+    let modalListenerAdded = false;
+
+    // Función para mostrar el modal
+    function showSuccessModal() {
+        const modal = document.getElementById("successModal");
+        const closeModal = document.getElementById("closeModal");
+
+        if (!modal || !closeModal) {
+            console.error("Elementos del modal no encontrados");
+            return;
+        }
+
+        // Mostrar el modal
+        modal.style.display = "flex";
+
+        // Agregar evento para cerrar el modal solo si no se ha agregado antes
+        if (!modalListenerAdded) {
+            closeModal.addEventListener("click", () => {
+                modal.style.display = "none";
+                resetSystem();
+            });
+            modalListenerAdded = true;
+        }
+    }
+
+    // Función para resetear el sistema
+    function resetSystem() {
+        try {
+            // Limpiar el estado global
+            state.employee = null;
+            state.allowed = [];
+            state.location = null;
+
+            // Detener el stream de video si existe
+            if (stream) {
+                stream.getTracks().forEach((track) => track.stop());
+                stream = null;
+            }
+
+            // Detener el draw loop
+            drawLoopActive = false;
+
+            // Limpiar el video
+            if (video) {
+                video.srcObject = null;
+            }
+
+            // Limpiar el canvas
+            if (ctx) {
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
+            }
+
+            // Limpiar la interfaz
+            empInfo.textContent = "";
+            empName.textContent = "";
+            empDoc.textContent = "";
+            latEl.value = "";
+            lngEl.value = "";
+            eventTypeEl.innerHTML =
+                '<option value="">— primero identifícate —</option>';
+            empCard.style.display = "none";
+
+            // Resetear botones
+            btnStart.disabled = false;
+            btnIdentify.disabled = true;
+            btnGeo.disabled = true;
+            btnMark.disabled = true;
+
+            logStatus(
+                "Sistema reiniciado. Presiona 'Iniciar cámara' para comenzar."
+            );
+        } catch (error) {
+            console.error("Error al resetear el sistema:", error);
+        }
+    }
+
+    // Event Listeners
+
     // Evento para el botón de inicio de cámara
     btnStart.addEventListener("click", async () => {
-        btnStart.disabled = true;
-        await loadModels();
-        await startCamera();
+        try {
+            btnStart.disabled = true;
+            await loadModels();
+            await startCamera();
+        } catch (error) {
+            console.error("Error al iniciar:", error);
+            logStatus("Error al inicializar el sistema");
+            btnStart.disabled = false;
+        }
     });
 
     // Evento para el botón de identificación
     btnIdentify.addEventListener("click", async () => {
-        btnIdentify.disabled = true; // Deshabilitar el botón para evitar múltiples clics
+        btnIdentify.disabled = true;
 
         try {
-            logStatus("Capturando rostro..."); // Informar al usuario
+            logStatus("Capturando rostro...");
             const descriptor = await captureDescriptor(5, 160);
 
-            logStatus("Identificando empleado..."); // Informar al usuario
+            logStatus("Identificando empleado...");
             const resp = await fetch("/marcar/identificar", {
                 method: "POST",
                 headers: {
@@ -341,8 +488,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Verificar si la respuesta es válida
             if (!resp.ok) {
+                const errorText = await resp.text();
                 throw new Error(
-                    `Error de red: ${resp.status} ${resp.statusText}`
+                    `Error de red: ${resp.status} ${resp.statusText}. ${errorText}`
                 );
             }
 
@@ -362,76 +510,53 @@ document.addEventListener("DOMContentLoaded", () => {
             enableStep2(state.allowed);
             checkEnableMark();
 
-            logStatus("Empleado identificado ✔"); // Confirmar éxito
+            logStatus("Empleado identificado ✔");
         } catch (e) {
             console.error("Error en la identificación:", e);
             logStatus("Error: " + e.message);
         } finally {
-            btnIdentify.disabled = false; // Rehabilitar el botón en cualquier caso
+            btnIdentify.disabled = false;
         }
     });
 
-    // Función para actualizar la interfaz de usuario con los datos del empleado
-    function updateEmployeeUI(employee, lastEvent) {
-        empCard.style.display = "flex";
-        empName.textContent = `${employee.first_name} ${employee.last_name}`;
-        empDoc.textContent = employee.ci ? `Doc: ${employee.ci}` : "";
-        empInfo.textContent = `Última marcación: ${lastEvent ?? "—"}`;
-    }
-
+    // Evento para el botón de geolocalización
     btnGeo.addEventListener("click", () => {
         if (!navigator.geolocation) {
-            alert("Geolocalización no soportada");
+            logStatus("Geolocalización no soportada en este navegador");
             return;
         }
+
+        btnGeo.disabled = true;
+        logStatus("Obteniendo ubicación...");
+
         navigator.geolocation.getCurrentPosition(
             (pos) => {
                 latEl.value = pos.coords.latitude.toFixed(6);
                 lngEl.value = pos.coords.longitude.toFixed(6);
+                state.location = {
+                    lat: pos.coords.latitude,
+                    lng: pos.coords.longitude,
+                };
                 checkEnableMark();
+                logStatus("Ubicación obtenida correctamente");
+                btnGeo.disabled = false;
             },
-            (err) => alert("No se pudo obtener la ubicación: " + err.message),
+            (err) => {
+                console.error("Error de geolocalización:", err);
+                logStatus("No se pudo obtener la ubicación: " + err.message);
+                btnGeo.disabled = false;
+            },
             {
-                timeout: 8000,
-                maximumAge: 0,
+                timeout: 10000,
+                maximumAge: 60000,
+                enableHighAccuracy: true,
             }
         );
     });
 
-    // Función para mostrar el modal
-    function showSuccessModal() {
-        const modal = document.getElementById("successModal");
-        const closeModal = document.getElementById("closeModal");
-
-        // Mostrar el modal
-        modal.style.display = "flex";
-
-        // Agregar evento para cerrar el modal
-        closeModal.addEventListener("click", () => {
-            modal.style.display = "none"; // Ocultar el modal
-            resetSystem(); // Limpiar el sistema después de cerrar el modal
-        });
-    }
-
-    function resetSystem() {
-        // Limpiar el estado global
-        state.employee = null;
-        state.allowed = [];
-        state.location = null;
-
-        // Limpiar la interfaz
-        empInfo.textContent = ""; // Limpiar información del empleado
-        latEl.value = ""; // Limpiar latitud
-        lngEl.value = ""; // Limpiar longitud
-        eventTypeEl.innerHTML = ""; // Limpiar el menú de eventos
-        empCard.style.display = "none"; // Ocultar la tarjeta del empleado
-        btnMark.disabled = true; // Deshabilitar el botón de marcación
-        logStatus("Sistema listo para el siguiente empleado."); // Mensaje de estado
-    }
-
-    // Modificación en el bloque de registro de marcación
+    // Evento para el botón de marcación
     btnMark.addEventListener("click", async () => {
-        btnMark.disabled = true; // Deshabilitar el botón para evitar múltiples clics
+        btnMark.disabled = true;
 
         try {
             // Validar datos antes de enviar
@@ -455,7 +580,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 },
             };
 
-            logStatus("Enviando marcación..."); // Informar al usuario
+            logStatus("Enviando marcación...");
 
             // Enviar la solicitud
             const resp = await fetch("/marcar", {
@@ -475,21 +600,26 @@ document.addEventListener("DOMContentLoaded", () => {
                 );
             }
 
-            logStatus(json.message); // Confirmar éxito
+            logStatus(json.message || "Marcación registrada correctamente");
 
             // Mostrar el modal de confirmación
             showSuccessModal();
         } catch (e) {
-            // Manejo de errores
             console.error("Error en la marcación:", e);
             logStatus("Error: " + e.message);
         } finally {
-            btnMark.disabled = false; // Rehabilitar el botón en cualquier caso
+            btnMark.disabled = false;
         }
     });
 
+    // Evento para cambio en el tipo de evento
     eventTypeEl.addEventListener("change", checkEnableMark);
+
+    // Limpiar recursos al salir de la página
     window.addEventListener("beforeunload", () => {
-        if (stream) stream.getTracks().forEach((t) => t.stop());
+        if (stream) {
+            stream.getTracks().forEach((t) => t.stop());
+        }
+        drawLoopActive = false;
     });
 });
