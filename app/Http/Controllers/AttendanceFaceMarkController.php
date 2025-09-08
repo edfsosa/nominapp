@@ -27,10 +27,18 @@ class AttendanceFaceMarkController extends Controller
     /** 1) Identifica al empleado por descriptor y devuelve data + eventos permitidos */
     public function identify(Request $request): JsonResponse
     {
-        // Validación (dejar que Laravel maneje errores 422 de validación)
-        $data = $request->validate([
-            'face_descriptor' => ['required', new FaceDescriptor],
-        ]);
+        try {
+            // CORRECCIÓN 1: Mover validación dentro del try-catch para capturar ValidationException
+            $data = $request->validate([
+                'face_descriptor' => ['required', new FaceDescriptor],
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Datos de entrada inválidos.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
         // Normalizar descriptor (acepta string JSON o array)
         try {
@@ -40,31 +48,48 @@ class AttendanceFaceMarkController extends Controller
                 : (is_array($raw) ? $raw : null);
 
             if (!is_array($live) || count($live) !== 128) {
-                // Si por alguna razón la regla aceptó pero el contenido no es válido
+                // CORRECCIÓN 2: Verificar que todos los elementos sean numéricos
                 return response()->json([
                     'ok' => false,
-                    'message' => 'El descriptor facial no tiene el formato esperado.',
+                    'message' => 'El descriptor facial no tiene el formato esperado (debe ser array de 128 números).',
                 ], 422);
+            }
+
+            // CORRECCIÓN 3: Validar que todos los elementos del descriptor sean numéricos
+            foreach ($live as $value) {
+                if (!is_numeric($value)) {
+                    return response()->json([
+                        'ok' => false,
+                        'message' => 'El descriptor facial debe contener solo valores numéricos.',
+                    ], 422);
+                }
             }
         } catch (JsonException $e) {
             return response()->json([
                 'ok' => false,
-                'message' => 'Descriptor facial inválido (JSON).',
+                'message' => 'Descriptor facial inválido (JSON malformado).',
             ], 422);
         }
 
         try {
+            // CORRECCIÓN 4: Validar que el threshold sea válido
             $threshold = (float) config('attendance.face_threshold', 0.6);
+            if ($threshold <= 0 || $threshold > 2.0) {
+                Log::warning('Invalid face threshold in config', ['threshold' => $threshold]);
+                $threshold = 0.6; // valor por defecto seguro
+            }
+
             [$employee, $distance] = $this->identifyEmployeeByDescriptor($live, $threshold);
 
             if (!$employee) {
                 return response()->json([
                     'ok'      => false,
-                    'message' => 'No se pudo identificar el rostro.',
+                    'message' => 'No se pudo identificar el rostro. Intente nuevamente.',
                 ], 422);
             }
 
-            $today = Carbon::now()->toDateString();
+            // CORRECCIÓN 5: Usar timezone de la aplicación
+            $today = Carbon::now(config('app.timezone'))->toDateString();
 
             $day = AttendanceDay::where('employee_id', $employee->id)
                 ->where('date', $today)
@@ -76,30 +101,32 @@ class AttendanceFaceMarkController extends Controller
                     ->latest('recorded_at')
                     ->first();
             }
+
             $allowed = $this->allowedNextEvents($last?->event_type);
 
             return response()->json([
                 'ok' => true,
                 'employee' => [
                     'id' => $employee->id,
-                    'first_name' => $employee->first_name,
-                    'last_name' => $employee->last_name,
+                    'first_name' => $employee->first_name ?? '',
+                    'last_name' => $employee->last_name ?? '',
                     'ci' => $employee->ci ?? null,
                 ],
-                'distance' => $distance,
+                'distance' => round($distance, 4),
                 'last_event' => $last?->event_type,
-                'allowed_events' => $allowed ?? [],
+                'allowed_events' => $allowed,
             ]);
         } catch (Throwable $e) {
             Log::error('identify() error', [
                 'msg' => $e->getMessage(),
-                // Evita loggear datos sensibles; el trace puede ser útil en desarrollo
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
                 'trace' => app()->hasDebugModeEnabled() ? $e->getTraceAsString() : null,
             ]);
 
             return response()->json([
                 'ok' => false,
-                'message' => 'Error interno al identificar. Revisa storage/logs/laravel.log',
+                'message' => 'Error interno al identificar empleado.',
             ], 500);
         }
     }
@@ -107,16 +134,45 @@ class AttendanceFaceMarkController extends Controller
     /** 2) Registra la marcación (requiere ubicación obligatoria) */
     public function store(Request $request): JsonResponse
     {
-        // Validación de datos
-        $data = $request->validate([
-            'employee_id'        => ['required', 'exists:employees,id'],
-            'event_type'         => ['required', 'in:check_in,break_start,break_end,check_out'],
-            'location.lat'       => ['required', 'numeric', 'between:-90,90'],
-            'location.lng'       => ['required', 'numeric', 'between:-180,180'],
-        ]);
+        try {
+            // CORRECCIÓN 6: Validación más robusta con mensajes personalizados
+            $data = $request->validate([
+                'employee_id'        => ['required', 'integer', 'exists:employees,id'],
+                'event_type'         => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
+                'location'           => ['required', 'array'],
+                'location.lat'       => ['required', 'numeric', 'between:-90,90'],
+                'location.lng'       => ['required', 'numeric', 'between:-180,180'],
+            ], [
+                'employee_id.required' => 'ID de empleado es requerido.',
+                'employee_id.exists' => 'El empleado no existe.',
+                'event_type.required' => 'Tipo de evento es requerido.',
+                'event_type.in' => 'Tipo de evento inválido.',
+                'location.required' => 'La ubicación es requerida.',
+                'location.lat.between' => 'Latitud debe estar entre -90 y 90.',
+                'location.lng.between' => 'Longitud debe estar entre -180 y 180.',
+            ]);
+        } catch (ValidationException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Datos de entrada inválidos.',
+                'errors' => $e->errors(),
+            ], 422);
+        }
 
-        $employee = Employee::findOrFail($data['employee_id']);
-        $today    = Carbon::now()->toDateString();
+        try {
+            // CORRECCIÓN 7: Verificar que el empleado esté activo
+            $employee = Employee::where('id', $data['employee_id'])
+                ->where('status', 'active')
+                ->firstOrFail();
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Empleado no encontrado o inactivo.',
+            ], 422);
+        }
+
+        // CORRECCIÓN 8: Usar timezone de la aplicación
+        $today = Carbon::now(config('app.timezone'))->toDateString();
 
         try {
             $result = DB::transaction(function () use ($employee, $today, $data) {
@@ -140,41 +196,84 @@ class AttendanceFaceMarkController extends Controller
                 $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (!in_array($data['event_type'], $allowed, true)) {
-                    // Dejar que el controlador superior genere la respuesta acorde
+                    // CORRECCIÓN 9: Mensaje más descriptivo del error
+                    $currentState = $last?->event_type ?? 'ninguno';
+                    $allowedStr = empty($allowed) ? 'ninguno' : implode(', ', $allowed);
+
                     throw ValidationException::withMessages([
-                        'event_type' => "Evento no permitido. Último: '" . ($last->event_type ?? 'ninguno') . "'",
+                        'event_type' => "Evento '{$data['event_type']}' no permitido. Estado actual: '{$currentState}'. Eventos permitidos: {$allowedStr}",
                     ]);
                 }
 
+                // CORRECCIÓN 10: Validar que la ubicación no sea 0,0 (ubicación inválida común)
+                $lat = (float) $data['location']['lat'];
+                $lng = (float) $data['location']['lng'];
+
+                if ($lat === 0.0 && $lng === 0.0) {
+                    throw ValidationException::withMessages([
+                        'location' => 'La ubicación proporcionada no es válida.',
+                    ]);
+                }
+
+                // CORRECCIÓN 11: Usar timezone de la aplicación para recorded_at
+                $recordedAt = Carbon::now(config('app.timezone'));
+
                 // Registrar el evento de asistencia
-                $day->events()->create([
+                $event = $day->events()->create([
                     'event_type'  => $data['event_type'],
-                    'recorded_at' => Carbon::now(),
+                    'recorded_at' => $recordedAt,
                     'location'    => [
-                        'lat' => (float) $data['location']['lat'],
-                        'lng' => (float) $data['location']['lng'],
+                        'lat' => $lat,
+                        'lng' => $lng,
                     ],
                 ]);
+
+                // CORRECCIÓN 12: Verificar que el evento se creó correctamente
+                if (!$event || !$event->id) {
+                    throw new \Exception('No se pudo crear el evento de asistencia.');
+                }
 
                 return [
                     'employee' => $employee,
                     'event_type' => $data['event_type'],
+                    'event_id' => $event->id,
+                    'recorded_at' => $recordedAt->format('Y-m-d H:i:s'),
                 ];
             });
 
+            // CORRECCIÓN 13: Respuesta más informativa
+            $eventTypes = [
+                'check_in' => 'Ingreso',
+                'break_start' => 'Inicio de descanso',
+                'break_end' => 'Fin de descanso',
+                'check_out' => 'Salida',
+            ];
+
+            $eventName = $eventTypes[$result['event_type']] ?? $result['event_type'];
+
             return response()->json([
                 'ok' => true,
-                'message' => "Marcación registrada para {$result['employee']->first_name} ({$result['event_type']}).",
+                'message' => "Marcación registrada correctamente: {$eventName} para {$result['employee']->first_name} {$result['employee']->last_name}",
+                'data' => [
+                    'event_id' => $result['event_id'],
+                    'event_type' => $result['event_type'],
+                    'recorded_at' => $result['recorded_at'],
+                ],
             ]);
         } catch (ValidationException $ve) {
             // Errores de negocio/reglas (422)
             return response()->json([
                 'ok' => false,
                 'message' => collect($ve->errors())->flatten()->first() ?? 'Datos inválidos.',
+                'errors' => $ve->errors(),
             ], 422);
         } catch (Throwable $e) {
             Log::error('store() error', [
                 'msg' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'employee_id' => $data['employee_id'] ?? null,
+                'event_type' => $data['event_type'] ?? null,
                 'trace' => app()->hasDebugModeEnabled() ? $e->getTraceAsString() : null,
             ]);
 
@@ -188,49 +287,118 @@ class AttendanceFaceMarkController extends Controller
     /** Identifica empleado por distancia euclidiana */
     protected function identifyEmployeeByDescriptor(array $live, float $threshold = 0.6): array
     {
-        $candidates = Employee::query()
-            ->whereNotNull('face_descriptor')
-            ->select('id', 'first_name', 'last_name', 'ci', 'face_descriptor')
-            ->get();
+        try {
+            // CORRECCIÓN 14: Agregar filtro de empleados activos y mejorar la consulta
+            $candidates = Employee::query()
+                ->whereNotNull('face_descriptor')
+                ->where('status', 'active')
+                ->select('id', 'first_name', 'last_name', 'ci', 'face_descriptor')
+                ->get();
 
-        $best = null;
-        $bestDist = INF;
-
-        foreach ($candidates as $emp) {
-            // Si el modelo Employee tiene $casts['face_descriptor' => 'array'], esto ya será array
-            $saved = is_array($emp->face_descriptor)
-                ? $emp->face_descriptor
-                : (is_string($emp->face_descriptor) ? json_decode($emp->face_descriptor, true) : null);
-
-            if (!is_array($saved) || count($saved) !== 128) {
-                continue;
+            if ($candidates->isEmpty()) {
+                Log::warning('No hay empleados con descriptores faciales activos.');
+                return [null, INF];
             }
 
-            $dist = $this->euclideanDistance($live, $saved);
-            if ($dist < $bestDist) {
-                $bestDist = $dist;
-                $best = $emp;
+            $best = null;
+            $bestDist = INF;
+            $processedCount = 0;
+
+            foreach ($candidates as $emp) {
+                // CORRECCIÓN 15: Mejor manejo del descriptor guardado
+                $saved = $this->parseStoredDescriptor($emp->face_descriptor);
+
+                if (!$saved) {
+                    Log::warning("Descriptor facial inválido para empleado ID: {$emp->id}");
+                    continue;
+                }
+
+                $dist = $this->euclideanDistance($live, $saved);
+                if ($dist < $bestDist) {
+                    $bestDist = $dist;
+                    $best = $emp;
+                }
+                $processedCount++;
+            }
+
+            Log::info("Procesados {$processedCount} empleados para identificación facial", [
+                'best_distance' => $bestDist,
+                'threshold' => $threshold,
+                'identified' => $best ? "ID: {$best->id}" : 'ninguno',
+            ]);
+
+            return ($best && $bestDist <= $threshold) ? [$best, $bestDist] : [null, $bestDist];
+        } catch (Throwable $e) {
+            Log::error('Error en identifyEmployeeByDescriptor', [
+                'msg' => $e->getMessage(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+            ]);
+            return [null, INF];
+        }
+    }
+
+    // CORRECCIÓN 16: Nueva función para parsear descriptores guardados
+    protected function parseStoredDescriptor($descriptor): ?array
+    {
+        if (is_array($descriptor)) {
+            return (count($descriptor) === 128) ? $descriptor : null;
+        }
+
+        if (is_string($descriptor)) {
+            try {
+                $parsed = json_decode($descriptor, true, 512, JSON_THROW_ON_ERROR);
+                return (is_array($parsed) && count($parsed) === 128) ? $parsed : null;
+            } catch (JsonException $e) {
+                return null;
             }
         }
 
-        return ($best && $bestDist <= $threshold) ? [$best, $bestDist] : [null, $bestDist];
+        return null;
     }
 
     protected function euclideanDistance(array $a, array $b): float
     {
+        // CORRECCIÓN 17: Verificar que ambos arrays tengan 128 elementos
+        if (count($a) !== 128 || count($b) !== 128) {
+            throw new \InvalidArgumentException('Los descriptores deben tener exactamente 128 elementos.');
+        }
+
         $sum = 0.0;
         for ($i = 0; $i < 128; $i++) {
-            $av = $a[$i] ?? 0.0;
-            $bv = $b[$i] ?? 0.0;
+            $av = (float) ($a[$i] ?? 0.0);
+            $bv = (float) ($b[$i] ?? 0.0);
+
+            // CORRECCIÓN 18: Verificar valores numéricos válidos
+            if (!is_finite($av) || !is_finite($bv)) {
+                throw new \InvalidArgumentException('Los descriptores contienen valores no finitos.');
+            }
+
             $d = $av - $bv;
             $sum += $d * $d;
         }
-        return sqrt($sum);
+
+        $distance = sqrt($sum);
+
+        // CORRECCIÓN 19: Verificar que el resultado sea finito
+        if (!is_finite($distance)) {
+            throw new \RuntimeException('La distancia euclidiana resultó en un valor no finito.');
+        }
+
+        return $distance;
     }
 
     /** Reglas de transición válidas */
     protected function allowedNextEvents(?string $last): array
     {
+        // CORRECCIÓN 20: Validar tipos de eventos conocidos
+        $validEventTypes = ['check_in', 'break_start', 'break_end', 'check_out'];
+
+        if ($last !== null && !in_array($last, $validEventTypes, true)) {
+            Log::warning("Tipo de evento desconocido encontrado: {$last}");
+            return ['check_in']; // Fallback seguro
+        }
+
         if ($last === null) {
             return ['check_in'];
         }
@@ -240,7 +408,7 @@ class AttendanceFaceMarkController extends Controller
             'break_start' => ['break_end'],
             'break_end'   => ['break_start', 'check_out'],
             'check_out'   => [], // ya terminó el día
-            default       => ['check_in'],
+            default       => ['check_in'], // fallback seguro
         };
     }
 }

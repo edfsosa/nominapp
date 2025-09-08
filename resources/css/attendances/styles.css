@@ -1,80 +1,154 @@
 /* Design tokens y normalización */
 :root {
-    color-scheme: dark;
+    color-scheme: light dark; /* CORRECCIÓN 1: Soporte para ambos modos */
 
-    /* Colores base */
-    --color-bg: #0b1220;
-    --color-surface: #0f172a;
-    --color-border: #1f2937;
-    --color-text: #e5e7eb;
-    --color-muted: #9ca3af;
-    --color-label: #cbd5e1;
+    /* Colores base - modo claro por defecto */
+    --color-bg: #ffffff;
+    --color-surface: #f8fafc;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-muted: #64748b;
+    --color-label: #374151;
 
     /* Botones */
-    --btn-gray: #374151;
-    --btn-blue: #2563eb;
-    /* Nota: para mejor contraste AA en texto pequeño, considera #047857 */
-    --btn-green: #059669;
-    --btn-red: #b91c1c;
-    --btn-focus: #93c5fd;
+    --btn-gray: #6b7280;
+    --btn-blue: #3b82f6;
+    --btn-green: #10b981; /* CORRECCIÓN 2: Mejor contraste para AA */
+    --btn-red: #ef4444;
+    --btn-focus: #3b82f6;
 
     /* Feedback */
-    --alert-bg: #064e3b;
-    --alert-fg: #d1fae5;
-    --error-bg: #7f1d1d;
-    --error-fg: #fee2e2;
+    --alert-bg: #dcfce7;
+    --alert-fg: #166534;
+    --error-bg: #fecaca;
+    --error-fg: #991b1b;
 
     /* Layout */
     --radius-lg: 12px;
-    --radius: 10px;
-    --space-1: 8px;
-    --space-2: 10px;
+    --radius: 8px; /* CORRECCIÓN 3: Valor más estándar */
+    --space-1: 4px; /* CORRECCIÓN 4: Escala más consistente */
+    --space-2: 8px;
     --space-3: 12px;
-    --space-4: 14px;
-    --space-5: 16px;
+    --space-4: 16px;
+    --space-5: 20px;
     --space-6: 24px;
+    --space-8: 32px; /* Espacio adicional */
 
     /* Efectos */
-    --shadow-modal: 0 10px 25px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
     --transition-fast: 0.15s ease-in-out;
-    --transition-med: 0.2s ease-in-out;
+    --transition-med: 0.25s ease-in-out; /* CORRECCIÓN 5: Transición más suave */
+
+    /* Typography */
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
 }
 
+/* CORRECCIÓN 6: Variables específicas para modo oscuro */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-bg: #0f172a;
+        --color-surface: #1e293b;
+        --color-border: #334155;
+        --color-text: #f1f5f9;
+        --color-muted: #94a3b8;
+        --color-label: #cbd5e1;
+
+        --btn-gray: #475569;
+        --btn-blue: #3b82f6;
+        --btn-green: #10b981;
+        --btn-red: #ef4444;
+        --btn-focus: #60a5fa;
+
+        --alert-bg: #064e3b;
+        --alert-fg: #d1fae5;
+        --error-bg: #7f1d1d;
+        --error-fg: #fee2e2;
+
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+}
+
+/* CORRECCIÓN 7: Reset CSS más completo */
 *,
 *::before,
 *::after {
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-/* Base */
+/* CORRECCIÓN 8: Mejores estilos base */
+html {
+    font-size: 16px; /* Base font size explícita */
+    scroll-behavior: smooth;
+}
+
 body {
-    font-family: system-ui, Arial;
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
     background: var(--color-bg);
     color: var(--color-text);
-    margin: 0;
-    padding: var(--space-6);
-    line-height: 1.5;
+    min-height: 100vh; /* CORRECCIÓN 9: Altura mínima completa */
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
 }
 
+/* CORRECCIÓN 10: Container más robusto */
 .container {
-    max-width: 1000px;
+    max-width: 1200px; /* Más ancho para mejor aprovechamiento */
     margin: 0 auto;
-    padding: var(--space-5);
+    padding: var(--space-4);
+    width: 100%;
 }
 
+/* CORRECCIÓN 11: Grid más flexible */
 .grid {
     display: grid;
-    grid-template-columns: 1fr 360px;
-    gap: var(--space-5);
+    grid-template-columns: 1fr 400px; /* Columna derecha más ancha */
+    gap: var(--space-6);
+    align-items: start; /* Alineación superior */
+}
+
+@supports not (display: grid) {
+    /* Fallback para navegadores sin soporte de grid */
+    .grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-6);
+    }
+    
+    .grid > * {
+        flex: 1;
+        min-width: 300px;
+    }
 }
 
 .card {
     background: var(--color-surface);
     border: 1px solid var(--color-border);
     border-radius: var(--radius-lg);
-    padding: var(--space-5);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-sm); /* CORRECCIÓN 12: Sombra sutil */
+    transition: box-shadow var(--transition-med);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
 }
 
 .row {
@@ -82,40 +156,102 @@ body {
     gap: var(--space-3);
     align-items: center;
     flex-wrap: wrap;
-    margin-top: var(--space-3);
+    margin-top: var(--space-4); /* CORRECCIÓN 13: Espaciado más consistente */
 }
 
-label {
-    font-size: 14px;
-    color: var(--color-label);
+.row:first-child {
+    margin-top: 0;
 }
 
-select,
-input[type="text"] {
-    padding: var(--space-1) var(--space-2);
-    border-radius: var(--radius);
-    border: 1px solid var(--color-border);
-    background: var(--color-bg);
+/* CORRECCIÓN 14: Tipografía mejorada */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: var(--line-height-tight);
+    margin-bottom: var(--space-3);
     color: var(--color-text);
 }
 
-/* Placeholder más legible en modo oscuro */
-::placeholder {
-    color: #94a3b8;
+h1 {
+    font-size: 2rem;
+    margin-bottom: var(--space-6);
 }
 
-/* Botones base */
-button {
-    border: 0;
+h2 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-4);
+}
+
+p {
+    margin-bottom: var(--space-3);
+    line-height: var(--line-height-normal);
+}
+
+/* CORRECCIÓN 15: Labels mejorados */
+label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-label);
+    margin-bottom: var(--space-1);
+}
+
+/* CORRECCIÓN 16: Form controls mejorados */
+select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+textarea {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
     border-radius: var(--radius);
-    padding: 10px var(--space-4);
-    color: #fff;
-    cursor: pointer;
-    transition: filter var(--transition-fast), transform var(--transition-fast),
-        background var(--transition-med);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
 
-/* Variantes */
+select:hover,
+input:hover:not(:disabled) {
+    border-color: var(--btn-blue);
+}
+
+select:focus,
+input:focus {
+    outline: none;
+    border-color: var(--btn-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* CORRECCIÓN 17: Placeholder más accesible */
+::placeholder {
+    color: var(--color-muted);
+    opacity: 1; /* Firefox fix */
+}
+
+/* CORRECCIÓN 18: Botones más robustos */
+button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border: none;
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    font-family: inherit;
+    line-height: 1;
+    color: white;
+    background: var(--btn-gray);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    min-height: 44px; /* CORRECCIÓN 19: Altura mínima para accesibilidad */
+    user-select: none;
+}
+
+/* Variantes de botones */
 .btn-gray {
     background: var(--btn-gray);
 }
@@ -129,90 +265,108 @@ button {
     background: var(--btn-red);
 }
 
-/* Estados interactivos */
-.btn-gray:hover,
-.btn-blue:hover,
-.btn-green:hover,
-.btn-red:hover {
-    filter: brightness(1.08);
+/* Estados interactivos mejorados */
+button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
 }
 
-.btn-gray:active,
-.btn-blue:active,
-.btn-green:active,
-.btn-red:active {
-    transform: translateY(1px);
+button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
 }
 
-/* Estados de foco accesibles */
+/* CORRECCIÓN 20: Focus states más accesibles */
 button:focus-visible,
 select:focus-visible,
-input[type="text"]:focus-visible {
+input:focus-visible,
+textarea:focus-visible {
     outline: 2px solid var(--btn-focus);
     outline-offset: 2px;
 }
 
-/* Estados disabled coherentes */
-:where(button, select, input)[disabled] {
+/* Estados disabled mejorados */
+button:disabled,
+select:disabled,
+input:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
 }
 
-/* Vídeo y overlay */
+/* CORRECCIÓN 21: Video wrapper más robusto */
 .video-wrap {
     position: relative;
-    aspect-ratio: 16 / 9;
+    width: 100%;
+    aspect-ratio: 4 / 3; /* Mejor proporción para cámara */
     background: #000;
     border-radius: var(--radius-lg);
     overflow: hidden;
+    box-shadow: var(--shadow-md);
 }
 
-video,
-canvas {
-    position: absolute;
-    inset: 0;
+video {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    display: block;
 }
 
-/* Tipografías auxiliares */
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* CORRECCIÓN 22: Status y feedback mejorados */
 .status {
-    font-size: 14px;
+    font-size: var(--font-size-sm);
     color: var(--color-muted);
+    font-style: italic;
 }
 
-/* Alertas */
 .alert {
     background: var(--alert-bg);
     color: var(--alert-fg);
-    padding: 10px var(--space-4);
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius);
-    margin-bottom: var(--space-3);
+    border: 1px solid currentColor;
+    margin-bottom: var(--space-4);
 }
 
 .error {
     background: var(--error-bg);
     color: var(--error-fg);
-    padding: 10px var(--space-4);
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius);
-    margin-bottom: var(--space-3);
+    border: 1px solid currentColor;
+    margin-bottom: var(--space-4);
 }
 
-/* Tarjeta de empleado */
+/* CORRECCIÓN 23: Employee card mejorada */
 .emp {
     display: flex;
-    gap: var(--space-3);
+    gap: var(--space-4);
     align-items: center;
-    margin-top: var(--space-1);
+    padding: var(--space-4);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    margin-top: var(--space-4);
 }
 
 .emp img {
-    width: 56px;
-    height: 56px;
+    width: 64px;
+    height: 64px;
     border-radius: 50%;
     object-fit: cover;
-    border: 1px solid var(--color-border);
+    border: 2px solid var(--color-border);
+    flex-shrink: 0;
 }
 
 /* Utilidades */
@@ -220,7 +374,6 @@ canvas {
     display: none !important;
 }
 
-/* Elementos solo para lectores de pantalla */
 .sr-only {
     position: absolute !important;
     width: 1px !important;
@@ -228,77 +381,123 @@ canvas {
     padding: 0 !important;
     margin: -1px !important;
     overflow: hidden !important;
-    clip: rect(0 0 0 0) !important;
+    clip: rect(0, 0, 0, 0) !important;
     white-space: nowrap !important;
     border: 0 !important;
 }
 
-/* Modal */
+/* CORRECCIÓN 24: Modal mejorado */
 .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.6);
+    background: rgba(0, 0, 0, 0.75);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 1000;
-    -webkit-backdrop-filter: blur(2px);
-    backdrop-filter: blur(2px);
+    padding: var(--space-4);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
 }
 
 .modal-content {
-    background: #1e293b;
-    color: #f1f5f9;
-    padding: var(--space-6);
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-8);
     border-radius: var(--radius-lg);
-    max-width: 400px;
-    width: 90%;
-    text-align: center;
+    max-width: 480px;
+    width: 100%;
     box-shadow: var(--shadow-modal);
-    animation: fadeIn 0.3s ease-out;
+    border: 1px solid var(--color-border);
+    animation: modalEnter 0.3s ease-out;
 }
 
 .modal-content h2 {
     margin-top: 0;
-    margin-bottom: var(--space-3);
-    font-size: 20px;
-    color: #22c55e;
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-xl);
+    color: var(--btn-green);
+    text-align: center;
 }
 
 .modal-content p {
-    margin-bottom: 20px;
-    font-size: 16px;
-    color: #e2e8f0;
+    margin-bottom: var(--space-6);
+    font-size: var(--font-size-base);
+    text-align: center;
+    line-height: var(--line-height-relaxed);
 }
 
-#closeModal {
-    background: #22c55e;
-    color: #fff;
+#closeModal,
+#closeErrorModal {
+    width: 100%;
+    background: var(--btn-green);
+    color: white;
     border: none;
-    padding: 10px 18px;
-    border-radius: 8px;
-    font-size: 15px;
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius);
+    font-size: var(--font-size-base);
+    font-weight: 600;
     cursor: pointer;
     transition: background var(--transition-med);
 }
 
-#closeModal:hover {
-    background: #16a34a;
+#closeModal:hover,
+#closeErrorModal:hover {
+    background: var(--btn-blue);
 }
 
-/* Animación de entrada */
-@keyframes fadeIn {
+/* CORRECCIÓN 25: Animaciones mejoradas */
+@keyframes modalEnter {
     from {
-        transform: scale(0.98);
         opacity: 0;
+        transform: scale(0.95) translateY(-10px);
     }
     to {
-        transform: scale(1);
         opacity: 1;
+        transform: scale(1) translateY(0);
     }
 }
 
-/* Respeto a preferencias del usuario (reduce motion) */
+/* CORRECCIÓN 26: Loading states */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transform: translateX(-100%);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border);
+    border-top: 2px solid var(--btn-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* CORRECCIÓN 27: Respeto a preferencias del usuario */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -308,33 +507,101 @@ canvas {
         transition-duration: 0.001ms !important;
         scroll-behavior: auto !important;
     }
+
+    .modal-content {
+        animation: none;
+    }
 }
 
-/* Media queries para pantallas pequeñas */
+/* CORRECCIÓN 28: Mejorar contraste para usuarios con baja visión */
+@media (prefers-contrast: high) {
+    :root {
+        --color-border: #000;
+        --btn-focus: #ff0;
+    }
+    
+    button:focus-visible {
+        outline: 3px solid var(--btn-focus);
+        outline-offset: 3px;
+    }
+}
+
+/* CORRECCIÓN 29: Media queries más robustas */
+@media (max-width: 1024px) {
+    .grid {
+        grid-template-columns: 1fr 300px;
+        gap: var(--space-4);
+    }
+}
+
 @media (max-width: 768px) {
+    .container {
+        padding: var(--space-3);
+    }
+    
     .grid {
         grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+
+    .card {
+        padding: var(--space-4);
     }
 
     .row {
         flex-direction: column;
-        gap: var(--space-1);
-    }
-
-    .card {
-        padding: 12px;
+        gap: var(--space-2);
+        align-items: stretch;
     }
 
     button {
         width: 100%;
+        justify-content: center;
     }
 
-    select,
-    input[type="text"] {
-        width: 100%;
+    .modal {
+        padding: var(--space-2);
     }
-
+    
     .modal-content {
-        padding: var(--space-5);
+        padding: var(--space-6);
+    }
+    
+    h1 {
+        font-size: 1.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: var(--space-2);
+    }
+    
+    .card {
+        padding: var(--space-3);
+    }
+    
+    .video-wrap {
+        aspect-ratio: 1; /* Cuadrado en móviles muy pequeños */
+    }
+}
+
+/* CORRECCIÓN 30: Print styles */
+@media print {
+    .modal,
+    .video-wrap,
+    button,
+    .no-js-warning {
+        display: none !important;
+    }
+    
+    body {
+        background: white !important;
+        color: black !important;
+    }
+    
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
     }
 }

@@ -19,7 +19,16 @@ document.addEventListener("DOMContentLoaded", () => {
     const latEl = document.getElementById("lat");
     const lngEl = document.getElementById("lng");
 
-    const CSRF = document.querySelector("meta[name=csrf-token]").content;
+    // CORRECCIÓN 1: Verificar que el token CSRF existe antes de acceder a su contenido
+    const csrfToken = document.querySelector("meta[name=csrf-token]");
+    const CSRF = csrfToken ? csrfToken.content : "";
+
+    if (!CSRF) {
+        console.warn(
+            "Token CSRF no encontrado. Esto puede causar errores en las peticiones POST."
+        );
+    }
+
     const MODELS_URI = "/models";
 
     // Variables globales
@@ -32,12 +41,65 @@ document.addEventListener("DOMContentLoaded", () => {
         location: null,
     };
 
+    // CORRECCIÓN 2: Verificar que faceapi está disponible
+    if (typeof faceapi === "undefined") {
+        console.error(
+            "face-api.js no está cargado. Asegúrate de incluir la librería antes de este script."
+        );
+        return;
+    }
+
     const tinyOptions = new faceapi.TinyFaceDetectorOptions({
         inputSize: 320,
         scoreThreshold: 0.5,
     });
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-    const logStatus = (m) => (statusEl.textContent = m);
+    const logStatus = (m) => {
+        if (statusEl) {
+            statusEl.textContent = m;
+        } else {
+            console.log("Status:", m);
+        }
+    };
+
+    // CORRECCIÓN 3: Verificar elementos del DOM antes de usar
+    function verifyDOMElements() {
+        const requiredElements = {
+            video,
+            overlay,
+            btnStart,
+            btnIdentify,
+            btnGeo,
+            btnMark,
+            statusEl,
+            eventTypeEl,
+            empCard,
+            empName,
+            empDoc,
+            empInfo,
+            latEl,
+            lngEl,
+        };
+
+        const missingElements = [];
+        for (const [name, element] of Object.entries(requiredElements)) {
+            if (!element) {
+                missingElements.push(name);
+            }
+        }
+
+        if (missingElements.length > 0) {
+            console.error("Elementos del DOM faltantes:", missingElements);
+            logStatus("Error: Faltan elementos requeridos en la página");
+            return false;
+        }
+        return true;
+    }
+
+    // Verificar elementos al inicio
+    if (!verifyDOMElements()) {
+        return;
+    }
 
     // Función asíncrona para cargar los modelos de face-api.js
     async function loadModels() {
@@ -106,9 +168,9 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (e) {
             // Manejo de errores
             if (e.name === "NotAllowedError") {
-                logStatus("Permiso denegado para acceder a la cámara.");
+                logStatus("Permiso denegado, por favor habilita la cámara y recarga la página.");
             } else if (e.name === "NotFoundError") {
-                logStatus("No se encontró una cámara en el dispositivo.");
+                logStatus("No se encontró una cámara en el dispositivo. Por favor, conecta una cámara y recarga la página.");
             } else {
                 logStatus("No se pudo iniciar la cámara: " + e.message);
             }
@@ -360,14 +422,24 @@ document.addEventListener("DOMContentLoaded", () => {
     // Función para actualizar la interfaz de usuario con los datos del empleado
     function updateEmployeeUI(employee, lastEvent) {
         try {
-            empCard.style.display = "flex";
-            empName.textContent = `${employee.first_name || ""} ${
-                employee.last_name || ""
-            }`.trim();
-            empDoc.textContent = employee.ci
-                ? `Doc: ${employee.ci}`
-                : "Sin documento";
-            empInfo.textContent = `Última marcación: ${lastEvent || "—"}`;
+            // CORRECCIÓN 4: Verificar que los elementos existen antes de usarlos
+            if (empCard) empCard.style.display = "flex";
+
+            if (empName) {
+                empName.textContent = `${employee.first_name || ""} ${
+                    employee.last_name || ""
+                }`.trim();
+            }
+
+            if (empDoc) {
+                empDoc.textContent = employee.ci
+                    ? `Doc: ${employee.ci}`
+                    : "Sin documento";
+            }
+
+            if (empInfo) {
+                empInfo.textContent = `Última marcación: ${lastEvent || "—"}`;
+            }
         } catch (error) {
             console.error("Error al actualizar UI del empleado:", error);
         }
@@ -426,21 +498,23 @@ document.addEventListener("DOMContentLoaded", () => {
                 ctx.clearRect(0, 0, overlay.width, overlay.height);
             }
 
-            // Limpiar la interfaz
-            empInfo.textContent = "";
-            empName.textContent = "";
-            empDoc.textContent = "";
-            latEl.value = "";
-            lngEl.value = "";
-            eventTypeEl.innerHTML =
-                '<option value="">— primero identifícate —</option>';
-            empCard.style.display = "none";
+            // CORRECCIÓN 5: Verificar elementos antes de manipularlos
+            if (empInfo) empInfo.textContent = "";
+            if (empName) empName.textContent = "";
+            if (empDoc) empDoc.textContent = "";
+            if (latEl) latEl.value = "";
+            if (lngEl) lngEl.value = "";
+            if (eventTypeEl) {
+                eventTypeEl.innerHTML =
+                    '<option value="">— primero identificate —</option>';
+            }
+            if (empCard) empCard.style.display = "none";
 
-            // Resetear botones
-            btnStart.disabled = false;
-            btnIdentify.disabled = true;
-            btnGeo.disabled = true;
-            btnMark.disabled = true;
+            // Resetear botones - verificar que existan
+            if (btnStart) btnStart.disabled = false;
+            if (btnIdentify) btnIdentify.disabled = true;
+            if (btnGeo) btnGeo.disabled = true;
+            if (btnMark) btnMark.disabled = true;
 
             logStatus(
                 "Sistema reiniciado. Presiona 'Iniciar cámara' para comenzar."
@@ -453,167 +527,198 @@ document.addEventListener("DOMContentLoaded", () => {
     // Event Listeners
 
     // Evento para el botón de inicio de cámara
-    btnStart.addEventListener("click", async () => {
-        try {
-            btnStart.disabled = true;
-            await loadModels();
-            await startCamera();
-        } catch (error) {
-            console.error("Error al iniciar:", error);
-            logStatus("Error al inicializar el sistema");
-            btnStart.disabled = false;
-        }
-    });
+    if (btnStart) {
+        btnStart.addEventListener("click", async () => {
+            try {
+                btnStart.disabled = true;
+                await loadModels();
+                await startCamera();
+            } catch (error) {
+                console.error("Error al iniciar:", error);
+                logStatus("Error al inicializar el sistema");
+                btnStart.disabled = false;
+            }
+        });
+    }
 
     // Evento para el botón de identificación
-    btnIdentify.addEventListener("click", async () => {
-        btnIdentify.disabled = true;
+    if (btnIdentify) {
+        btnIdentify.addEventListener("click", async () => {
+            btnIdentify.disabled = true;
 
-        try {
-            logStatus("Capturando rostro...");
-            const descriptor = await captureDescriptor(5, 160);
+            try {
+                logStatus("Capturando rostro...");
+                const descriptor = await captureDescriptor(5, 160);
 
-            logStatus("Identificando empleado...");
-            const resp = await fetch("/marcar/identificar", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    Accept: "application/json",
-                    "X-CSRF-TOKEN": CSRF,
-                },
-                body: JSON.stringify({
-                    face_descriptor: descriptor,
-                }),
-            });
+                logStatus("Identificando empleado...");
 
-            // Verificar si la respuesta es válida
-            if (!resp.ok) {
-                const errorText = await resp.text();
-                throw new Error(
-                    `Error de red: ${resp.status} ${resp.statusText}. ${errorText}`
-                );
+                // CORRECCIÓN 6: Verificar que el token CSRF existe
+                if (!CSRF) {
+                    throw new Error("Token CSRF no disponible");
+                }
+
+                const resp = await fetch("/marcar/identificar", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Accept: "application/json",
+                        "X-CSRF-TOKEN": CSRF,
+                    },
+                    body: JSON.stringify({
+                        face_descriptor: descriptor,
+                    }),
+                });
+
+                
+
+                const json = await resp.json();
+
+                // Verificar si la respuesta del servidor es exitosa
+                if (!json.ok) {
+                    throw new Error(json.message || "No identificado");
+                }
+
+                // Actualizar el estado global
+                state.employee = json.employee;
+                state.allowed = json.allowed_events || [];
+
+                // Actualizar la interfaz de usuario
+                updateEmployeeUI(json.employee, json.last_event);
+                enableStep2(state.allowed);
+                checkEnableMark();
+
+                logStatus("Empleado identificado ✓");
+            } catch (e) {
+                console.error("Error en la identificación:", e);
+                logStatus("Error: " + e.message);
+            } finally {
+                btnIdentify.disabled = false;
             }
-
-            const json = await resp.json();
-
-            // Verificar si la respuesta del servidor es exitosa
-            if (!json.ok) {
-                throw new Error(json.message || "No identificado");
-            }
-
-            // Actualizar el estado global
-            state.employee = json.employee;
-            state.allowed = json.allowed_events || [];
-
-            // Actualizar la interfaz de usuario
-            updateEmployeeUI(json.employee, json.last_event);
-            enableStep2(state.allowed);
-            checkEnableMark();
-
-            logStatus("Empleado identificado ✔");
-        } catch (e) {
-            console.error("Error en la identificación:", e);
-            logStatus("Error: " + e.message);
-        } finally {
-            btnIdentify.disabled = false;
-        }
-    });
+        });
+    }
 
     // Evento para el botón de geolocalización
-    btnGeo.addEventListener("click", () => {
-        if (!navigator.geolocation) {
-            logStatus("Geolocalización no soportada en este navegador");
-            return;
-        }
-
-        btnGeo.disabled = true;
-        logStatus("Obteniendo ubicación...");
-
-        navigator.geolocation.getCurrentPosition(
-            (pos) => {
-                latEl.value = pos.coords.latitude.toFixed(6);
-                lngEl.value = pos.coords.longitude.toFixed(6);
-                state.location = {
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                };
-                checkEnableMark();
-                logStatus("Ubicación obtenida correctamente");
-                btnGeo.disabled = false;
-            },
-            (err) => {
-                console.error("Error de geolocalización:", err);
-                logStatus("No se pudo obtener la ubicación: " + err.message);
-                btnGeo.disabled = false;
-            },
-            {
-                timeout: 10000,
-                maximumAge: 60000,
-                enableHighAccuracy: true,
+    if (btnGeo) {
+        btnGeo.addEventListener("click", () => {
+            if (!navigator.geolocation) {
+                logStatus("Geolocalización no soportada en este navegador");
+                return;
             }
-        );
-    });
+
+            btnGeo.disabled = true;
+            logStatus("Obteniendo ubicación...");
+
+            navigator.geolocation.getCurrentPosition(
+                (pos) => {
+                    if (latEl) latEl.value = pos.coords.latitude.toFixed(6);
+                    if (lngEl) lngEl.value = pos.coords.longitude.toFixed(6);
+                    state.location = {
+                        lat: pos.coords.latitude,
+                        lng: pos.coords.longitude,
+                    };
+                    checkEnableMark();
+                    logStatus("Ubicación obtenida correctamente");
+                    btnGeo.disabled = false;
+                },
+                (err) => {
+                    console.error("Error de geolocalización:", err);
+                    switch (err.code) {
+                        case 1:
+                            logStatus(
+                                "Permiso denegado, por favor habilita la ubicación y recarga la página."
+                            );
+                            break;
+                        case 2:
+                            logStatus("No se pudo obtener la ubicación. Por favor, intenta de nuevo.");
+                            break;
+                        case 3:
+                            logStatus("Tiempo de espera agotado. Por favor, intenta de nuevo.");
+                            break;
+                    
+                        default: 
+                            logStatus("Error desconocido al obtener ubicación. Por favor, intenta de nuevo.");
+                            break;
+                    }
+                    btnGeo.disabled = false;
+                },
+                {
+                    timeout: 10000,
+                    maximumAge: 60000,
+                    enableHighAccuracy: true,
+                }
+            );
+        });
+    }
 
     // Evento para el botón de marcación
-    btnMark.addEventListener("click", async () => {
-        btnMark.disabled = true;
+    if (btnMark) {
+        btnMark.addEventListener("click", async () => {
+            btnMark.disabled = true;
 
-        try {
-            // Validar datos antes de enviar
-            if (!state.employee || !state.employee.id) {
-                throw new Error("Empleado no identificado.");
+            try {
+                // Validar datos antes de enviar
+                if (!state.employee || !state.employee.id) {
+                    throw new Error("Empleado no identificado.");
+                }
+                if (!eventTypeEl || !eventTypeEl.value) {
+                    throw new Error("Tipo de evento no seleccionado.");
+                }
+                if (!latEl || !lngEl || !latEl.value || !lngEl.value) {
+                    throw new Error("Ubicación no válida.");
+                }
+
+                // CORRECCIÓN 7: Verificar token CSRF
+                if (!CSRF) {
+                    throw new Error("Token CSRF no disponible");
+                }
+
+                // Preparar el payload
+                const payload = {
+                    employee_id: state.employee.id,
+                    event_type: eventTypeEl.value,
+                    location: {
+                        lat: parseFloat(latEl.value),
+                        lng: parseFloat(lngEl.value),
+                    },
+                };
+
+                logStatus("Enviando marcación...");
+
+                // Enviar la solicitud
+                const resp = await fetch("/marcar", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "X-CSRF-TOKEN": CSRF,
+                    },
+                    body: JSON.stringify(payload),
+                });
+
+                // Procesar la respuesta
+                const json = await resp.json();
+                if (!resp.ok || !json.ok) {
+                    throw new Error(
+                        json.message || "No se pudo registrar la marcación."
+                    );
+                }
+
+                logStatus(json.message || "Marcación registrada correctamente");
+
+                // Mostrar el modal de confirmación
+                showSuccessModal();
+            } catch (e) {
+                console.error("Error en la marcación:", e);
+                logStatus("Error: " + e.message);
+            } finally {
+                btnMark.disabled = false;
             }
-            if (!eventTypeEl.value) {
-                throw new Error("Tipo de evento no seleccionado.");
-            }
-            if (!latEl.value || !lngEl.value) {
-                throw new Error("Ubicación no válida.");
-            }
-
-            // Preparar el payload
-            const payload = {
-                employee_id: state.employee.id,
-                event_type: eventTypeEl.value,
-                location: {
-                    lat: parseFloat(latEl.value),
-                    lng: parseFloat(lngEl.value),
-                },
-            };
-
-            logStatus("Enviando marcación...");
-
-            // Enviar la solicitud
-            const resp = await fetch("/marcar", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": CSRF,
-                },
-                body: JSON.stringify(payload),
-            });
-
-            // Procesar la respuesta
-            const json = await resp.json();
-            if (!resp.ok || !json.ok) {
-                throw new Error(
-                    json.message || "No se pudo registrar la marcación."
-                );
-            }
-
-            logStatus(json.message || "Marcación registrada correctamente");
-
-            // Mostrar el modal de confirmación
-            showSuccessModal();
-        } catch (e) {
-            console.error("Error en la marcación:", e);
-            logStatus("Error: " + e.message);
-        } finally {
-            btnMark.disabled = false;
-        }
-    });
+        });
+    }
 
     // Evento para cambio en el tipo de evento
-    eventTypeEl.addEventListener("change", checkEnableMark);
+    if (eventTypeEl) {
+        eventTypeEl.addEventListener("change", checkEnableMark);
+    }
 
     // Limpiar recursos al salir de la página
     window.addEventListener("beforeunload", () => {
