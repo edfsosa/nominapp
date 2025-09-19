@@ -39,14 +39,11 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'hire_date'     => 'date',
-        'base_salary'   => 'integer',
-        'contract_type' => 'string',
-        'payment_method' => 'string',
-        'status'        => 'string',
-        'face_descriptor' => 'array',
         'birth_date'   => 'date',
-        'daily_rate'   => 'integer',
+        'hire_date'     => 'date',
+        'base_salary'   => 'decimal:2',
+        'daily_rate'   => 'decimal:2',
+        'face_descriptor' => 'array',
     ];
 
     /**

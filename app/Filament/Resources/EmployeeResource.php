@@ -123,6 +123,7 @@ class EmployeeResource extends Resource
                                         'day_laborer' => 'Jornalero',
                                     ])
                                     ->native(false)
+                                    ->reactive()
                                     ->required(),
                                 Select::make('payment_method')
                                     ->label('Método de Pago')
@@ -138,24 +139,24 @@ class EmployeeResource extends Resource
                                     ->integer()
                                     ->minValue(0)
                                     ->maxLength(10)
-                                    ->step(1.00)
+                                    ->step(1)
                                     ->nullable()
                                     ->visible(fn(Forms\Get $get) => $get('employment_type') === 'full_time')
                                     ->prefix('Gs.')
                                     ->default(0),
-                            ]),
-                        Grid::make(5)
-                            ->schema([
                                 TextInput::make('daily_rate')
                                     ->label('Tarifa Diaria')
                                     ->integer()
                                     ->minValue(0)
                                     ->maxLength(10)
-                                    ->step(1.00)
+                                    ->step(1)
                                     ->nullable()
                                     ->visible(fn(Forms\Get $get) => $get('employment_type') === 'day_laborer')
                                     ->prefix('Gs.')
                                     ->default(0),
+                            ]),
+                        Grid::make(5)
+                            ->schema([
                                 Select::make('position_id')
                                     ->label('Cargo')
                                     ->options(function () {
