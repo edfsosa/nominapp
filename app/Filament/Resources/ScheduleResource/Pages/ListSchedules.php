@@ -4,9 +4,9 @@ namespace App\Filament\Resources\ScheduleResource\Pages;
 
 use App\Filament\Resources\ScheduleResource;
 use Filament\Actions;
-use Filament\Resources\Pages\ManageRecords;
+use Filament\Resources\Pages\ListRecords;
 
-class ManageSchedules extends ManageRecords
+class ListSchedules extends ListRecords
 {
     protected static string $resource = ScheduleResource::class;
 

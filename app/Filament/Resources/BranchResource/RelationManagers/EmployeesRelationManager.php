@@ -3,24 +3,26 @@
 namespace App\Filament\Resources\BranchResource\RelationManagers;
 
 use App\Models\Employee;
-use Filament\Forms;
-use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class EmployeesRelationManager extends RelationManager
 {
     protected static string $relationship = 'employees';
+    protected static ?string $title = 'Empleados';
 
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitleAttribute('ci')
+            ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'active'))
+            ->recordTitle(fn(Employee $record): string => $record->first_name . ' ' . $record->last_name)
             ->columns([
                 ImageColumn::make('photo')
                     ->label('Foto')
@@ -63,43 +65,33 @@ class EmployeesRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payroll_type')
                     ->label('Tipo de Nómina')
-                    ->badge()
-                    ->colors([
-                        'primary' => 'monthly',
-                        'secondary' => 'biweekly',
-                        'info' => 'weekly',
-                    ])
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'monthly' => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly' => 'Semanal',
+                        default => ucfirst($state),
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('employment_type')
                     ->label('Tipo de Empleo')
-                    ->badge()
-                    ->colors([
-                        'success' => 'full_time',
-                        'warning' => 'day_laborer',
-                    ])
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'full_time' => 'Tiempo Completo',
+                        'day_laborer' => 'Jornalero',
+                        default => ucfirst($state),
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('base_salary')
-                    ->label('Salario base (₲)')
-                    ->numeric()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('daily_rate')
-                    ->label('Tarifa Diaria (₲)')
-                    ->numeric()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('payment_method')
                     ->label('Método de Pago')
-                    ->badge()
-                    ->colors([
-                        'primary' => 'debit',
-                        'secondary' => 'cash',
-                        'info' => 'check',
-                    ])
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'debit' => 'Débito',
+                        'cash' => 'Efectivo',
+                        'check' => 'Cheque',
+                        default => ucfirst($state),
+                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -121,33 +113,58 @@ class EmployeesRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->colors([
-                        'success' => 'active',
-                        'danger' => 'inactive',
-                        'warning' => 'suspended',
-                    ])
+                    ->color(fn(string $state): string => match ($state) {
+                        'active' => 'success',
+                        'inactive' => 'danger',
+                        'suspended' => 'warning',
+                        default => 'secondary',
+                    })
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'active' => 'Activo',
+                        'inactive' => 'Inactivo',
+                        'suspended' => 'Suspendido',
+                        default => ucfirst($state),
+                    })
                     ->sortable()
                     ->searchable(),
-                TextColumn::make('created_at')
-                    ->label('Creado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->label('Actualizado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 //
             ])
-            ->headerActions([])
+            ->headerActions([
+                ExportAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'photo',
+                                'face_descriptor',
+                                'created_at',
+                                'updated_at',
+                            ])
+                            ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
+            ])
             ->actions([])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
-                ]),
+                ExportBulkAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'photo',
+                                'face_descriptor',
+                                'created_at',
+                                'updated_at',
+                            ])
+                            ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
             ]);
     }
 }

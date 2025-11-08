@@ -3,9 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ScheduleResource\Pages;
-use App\Filament\Resources\ScheduleResource\RelationManagers;
 use App\Models\Schedule;
-use Filament\Forms;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -13,16 +11,15 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ScheduleResource extends Resource
 {
     protected static ?string $model = Schedule::class;
     protected static ?string $navigationLabel = 'Horarios';
     protected static ?string $label = 'Horario';
-    protected static ?string $pluralLabel = 'Horarios';
+    protected static ?string $pluralLabel = 'horarios';
     protected static ?string $slug = 'horarios';
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
     protected static ?string $navigationGroup = 'Empresa';
@@ -38,7 +35,7 @@ class ScheduleResource extends Resource
                 TextInput::make('description')
                     ->label('Descripción')
                     ->maxLength(100)
-                    ->default(null),
+                    ->nullable(),
                 Repeater::make('days')
                     ->relationship()
                     ->label('Días')
@@ -102,7 +99,7 @@ class ScheduleResource extends Resource
                     ])
                     ->columns(3)
                     ->required()
-                    ->minItems(5)
+                    ->minItems(1)
                     ->maxItems(7)
                     ->cloneable()
                     ->addActionLabel('Agregar')
@@ -115,22 +112,22 @@ class ScheduleResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('description')
+                TextColumn::make('description')
                     ->label('Descripción')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -141,7 +138,6 @@ class ScheduleResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -150,10 +146,19 @@ class ScheduleResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageSchedules::route('/'),
+            'index' => Pages\ListSchedules::route('/'),
+            'create' => Pages\CreateSchedule::route('/create'),
+            'edit' => Pages\EditSchedule::route('/{record}/edit'),
         ];
     }
 }

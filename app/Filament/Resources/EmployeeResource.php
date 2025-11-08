@@ -124,6 +124,7 @@ class EmployeeResource extends Resource
                                     ])
                                     ->native(false)
                                     ->reactive()
+                                    ->default('full_time')
                                     ->required(),
                                 Select::make('payment_method')
                                     ->label('Método de Pago')
@@ -136,24 +137,24 @@ class EmployeeResource extends Resource
                                     ->required(),
                                 TextInput::make('base_salary')
                                     ->label('Salario Base')
-                                    ->integer()
+                                    ->numeric()   // usa numeric en lugar de integer
                                     ->minValue(0)
-                                    ->maxLength(10)
+                                    ->maxValue(9999999999)
                                     ->step(1)
-                                    ->nullable()
-                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'full_time')
+                                    ->required()  // asegura que nunca quede vacío
+                                    ->default(0)
                                     ->prefix('Gs.')
-                                    ->default(0),
+                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'full_time'),
                                 TextInput::make('daily_rate')
                                     ->label('Tarifa Diaria')
-                                    ->integer()
+                                    ->numeric() // en vez de integer()
                                     ->minValue(0)
-                                    ->maxLength(10)
+                                    ->maxValue(9999999999)
                                     ->step(1)
-                                    ->nullable()
-                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'day_laborer')
+                                    ->required()
+                                    ->default(0)
                                     ->prefix('Gs.')
-                                    ->default(0),
+                                    ->visible(fn(Forms\Get $get) => $get('employment_type') === 'day_laborer'),
                             ]),
                         Grid::make(5)
                             ->schema([
