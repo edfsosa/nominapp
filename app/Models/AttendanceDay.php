@@ -59,4 +59,25 @@ class AttendanceDay extends Model
     {
         return $this->hasMany(AttendanceEvent::class);
     }
+
+    public function getDateFormattedAttribute(): string
+    {
+        return Carbon::parse($this->date)->format('d M Y');
+    }
+
+    public function getStatusInSpanishAttribute(): string
+    {
+        switch ($this->status) {
+            case 'present':
+                return 'Presente';
+            case 'absent':
+                return 'Ausente';
+            case 'on_leave':
+                return 'De permiso';
+            case 'holiday':
+                return 'Festivo';
+            default:
+                return 'Desconocido';
+        }
+    }
 }

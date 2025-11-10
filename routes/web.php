@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use Illuminate\Support\Facades\Route;
@@ -25,4 +26,7 @@ Route::get('/api/employees', function (Request $request) {
 Route::middleware(['auth'])->group(function () {
     Route::get('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'show'])->name('face.capture');
     Route::post('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'store'])->name('face.capture.store');
+
+    Route::get('/asistencias/{attendance_day}/export', [AttendanceExportController::class, 'export'])->name('attendance-days.export');
+
 });

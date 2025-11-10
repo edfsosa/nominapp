@@ -9,10 +9,10 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -21,6 +21,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use Filament\Infolists;
+use Filament\Infolists\Components\Fieldset;
+use Filament\Infolists\Components\Section;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Tables\Actions\Action;
 
 class AttendanceDayResource extends Resource
 {
@@ -212,7 +218,14 @@ class AttendanceDayResource extends Resource
                             ->when($data['to'], fn(Builder $query, $date): Builder => $query->whereDate('date', '<=', $date));
                     }),
             ])
-            ->actions([])
+            ->actions([
+                ViewAction::make(),
+                Action::make('export')
+                    ->label('Exportar (PDF)')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
+                    ->openUrlInNewTab(),
+            ])
             ->bulkActions([
                 ExportBulkAction::make()
                     ->exports([
@@ -241,8 +254,86 @@ class AttendanceDayResource extends Resource
     {
         return [
             'index' => Pages\ListAttendanceDays::route('/'),
+            'view' => Pages\ViewAttendanceDay::route('/{record}'),
             'create' => Pages\CreateAttendanceDay::route('/create'),
             'edit' => Pages\EditAttendanceDay::route('/{record}/edit'),
         ];
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Fieldset::make('Información General')
+                    ->schema([
+                        TextEntry::make('date')
+                            ->label('Fecha')
+                            ->date('d/m/Y'),
+                        TextEntry::make('status')
+                            ->label('Estado')
+                            ->formatStateUsing(fn($state) => match ($state) {
+                                'present' => 'Presente',
+                                'absent' => 'Ausente',
+                                'on_leave' => 'De permiso',
+                                default => 'Desconocido',
+                            }),
+                        TextEntry::make('notes')
+                            ->label('Notas'),
+                    ])->columns(3),
+
+                Fieldset::make('Empleado')
+                    ->schema([
+                        TextEntry::make('employee.ci')
+                            ->label('CI'),
+                        TextEntry::make('employee.first_name')
+                            ->label('Nombre'),
+                        TextEntry::make('employee.last_name')
+                            ->label('Apellido'),
+                        TextEntry::make('employee.branch.name')
+                            ->label('Sucursal'),
+                        TextEntry::make('employee.position.name')
+                            ->label('Cargo'),
+                        TextEntry::make('employee.position.department.name')
+                            ->label('Departamento'),
+                    ])->columns(3),
+
+                Fieldset::make('Tiempos de Entrada')
+                    ->schema([
+                        TextEntry::make('expected_check_in')
+                            ->label('Entrada esperada'),
+                        TextEntry::make('check_in_time')
+                            ->label('Entrada marcada'),
+                        TextEntry::make('late_minutes')
+                            ->label('Minutos tarde'),
+
+                    ])->columns(3),
+
+                Fieldset::make('Tiempos de Salida')
+                    ->schema([
+                        TextEntry::make('expected_check_out')
+                            ->label('Salida esperada'),
+                        TextEntry::make('check_out_time')
+                            ->label('Salida marcada'),
+                        TextEntry::make('early_leave_minutes')
+                            ->label('Minutos de salida anticipada'),
+                    ])->columns(3),
+
+                Fieldset::make('Horas y Descansos')
+                    ->schema([
+                        TextEntry::make('expected_hours')
+                            ->label('Horas esperadas'),
+                        TextEntry::make('total_hours')
+                            ->label('Horas trabajadas'),
+                        TextEntry::make('net_hours')
+                            ->label('Horas netas'),
+                        TextEntry::make('break_minutes')
+                            ->label('Minutos de descanso tomados'),
+                        TextEntry::make('expected_break_minutes')
+                            ->label('Minutos de descanso esperados'),
+                        TextEntry::make('extra_hours')
+                            ->label('Horas extra'),
+                    ])->columns(3),
+
+            ]);
     }
 }
