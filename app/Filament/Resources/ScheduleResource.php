@@ -43,13 +43,13 @@ class ScheduleResource extends Resource
                         Select::make('day_of_week')
                             ->label('Día de la semana')
                             ->options([
-                                '0' => 'Domingo',
-                                '1' => 'Lunes',
-                                '2' => 'Martes',
-                                '3' => 'Miércoles',
-                                '4' => 'Jueves',
-                                '5' => 'Viernes',
-                                '6' => 'Sábado',
+                                1 => 'Lunes',
+                                2 => 'Martes',
+                                3 => 'Miércoles',
+                                4 => 'Jueves',
+                                5 => 'Viernes',
+                                6 => 'Sábado',
+                                7 => 'Domingo',
                             ])
                             ->native(false)
                             ->required(),

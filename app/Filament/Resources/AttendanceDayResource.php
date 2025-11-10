@@ -5,15 +5,20 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\AttendanceDayResource\Pages;
 use App\Filament\Resources\AttendanceDayResource\RelationManagers;
 use App\Models\AttendanceDay;
-use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
+use Illuminate\Database\Eloquent\Model;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
@@ -21,8 +26,8 @@ class AttendanceDayResource extends Resource
 {
     protected static ?string $model = AttendanceDay::class;
     protected static ?string $navigationLabel = 'Asistencias';
-    protected static ?string $label = 'Asistencia';
-    protected static ?string $pluralLabel = 'Asistencias';
+    protected static ?string $label = 'asistencia';
+    protected static ?string $pluralLabel = 'asistencias';
     protected static ?string $slug = 'asistencias';
     protected static ?string $navigationIcon = 'heroicon-o-check-circle';
     protected static ?string $navigationGroup = 'Asistencias';
@@ -31,19 +36,23 @@ class AttendanceDayResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
+                Select::make('employee_id')
                     ->label('Empleado')
-                    ->relationship('employee', 'first_name')
+                    ->relationship(
+                        name: 'employee',
+                        modifyQueryUsing: fn(Builder $query) => $query->orderBy('first_name')->orderBy('last_name'),
+                    )
+                    ->getOptionLabelFromRecordUsing(fn(Model $record) => "{$record->first_name} {$record->last_name}")
+                    ->searchable(['first_name', 'last_name'])
                     ->native(false)
-                    ->searchable()
                     ->required()
                     ->preload()
                     ->disabled(),
-                Forms\Components\DatePicker::make('date')
+                DatePicker::make('date')
                     ->label('Fecha')
                     ->required()
                     ->disabled(),
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->label('Estado')
                     ->options([
                         'present' => 'Presente',
@@ -52,6 +61,55 @@ class AttendanceDayResource extends Resource
                     ])
                     ->native(false)
                     ->required(),
+                TextInput::make('total_hours')
+                    ->label('Horas trabajadas')
+                    ->readOnly(),
+                TextInput::make('net_hours')
+                    ->label('Horas netas')
+                    ->readOnly(),
+                TextInput::make('expected_hours')
+                    ->label('Horas esperadas')
+                    ->readOnly(),
+                TextInput::make('late_minutes')
+                    ->label('Minutos tarde')
+                    ->readOnly(),
+                TextInput::make('early_leave_minutes')
+                    ->label('Salida anticipada')
+                    ->readOnly(),
+                TextInput::make('extra_hours')
+                    ->label('Horas extra')
+                    ->readOnly(),
+                TextInput::make('break_minutes')
+                    ->label('Descansos')
+                    ->readOnly(),
+
+                TextInput::make('check_in_time')
+                    ->label('Entrada')
+                    ->readOnly(),
+                TextInput::make('check_out_time')
+                    ->label('Salida')
+                    ->readOnly(),
+                Textarea::make('notes')
+                    ->label('Notas')
+                    ->maxLength(255)
+                    ->rows(1),
+
+                TextInput::make('expected_check_in')
+                    ->label('Entrada esperada')
+                    ->readOnly(),
+                TextInput::make('expected_check_out')
+                    ->label('Salida esperada')
+                    ->readOnly(),
+                TextInput::make('expected_break_minutes')
+                    ->label('Descanso esperado')
+                    ->readOnly(),
+
+                Toggle::make('anomaly_flag')
+                    ->label('Anomalía detectada'),
+                Toggle::make('manual_adjustment')
+                    ->label('Ajustado manualmente'),
+                Toggle::make('overtime_approved')
+                    ->label('Horas extra aprobadas'),
             ])
             ->columns(3);
     }
@@ -60,37 +118,37 @@ class AttendanceDayResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('date')
+                TextColumn::make('date')
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.ci')
+                TextColumn::make('employee.ci')
                     ->label('CI')
                     ->numeric()
                     ->copyable()
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.first_name')
+                TextColumn::make('employee.first_name')
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
+                TextColumn::make('employee.last_name')
                     ->label('Apellido')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.branch.name')
+                TextColumn::make('employee.branch.name')
                     ->label('Sucursal')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.position.name')
+                TextColumn::make('employee.position.name')
                     ->label('Cargo')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.position.department.name')
+                TextColumn::make('employee.position.department.name')
                     ->label('Departamento')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Estado')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'present' => 'Presente',
@@ -107,16 +165,6 @@ class AttendanceDayResource extends Resource
                     })
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Creado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])->defaultSort('date', 'desc')
             ->filters([
                 SelectFilter::make('employee.ci')
@@ -149,10 +197,10 @@ class AttendanceDayResource extends Resource
                 Filter::make('date')
                     ->label('Fecha')
                     ->form([
-                        Forms\Components\DatePicker::make('from')
+                        DatePicker::make('from')
                             ->label('Desde')
                             ->native(false),
-                        Forms\Components\DatePicker::make('to')
+                        DatePicker::make('to')
                             ->label('Hasta')
                             ->after('from')
                             ->native(false),

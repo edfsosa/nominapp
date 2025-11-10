@@ -155,4 +155,43 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeeLeave::class);
     }
+
+    public function getTodayScheduledCheckInAttribute()
+    {
+        $today = Carbon::now()->dayOfWeekIso;
+
+        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
+
+        if ($scheduleDay) {
+            return $scheduleDay->start_time;
+        }
+
+        return null;
+    }
+
+    public function getTodayScheduledCheckOutAttribute()
+    {
+        $today = Carbon::now()->dayOfWeekIso;
+
+        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
+
+        if ($scheduleDay) {
+            return $scheduleDay->end_time;
+        }
+
+        return null;
+    }
+
+    public function getTodayExpectedBreakMinutesAttribute()
+    {
+        $today = Carbon::now()->dayOfWeekIso;
+
+        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
+
+        if ($scheduleDay) {
+            return $scheduleDay->total_break_minutes;
+        }
+
+        return null;
+    }
 }
