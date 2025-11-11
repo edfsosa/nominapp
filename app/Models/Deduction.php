@@ -9,12 +9,15 @@ class Deduction extends Model
 {
     protected $fillable = [
         'name',
+        'code',
         'description',
         'calculation',
         'amount',
         'percent',
         'is_mandatory',
         'is_active',
+        'affects_ips',
+        'affects_irp',
     ];
 
     protected $casts = [
@@ -22,6 +25,8 @@ class Deduction extends Model
         'percent' => 'decimal:2',
         'is_mandatory' => 'boolean',
         'is_active' => 'boolean',
+        'affects_ips' => 'boolean',
+        'affects_irp' => 'boolean',
     ];
 
     /**

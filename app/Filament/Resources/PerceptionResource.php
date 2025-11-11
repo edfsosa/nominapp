@@ -6,9 +6,15 @@ use App\Filament\Resources\PerceptionResource\Pages;
 use App\Filament\Resources\PerceptionResource\RelationManagers;
 use App\Models\Perception;
 use Filament\Forms;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\IconColumn;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -27,15 +33,19 @@ class PerceptionResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->label('Nombre')
                     ->required()
                     ->maxLength(60),
-                Forms\Components\Textarea::make('description')
+                TextInput::make('code')
+                    ->label('Código')
+                    ->required()
+                    ->maxLength(10),
+                Textarea::make('description')
                     ->label('Descripción')
                     ->columnSpanFull()
                     ->nullable(),
-                Forms\Components\Select::make('calculation')
+                Select::make('calculation')
                     ->label('Cálculo')
                     ->options([
                         'fixed'      => 'Fijo',
@@ -45,23 +55,31 @@ class PerceptionResource extends Resource
                     ->native(false)
                     ->reactive()
                     ->required(),
-                Forms\Components\TextInput::make('amount')
+                TextInput::make('amount')
                     ->label('Monto Fijo')
                     ->numeric()
                     ->nullable()
                     ->visible(fn(Forms\Get $get) => $get('calculation') === 'fixed')
                     ->default(0.00),
-                Forms\Components\TextInput::make('percent')
+                TextInput::make('percent')
                     ->label('Porcentaje')
                     ->numeric()
                     ->nullable()
                     ->visible(fn(Forms\Get $get) => $get('calculation') === 'percentage')
                     ->default(0.00),
-                Forms\Components\Toggle::make('is_taxable')
+                Toggle::make('is_taxable')
                     ->label('Gravable')
                     ->default(false)
                     ->inline(),
-                Forms\Components\Toggle::make('is_active')
+                Toggle::make('affects_ips')
+                    ->label('Afecta IPS')
+                    ->default(false)
+                    ->inline(),
+                Toggle::make('affects_irp')
+                    ->label('Afecta IRP')
+                    ->default(false)
+                    ->inline(),
+                Toggle::make('is_active')
                     ->label('Activo')
                     ->default(true)
                     ->inline(),
@@ -72,14 +90,14 @@ class PerceptionResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('calculation')
+                TextColumn::make('calculation')
                     ->label('Cálculo')
                     ->formatStateUsing(fn($state) => $state === 'fixed' ? 'Fijo' : 'Porcentaje')
                     ->badge()
@@ -89,24 +107,24 @@ class PerceptionResource extends Resource
                     ])
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\IconColumn::make('is_taxable')
+                IconColumn::make('is_taxable')
                     ->label('Gravable')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
                     ->sortable(),
-                Tables\Columns\IconColumn::make('is_active')
+                IconColumn::make('is_active')
                     ->label('Activo')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()

@@ -9,11 +9,14 @@ class Perception extends Model
 {
     protected $fillable = [
         'name',
+        'code',
         'description',
         'calculation',
         'amount',
         'percent',
         'is_taxable',
+        'affects_ips',
+        'affects_irp',
         'is_active',
     ];
 
@@ -22,6 +25,8 @@ class Perception extends Model
         'percent' => 'decimal:2',
         'is_taxable' => 'boolean',
         'is_active' => 'boolean',
+        'affects_ips' => 'boolean',
+        'affects_irp' => 'boolean',
     ];
 
     /**

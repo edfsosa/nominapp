@@ -8,14 +8,19 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class PayrollPeriod extends Model
 {
     protected $fillable = [
-        'frequency',  // 'monthly', 'biweekly', 'weekly'
+        'name',
         'start_date',
         'end_date',
+        'frequency',
+        'status',
+        'closed_at',
+        'notes',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date'   => 'date',
+        'closed_at'  => 'datetime',
     ];
 
     public function payrolls(): HasMany

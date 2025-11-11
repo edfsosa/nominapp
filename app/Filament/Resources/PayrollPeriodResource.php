@@ -2,13 +2,25 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 use App\Models\PayrollPeriod;
+use App\Services\PayrollService;
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\Fieldset;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -18,16 +30,20 @@ class PayrollPeriodResource extends Resource
     protected static ?string $model = PayrollPeriod::class;
     protected static ?string $navigationGroup = 'Nóminas';
     protected static ?string $navigationLabel = 'Periodos';
-    protected static ?string $label = 'Periodo';
-    protected static ?string $pluralLabel = 'Periodos';
     protected static ?string $slug = 'periodos';
+    protected static ?string $pluralModelLabel = 'periodos';
+    protected static ?string $modelLabel = 'periodo';
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('frequency')
+                TextInput::make('name')
+                    ->label('Nombre')
+                    ->maxLength(255)
+                    ->nullable(),
+                Select::make('frequency')
                     ->label('Frecuencia')
                     ->options([
                         'monthly' => 'Mensual',
@@ -36,18 +52,40 @@ class PayrollPeriodResource extends Resource
                     ])
                     ->native(false)
                     ->required(),
-                Forms\Components\DatePicker::make('start_date')
-                    ->label('Fecha inicio')
-                    ->format('d/m/Y')
-                    ->native(false)
+                DatePicker::make('start_date')
+                    ->label('Fecha de inicio')
+                    ->displayFormat('d/m/Y')
                     ->closeOnDateSelection()
-                    ->required(),
-                Forms\Components\DatePicker::make('end_date')
-                    ->label('Fecha fin')
-                    ->format('d/m/Y')
                     ->native(false)
-                    ->closeOnDateSelection()
                     ->required(),
+                DatePicker::make('end_date')
+                    ->label('Fecha de fin')
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
+                    ->native(false)
+                    ->required(),
+                Select::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'draft' => 'Borrador',
+                        'processing' => 'En proceso',
+                        'closed' => 'Cerrado',
+                    ])
+                    ->native(false)
+                    ->default('draft')
+                    ->required(),
+                DateTimePicker::make('closed_at')
+                    ->label('Cerrado en')
+                    ->displayFormat('d/m/Y H:i')
+                    ->closeOnDateSelection()
+                    ->native(false)
+                    ->nullable(),
+                Textarea::make('notes')
+                    ->label('Notas')
+                    ->maxLength(65535)
+                    ->rows(3)
+                    ->columnSpanFull()
+                    ->nullable(),
             ]);
     }
 
@@ -55,23 +93,55 @@ class PayrollPeriodResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('frequency')
-                    ->label('Fecha fin'),
-                Tables\Columns\TextColumn::make('start_date')
-                    ->label('Fecha fin')
+                TextColumn::make('name')
+                    ->label('Nombre')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('frequency')
+                    ->label('Frecuencia')
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'monthly' => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly' => 'Semanal',
+                        default => $state,
+                    })
+                    ->sortable(),
+                TextColumn::make('start_date')
+                    ->label('Fecha de inicio')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('end_date')
-                    ->label('Fecha fin')
+                TextColumn::make('end_date')
+                    ->label('Fecha de fin')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Creado')
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'draft' => 'gray',
+                        'processing' => 'warning',
+                        'closed' => 'success',
+                        default => 'primary',
+                    })
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'draft' => 'Borrador',
+                        'processing' => 'En proceso',
+                        'closed' => 'Cerrado',
+                        default => $state,
+                    })
+                    ->sortable(),
+                TextColumn::make('closed_at')
+                    ->label('Cerrado en')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
+                TextColumn::make('created_at')
+                    ->label('Creado en')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('updated_at')
+                    ->label('Actualizado en')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -80,8 +150,21 @@ class PayrollPeriodResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\ViewAction::make(),
+                Tables\Actions\Action::make('generatePayrolls')
+                    ->label('Generar recibos')
+                    ->icon('heroicon-o-document-text')
+                    ->requiresConfirmation()
+                    ->color('success')
+                    ->action(function (PayrollPeriod $record, PayrollService $payrollService) {
+                        $count = $payrollService->generateForPeriod($record);
+
+                        Notification::make()
+                            ->title("Se generaron {$count} recibos.")
+                            ->success()
+                            ->send();
+                    })
+                    ->visible(fn(PayrollPeriod $record) => $record->status !== 'closed'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -90,10 +173,60 @@ class PayrollPeriodResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            //
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManagePayrollPeriods::route('/'),
+            'index' => Pages\ListPayrollPeriods::route('/'),
+            'create' => Pages\CreatePayrollPeriod::route('/create'),
+            'view' => Pages\ViewPayrollPeriod::route('/{record}'),
+            'edit' => Pages\EditPayrollPeriod::route('/{record}/edit'),
         ];
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Fieldset::make('Detalles del Periodo de Nómina')
+                    ->schema([
+                        TextEntry::make('name')
+                            ->label('Nombre'),
+                        TextEntry::make('frequency')
+                            ->label('Frecuencia')
+                            ->formatStateUsing(fn(string $state): string => match ($state) {
+                                'monthly' => 'Mensual',
+                                'biweekly' => 'Quincenal',
+                                'weekly' => 'Semanal',
+                                default => $state,
+                            }),
+                        TextEntry::make('start_date')
+                            ->label('Fecha de inicio')
+                            ->date('d/m/Y'),
+                        TextEntry::make('end_date')
+                            ->label('Fecha de fin')
+                            ->date('d/m/Y'),
+                        TextEntry::make('status')
+                            ->label('Estado')
+                            ->formatStateUsing(fn(string $state): string => match ($state) {
+                                'draft' => 'Borrador',
+                                'processing' => 'En proceso',
+                                'closed' => 'Cerrado',
+                                default => $state,
+                            }),
+                        TextEntry::make('closed_at')
+                            ->label('Cerrado en')
+                            ->dateTime('d/m/Y H:i'),
+                        TextEntry::make('notes')
+                            ->label('Notas')
+                            ->columnSpanFull(),
+                    ])->columns(3),
+            ]);
     }
 }

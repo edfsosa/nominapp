@@ -194,4 +194,10 @@ class Employee extends Model
 
         return null;
     }
+
+    public function scopeWithPayrollTypeAndSalary($query, string $type)
+    {
+        return $query->where('payroll_type', $type)
+            ->whereNotNull('base_salary');
+    }
 }

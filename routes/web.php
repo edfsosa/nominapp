@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
+use App\Http\Controllers\PayrollController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -29,4 +30,5 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/asistencias/{attendance_day}/export', [AttendanceExportController::class, 'export'])->name('attendance-days.export');
 
+    Route::get('/recibos/{payroll}/pdf', [PayrollController::class, 'generate'])->name('payrolls.pdf');
 });

@@ -7,9 +7,12 @@ use App\Filament\Resources\PayrollResource\RelationManagers;
 use App\Models\Payroll;
 use App\Services\PayrollService;
 use Filament\Forms;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -28,33 +31,33 @@ class PayrollResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
+                Select::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->searchable()
                     ->preload()
                     ->native(false)
                     ->required(),
-                Forms\Components\Select::make('payroll_period_id')
+                Select::make('payroll_period_id')
                     ->label('Periodo')
                     ->relationship('period', 'start_date')
                     ->searchable()
                     ->preload()
                     ->native(false)
                     ->required(),
-                Forms\Components\TextInput::make('gross_salary')
+                TextInput::make('gross_salary')
                     ->label('Salario bruto')
                     ->numeric()
                     ->required(),
-                Forms\Components\TextInput::make('total_deductions')
+                TextInput::make('total_deductions')
                     ->label('Deducciones')
                     ->numeric()
                     ->required(),
-                Forms\Components\TextInput::make('total_perceptions')
+                TextInput::make('total_perceptions')
                     ->label('Percepciones')
                     ->numeric()
                     ->required(),
-                Forms\Components\TextInput::make('net_salary')
+                TextInput::make('net_salary')
                     ->label('Salario neto')
                     ->numeric()
                     ->required(),
@@ -65,52 +68,46 @@ class PayrollResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('employee.first_name')
+                TextColumn::make('employee.first_name')
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
+                TextColumn::make('employee.last_name')
                     ->label('Apellido')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('period.start_date')
+                TextColumn::make('period.name')
                     ->label('Periodo')
-                    ->date('d/m/Y')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('gross_salary')
+                TextColumn::make('gross_salary')
                     ->label('Salario bruto')
-                    ->money('usd', true),
-                Tables\Columns\TextColumn::make('total_deductions')
+                    ->money('PYG', true),
+                TextColumn::make('total_deductions')
                     ->label('Deducciones')
-                    ->money('usd', true),
-                Tables\Columns\TextColumn::make('total_perceptions')
+                    ->money('PYG', true),
+                TextColumn::make('total_perceptions')
                     ->label('Percepciones')
-                    ->money('usd', true),
-                Tables\Columns\TextColumn::make('net_salary')
+                    ->money('PYG', true),
+                TextColumn::make('net_salary')
                     ->label('Salario neto')
-                    ->money('usd', true),
-                Tables\Columns\TextColumn::make('created_at')
-                    ->label('Creado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
-                    ->label('Actualizado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->money('PYG', true),
             ])
             ->filters([
                 //
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('pdf')
+                    ->label('Generar PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->url(fn (Payroll $record) => route('payrolls.pdf', ['payroll' => $record->id]))
+                    ->openUrlInNewTab(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
