@@ -6,15 +6,34 @@ use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PayrollService
 {
+    protected PerceptionCalculator $perceptionCalculator;
+    protected DeductionCalculator $deductionCalculator;
+    protected ExtraHourCalculator $extraHourCalculator;
+    protected AbsencePenaltyCalculator $absencePenaltyCalculator;
+    protected PayrollPDFGenerator $payrollPDFGenerator;
+
+    public function __construct(
+        PerceptionCalculator $perceptionCalculator,
+        DeductionCalculator $deductionCalculator,
+        ExtraHourCalculator $extraHourCalculator,
+        AbsencePenaltyCalculator $absencePenaltyCalculator,
+        PayrollPDFGenerator $payrollPDFGenerator
+    ) {
+        $this->perceptionCalculator = $perceptionCalculator;
+        $this->deductionCalculator = $deductionCalculator;
+        $this->extraHourCalculator = $extraHourCalculator;
+        $this->absencePenaltyCalculator = $absencePenaltyCalculator;
+        $this->payrollPDFGenerator = $payrollPDFGenerator;
+    }
+
     public function generateForPeriod(PayrollPeriod $period): int
     {
-        $createdCount = 0;
-        $now = now();
+        $count = 0;
 
         $employees = Employee::query()
             ->where('payroll_type', $period->frequency)
@@ -31,109 +50,63 @@ class PayrollService
                 continue;
             }
 
-            $baseSalary = $employee->base_salary;
+            DB::beginTransaction();
 
-            // Obtener percepciones activas
-            $perceptions = $employee->perceptions()
-                ->wherePivot('start_date', '<=', $now)
-                ->where(function ($query) use ($now) {
-                    $query->whereNull('end_date')->orWhere('end_date', '>=', $now);
-                })
-                ->get();
+            try {
+                $baseSalary = $employee->base_salary;
 
-            // Obtener deducciones activas
-            $deductions = $employee->deductions()
-                ->wherePivot('start_date', '<=', $now)
-                ->where(function ($query) use ($now) {
-                    $query->whereNull('end_date')->orWhere('end_date', '>=', $now);
-                })
-                ->get();
+                // Cálculo modular
+                $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+                $deductions = $this->deductionCalculator->calculate($employee, $period);
+                $extras = $this->extraHourCalculator->calculate($employee, $period);
+                $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
 
-            // Calcular percepciones y deducciones con lógica de tipo
-            $totalPerceptions = 0;
-            $totalDeductions = 0;
-            $calculatedPerceptions = [];
-            $calculatedDeductions = [];
+                $totalPerceptions = $perceptions['total'] + $extras['total'];
+                $totalDeductions = $deductions['total'] + $absences['total'];
+                $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
-            foreach ($perceptions as $perception) {
-                if (!is_null($perception->pivot->custom_amount)) {
-                    $amount = $perception->pivot->custom_amount;
-                } elseif ($perception->calculation === 'percentage') {
-                    $amount = round($baseSalary * ($perception->percent / 100), 2);
-                } else {
-                    $amount = $perception->amount ?? 0;
+                $payroll = Payroll::create([
+                    'employee_id' => $employee->id,
+                    'payroll_period_id' => $period->id,
+                    'base_salary' => $baseSalary,
+                    'total_perceptions' => $totalPerceptions,
+                    'total_deductions' => $totalDeductions,
+                    'net_salary' => $netSalary,
+                    'gross_salary' => $baseSalary + $totalPerceptions,
+                    'generated_at' => now(),
+                ]);
+
+                // Ítems: percepciones
+                foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'type' => 'perception',
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                    ]);
                 }
 
-                $totalPerceptions += $amount;
-
-                $calculatedPerceptions[] = [
-                    'description' => $perception->name,
-                    'amount' => $amount,
-                ];
-            }
-
-            $gross = $baseSalary + $totalPerceptions;
-
-            foreach ($deductions as $deduction) {
-                if (!is_null($deduction->pivot->custom_amount)) {
-                    $amount = $deduction->pivot->custom_amount;
-                } elseif ($deduction->calculation === 'percentage') {
-                    $amount = round($gross * ($deduction->percent / 100), 2);
-                } else {
-                    $amount = $deduction->amount ?? 0;
+                // Ítems: deducciones
+                foreach (array_merge($deductions['items'], $absences['items']) as $item) {
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'type' => 'deduction',
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                    ]);
                 }
 
-                $totalDeductions += $amount;
+                // Generar PDF
+                $pdfPath = $this->payrollPDFGenerator->generate($payroll);
+                $payroll->update(['pdf_path' => $pdfPath]);
 
-                $calculatedDeductions[] = [
-                    'description' => $deduction->name,
-                    'amount' => $amount,
-                ];
+                DB::commit();
+                $count++;
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                Log::error('Error al generar recibo: ' . $e->getMessage(), ['employee_id' => $employee->id]);
             }
-
-            $net = $gross - $totalDeductions;
-
-            // Crear nómina
-            $payroll = Payroll::create([
-                'employee_id' => $employee->id,
-                'payroll_period_id' => $period->id,
-                'base_salary' => $baseSalary,
-                'total_perceptions' => $totalPerceptions,
-                'gross_salary' => $gross,
-                'total_deductions' => $totalDeductions,
-                'net_salary' => $net,
-                'generated_at' => now(),
-            ]);
-
-            // Guardar ítems
-            foreach ($calculatedPerceptions as $item) {
-                PayrollItem::create([
-                    'payroll_id' => $payroll->id,
-                    'type' => 'perception',
-                    'description' => $item['description'],
-                    'amount' => $item['amount'],
-                ]);
-            }
-
-            foreach ($calculatedDeductions as $item) {
-                PayrollItem::create([
-                    'payroll_id' => $payroll->id,
-                    'type' => 'deduction',
-                    'description' => $item['description'],
-                    'amount' => $item['amount'],
-                ]);
-            }
-
-            // Generar y guardar PDF
-            $pdf = Pdf::loadView('pdf.payroll', compact('payroll'));
-            $filename = 'payrolls/' . now()->format('Y') . '/' . now()->format('m') . '/payroll_' . $payroll->id . '.pdf';
-            Storage::put($filename, $pdf->output());
-
-            $payroll->update(['pdf_path' => $filename]);
-
-            $createdCount++;
         }
-
-        return $createdCount;
+        return $count;
     }
 }

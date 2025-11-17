@@ -105,9 +105,8 @@ class PayrollResource extends Resource
             ->actions([
                 Tables\Actions\ViewAction::make(),
                 Tables\Actions\Action::make('pdf')
-                    ->label('PDF')
-                    ->url(fn(Payroll $record) => route('payrolls.view', ['payroll' => $record->id]))
-                    ->openUrlInNewTab(),
+                    ->label('Descargar PDF')
+                    ->url(fn(Payroll $record) => route('payrolls.download', $record)),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

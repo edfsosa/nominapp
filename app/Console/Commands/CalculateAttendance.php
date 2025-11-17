@@ -9,43 +9,34 @@ use Illuminate\Support\Carbon;
 
 class CalculateAttendance extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
     protected $signature = 'app:calculate-attendance';
 
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    protected $description = 'Calculate total hours, break minutes, and check-in/check-out times for attendance days';
+    protected $description = 'Calcular horas trabajadas, descansos y registros de asistencia del día';
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
         $today = Carbon::today()->toDateString();
-        $this->info("Starting attendance calculation for today: {$today}");
+        $this->info("🕒 Iniciando cálculo de asistencia para: {$today}");
 
-        // Buscar solo los registros de hoy
+        $found = false;
+
         AttendanceDay::with('employee', 'events')
             ->where('date', $today)
-            ->chunk(100, function ($days) {
+            ->chunk(100, function ($days) use (&$found) {
+                $found = true;
                 foreach ($days as $day) {
                     AttendanceCalculator::apply($day);
                     $day->saveQuietly();
-                    $this->info("Processed AttendanceDay ID: {$day->id}");
+                    $this->line("✅ Procesado ID: {$day->id}");
                 }
             });
-        
-        if (empty(AttendanceDay::where('date', $today)->first())) {
-            $this->info("No AttendanceDay records found for today: {$today}");
+
+        if (! $found) {
+            $this->warn("⚠️ No se encontraron registros de asistencia para hoy: {$today}");
+        } else {
+            $this->info("✅ Cálculo de asistencia finalizado correctamente.");
         }
 
-        $this->info('Attendance calculation completed.');
+        return Command::SUCCESS;
     }
 }

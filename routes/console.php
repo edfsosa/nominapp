@@ -10,3 +10,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command(GenerateAttendanceDays::class)->dailyAt('03:00')->withoutOverlapping();
+Schedule::command('app:generate-attendance-days')->dailyAt('23:30')->withoutOverlapping();
