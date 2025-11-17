@@ -3,10 +3,13 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use Filament\Forms;
-use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -22,22 +25,22 @@ class EmployeeDeductionsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('deduction_id')
+                Select::make('deduction_id')
                     ->label('Deducción')
                     ->relationship('deduction', 'name')
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\DatePicker::make('start_date')
+                DatePicker::make('start_date')
                     ->label('Desde')
                     ->native(false)
                     ->default(now())
                     ->required(),
-                Forms\Components\DatePicker::make('end_date')
+                DatePicker::make('end_date')
                     ->label('Hasta')
                     ->native(false)
                     ->after('start_date'),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Notas')
                     ->rows(1)
                     ->maxLength(500)
@@ -50,24 +53,44 @@ class EmployeeDeductionsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('deduction.name')
+                TextColumn::make('deduction.code')
+                    ->label('Código')
+                    ->sortable()
+                    ->searchable(),
+                TextColumn::make('deduction.name')
                     ->label('Deducción')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('start_date')
+                TextColumn::make('deduction.calculation')
+                    ->label('Cálculo')
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'fixed' => 'Fijo',
+                        'percentage' => 'Porcentaje',
+                        default => $state,
+                    })
+                    ->sortable(),
+                TextColumn::make('deduction.amount')
+                    ->label('Monto')
+                    ->money('PYG', true)
+                    ->sortable(),
+                TextColumn::make('deduction.percent')
+                    ->label('Porcentaje')
+                    ->suffix('%')
+                    ->sortable(),
+                TextColumn::make('start_date')
                     ->label('Desde')
                     ->sortable()
                     ->date('d/m/Y'),
-                Tables\Columns\TextColumn::make('end_date')
+                TextColumn::make('end_date')
                     ->label('Hasta')
                     ->sortable()
                     ->date('d/m/Y'),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -77,7 +100,8 @@ class EmployeeDeductionsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()
+                    ->label('Agregar'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),

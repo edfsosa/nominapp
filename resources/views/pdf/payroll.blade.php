@@ -8,153 +8,156 @@
         body {
             font-family: DejaVu Sans, sans-serif;
             font-size: 12px;
-            color: #333;
+            line-height: 1.5;
+            margin: 20px;
         }
 
-        .header,
-        .footer {
+        h1 {
             text-align: center;
+            font-size: 18px;
+            margin-bottom: 0;
         }
 
-        .company-info,
-        .employee-info {
-            margin-bottom: 20px;
+        h2 {
+            text-align: center;
+            font-size: 14px;
+            margin-top: 4px;
         }
 
-        .section-title {
-            font-weight: bold;
-            margin-bottom: 5px;
-            border-bottom: 1px solid #ddd;
-            padding-bottom: 3px;
+        .info {
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+
+        .info p {
+            margin: 2px 0;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            margin-top: 16px;
         }
 
         th,
         td {
-            border: 1px solid #999;
-            padding: 6px 8px;
-            text-align: left;
+            border: 1px solid #333;
+            padding: 6px;
+        }
+
+        th {
+            background-color: #f0f0f0;
         }
 
         .text-right {
             text-align: right;
         }
 
-        .total-row {
-            background-color: #f2f2f2;
+        .totales {
+            margin-top: 20px;
+        }
+
+        .totales td {
             font-weight: bold;
+            padding: 8px;
         }
 
         .signature {
             margin-top: 40px;
+            width: 100%;
         }
 
-        .signature-line {
-            border-top: 1px solid #000;
-            width: 200px;
-            margin: 0 auto;
+        .signature td {
+            width: 50%;
             text-align: center;
-            font-size: 10px;
+            padding-top: 40px;
         }
     </style>
 </head>
 
 <body>
 
-    <div class="header">
-        <h2>Recibo de Salario</h2>
-        <p>Periodo: {{ $payroll->period->start_date->format('d/m/Y') }} al
-            {{ $payroll->period->end_date->format('d/m/Y') }}</p>
-    </div>
+    <h1>Recibo de Salario #{{ $payroll->id }}</h1>
+    <h2>{{ $payroll->period->name }}</h2>
 
-    <div class="company-info">
-        <div class="section-title">Datos de la Empresa</div>
-        <p><strong>Nombre:</strong> Mi Empresa S.A.</p>
-        <p><strong>RUC:</strong> 8000000-1</p>
-        <p><strong>Dirección:</strong> Asunción, Paraguay</p>
-    </div>
-
-    <div class="employee-info">
-        <div class="section-title">Datos del Empleado</div>
-        <p><strong>Nombre y apellido:</strong> {{ $payroll->employee->first_name }} {{ $payroll->employee->last_name }}
-        </p>
-        <p><strong>Cédula:</strong> {{ $payroll->employee->ci ?? '---' }}</p>
+    <div class="info">
+        <p><strong>Nombre:</strong> {{ $payroll->employee->full_name }}</p>
+        <p><strong>CI:</strong> {{ $payroll->employee->ci }}</p>
         <p><strong>Cargo:</strong> {{ $payroll->employee->position->name ?? '---' }}</p>
-        <p><strong>Fecha de ingreso:</strong> {{ optional($payroll->employee->hire_date)->format('d/m/Y') }}</p>
+        <p><strong>Sucursal:</strong> {{ $payroll->employee->branch->name ?? '---' }}</p>
+        <p><strong>Fecha de emisión:</strong> {{ $payroll->generated_at->format('d/m/Y H:i') }}</p>
     </div>
 
-    <div>
-        <div class="section-title">Detalle de Haberes</div>
+    @php
+        $perceptions = $payroll->items->where('type', 'perception');
+        $deductions = $payroll->items->where('type', 'deduction');
+    @endphp
+
+    @if ($perceptions->count())
+        <h3>Percepciones</h3>
         <table>
             <thead>
                 <tr>
                     <th>Descripción</th>
-                    <th class="text-right">Monto (Gs)</th>
+                    <th class="text-right">Monto</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach ($payroll->items->where('type', 'perception') as $item)
+                @foreach ($perceptions as $item)
                     <tr>
                         <td>{{ $item->description }}</td>
-                        <td class="text-right">{{ number_format($item->amount, 0, ',', '.') }}</td>
+                        <td class="text-right">{{ number_format($item->amount, 0, ',', '.') }} Gs</td>
                     </tr>
                 @endforeach
-                <tr class="total-row">
-                    <td>Total Haberes</td>
-                    <td class="text-right">{{ number_format($payroll->total_perceptions, 0, ',', '.') }}</td>
-                </tr>
             </tbody>
         </table>
-    </div>
+    @endif
 
-    <div>
-        <div class="section-title" style="margin-top: 20px;">Detalle de Descuentos</div>
+    @if ($deductions->count())
+        <h3 style="margin-top: 20px;">Deducciones</h3>
         <table>
             <thead>
                 <tr>
                     <th>Descripción</th>
-                    <th class="text-right">Monto (Gs)</th>
+                    <th class="text-right">Monto</th>
                 </tr>
             </thead>
             <tbody>
-                @foreach ($payroll->items->where('type', 'deduction') as $item)
+                @foreach ($deductions as $item)
                     <tr>
                         <td>{{ $item->description }}</td>
-                        <td class="text-right">{{ number_format($item->amount, 0, ',', '.') }}</td>
+                        <td class="text-right">-{{ number_format($item->amount, 0, ',', '.') }} Gs</td>
                     </tr>
                 @endforeach
-                <tr class="total-row">
-                    <td>Total Descuentos</td>
-                    <td class="text-right">{{ number_format($payroll->total_deductions, 0, ',', '.') }}</td>
-                </tr>
             </tbody>
         </table>
-    </div>
+    @endif
 
-    <div>
-        <div class="section-title" style="margin-top: 20px;">Total Neto a Cobrar</div>
-        <table>
-            <tr class="total-row">
-                <td class="text-right" colspan="2">Gs. {{ number_format($payroll->net_salary, 0, ',', '.') }}</td>
-            </tr>
-        </table>
-    </div>
+    <table class="totales">
+        <tr>
+            <td>Salario Base</td>
+            <td class="text-right">{{ number_format($payroll->base_salary, 0, ',', '.') }} Gs</td>
+        </tr>
+        <tr>
+            <td>Total Percepciones</td>
+            <td class="text-right">{{ number_format($payroll->total_perceptions, 0, ',', '.') }} Gs</td>
+        </tr>
+        <tr>
+            <td>Total Deducciones</td>
+            <td class="text-right">-{{ number_format($payroll->total_deductions, 0, ',', '.') }} Gs</td>
+        </tr>
+        <tr>
+            <td><strong>Salario Neto</strong></td>
+            <td class="text-right"><strong>{{ number_format($payroll->net_salary, 0, ',', '.') }} Gs</strong></td>
+        </tr>
+    </table>
 
-    <div class="signature">
-        <p class="signature-line">Firma del Empleado</p>
-    </div>
-
-    <div class="footer">
-        <p>Generado por Nominapp</p>
-        <p>
-            Fecha de emisión: {{ now()->format('d/m/Y H:i') }}
-        </p>
-    </div>
+    <table class="signature">
+        <tr>
+            <td>Firma del Empleado</td>
+            <td>Responsable RRHH</td>
+        </tr>
+    </table>
 
 </body>
 

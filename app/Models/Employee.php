@@ -200,4 +200,9 @@ class Employee extends Model
         return $query->where('payroll_type', $type)
             ->whereNotNull('base_salary');
     }
+
+    public function getFullNameAttribute()
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
 }

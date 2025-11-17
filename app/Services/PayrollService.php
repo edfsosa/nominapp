@@ -6,205 +6,132 @@ use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
-use App\Models\EmployeeDeduction;
-use App\Models\EmployeePerception;
-
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;
 
 class PayrollService
 {
     public function generateForPeriod(PayrollPeriod $period): int
     {
         $createdCount = 0;
+        $now = now();
 
-        $frecuency = $period->frequency;
+        $employees = Employee::query()
+            ->where('payroll_type', $period->frequency)
+            ->whereNotNull('base_salary')
+            ->whereIn('status', ['active', 'suspended'])
+            ->get();
 
-        $monthlyEmployees = Employee::withPayrollTypeAndSalary('monthly')->get();
-        $biweeklyEmployees = Employee::withPayrollTypeAndSalary('biweekly')->get();
-        $weeklyEmployees = Employee::withPayrollTypeAndSalary('weekly')->get();
+        foreach ($employees as $employee) {
+            // Evitar duplicados
+            if (Payroll::where('employee_id', $employee->id)
+                ->where('payroll_period_id', $period->id)
+                ->exists()
+            ) {
+                continue;
+            }
 
-        if ($frecuency === 'monthly') {
-            // Lógica específica para nóminas mensuales si es necesario
-            foreach ($monthlyEmployees as $employee) {
-                // Evitar duplicados
-                if (Payroll::where('employee_id', $employee->id)
-                    ->where('payroll_period_id', $period->id)->exists()
-                ) {
-                    continue;
+            $baseSalary = $employee->base_salary;
+
+            // Obtener percepciones activas
+            $perceptions = $employee->perceptions()
+                ->wherePivot('start_date', '<=', $now)
+                ->where(function ($query) use ($now) {
+                    $query->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                })
+                ->get();
+
+            // Obtener deducciones activas
+            $deductions = $employee->deductions()
+                ->wherePivot('start_date', '<=', $now)
+                ->where(function ($query) use ($now) {
+                    $query->whereNull('end_date')->orWhere('end_date', '>=', $now);
+                })
+                ->get();
+
+            // Calcular percepciones y deducciones con lógica de tipo
+            $totalPerceptions = 0;
+            $totalDeductions = 0;
+            $calculatedPerceptions = [];
+            $calculatedDeductions = [];
+
+            foreach ($perceptions as $perception) {
+                if (!is_null($perception->pivot->custom_amount)) {
+                    $amount = $perception->pivot->custom_amount;
+                } elseif ($perception->calculation === 'percentage') {
+                    $amount = round($baseSalary * ($perception->percent / 100), 2);
+                } else {
+                    $amount = $perception->amount ?? 0;
                 }
 
-                // Obtener percepciones activas
-                $perceptions = EmployeePerception::where('employee_id', $employee->id)->get();
-                $deductions = EmployeeDeduction::where('employee_id', $employee->id)->get();
+                $totalPerceptions += $amount;
 
-                $baseSalary = $employee->base_salary;
+                $calculatedPerceptions[] = [
+                    'description' => $perception->name,
+                    'amount' => $amount,
+                ];
+            }
 
-                $totalPerceptions = $perceptions->sum('custom_amount');
-                $totalDeductions = $deductions->sum('custom_amount');
-                $gross = $totalPerceptions + $baseSalary;
-                $net = $gross - $totalDeductions;
+            $gross = $baseSalary + $totalPerceptions;
 
-                // Crear recibo
-                $payroll = Payroll::create([
-                    'employee_id' => $employee->id,
-                    'payroll_period_id' => $period->id,
-                    'gross_salary' => $gross,
-                    'total_perceptions' => $gross,
-                    'total_deductions' => $totalDeductions,
-                    'net_salary' => $net,
-                ]);
+            foreach ($deductions as $deduction) {
+                if (!is_null($deduction->pivot->custom_amount)) {
+                    $amount = $deduction->pivot->custom_amount;
+                } elseif ($deduction->calculation === 'percentage') {
+                    $amount = round($gross * ($deduction->percent / 100), 2);
+                } else {
+                    $amount = $deduction->amount ?? 0;
+                }
 
-                // Item de salario base
+                $totalDeductions += $amount;
+
+                $calculatedDeductions[] = [
+                    'description' => $deduction->name,
+                    'amount' => $amount,
+                ];
+            }
+
+            $net = $gross - $totalDeductions;
+
+            // Crear nómina
+            $payroll = Payroll::create([
+                'employee_id' => $employee->id,
+                'payroll_period_id' => $period->id,
+                'base_salary' => $baseSalary,
+                'total_perceptions' => $totalPerceptions,
+                'gross_salary' => $gross,
+                'total_deductions' => $totalDeductions,
+                'net_salary' => $net,
+                'generated_at' => now(),
+            ]);
+
+            // Guardar ítems
+            foreach ($calculatedPerceptions as $item) {
                 PayrollItem::create([
                     'payroll_id' => $payroll->id,
                     'type' => 'perception',
-                    'description' => 'Salario Base',
-                    'amount' => $baseSalary,
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
                 ]);
-
-                // Items de percepciones
-                foreach ($perceptions as $p) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'perception',
-                        'description' => $p->perception->name,
-                        'amount' => $p->custom_amount ?? 0,
-                    ]);
-                }
-
-                // Items de deducciones
-                foreach ($deductions as $d) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'deduction',
-                        'description' => $d->deduction->name,
-                        'amount' => $d->custom_amount ?? 0,
-                    ]);
-                }
-
-                $createdCount++;
             }
-        } elseif ($frecuency === 'biweekly') {
-            // Lógica específica para nóminas quincenales si es necesario
-            foreach ($biweeklyEmployees as $employee) {
-                // Evitar duplicados
-                if (Payroll::where('employee_id', $employee->id)
-                    ->where('payroll_period_id', $period->id)->exists()
-                ) {
-                    continue;
-                }
 
-                // Obtener percepciones activas
-                $perceptions = EmployeePerception::where('employee_id', $employee->id)->get();
-                $deductions = EmployeeDeduction::where('employee_id', $employee->id)->get();
-
-                $baseSalary = $employee->base_salary / 2; // Ajuste para quincenal
-
-                $totalPerceptions = $perceptions->sum('custom_amount') / 2;
-                $totalDeductions = $deductions->sum('custom_amount') / 2;
-                $gross = $totalPerceptions + $baseSalary;
-                $net = $gross - $totalDeductions;
-
-                // Crear recibo
-                $payroll = Payroll::create([
-                    'employee_id' => $employee->id,
-                    'payroll_period_id' => $period->id,
-                    'gross_salary' => $gross,
-                    'total_perceptions' => $gross,
-                    'total_deductions' => $totalDeductions,
-                    'net_salary' => $net,
-                ]);
-
-                // Item de salario base
+            foreach ($calculatedDeductions as $item) {
                 PayrollItem::create([
                     'payroll_id' => $payroll->id,
-                    'type' => 'perception',
-                    'description' => 'Salario Base',
-                    'amount' => $baseSalary,
+                    'type' => 'deduction',
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
                 ]);
-
-                // Items de percepciones
-                foreach ($perceptions as $p) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'perception',
-                        'description' => $p->perception->name,
-                        'amount' => ($p->custom_amount ?? 0) / 2,
-                    ]);
-                }
-
-                // Items de deducciones
-                foreach ($deductions as $d) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'deduction',
-                        'description' => $d->deduction->name,
-                        'amount' => ($d->custom_amount ?? 0) / 2,
-                    ]);
-                }
-
-                $createdCount++;
             }
-        } elseif ($frecuency === 'weekly') {
-            // Lógica específica para nóminas semanales si es necesario
-            foreach ($weeklyEmployees as $employee) {
-                // Evitar duplicados
-                if (Payroll::where('employee_id', $employee->id)
-                    ->where('payroll_period_id', $period->id)->exists()
-                ) {
-                    continue;
-                }
 
-                // Obtener percepciones activas
-                $perceptions = EmployeePerception::where('employee_id', $employee->id)->get();
-                $deductions = EmployeeDeduction::where('employee_id', $employee->id)->get();
+            // Generar y guardar PDF
+            $pdf = Pdf::loadView('pdf.payroll', compact('payroll'));
+            $filename = 'payrolls/' . now()->format('Y') . '/' . now()->format('m') . '/payroll_' . $payroll->id . '.pdf';
+            Storage::put($filename, $pdf->output());
 
-                $baseSalary = $employee->base_salary / 4; // Ajuste para semanal
+            $payroll->update(['pdf_path' => $filename]);
 
-                $totalPerceptions = $perceptions->sum('custom_amount') / 4;
-                $totalDeductions = $deductions->sum('custom_amount') / 4;
-                $gross = $totalPerceptions + $baseSalary;
-                $net = $gross - $totalDeductions;
-
-                // Crear recibo
-                $payroll = Payroll::create([
-                    'employee_id' => $employee->id,
-                    'payroll_period_id' => $period->id,
-                    'gross_salary' => $gross,
-                    'total_perceptions' => $gross,
-                    'total_deductions' => $totalDeductions,
-                    'net_salary' => $net,
-                ]);
-
-                // Item de salario base
-                PayrollItem::create([
-                    'payroll_id' => $payroll->id,
-                    'type' => 'perception',
-                    'description' => 'Salario Base',
-                    'amount' => $baseSalary,
-                ]);
-
-                // Items de percepciones
-                foreach ($perceptions as $p) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'perception',
-                        'description' => $p->perception->name,
-                        'amount' => ($p->custom_amount ?? 0) / 4,
-                    ]);
-                }
-
-                // Items de deducciones
-                foreach ($deductions as $d) {
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'deduction',
-                        'description' => $d->deduction->name,
-                        'amount' => ($d->custom_amount ?? 0) / 4,
-                    ]);
-                }
-
-                $createdCount++;
-            }
+            $createdCount++;
         }
 
         return $createdCount;

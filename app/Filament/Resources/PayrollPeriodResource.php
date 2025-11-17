@@ -2,13 +2,11 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Infolists;
 use Filament\Infolists\Infolist;
 use App\Filament\Resources\PayrollPeriodResource\Pages;
-use App\Filament\Resources\PayrollPeriodResource\RelationManagers;
+use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollService;
-use Filament\Forms;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
@@ -21,8 +19,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PayrollPeriodResource extends Resource
@@ -97,15 +95,6 @@ class PayrollPeriodResource extends Resource
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
-                TextColumn::make('frequency')
-                    ->label('Frecuencia')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'monthly' => 'Mensual',
-                        'biweekly' => 'Quincenal',
-                        'weekly' => 'Semanal',
-                        default => $state,
-                    })
-                    ->sortable(),
                 TextColumn::make('start_date')
                     ->label('Fecha de inicio')
                     ->date('d/m/Y')
@@ -147,7 +136,15 @@ class PayrollPeriodResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'draft' => 'Borrador',
+                        'processing' => 'En proceso',
+                        'closed' => 'Cerrado',
+                    ])
+                    ->native(false)
+                    ->multiple(),
             ])
             ->actions([
                 Tables\Actions\ViewAction::make(),
@@ -159,12 +156,43 @@ class PayrollPeriodResource extends Resource
                     ->action(function (PayrollPeriod $record, PayrollService $payrollService) {
                         $count = $payrollService->generateForPeriod($record);
 
+                        if ($count > 0) {
+                            // Cambiar estado del periodo si lo necesitás
+                            $record->update([
+                                'status' => 'processing', // o 'closed' si querés marcarlo como cerrado
+                                'closed_at' => now(),
+                            ]);
+
+                            Notification::make()
+                                ->title("Se generaron {$count} recibos.")
+                                ->success()
+                                ->send();
+                        } else {
+                            Notification::make()
+                                ->title('No se generaron recibos.')
+                                ->body('Es posible que ya hayan sido generados o que no haya empleados válidos.')
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
+                Tables\Actions\Action::make('closePeriod')
+                    ->label('Cerrar periodo')
+                    ->icon('heroicon-o-lock-closed')
+                    ->requiresConfirmation()
+                    ->color('danger')
+                    ->action(function (PayrollPeriod $record) {
+                        $record->update([
+                            'status' => 'closed',
+                            'closed_at' => now(),
+                        ]);
+
                         Notification::make()
-                            ->title("Se generaron {$count} recibos.")
+                            ->title('El periodo ha sido cerrado.')
                             ->success()
                             ->send();
                     })
-                    ->visible(fn(PayrollPeriod $record) => $record->status !== 'closed'),
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'processing'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -176,7 +204,7 @@ class PayrollPeriodResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            PayrollsRelationManager::class,
         ];
     }
 
@@ -226,7 +254,7 @@ class PayrollPeriodResource extends Resource
                         TextEntry::make('notes')
                             ->label('Notas')
                             ->columnSpanFull(),
-                    ])->columns(3),
+                    ])->columns(2),
             ]);
     }
 }

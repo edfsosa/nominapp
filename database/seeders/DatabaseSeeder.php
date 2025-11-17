@@ -28,5 +28,6 @@ class DatabaseSeeder extends Seeder
         $this->call(PerceptionSeeder::class);
         $this->call(HolidaySeeder::class);
         $this->call(AttendanceDayWithEventsSeeder::class);
+        $this->call(PayrollPeriodSeeder::class);
     }
 }

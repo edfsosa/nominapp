@@ -2,14 +2,15 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Infolists\Infolist;
 use App\Filament\Resources\PayrollResource\Pages;
 use App\Filament\Resources\PayrollResource\RelationManagers;
 use App\Models\Payroll;
-use App\Services\PayrollService;
-use Filament\Forms;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\Fieldset;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
@@ -40,7 +41,7 @@ class PayrollResource extends Resource
                     ->required(),
                 Select::make('payroll_period_id')
                     ->label('Periodo')
-                    ->relationship('period', 'start_date')
+                    ->relationship('period', 'name')
                     ->searchable()
                     ->preload()
                     ->native(false)
@@ -102,11 +103,10 @@ class PayrollResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make(),
                 Tables\Actions\Action::make('pdf')
-                    ->label('Generar PDF')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->url(fn (Payroll $record) => route('payrolls.pdf', ['payroll' => $record->id]))
+                    ->label('PDF')
+                    ->url(fn(Payroll $record) => route('payrolls.view', ['payroll' => $record->id]))
                     ->openUrlInNewTab(),
             ])
             ->bulkActions([
@@ -127,8 +127,28 @@ class PayrollResource extends Resource
     {
         return [
             'index' => Pages\ListPayrolls::route('/'),
+            'view' => Pages\ViewPayroll::route('/{record}'),
             'create' => Pages\CreatePayroll::route('/create'),
             'edit' => Pages\EditPayroll::route('/{record}/edit'),
         ];
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Fieldset::make('Detalles del Periodo de Nómina')
+                    ->schema([
+                        TextEntry::make('id')->label('ID'),
+                        TextEntry::make('employee.first_name')->label('Nombre'),
+                        TextEntry::make('employee.last_name')->label('Apellido'),
+                        TextEntry::make('period.name')->label('Periodo'),
+                        TextEntry::make('gross_salary')->label('Salario bruto')->money('PYG', true),
+                        TextEntry::make('total_deductions')->label('Deducciones')->money('PYG', true),
+                        TextEntry::make('total_perceptions')->label('Percepciones')->money('PYG', true),
+                        TextEntry::make('net_salary')->label('Salario neto')->money('PYG', true),
+                        TextEntry::make('generated_at')->label('Generado el')->dateTime('d/m/Y H:i'),
+                    ])->columns(3),
+            ]);
     }
 }

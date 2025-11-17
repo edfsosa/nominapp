@@ -30,5 +30,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/asistencias/{attendance_day}/export', [AttendanceExportController::class, 'export'])->name('attendance-days.export');
 
-    Route::get('/recibos/{payroll}/pdf', [PayrollController::class, 'generate'])->name('payrolls.pdf');
+    Route::get('/recibos/{payroll}/download', [PayrollController::class, 'download'])->name('payrolls.download');
+    Route::get('/recibos/{payroll}/view', [PayrollController::class, 'view'])->name('payrolls.view');
 });

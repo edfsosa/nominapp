@@ -3,12 +3,17 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use Filament\Forms;
-use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class EmployeePerceptionsRelationManager extends RelationManager
@@ -22,52 +27,81 @@ class EmployeePerceptionsRelationManager extends RelationManager
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('perception_id')
+                Select::make('perception_id')
                     ->label('Percepción')
-                    ->relationship('perception', 'name')
+                    ->relationship(
+                        name: 'perception',
+                        modifyQueryUsing: fn (Builder $query) => $query->orderBy('name')
+                    )
+                    ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->name . ' (' . ($record->calculation === 'fixed' ? $record->amount . ' PYG' : $record->percent . '%') . ')')
                     ->required()
                     ->searchable()
                     ->preload(),
-                Forms\Components\DatePicker::make('start_date')
+                TextInput::make('custom_amount')
+                    ->label('Monto personalizado')
+                    ->integer()
+                    ->helperText('Si se deja en blanco, se usará el monto predeterminado de la percepción.')
+                    ->nullable(),
+                DatePicker::make('start_date')
                     ->label('Desde')
                     ->native(false)
                     ->default(now())
                     ->required(),
-                Forms\Components\DatePicker::make('end_date')
+                DatePicker::make('end_date')
                     ->label('Hasta')
                     ->native(false)
                     ->after('start_date'),
-                Forms\Components\Textarea::make('notes')
+                Textarea::make('notes')
                     ->label('Notas')
                     ->rows(1)
                     ->maxLength(500)
                     ->columnSpanFull(),
             ])
-            ->columns(3);
+            ->columns(2);
     }
 
     public function table(Table $table): Table
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('perception.name')
+                TextColumn::make('perception.code')
+                    ->label('Código')
+                    ->sortable()
+                    ->searchable(),
+                TextColumn::make('perception.name')
                     ->label('Percepción')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('start_date')
+                TextColumn::make('perception.calculation')
+                    ->label('Cálculo')
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'fixed' => 'Fijo',
+                        'percentage' => 'Porcentaje',
+                        default => $state,
+                    })
+                    ->sortable(),
+                TextColumn::make('perception.amount')
+                    ->label('Monto')
+                    ->money('PYG', true)
+                    ->sortable(),
+                TextColumn::make('perception.percent')
+                    ->label('Porcentaje')
+                    ->suffix('%')
+                    ->sortable(),
+                TextColumn::make('start_date')
                     ->label('Desde')
                     ->sortable()
                     ->date('d/m/Y'),
-                Tables\Columns\TextColumn::make('end_date')
+                TextColumn::make('end_date')
                     ->label('Hasta')
                     ->sortable()
                     ->date('d/m/Y'),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -77,7 +111,8 @@ class EmployeePerceptionsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()
+                    ->label('Agregar'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
