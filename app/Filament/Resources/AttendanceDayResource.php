@@ -21,9 +21,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
-use Filament\Infolists;
 use Filament\Infolists\Components\Fieldset;
-use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Tables\Actions\Action;
@@ -149,11 +147,13 @@ class AttendanceDayResource extends Resource
                 TextColumn::make('employee.position.name')
                     ->label('Cargo')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('employee.position.department.name')
                     ->label('Departamento')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('status')
                     ->label('Estado')
                     ->formatStateUsing(fn($state) => match ($state) {
@@ -277,8 +277,27 @@ class AttendanceDayResource extends Resource
                                 'on_leave' => 'De permiso',
                                 default => 'Desconocido',
                             }),
+                        TextEntry::make('anomaly_flag')
+                            ->label('Anomalía detectada')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
+                        TextEntry::make('manual_adjustment')
+                            ->label('Ajustado manualmente')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
+                        TextEntry::make('is_weekend')
+                            ->label('Es domingo')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
+                        TextEntry::make('is_holiday')
+                            ->label('Es feriado')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
+                        TextEntry::make('on_vacation')
+                            ->label('De vacaciones')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
+                        TextEntry::make('justified_absence')
+                            ->label('Ausencia justificada')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
                         TextEntry::make('notes')
-                            ->label('Notas'),
+                            ->label('Notas')
+                            ->visible(fn($record) => !empty($record->notes)),
                     ])->columns(3),
 
                 Fieldset::make('Empleado')
@@ -332,6 +351,9 @@ class AttendanceDayResource extends Resource
                             ->label('Minutos de descanso esperados'),
                         TextEntry::make('extra_hours')
                             ->label('Horas extra'),
+                        TextEntry::make('overtime_approved')
+                            ->label('Horas extra aprobadas')
+                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No'),
                     ])->columns(3),
 
             ]);

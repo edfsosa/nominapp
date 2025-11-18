@@ -23,8 +23,8 @@ class PositionResource extends Resource
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?string $slug = 'cargos';
     protected static ?string $navigationLabel = 'Cargos';
-    protected static ?string $label = 'Cargo';
-    protected static ?string $pluralLabel = 'Cargos';
+    protected static ?string $label = 'cargo';
+    protected static ?string $pluralLabel = 'cargos';
     protected static ?string $navigationGroup = 'Empresa';
 
     public static function form(Form $form): Form
@@ -34,7 +34,8 @@ class PositionResource extends Resource
                 TextInput::make('name')
                     ->label('Nombre')
                     ->required()
-                    ->maxLength(100),
+                    ->maxLength(60)
+                    ->unique(ignorable: fn (?self $record) => $record),
                 Select::make('department_id')
                     ->label('Departamento')
                     ->relationship('department', 'name')
@@ -79,7 +80,6 @@ class PositionResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -88,10 +88,19 @@ class PositionResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\EmployeesRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManagePositions::route('/'),
+            'index' => Pages\ListPositions::route('/'),
+            'create' => Pages\CreatePosition::route('/create'),
+            'edit' => Pages\EditPosition::route('/{record}/edit'),
         ];
     }
 }

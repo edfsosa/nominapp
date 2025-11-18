@@ -31,6 +31,8 @@ class AttendanceDay extends Model
         'is_holiday',
         'manual_adjustment',
         'overtime_approved',
+        'on_vacation',
+        'justified_absence',
     ];
 
     protected $casts = [
@@ -48,6 +50,8 @@ class AttendanceDay extends Model
         'is_holiday' => 'boolean',
         'manual_adjustment' => 'boolean',
         'overtime_approved' => 'boolean',
+        'on_vacation' => 'boolean',
+        'justified_absence' => 'boolean',
     ];
 
     public function employee(): BelongsTo
@@ -62,7 +66,7 @@ class AttendanceDay extends Model
 
     public function getDateFormattedAttribute(): string
     {
-        return Carbon::parse($this->date)->format('d M Y');
+        return Carbon::parse($this->date)->format('d/m/Y');
     }
 
     public function getStatusInSpanishAttribute(): string

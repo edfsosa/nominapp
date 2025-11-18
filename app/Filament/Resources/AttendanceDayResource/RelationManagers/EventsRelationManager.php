@@ -6,6 +6,7 @@ use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -22,11 +23,11 @@ class EventsRelationManager extends RelationManager
         return $table
             ->recordTitleAttribute('event_type')
             ->columns([
-                Tables\Columns\TextColumn::make('recorded_at')
+                TextColumn::make('recorded_at')
                     ->label('Marcado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('event_type')
+                TextColumn::make('event_type')
                     ->label('Tipo')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'check_in' => 'Entrada jornada',
@@ -45,16 +46,16 @@ class EventsRelationManager extends RelationManager
                     })
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('location')
+                TextColumn::make('location')
                     ->label('Ubicación')
                     ->searchable()
                     ->sortable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -64,7 +65,23 @@ class EventsRelationManager extends RelationManager
                 //
             ])
             ->headerActions([])
-            ->actions([])
+            ->actions([
+                Tables\Actions\Action::make('map_location')
+                    ->label('Ver en mapa')
+                    // el valor de location es un json con latitud y longitud
+                    ->url(
+                        function ($record) {
+                            $latitude = $record->location['lat'] ?? null;
+                            $longitude = $record->location['lng'] ?? null;
+                            if ($latitude && $longitude) {
+                                return "https://www.google.com/maps?q={$latitude},{$longitude}";
+                            }
+                            return null;
+                        }
+                    )
+                    ->openUrlInNewTab()
+                    ->icon('heroicon-o-map-pin'),
+            ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make(),

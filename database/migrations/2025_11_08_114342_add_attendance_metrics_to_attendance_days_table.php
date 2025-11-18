@@ -67,6 +67,12 @@ return new class extends Migration
 
             $table->boolean('overtime_approved')->default(false)
                 ->comment('True si las horas extra fueron autorizadas');
+
+            $table->boolean('on_vacation')->default(false)
+                ->comment('True si el empleado estaba de vacaciones ese día');
+
+            $table->boolean('justified_absence')->default(false)
+                ->comment('True si la ausencia o irregularidad está justificada');
         });
     }
 

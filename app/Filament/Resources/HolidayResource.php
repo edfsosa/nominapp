@@ -6,9 +6,12 @@ use App\Filament\Resources\HolidayResource\Pages;
 use App\Filament\Resources\HolidayResource\RelationManagers;
 use App\Models\Holiday;
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
@@ -18,8 +21,8 @@ class HolidayResource extends Resource
     protected static ?string $model = Holiday::class;
     protected static ?string $navigationGroup = 'Definiciones';
     protected static ?string $navigationLabel = 'Feriados';
-    protected static ?string $label = 'Feriado';
-    protected static ?string $pluralLabel = 'Feriados';
+    protected static ?string $label = 'feriado';
+    protected static ?string $pluralLabel = 'feriados';
     protected static ?string $slug = 'feriados';
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
 
@@ -27,11 +30,13 @@ class HolidayResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\DatePicker::make('date')
+                DatePicker::make('date')
                     ->label('Fecha')
                     ->displayFormat('d/m/Y')
+                    ->native(false)
+                    ->closeOnDateSelection()
                     ->required(),
-                Forms\Components\TextInput::make('name')
+                TextInput::make('name')
                     ->label('Nombre')
                     ->required()
                     ->maxLength(255),
@@ -42,20 +47,20 @@ class HolidayResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('date')
+                TextColumn::make('date')
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('name')
+                TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()

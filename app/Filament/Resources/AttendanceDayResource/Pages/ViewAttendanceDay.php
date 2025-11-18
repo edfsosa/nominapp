@@ -15,7 +15,7 @@ class ViewAttendanceDay extends ViewRecord
         return [
             Actions\Action::make('export')
                 ->label('Exportar (PDF)')
-                ->icon('heroicon-o-arrow-down-tray')
+                ->icon('heroicon-o-printer')
                 ->url(fn () => route('attendance-days.export', ['attendance_day' => $this->record->id]))
                 ->openUrlInNewTab(),
         ];

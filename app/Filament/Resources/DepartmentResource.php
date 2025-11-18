@@ -22,8 +22,8 @@ class DepartmentResource extends Resource
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?string $slug = 'departamentos';
     protected static ?string $navigationLabel = 'Departamentos';
-    protected static ?string $label = 'Departamento';
-    protected static ?string $pluralLabel = 'Departamentos';
+    protected static ?string $label = 'departamento';
+    protected static ?string $pluralLabel = 'departamentos';
     protected static ?string $navigationGroup = 'Empresa';
 
     public static function form(Form $form): Form
@@ -33,8 +33,9 @@ class DepartmentResource extends Resource
                 TextInput::make('name')
                     ->label('Nombre')
                     ->required()
-                    ->maxLength(100)
-                    ->unique(ignorable: fn (?Department $record) => $record),
+                    ->maxLength(60)
+                    ->unique(ignorable: fn (?Department $record) => $record)
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -68,7 +69,6 @@ class DepartmentResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
@@ -77,10 +77,19 @@ class DepartmentResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\PositionsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageDepartments::route('/'),
+            'index' => Pages\ListDepartments::route('/'),
+            'create' => Pages\CreateDepartment::route('/create'),
+            'edit' => Pages\EditDepartment::route('/{record}/edit'),
         ];
     }
 }

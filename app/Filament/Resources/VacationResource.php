@@ -6,9 +6,16 @@ use App\Filament\Resources\VacationResource\Pages;
 use App\Filament\Resources\VacationResource\RelationManagers;
 use App\Models\Vacation;
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -18,8 +25,8 @@ class VacationResource extends Resource
 {
     protected static ?string $model = Vacation::class;
     protected static ?string $navigationLabel = 'Vacaciones';
-    protected static ?string $label = 'Vacación';
-    protected static ?string $pluralLabel = 'Vacaciones';
+    protected static ?string $label = 'vacación';
+    protected static ?string $pluralLabel = 'vacaciones';
     protected static ?string $slug = 'vacaciones';
     protected static ?string $navigationIcon = 'heroicon-o-sun';
     protected static ?string $navigationGroup = 'Empleados';
@@ -28,7 +35,7 @@ class VacationResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
+                Select::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'id', function ($query) {
                         $query->where('status', 'active'); // Filtrar solo empleados activos
@@ -40,30 +47,7 @@ class VacationResource extends Resource
                     ->getOptionLabelFromRecordUsing(function ($record) {
                         return "{$record->first_name} {$record->last_name}"; // Combinar first_name y last_name
                     }),
-                Forms\Components\DatePicker::make('start_date')
-                    ->label('Fecha de Inicio')
-                    ->displayFormat('d/m/Y')
-                    ->native(false)
-                    ->closeOnDateSelection()
-                    ->required(),
-                Forms\Components\DatePicker::make('end_date')
-                    ->label('Fecha de Fin')
-                    ->displayFormat('d/m/Y')
-                    ->native(false)
-                    ->closeOnDateSelection()
-                    ->required(),
-                Forms\Components\Radio::make('type')
-                    ->label('Tipo')
-                    ->options([
-                        'paid' => 'Pagadas',
-                        'unpaid' => 'No Pagadas',
-                    ])
-                    ->inline(false)
-                    ->required(),
-                Forms\Components\TextInput::make('reason')
-                    ->label('Razón')
-                    ->nullable(),
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->label('Estado')
                     ->options([
                         'pending' => 'Pendiente',
@@ -72,7 +56,18 @@ class VacationResource extends Resource
                     ])
                     ->default('pending')
                     ->native(false)
-                    ->hiddenOn('create')
+                    ->required(),
+                DatePicker::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->displayFormat('d/m/Y')
+                    ->native(false)
+                    ->closeOnDateSelection()
+                    ->required(),
+                DatePicker::make('end_date')
+                    ->label('Fecha de Fin')
+                    ->displayFormat('d/m/Y')
+                    ->native(false)
+                    ->closeOnDateSelection()
                     ->required(),
             ]);
     }
@@ -81,44 +76,32 @@ class VacationResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('id')
+                TextColumn::make('id')
                     ->label('ID')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.ci')
+                TextColumn::make('employee.ci')
                     ->label('CI')
                     ->sortable()
                     ->searchable()
                     ->copyable(),
-                Tables\Columns\TextColumn::make('employee.first_name')
+                TextColumn::make('employee.first_name')
                     ->label('Nombre')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
+                TextColumn::make('employee.last_name')
                     ->label('Apellido')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('start_date')
+                TextColumn::make('start_date')
                     ->label('Inicio')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('end_date')
+                TextColumn::make('end_date')
                     ->label('Fin')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('type')
-                    ->label('Tipo')
-                    ->sortable()
-                    ->searchable()
-                    ->badge()
-                    ->colors([
-                        'success' => 'paid',
-                        'danger' => 'unpaid',
-                    ]),
-                Tables\Columns\TextColumn::make('reason')
-                    ->label('Razón')
-                    ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Estado')
                     ->sortable()
                     ->searchable()
@@ -127,13 +110,19 @@ class VacationResource extends Resource
                         'warning' => 'pending',
                         'success' => 'approved',
                         'danger' => 'rejected',
-                    ]),
-                Tables\Columns\TextColumn::make('created_at')
+                    ])
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'pending' => 'Pendiente',
+                        'approved' => 'Aprobado',
+                        'rejected' => 'Rechazado',
+                        default => $state,
+                    }),
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -155,16 +144,50 @@ class VacationResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
-                /* Tables\Actions\Action::make('Aprobar')
+                Tables\Actions\Action::make('Aprobar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn($record) => $record->status === 'pendiente')
-                    ->action(fn($record) => $record->update(['status' => 'aprobado'])),
+                    ->visible(fn($record) => $record->status === 'pending')
+                    ->action(
+                        function ($record) {
+                            if ($record->status !== 'pending') {
+                                Notification::make()
+                                    ->title('Solo se pueden aprobar solicitudes pendientes.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            } else {
+                                $record->update(['status' => 'approved']);
+                                Notification::make()
+                                    ->title("Solicitud de vacaciones #{$record->id} aprobada.")
+                                    ->success()
+                                    ->send();
+                            }
+                        }
+                    )
+                    ->requiresConfirmation(),
                 Tables\Actions\Action::make('Rechazar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn($record) => $record->status === 'pendiente')
-                    ->action(fn($record) => $record->update(['status' => 'rechazado'])), */
+                    ->visible(fn($record) => $record->status === 'pending')
+                    ->action(
+                        function ($record) {
+                            if ($record->status !== 'pending') {
+                                Notification::make()
+                                    ->title('Solo se pueden rechazar solicitudes pendientes.')
+                                    ->danger()
+                                    ->send();
+                                return;
+                            } else {
+                                $record->update(['status' => 'rejected']);
+                                Notification::make()
+                                    ->title("Solicitud de vacaciones #{$record->id} rechazada.")
+                                    ->success()
+                                    ->send();
+                            }
+                        }
+                    )
+                    ->requiresConfirmation(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

@@ -6,9 +6,14 @@ use App\Filament\Resources\EmployeeLeaveResource\Pages;
 use App\Filament\Resources\EmployeeLeaveResource\RelationManagers;
 use App\Models\EmployeeLeave;
 use Filament\Forms;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -20,8 +25,8 @@ class EmployeeLeaveResource extends Resource
 {
     protected static ?string $model = EmployeeLeave::class;
     protected static ?string $navigationLabel = 'Permisos';
-    protected static ?string $label = 'Permiso';
-    protected static ?string $pluralLabel = 'Permisos';
+    protected static ?string $label = 'permiso';
+    protected static ?string $pluralLabel = 'permisos';
     protected static ?string $slug = 'permisos';
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?string $navigationGroup = 'Empleados';
@@ -30,7 +35,7 @@ class EmployeeLeaveResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Select::make('employee_id')
+                Select::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'id', function ($query) {
                         $query->where('status', 'active'); // Filtrar solo empleados activos
@@ -42,7 +47,7 @@ class EmployeeLeaveResource extends Resource
                     ->getOptionLabelFromRecordUsing(function ($record) {
                         return "{$record->first_name} {$record->last_name}"; // Combinar first_name y last_name
                     }),
-                Forms\Components\Select::make('type')
+                Select::make('type')
                     ->label('Tipo de Permiso')
                     ->options([
                         'medical_leave' => 'Reposo Médico',
@@ -53,26 +58,27 @@ class EmployeeLeaveResource extends Resource
                         'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
                         'other' => 'Otro',
                     ])
+                    ->searchable()
                     ->native(false)
                     ->required(),
-                Forms\Components\DatePicker::make('start_date')
+                DatePicker::make('start_date')
                     ->label('Desde')
                     ->displayFormat('d/m/Y')
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
-                Forms\Components\DatePicker::make('end_date')
+                DatePicker::make('end_date')
                     ->label('Hasta')
                     ->displayFormat('d/m/Y')
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required(),
-                Forms\Components\Textarea::make('reason')
+                Textarea::make('reason')
                     ->label('Descripción/Motivo')
                     ->maxLength(500)
                     ->nullable()
                     ->columnSpanFull(),
-                Forms\Components\FileUpload::make('document_path')
+                FileUpload::make('document_path')
                     ->label('Documento Comprobante')
                     ->disk('public')
                     ->directory('employee_leaves')
@@ -82,7 +88,7 @@ class EmployeeLeaveResource extends Resource
                     ->maxSize(10240) // 10 MB
                     ->downloadable()
                     ->columnSpanFull(),
-                Forms\Components\Select::make('status')
+                Select::make('status')
                     ->label('Estado')
                     ->options([
                         'pending' => 'Pendiente',
@@ -101,33 +107,35 @@ class EmployeeLeaveResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('employee.ci')
+                TextColumn::make('employee.ci')
                     ->label('CI')
                     ->numeric()
                     ->sortable()
                     ->searchable()
                     ->copyable(),
-                Tables\Columns\TextColumn::make('employee.first_name')
+                TextColumn::make('employee.first_name')
                     ->label('Nombre(s)')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
+                TextColumn::make('employee.last_name')
                     ->label('Apellido(s)')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.position.name')
+                TextColumn::make('employee.position.name')
                     ->label('Cargo')
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('employee.position.department.name')
+                TextColumn::make('employee.position.department.name')
                     ->label('Departamento')
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('employee.branch.name')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('employee.branch.name')
                     ->label('Sucursal')
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('type')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('type')
                     ->label('Tipo')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'medical_leave' => 'Reposo Médico',
@@ -140,15 +148,15 @@ class EmployeeLeaveResource extends Resource
                     })
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('start_date')
+                TextColumn::make('start_date')
                     ->label('Desde')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('end_date')
+                TextColumn::make('end_date')
                     ->label('Hasta')
                     ->date('d/m/Y')
                     ->sortable(),
-                Tables\Columns\TextColumn::make('status')
+                TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
                     ->color(fn($state) => match ($state) {
@@ -164,12 +172,12 @@ class EmployeeLeaveResource extends Resource
                     })
                     ->sortable()
                     ->searchable(),
-                Tables\Columns\TextColumn::make('created_at')
+                TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
-                Tables\Columns\TextColumn::make('updated_at')
+                TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
@@ -197,7 +205,8 @@ class EmployeeLeaveResource extends Resource
                         'other' => 'Otro',
                     ])
                     ->placeholder('Seleccionar tipo')
-                    ->native(false),
+                    ->native(false)
+                    ->multiple(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
