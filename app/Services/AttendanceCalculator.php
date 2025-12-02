@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\AttendanceDay;
 use App\Models\Holiday;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class AttendanceCalculator
 {
@@ -15,8 +17,11 @@ class AttendanceCalculator
     private const EVENT_BREAK_END = 'break_end';
 
     // Definir constantes para los estados
+    private const STATUS_PRESENT = 'present';
     private const STATUS_ON_LEAVE = 'on_leave';
     private const STATUS_ABSENT = 'absent';
+    private const STATUS_HOLIDAY = 'holiday';
+    private const STATUS_WEEKEND = 'weekend';
 
     /**
      * Calcula y actualiza los campos básicos de asistencia para el día dado.
@@ -25,6 +30,7 @@ class AttendanceCalculator
     {
         // Validar datos iniciales
         if (!$day->employee) {
+            Log::warning("AttendanceDay {$day->id} no tiene empleado asignado");
             return;
         }
 
@@ -35,6 +41,8 @@ class AttendanceCalculator
         // Si el empleado está de vacaciones o tiene permiso, marcar como "on_leave" y detener cálculos
         if ($day->on_vacation || $day->justified_absence) {
             $day->status = self::STATUS_ON_LEAVE;
+            self::clearAttendanceData($day);
+            self::markAsCalculated($day); // ← Agregar
             return;
         }
 
@@ -44,14 +52,78 @@ class AttendanceCalculator
         // Obtener eventos del día
         $events = $day->events()->orderBy('recorded_at')->get();
 
-        // Determinar si el empleado debe estar marcado como "absent"
-        if ($events->isEmpty() && !$day->is_holiday && !$day->is_weekend) {
-            $day->status = self::STATUS_ABSENT;
+        // Si es feriado o fin de semana SIN eventos, marcar apropiadamente
+        if ($events->isEmpty()) {
+            if ($day->is_holiday) {
+                $day->status = self::STATUS_HOLIDAY;
+            } elseif ($day->is_weekend) {
+                $day->status = self::STATUS_WEEKEND;
+            } else {
+                $day->status = self::STATUS_ABSENT;
+            }
+            self::clearAttendanceData($day);
+            self::markAsCalculated($day); // ← Agregar
             return;
+        }
+
+        // Si es feriado o fin de semana CON eventos, es trabajo extraordinario
+        if ($day->is_holiday || $day->is_weekend) {
+            $day->is_extraordinary_work = true;
         }
 
         // Calcular horarios y descansos
         self::calculateAttendanceDetails($day, $events);
+
+        // Si llegó hasta aquí con eventos, el empleado estuvo presente
+        $day->status = self::STATUS_PRESENT;
+
+        // Marcar como calculado
+        self::markAsCalculated($day); // ← Agregar
+    }
+
+    /**
+     * Marca el día como calculado con timestamp.
+     */
+    private static function markAsCalculated(AttendanceDay $day): void
+    {
+        $day->is_calculated = true;
+        $day->calculated_at = now();
+    }
+
+    /**
+     * Aplica el cálculo de asistencia para un rango de fechas.
+     */
+    public static function applyForDateRange(Carbon $startDate, Carbon $endDate): void
+    {
+        DB::transaction(function () use ($startDate, $endDate) {
+            AttendanceDay::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
+                ->chunk(100, function ($days) {
+                    foreach ($days as $day) {
+                        try {
+                            self::apply($day);
+                            $day->save();
+                        } catch (\Exception $e) {
+                            Log::error("Error procesando AttendanceDay {$day->id}: {$e->getMessage()}");
+                            // Continúa con el siguiente registro
+                        }
+                    }
+                });
+        });
+    }
+
+    /**
+     * Limpia los datos de asistencia cuando no aplican.
+     */
+    private static function clearAttendanceData(AttendanceDay $day): void
+    {
+        $day->check_in_time = null;
+        $day->check_out_time = null;
+        $day->break_minutes = 0;
+        $day->total_hours = null;
+        $day->net_hours = null;
+        $day->extra_hours = null;
+        $day->late_minutes = null;
+        $day->early_leave_minutes = null;
     }
 
     /**
@@ -112,10 +184,11 @@ class AttendanceCalculator
     /**
      * Calcula las horas esperadas según los horarios programados.
      */
-    private static function calculateExpectedHours(?string $checkIn, ?string $checkOut): ?int
+    private static function calculateExpectedHours(?string $checkIn, ?string $checkOut): ?float
     {
         if ($checkIn && $checkOut) {
-            return Carbon::parse($checkIn)->diffInHours(Carbon::parse($checkOut));
+            $minutes = Carbon::parse($checkIn)->diffInMinutes(Carbon::parse($checkOut));
+            return round($minutes / 60, 2);
         }
         return null;
     }
@@ -138,19 +211,28 @@ class AttendanceCalculator
 
     /**
      * Calcula los minutos totales de descanso.
+     * Empareja break_start con break_end de forma segura.
      */
     private static function calculateBreakMinutes($events): int
     {
-        $breaks = $events->filter(fn($e) => in_array($e->event_type, [self::EVENT_BREAK_START, self::EVENT_BREAK_END]))->values();
+        $breakEvents = $events->filter(
+            fn($e) =>
+            in_array($e->event_type, [self::EVENT_BREAK_START, self::EVENT_BREAK_END])
+        )->values();
 
-        return $breaks->chunk(2)->sum(function ($pair) {
-            if ($pair->count() === 2) {
-                $start = $pair[0]->recorded_at;
-                $end = $pair[1]->recorded_at;
-                return Carbon::parse($start)->diffInMinutes(Carbon::parse($end));
+        $totalMinutes = 0;
+        $breakStart = null;
+
+        foreach ($breakEvents as $event) {
+            if ($event->event_type === self::EVENT_BREAK_START) {
+                $breakStart = $event->recorded_at;
+            } elseif ($event->event_type === self::EVENT_BREAK_END && $breakStart) {
+                $totalMinutes += Carbon::parse($breakStart)->diffInMinutes($event->recorded_at);
+                $breakStart = null; // Reset para el siguiente par
             }
-            return 0;
-        });
+        }
+
+        return $totalMinutes;
     }
 
     /**
@@ -172,7 +254,7 @@ class AttendanceCalculator
     /**
      * Calcula las horas extra trabajadas.
      */
-    private static function calculateExtraHours(?float $totalHours, ?int $expectedHours): ?float
+    private static function calculateExtraHours(?float $totalHours, ?float $expectedHours): ?float
     {
         if ($totalHours !== null && $expectedHours !== null) {
             $extraHours = $totalHours - $expectedHours;

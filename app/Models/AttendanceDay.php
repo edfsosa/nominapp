@@ -28,11 +28,14 @@ class AttendanceDay extends Model
         'anomaly_flag',
         'notes',
         'is_weekend',
+        'is_extraordinary_work',
         'is_holiday',
         'manual_adjustment',
         'overtime_approved',
         'on_vacation',
         'justified_absence',
+        'is_calculated',
+        'calculated_at',
     ];
 
     protected $casts = [
@@ -47,11 +50,14 @@ class AttendanceDay extends Model
         'break_minutes' => 'integer',
         'anomaly_flag' => 'boolean',
         'is_weekend' => 'boolean',
+        'is_extraordinary_work' => 'boolean',
         'is_holiday' => 'boolean',
         'manual_adjustment' => 'boolean',
         'overtime_approved' => 'boolean',
         'on_vacation' => 'boolean',
         'justified_absence' => 'boolean',
+        'is_calculated' => 'boolean',
+        'calculated_at' => 'datetime',
     ];
 
     public function employee(): BelongsTo

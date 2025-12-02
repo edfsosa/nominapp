@@ -19,6 +19,19 @@ class ListEmployees extends ListRecords
     {
         return [
             Actions\CreateAction::make(),
+            ExportAction::make()
+            ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->except([
+                                'created_at',
+                                'updated_at',
+                            ])
+                            ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
+                    ])
+                    ->label('Exportar')
+                    ->color('primary')
+                    ->icon('heroicon-o-arrow-down-tray')
         ];
     }
 
