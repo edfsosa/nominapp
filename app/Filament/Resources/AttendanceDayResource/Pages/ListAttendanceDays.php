@@ -23,6 +23,33 @@ class ListAttendanceDays extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            // Calcula solo el día de hoy usando el Service AttendanceCalculator
+            Action::make('calculate_today')
+                ->label('Calcular hoy')
+                ->icon('heroicon-o-bolt')
+                ->color('primary')
+                ->action(function () {
+                    try {
+                        $today = now();
+                        AttendanceCalculator::applyForDateRange($today, $today);
+
+                        Notification::make()
+                            ->title('Cálculo del día completado')
+                            ->body('Se calcularon las asistencias de hoy: ' . $today->format('d/m/Y'))
+                            ->success()
+                            ->send();
+                    } catch (\Exception $e) {
+                        Notification::make()
+                            ->title('Error al calcular')
+                            ->body('No se pudo calcular las asistencias de hoy.')
+                            ->danger()
+                            ->send();
+                    }
+                })
+                ->requiresConfirmation()
+                ->modalHeading('Calcular asistencias de hoy')
+                ->modalDescription('¿Deseas calcular las asistencias solo del día de hoy?'),
+
             // Calcula usando el Service AttendanceCalculator para un rango de fechas
             Action::make('calculate')
                 ->label('Calcular Asistencia')
@@ -31,19 +58,28 @@ class ListAttendanceDays extends ListRecords
                 ->form([
                     DatePicker::make('start_date')
                         ->label('Fecha de inicio')
+                        ->native(false)
+                        ->displayFormat('d/m/Y')
+                        ->closeOnDateSelection()
                         ->required()
                         ->maxDate(now())
                         ->default(now()->startOfMonth())
                         ->reactive(),
+
                     DatePicker::make('end_date')
                         ->label('Fecha de fin')
+                        ->native(false)
+                        ->displayFormat('d/m/Y')
+                        ->closeOnDateSelection()
                         ->required()
                         ->maxDate(now())
                         ->default(now())
                         ->afterOrEqual('start_date')
+                        ->minDate(fn(Get $get) => $get('start_date'))
                         ->reactive(),
+
                     Placeholder::make('stats')
-                        ->label('')
+                        ->label('Resumen del rango')
                         ->content(function (Get $get) {
                             $start = $get('start_date');
                             $end = $get('end_date');
@@ -59,74 +95,112 @@ class ListAttendanceDays extends ListRecords
                             $notCalculated = $total - $calculated;
 
                             if ($total === 0) {
-                                return '⚠️ No hay registros en este rango.';
+                                return '⚠️ ¿No hay registros en este rango.';
                             }
 
                             return "📊 Total: {$total} | ✅ Calculados: {$calculated} | ⏳ Sin calcular: {$notCalculated}";
-                        }),
+                        })
+                        ->columnSpanFull(),
                 ])
                 ->action(function (array $data) {
                     try {
                         $startDate = Carbon::parse($data['start_date']);
                         $endDate = Carbon::parse($data['end_date']);
 
+                        // Contar cuántos registros estaban calculados antes
                         $totalBefore = AttendanceDay::whereBetween('date', [
                             $startDate->toDateString(),
                             $endDate->toDateString()
                         ])->where('is_calculated', true)->count();
 
+                        // Ejecutar el cálculo
                         AttendanceCalculator::applyForDateRange($startDate, $endDate);
 
+                        // Contar cuántos registros están calculados después
                         $totalAfter = AttendanceDay::whereBetween('date', [
                             $startDate->toDateString(),
                             $endDate->toDateString()
                         ])->where('is_calculated', true)->count();
 
-                        $calculated = $totalAfter - $totalBefore;
+                        $newCalculated = $totalAfter - $totalBefore;
                         $recalculated = $totalBefore;
 
+                        // Enviar notificación de éxito
                         Notification::make()
-                            ->title('¡Cálculo completado!')
-                            ->body("Se procesaron desde {$startDate->format('d/m/Y')} hasta {$endDate->format('d/m/Y')}: {$calculated} calculado(s), {$recalculated} recalculado(s).")
+                            ->title('¡Cálculo completado exitosamente!')
+                            ->body("Período: {$startDate->format('d/m/Y')} al {$endDate->format('d/m/Y')}\n✅ Nuevos calculados: {$newCalculated}\n🔄 Recalculados: {$recalculated}")
                             ->success()
+                            ->duration(8000)
                             ->send();
                     } catch (\Exception $e) {
-                        Log::error('Error calculando rango: ' . $e->getMessage());
+                        Log::error('Error calculando asistencias en rango de fechas', [
+                            'start_date' => $data['start_date'] ?? null,
+                            'end_date' => $data['end_date'] ?? null,
+                            'error' => $e->getMessage(),
+                            'trace' => $e->getTraceAsString(),
+                        ]);
 
                         Notification::make()
-                            ->title('Error al calcular')
-                            ->body('No se pudo completar el cálculo. Intenta nuevamente.')
+                            ->title('Error al calcular asistencias')
+                            ->body('No se pudo completar el cálculo. Por favor, verifica las fechas e intenta nuevamente.')
                             ->danger()
+                            ->duration(10000)
                             ->send();
                     }
                 })
                 ->requiresConfirmation()
-                ->modalHeading('Calcular asistencias por rango')
-                ->modalSubmitActionLabel('Calcular'),
+                ->modalHeading('Calcular asistencias por rango de fechas')
+                ->modalDescription('Esto calculará o recalculará las asistencias de los registros entre las fechas seleccionadas.')
+                ->modalSubmitActionLabel('Calcular')
+                ->modalWidth('lg'),
         ];
     }
 
     public function getTabs(): array
     {
+        // Optimización: ejecutar queries una sola vez
+        $allCount = AttendanceDay::count();
+        $presentCount = AttendanceDay::query()->where('status', 'present')->count();
+        $absentCount = AttendanceDay::query()->where('status', 'absent')->count();
+        $onLeaveCount = AttendanceDay::query()->where('status', 'on_leave')->count();
+        $calculatedCount = AttendanceDay::query()->where('is_calculated', true)->count();
+        $notCalculatedCount = AttendanceDay::query()->where('is_calculated', false)->count();
+
         return [
-            'all' => Tab::make()
-                ->label('Todos')
-                ->badge(AttendanceDay::count()),
-            'present' => Tab::make()
+            'all' => Tab::make('Todos')
+                ->badge($allCount)
+                ->badgeColor('gray')
+                ->icon('heroicon-o-calendar-days'),
+
+            'present' => Tab::make('Presentes')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'present'))
-                ->label('Presentes')
-                ->badge(AttendanceDay::query()->where('status', 'present')->count())
-                ->badgeColor('success'),
-            'absent' => Tab::make()
+                ->badge($presentCount)
+                ->badgeColor('success')
+                ->icon('heroicon-o-check-circle'),
+
+            'absent' => Tab::make('Ausentes')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'absent'))
-                ->label('Ausentes')
-                ->badge(AttendanceDay::query()->where('status', 'absent')->count())
-                ->badgeColor('danger'),
-            'on_leave' => Tab::make()
+                ->badge($absentCount)
+                ->badgeColor('danger')
+                ->icon('heroicon-o-x-circle'),
+
+            'on_leave' => Tab::make('De permiso')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'on_leave'))
-                ->label('De permiso')
-                ->badge(AttendanceDay::query()->where('status', 'on_leave')->count())
-                ->badgeColor('warning'),
+                ->badge($onLeaveCount)
+                ->badgeColor('warning')
+                ->icon('heroicon-o-pause-circle'),
+
+            'calculated' => Tab::make('Calculados')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('is_calculated', true))
+                ->badge($calculatedCount)
+                ->badgeColor('info')
+                ->icon('heroicon-o-calculator'),
+
+            'not_calculated' => Tab::make('Sin calcular')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('is_calculated', false))
+                ->badge($notCalculatedCount)
+                ->badgeColor('warning')
+                ->icon('heroicon-o-exclamation-triangle'),
         ];
     }
 

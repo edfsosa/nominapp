@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EmployeeResource\Pages;
 
 use App\Filament\Resources\EmployeeResource;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateEmployee extends CreateRecord
@@ -12,32 +13,88 @@ class CreateEmployee extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // verifica el first_name y last_name para convertir a mayúsculas
-        $data['first_name'] = strtoupper($data['first_name']);
-        $data['last_name'] = strtoupper($data['last_name']);
+        // Convertir nombres y apellidos a mayúsculas
+        if (isset($data['first_name'])) {
+            $data['first_name'] = mb_strtoupper($data['first_name'], 'UTF-8');
+        }
 
-        // verifica el email ingresado y lo convierte a minusculas
-        $data['email'] = strtolower($data['email']);
+        if (isset($data['last_name'])) {
+            $data['last_name'] = mb_strtoupper($data['last_name'], 'UTF-8');
+        }
 
-        // verifica el ci, phone y salario ingresado y en caso de que tenga 0 al inicio lo elimina
-        $data['ci'] = ltrim($data['ci'], '0');
-        $data['phone'] = ltrim($data['phone'], '0');
-        $data['base_salary'] = ltrim($data['base_salary'], '0');
+        // Convertir email a minúsculas y limpiar espacios
+        if (isset($data['email'])) {
+            $data['email'] = strtolower(trim($data['email']));
+        }
+
+        // Limpiar CI: eliminar ceros a la izquierda y espacios
+        if (isset($data['ci'])) {
+            $data['ci'] = ltrim(str_replace(' ', '', $data['ci']), '0') ?: '0';
+        }
+
+        // Limpiar teléfono: eliminar espacios, guiones y ceros a la izquierda
+        if (isset($data['phone'])) {
+            $cleaned = str_replace([' ', '-', '+595'], '', $data['phone']);
+            $data['phone'] = ltrim($cleaned, '0') ?: null;
+        }
+
+        // Asegurar que solo se guarde el campo correcto según el tipo de empleo
+        if (isset($data['employment_type'])) {
+            if ($data['employment_type'] === 'full_time') {
+                // Si es tiempo completo, asegurar que daily_rate sea null
+                $data['daily_rate'] = null;
+
+                // Limpiar y validar base_salary
+                if (isset($data['base_salary'])) {
+                    $data['base_salary'] = (float) $data['base_salary'] ?: null;
+                }
+            } else {
+                // Si es jornalero, asegurar que base_salary sea null
+                $data['base_salary'] = null;
+
+                // Limpiar y validar daily_rate
+                if (isset($data['daily_rate'])) {
+                    $data['daily_rate'] = (float) $data['daily_rate'] ?: null;
+                }
+            }
+        }
+
+        // Asegurar que face_descriptor sea null en creación
+        $data['face_descriptor'] = null;
 
         return $data;
     }
 
-    // Recarga la pagina al guardar
     protected function afterCreate(): void
     {
-        $this->redirect($this->getResource()::getUrl('index', [
-            'record' => $this->record,
-        ]));
+        // Redirigir al índice después de crear
+        $this->redirect($this->getResource()::getUrl('index'));
     }
 
-    // Personaliza el mensaje de guardado
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Empleado creado correctamente';
+        return 'Empleado registrado exitosamente';
+    }
+
+    protected function getCreatedNotification(): ?\Filament\Notifications\Notification
+    {
+        return Notification::make()
+            ->success()
+            ->title('Empleado registrado exitosamente')
+            ->body('El empleado ' . $this->record->first_name . ' ' . $this->record->last_name . ' ha sido creado correctamente.')
+            ->duration(5000)
+            ->send();
+    }
+
+    // Personalizar el título de la página
+    public function getTitle(): string
+    {
+        return 'Registrar nuevo empleado';
+    }
+
+    // Personalizar el breadcrumb
+    public function getBreadcrumb(): string
+    {
+        return 'Nuevo empleado';
     }
 }

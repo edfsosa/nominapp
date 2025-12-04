@@ -6,8 +6,10 @@ use Filament\Resources\Components\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
-use Filament\Actions;
+use Filament\Actions\CreateAction;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
+use Maatwebsite\Excel\Excel;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
@@ -18,49 +20,100 @@ class ListEmployees extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            CreateAction::make()
+                ->label('Agregar empleado')
+                ->icon('heroicon-o-plus-circle'),
+
             ExportAction::make()
-            ->exports([
-                        ExcelExport::make()
-                            ->fromTable()
-                            ->except([
-                                'created_at',
-                                'updated_at',
-                            ])
-                            ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
-                    ])
-                    ->label('Exportar')
-                    ->color('primary')
-                    ->icon('heroicon-o-arrow-down-tray')
+                ->exports([
+                    ExcelExport::make()
+                        ->fromTable()
+                        ->except([
+                            'photo',
+                            'face_descriptor',
+                            'created_at',
+                            'updated_at',
+                        ])
+                        ->withFilename(fn() => 'empleados_' . now()->format('d_m_Y_H_i_s'))
+                        ->withWriterType(Excel::XLSX)
+                ])
+                ->label('Exportar')
+                ->color('success')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->tooltip('Exportar listado de empleados'),
         ];
     }
 
     public function getTabs(): array
     {
+        $allCount = Employee::count();
+        $activeCount = Employee::query()->where('status', 'active')->count();
+        $inactiveCount = Employee::query()->where('status', 'inactive')->count();
+        $suspendedCount = Employee::query()->where('status', 'suspended')->count();
+        $withFaceCount = Employee::query()->whereNotNull('face_descriptor')->count();
+        $withoutFaceCount = Employee::query()->whereNull('face_descriptor')->count();
+
         return [
-            'all' => Tab::make()
-                ->label('Todos')
-                ->badge(Employee::count()),
-            'active' => Tab::make()
+            'all' => Tab::make('Todos')
+                ->badge($allCount)
+                ->badgeColor('gray')
+                ->icon('heroicon-o-users'),
+
+            'active' => Tab::make('Activos')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'active'))
-                ->label('Activos')
-                ->badge(Employee::query()->where('status', 'active')->count())
-                ->badgeColor('success'),
-            'inactive' => Tab::make()
+                ->badge($activeCount)
+                ->badgeColor('success')
+                ->icon('heroicon-o-check-circle'),
+
+            'inactive' => Tab::make('Inactivos')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'inactive'))
-                ->label('Inactivos')
-                ->badge(Employee::query()->where('status', 'inactive')->count())
-                ->badgeColor('danger'),
-            'suspended' => Tab::make()
+                ->badge($inactiveCount)
+                ->badgeColor('danger')
+                ->icon('heroicon-o-x-circle'),
+
+            'suspended' => Tab::make('Suspendidos')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'suspended'))
-                ->label('Suspendidos')
-                ->badge(Employee::query()->where('status', 'suspended')->count())
-                ->badgeColor('warning'),
+                ->badge($suspendedCount)
+                ->badgeColor('warning')
+                ->icon('heroicon-o-pause-circle'),
+
+            'with_face' => Tab::make('Con Rostro')
+                ->modifyQueryUsing(fn(Builder $query) => $query->whereNotNull('face_descriptor'))
+                ->badge($withFaceCount)
+                ->badgeColor('success')
+                ->icon('heroicon-o-check-badge'),
+
+            'without_face' => Tab::make('Sin Rostro')
+                ->modifyQueryUsing(fn(Builder $query) => $query->whereNull('face_descriptor'))
+                ->badge($withoutFaceCount)
+                ->badgeColor('warning')
+                ->icon('heroicon-o-exclamation-triangle'),
         ];
     }
 
     public function getDefaultActiveTab(): string | int | null
     {
         return 'active';
+    }
+
+    // Personalizar el título de la página
+    public function getTitle(): string
+    {
+        return 'Empleados';
+    }
+
+    // Personalizar el heading
+    public function getHeading(): string
+    {
+        return 'Gestión de empleados';
+    }
+
+    // Personalizar el subheading con estadísticas
+    public function getSubheading(): ?string
+    {
+        $total = Employee::count();
+        $active = Employee::where('status', 'active')->count();
+
+        return "Total: {$total} empleados | Activos: {$active}";
     }
 }
