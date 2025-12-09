@@ -157,7 +157,7 @@ class BranchResource extends Resource
                     ->label('Contacto')
                     ->getStateUsing(fn($record) => $record->phone ?: 'Sin datos')
                     ->description(fn($record) => $record->email ?: 'Sin datos')
-                    ->icon(fn($record) => $record->phone ? 'heroicon-o-phone' : 'heroicon-o-envelope')
+                    ->icon('heroicon-o-phone')
                     ->placeholder('Sin contacto')
                     ->copyable()
                     ->copyMessage('Contacto copiado')

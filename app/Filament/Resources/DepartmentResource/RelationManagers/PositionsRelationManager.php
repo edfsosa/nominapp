@@ -4,12 +4,19 @@ namespace App\Filament\Resources\DepartmentResource\RelationManagers;
 
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\CreateAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PositionsRelationManager extends RelationManager
 {
@@ -23,10 +30,11 @@ class PositionsRelationManager extends RelationManager
         return $form
             ->schema([
                 TextInput::make('name')
-                    ->label('Nombre')
+                    ->label('Nombre del cargo')
+                    ->placeholder('Ej: Gerente de Ventas, Analista de RRHH...')
                     ->required()
                     ->maxLength(255)
-                    ->unique(ignorable: fn (?self $record) => $record)
+                    ->unique('positions', 'name', ignorable: fn($record) => $record)
                     ->columnSpanFull(),
             ]);
     }
@@ -40,33 +48,74 @@ class PositionsRelationManager extends RelationManager
                     ->label('Nombre')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('employees_count')
+                    ->label('Empleados')
+                    ->counts('employees')
+                    ->badge()
+                    ->color('primary')
+                    ->sortable()
+                    ->alignCenter(),
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                Filter::make('con_empleados')
+                    ->query(fn($query) => $query->has('employees'))
+                    ->label('Con empleados asignados'),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                CreateAction::make()
+                    ->successNotificationTitle('Cargo creado exitosamente'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                ViewAction::make('viewEmployees')
+                    ->label('Ver empleados')
+                    ->icon('heroicon-o-users')
+                    ->modalHeading(fn($record) => "Empleados en: {$record->name}")
+                    ->infolist(
+                        fn(Infolist $infolist) => $infolist
+                            ->schema([
+                                RepeatableEntry::make('employees')
+                                    ->label('')
+                                    ->schema([
+                                        TextEntry::make('first_name')
+                                            ->label('Nombre'),
+                                        TextEntry::make('last_name')
+                                            ->label('Apellido'),
+                                        TextEntry::make('email')
+                                            ->label('Email')
+                                            ->icon('heroicon-o-envelope'),
+                                    ])
+                                    ->columns(3)
+                                    ->columnSpanFull(),
+                            ])
+                    )
+                    ->modalWidth('6xl')
+                    ->color('info')
+                    ->visible(fn($record) => $record->employees_count > 0),
+                EditAction::make()
+                    ->successNotificationTitle('Cargo actualizado exitosamente'),
+                DeleteAction::make()
+                    ->successNotificationTitle('Cargo eliminado exitosamente'),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->successNotificationTitle('Cargos eliminados exitosamente'),
                 ]),
-            ]);
+            ])
+            ->emptyStateHeading('No hay cargos registrados')
+            ->emptyStateDescription('Comienza creando un nuevo cargo para este departamento.')
+            ->emptyStateIcon('heroicon-o-briefcase');
     }
 }

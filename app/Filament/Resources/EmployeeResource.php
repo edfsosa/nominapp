@@ -19,6 +19,13 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -26,7 +33,6 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 
@@ -127,7 +133,7 @@ class EmployeeResource extends Resource
                                     ->placeholder('empleado@empresa.com')
                                     ->maxLength(100)
                                     ->unique(Employee::class, 'email', ignoreRecord: true)
-                                    ->nullable(),
+                                    ->required(),
                             ]),
                     ]),
 
@@ -339,6 +345,7 @@ class EmployeeResource extends Resource
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-office-2')
+                    ->description(fn($record) => $record->schedule ? 'Horario: ' . $record->schedule->name : '')
                     ->sortable()
                     ->searchable()
                     ->badge()
@@ -366,34 +373,10 @@ class EmployeeResource extends Resource
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('salary_display')
-                    ->label('Remuneración')
-                    ->getStateUsing(function (Employee $record) {
-                        if ($record->employment_type === 'full_time' && $record->base_salary) {
-                            return '₲ ' . number_format($record->base_salary, 0, ',', '.');
-                        }
-                        if ($record->employment_type === 'day_laborer' && $record->daily_rate) {
-                            return '₲ ' . number_format($record->daily_rate, 0, ',', '.') . '/día';
-                        }
-                        return 'No especificado';
-                    })
-                    ->description(
-                        fn(Employee $record) =>
-                        $record->payroll_type ? match ($record->payroll_type) {
-                            'monthly' => 'Nómina mensual',
-                            'biweekly' => 'Nómina quincenal',
-                            'weekly' => 'Nómina semanal',
-                            default => '',
-                        } : ''
-                    )
-                    ->icon('heroicon-o-banknotes')
-                    ->sortable(['base_salary', 'daily_rate'])
-                    ->toggleable(),
-
                 TextColumn::make('contact')
                     ->label('Contacto')
-                    ->getStateUsing(fn(Employee $record) => $record->phone ?: $record->email ?: 'Sin datos')
-                    ->icon(fn(Employee $record) => $record->phone ? 'heroicon-o-phone' : 'heroicon-o-envelope')
+                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin datos')
+                    ->icon('heroicon-o-phone')
                     ->url(
                         fn(Employee $record): ?string =>
                         $record->phone
@@ -444,13 +427,6 @@ class EmployeeResource extends Resource
                     )
                     ->alignCenter(),
 
-                TextColumn::make('schedule.name')
-                    ->label('Horario')
-                    ->icon('heroicon-o-clock')
-                    ->sortable()
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 TextColumn::make('hire_date')
                     ->label('Antigüedad')
                     ->date('d/m/Y')
@@ -471,26 +447,6 @@ class EmployeeResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('ci')
-                    ->label('CI')
-                    ->searchable()
-                    ->sortable()
-                    ->copyable()
-                    ->copyMessage('CI copiada')
-                    ->copyMessageDuration(1500)
-                    ->icon('heroicon-o-identification')
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                TextColumn::make('phone')
-                    ->label('Teléfono')
-                    ->formatStateUsing(fn(string $state): string => '+595 ' . $state)
-                    ->icon('heroicon-o-phone')
-                    ->copyable()
-                    ->copyMessage('Teléfono copiado')
-                    ->sortable()
-                    ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 TextColumn::make('email')
                     ->label('Correo electrónico')
                     ->icon('heroicon-o-envelope')
@@ -498,7 +454,7 @@ class EmployeeResource extends Resource
                     ->copyMessage('Email copiado')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
 
                 TextColumn::make('payment_method')
                     ->label('Método de pago')
@@ -662,16 +618,40 @@ class EmployeeResource extends Resource
                                 fn(Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
                             );
                     }),
+
+                SelectFilter::make('birthday_month')
+                    ->label('Mes de Cumpleaños')
+                    ->options([
+                        1  => 'Enero',
+                        2  => 'Febrero',
+                        3  => 'Marzo',
+                        4  => 'Abril',
+                        5  => 'Mayo',
+                        6  => 'Junio',
+                        7  => 'Julio',
+                        8  => 'Agosto',
+                        9  => 'Septiembre',
+                        10 => 'Octubre',
+                        11 => 'Noviembre',
+                        12 => 'Diciembre',
+                    ])
+                    ->query(function ($query, array $data) {
+                        if (filled($data['value'])) {
+                            return $query->whereMonth('birth_date', $data['value']);
+                        }
+                    })
+                    ->native(false),
+
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
+                ViewAction::make()
                     ->label('Ver')
                     ->color('info'),
 
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->label('Editar'),
 
-                Tables\Actions\Action::make('capture_face')
+                Action::make('capture_face')
                     ->label(
                         fn(Employee $record): string =>
                         filled($record->face_descriptor) ? 'Actualizar rostro' : 'Capturar rostro'
@@ -690,7 +670,7 @@ class EmployeeResource extends Resource
                     )
                     ->visible(fn(Employee $record): bool => $record->status === 'active'),
 
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->label('Eliminar')
                     ->modalHeading('Eliminar empleado')
                     ->modalDescription('¿Estás seguro de que deseas eliminar este empleado? Esta acción no se puede deshacer.')
@@ -702,8 +682,8 @@ class EmployeeResource extends Resource
                     }),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('activate')
+                BulkActionGroup::make([
+                    BulkAction::make('activate')
                         ->label('Activar seleccionados')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
@@ -711,7 +691,7 @@ class EmployeeResource extends Resource
                         ->action(fn(Collection $records) => $records->each->update(['status' => 'active']))
                         ->deselectRecordsAfterCompletion(),
 
-                    Tables\Actions\BulkAction::make('suspend')
+                    BulkAction::make('suspend')
                         ->label('Suspender seleccionados')
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
@@ -719,7 +699,7 @@ class EmployeeResource extends Resource
                         ->action(fn(Collection $records) => $records->each->update(['status' => 'suspended']))
                         ->deselectRecordsAfterCompletion(),
 
-                    Tables\Actions\BulkAction::make('deactivate')
+                    BulkAction::make('deactivate')
                         ->label('Desactivar seleccionados')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
@@ -741,7 +721,7 @@ class EmployeeResource extends Resource
                         ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
 
-                    Tables\Actions\DeleteBulkAction::make()
+                    DeleteBulkAction::make()
                         ->label('Eliminar seleccionados')
                         ->modalHeading('Eliminar empleados')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estos empleados? Esta acción no se puede deshacer.')
@@ -760,12 +740,7 @@ class EmployeeResource extends Resource
             ->striped()
             ->emptyStateHeading('No hay empleados registrados')
             ->emptyStateDescription('Comienza agregando tu primer empleado al sistema')
-            ->emptyStateIcon('heroicon-o-users')
-            ->emptyStateActions([
-                Tables\Actions\CreateAction::make()
-                    ->label('Agregar primer empleado')
-                    ->icon('heroicon-o-plus-circle'),
-            ]);
+            ->emptyStateIcon('heroicon-o-users');
     }
 
     public static function getRelations(): array

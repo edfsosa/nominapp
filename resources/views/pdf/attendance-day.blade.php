@@ -4,6 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Resumen de Asistencia</title>
     <style>
         * {
@@ -13,203 +14,72 @@
         }
 
         body {
-            font-family: 'DejaVu Sans', Arial, sans-serif;
-            font-size: 10px;
-            color: #2c3e50;
-            line-height: 1.5;
-            padding: 20px;
+            font-family: Arial, sans-serif;
+            padding: 40px;
+            font-size: 11px;
+            line-height: 1.4;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
             padding-bottom: 15px;
-            border-bottom: 3px solid #3498db;
         }
 
         .header h1 {
             font-size: 18px;
-            color: #2c3e50;
             margin-bottom: 5px;
         }
 
-        .header .subtitle {
-            font-size: 11px;
-            color: #7f8c8d;
-        }
-
-        .info-box {
-            background-color: #ecf0f1;
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 15px;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 12px;
-            font-weight: bold;
-            font-size: 11px;
-            text-transform: uppercase;
-        }
-
-        .status-present {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .status-absent {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        .status-on_leave {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
-        .status-holiday {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .status-weekend {
-            background-color: #e2e3e5;
-            color: #383d41;
+        .header p {
+            font-size: 10px;
+            color: #666;
         }
 
         .section {
-            margin-bottom: 15px;
-            page-break-inside: avoid;
+            margin-bottom: 20px;
         }
 
         .section-title {
             font-weight: bold;
             font-size: 12px;
-            color: #2c3e50;
-            background-color: #3498db;
-            color: white;
-            padding: 6px 10px;
-            margin-bottom: 8px;
-            border-radius: 3px;
+            background-color: #f0f0f0;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #333;
         }
 
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 5px;
-        }
-
-        th {
-            background-color: #34495e;
-            color: white;
-            padding: 6px 8px;
-            text-align: left;
-            font-size: 10px;
-            font-weight: bold;
-        }
-
-        td {
-            border: 1px solid #bdc3c7;
-            padding: 5px 8px;
-            font-size: 10px;
-        }
-
-        tr:nth-child(even) {
-            background-color: #f8f9fa;
-        }
-
-        .label-cell {
-            font-weight: bold;
-            background-color: #ecf0f1;
-            width: 40%;
-            color: #2c3e50;
-        }
-
-        .value-cell {
-            background-color: white;
-        }
-
-        .highlight-positive {
-            color: #27ae60;
-            font-weight: bold;
-        }
-
-        .highlight-negative {
-            color: #e74c3c;
-            font-weight: bold;
-        }
-
-        .highlight-warning {
-            color: #f39c12;
-            font-weight: bold;
-        }
-
-        .metric-grid {
+        .info-grid {
             display: table;
             width: 100%;
-            margin-bottom: 10px;
+            border-collapse: collapse;
         }
 
-        .metric-item {
+        .info-row {
+            display: table-row;
+        }
+
+        .info-label {
             display: table-cell;
-            width: 33.33%;
+            font-weight: bold;
+            width: 40%;
             padding: 8px;
-            text-align: center;
             border: 1px solid #ddd;
+            background-color: #f9f9f9;
         }
 
-        .metric-value {
-            font-size: 16px;
-            font-weight: bold;
-            color: #2c3e50;
-        }
-
-        .metric-label {
-            font-size: 9px;
-            color: #7f8c8d;
-            text-transform: uppercase;
-        }
-
-        .notes-box {
-            background-color: #fff9e6;
-            border-left: 4px solid #f39c12;
-            padding: 10px;
-            margin-top: 10px;
-            font-style: italic;
-        }
-
-        .footer {
-            text-align: center;
-            margin-top: 20px;
-            padding-top: 15px;
-            border-top: 2px solid #ecf0f1;
-            font-size: 9px;
-            color: #95a5a6;
-        }
-
-        .check-icon {
-            color: #27ae60;
-        }
-
-        .cross-icon {
-            color: #e74c3c;
-        }
-
-        .events-table td {
-            text-align: center;
-        }
-
-        .events-table td:first-child {
-            font-weight: bold;
+        .info-value {
+            display: table-cell;
+            padding: 8px;
+            border: 1px solid #ddd;
         }
 
         .badge {
             display: inline-block;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 9px;
+            padding: 4px 12px;
+            border-radius: 4px;
+            font-size: 10px;
             font-weight: bold;
         }
 
@@ -232,219 +102,342 @@
             background-color: #d1ecf1;
             color: #0c5460;
         }
+
+        .badge-gray {
+            background-color: #e2e3e5;
+            color: #383d41;
+        }
+
+        .highlight-positive {
+            color: #155724;
+            font-weight: bold;
+        }
+
+        .highlight-negative {
+            color: #721c24;
+            font-weight: bold;
+        }
+
+        .highlight-warning {
+            color: #856404;
+            font-weight: bold;
+        }
+
+        .metrics-grid {
+            display: table;
+            width: 100%;
+            margin-bottom: 15px;
+        }
+
+        .metric-item {
+            display: table-cell;
+            width: 33.33%;
+            padding: 12px;
+            text-align: center;
+            border: 1px solid #ddd;
+            background-color: #f9f9f9;
+        }
+
+        .metric-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .metric-label {
+            font-size: 9px;
+            color: #666;
+            text-transform: uppercase;
+            margin-top: 4px;
+        }
+
+        .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+
+        .events-table th {
+            background-color: #f0f0f0;
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+            font-size: 10px;
+        }
+
+        .events-table td {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            font-size: 10px;
+        }
+
+        .events-table td:first-child {
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .notes-box {
+            border: 1px solid #ddd;
+            padding: 12px;
+            background-color: #fff9e6;
+            border-radius: 4px;
+            border-left: 3px solid #ffc107;
+        }
+
+        .footer {
+            margin-top: 40px;
+            text-align: center;
+            font-size: 9px;
+            color: #999;
+            border-top: 1px solid #ddd;
+            padding-top: 10px;
+        }
+
+        .check-icon {
+            color: #155724;
+            font-weight: bold;
+        }
+
+        .cross-icon {
+            color: #721c24;
+            font-weight: bold;
+        }
     </style>
 </head>
 
 <body>
     {{-- Header --}}
     <div class="header">
-        <h1>Resumen de Asistencia</h1>
-        <div class="subtitle">{{ $attendanceDay->date->format('l, d \d\e F \d\e Y') }}</div>
+        <h1>RESUMEN DE ASISTENCIA</h1>
+        <p>Registro Diario de Control de Asistencia</p>
+        <p style="margin-top: 5px;">
+            <strong>{{ $attendanceDay->date->locale('es')->isoFormat('dddd, D [de] MMMM [de] YYYY') }}</strong></p>
     </div>
 
-    {{-- Información General --}}
+    {{-- Información del Empleado --}}
     <div class="section">
-        <div class="section-title">INFORMACIÓN GENERAL</div>
-        <table>
-            <tr>
-                <td class="label-cell">Empleado</td>
-                <td class="value-cell">{{ $attendanceDay->employee->full_name }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Cédula de Identidad</td>
-                <td class="value-cell">{{ number_format($attendanceDay->employee->ci, 0, ',', '.') }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Sucursal</td>
-                <td class="value-cell">{{ $attendanceDay->employee->branch->name ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Departamento</td>
-                <td class="value-cell">{{ $attendanceDay->employee->position->department->name ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Cargo</td>
-                <td class="value-cell">{{ $attendanceDay->employee->position->name ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Estado</td>
-                <td class="value-cell">
-                    <span class="status-badge status-{{ $attendanceDay->status }}">
-                        {{ ucfirst($attendanceDay->status_in_spanish) }}
-                    </span>
-                </td>
-            </tr>
-            @if ($attendanceDay->is_calculated)
-                <tr>
-                    <td class="label-cell">Último Cálculo</td>
-                    <td class="value-cell">{{ $attendanceDay->calculated_at?->format('d/m/Y H:i') ?? 'No calculado' }}
-                    </td>
-                </tr>
-            @endif
-        </table>
+        <div class="section-title">INFORMACIÓN DEL EMPLEADO</div>
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">Nombre Completo:</div>
+                <div class="info-value">{{ $attendanceDay->employee->full_name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Cédula de Identidad:</div>
+                <div class="info-value">{{ $attendanceDay->employee->ci }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Cargo:</div>
+                <div class="info-value">{{ $attendanceDay->employee->position->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Departamento:</div>
+                <div class="info-value">{{ $attendanceDay->employee->position->department->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Sucursal:</div>
+                <div class="info-value">{{ $attendanceDay->employee->branch->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Estado de Asistencia:</div>
+                <div class="info-value">
+                    @php
+                        $statusConfig = [
+                            'present' => ['label' => 'Presente', 'class' => 'badge-success'],
+                            'absent' => ['label' => 'Ausente', 'class' => 'badge-danger'],
+                            'on_leave' => ['label' => 'De Permiso', 'class' => 'badge-warning'],
+                            'holiday' => ['label' => 'Feriado', 'class' => 'badge-info'],
+                            'weekend' => ['label' => 'Fin de Semana', 'class' => 'badge-gray'],
+                        ];
+                        $config = $statusConfig[$attendanceDay->status] ?? [
+                            'label' => $attendanceDay->status,
+                            'class' => 'badge-gray',
+                        ];
+                    @endphp
+                    <span class="badge {{ $config['class'] }}">{{ $config['label'] }}</span>
+                </div>
+            </div>
+        </div>
     </div>
+
+    {{-- Métricas Principales --}}
+    @if ($attendanceDay->status === 'present')
+        <div class="section">
+            <div class="section-title">MÉTRICAS DE ASISTENCIA</div>
+            <div class="metrics-grid">
+                <div class="metric-item">
+                    <div class="metric-value highlight-positive">{{ $attendanceDay->total_hours ?? 0 }} hrs</div>
+                    <div class="metric-label">Horas Totales</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value">{{ $attendanceDay->net_hours ?? 0 }} hrs</div>
+                    <div class="metric-label">Horas Netas</div>
+                </div>
+                <div class="metric-item">
+                    <div class="metric-value {{ $attendanceDay->extra_hours > 0 ? 'highlight-warning' : '' }}">
+                        {{ $attendanceDay->extra_hours ?? 0 }} hrs
+                    </div>
+                    <div class="metric-label">Horas Extra</div>
+                </div>
+            </div>
+        </div>
+    @endif
 
     {{-- Horarios Programados --}}
     <div class="section">
         <div class="section-title">HORARIOS PROGRAMADOS</div>
-        <table>
-            <tr>
-                <td class="label-cell">Entrada Esperada</td>
-                <td class="value-cell">{{ $attendanceDay->expected_check_in ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Salida Esperada</td>
-                <td class="value-cell">{{ $attendanceDay->expected_check_out ?? '—' }}</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Horas Esperadas</td>
-                <td class="value-cell">{{ $attendanceDay->expected_hours ?? 0 }} hrs</td>
-            </tr>
-            <tr>
-                <td class="label-cell">Descanso Esperado</td>
-                <td class="value-cell">{{ $attendanceDay->expected_break_minutes ?? 0 }} min</td>
-            </tr>
-        </table>
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">Entrada Esperada:</div>
+                <div class="info-value">{{ $attendanceDay->expected_check_in ?? '—' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Salida Esperada:</div>
+                <div class="info-value">{{ $attendanceDay->expected_check_out ?? '—' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Horas Esperadas:</div>
+                <div class="info-value">{{ $attendanceDay->expected_hours ?? 0 }} hrs</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Descanso Esperado:</div>
+                <div class="info-value">{{ $attendanceDay->expected_break_minutes ?? 0 }} min</div>
+            </div>
+        </div>
     </div>
 
-    {{-- Métricas de Asistencia (solo si está presente) --}}
+    {{-- Asistencia Registrada --}}
     @if ($attendanceDay->status === 'present')
         <div class="section">
-            <div class="section-title">RESUMEN DE ASISTENCIA</div>
-
-            {{-- Horas Trabajadas --}}
-            <table>
-                <tr>
-                    <td class="label-cell">Entrada Registrada</td>
-                    <td
-                        class="value-cell 
-                        @if ($attendanceDay->late_minutes > 0) highlight-negative 
-                        @else highlight-positive @endif">
+            <div class="section-title">ASISTENCIA REGISTRADA</div>
+            <div class="info-grid">
+                <div class="info-row">
+                    <div class="info-label">Entrada Registrada:</div>
+                    <div
+                        class="info-value {{ $attendanceDay->late_minutes > 0 ? 'highlight-negative' : 'highlight-positive' }}">
                         {{ $attendanceDay->check_in_time ?? '—' }}
                         @if ($attendanceDay->late_minutes > 0)
-                            ({{ $attendanceDay->late_minutes }} min tarde)
+                            <span class="badge badge-danger">{{ $attendanceDay->late_minutes }} min tarde</span>
                         @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td class="label-cell">Salida Registrada</td>
-                    <td
-                        class="value-cell 
-                        @if ($attendanceDay->early_leave_minutes > 0) highlight-warning 
-                        @else highlight-positive @endif">
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Salida Registrada:</div>
+                    <div
+                        class="info-value {{ $attendanceDay->early_leave_minutes > 0 ? 'highlight-warning' : 'highlight-positive' }}">
                         {{ $attendanceDay->check_out_time ?? '—' }}
                         @if ($attendanceDay->early_leave_minutes > 0)
-                            ({{ $attendanceDay->early_leave_minutes }} min antes)
+                            <span class="badge badge-warning">{{ $attendanceDay->early_leave_minutes }} min
+                                antes</span>
                         @endif
-                    </td>
-                </tr>
-                <tr>
-                    <td class="label-cell">Horas Totales Trabajadas</td>
-                    <td class="value-cell"><strong>{{ $attendanceDay->total_hours ?? 0 }} hrs</strong></td>
-                </tr>
-                <tr>
-                    <td class="label-cell">Horas Netas (sin descansos)</td>
-                    <td class="value-cell highlight-positive"><strong>{{ $attendanceDay->net_hours ?? 0 }} hrs</strong>
-                    </td>
-                </tr>
-                <tr>
-                    <td class="label-cell">Descansos Tomados</td>
-                    <td
-                        class="value-cell 
-                        @if (($attendanceDay->break_minutes ?? 0) > ($attendanceDay->expected_break_minutes ?? 0)) highlight-warning @endif">
+                    </div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Horas Trabajadas:</div>
+                    <div class="info-value"><strong>{{ $attendanceDay->total_hours ?? 0 }} hrs</strong></div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Horas Netas (sin descansos):</div>
+                    <div class="info-value highlight-positive"><strong>{{ $attendanceDay->net_hours ?? 0 }}
+                            hrs</strong></div>
+                </div>
+                <div class="info-row">
+                    <div class="info-label">Descansos Tomados:</div>
+                    <div
+                        class="info-value {{ ($attendanceDay->break_minutes ?? 0) > ($attendanceDay->expected_break_minutes ?? 0) ? 'highlight-warning' : '' }}">
                         {{ $attendanceDay->break_minutes ?? 0 }} min
-                    </td>
-                </tr>
+                    </div>
+                </div>
                 @if ($attendanceDay->extra_hours > 0)
-                    <tr>
-                        <td class="label-cell">Horas Extra</td>
-                        <td class="value-cell highlight-warning">
+                    <div class="info-row">
+                        <div class="info-label">Horas Extra:</div>
+                        <div class="info-value highlight-warning">
                             <strong>{{ $attendanceDay->extra_hours }} hrs</strong>
                             @if ($attendanceDay->overtime_approved)
                                 <span class="badge badge-success">Aprobadas</span>
                             @else
                                 <span class="badge badge-warning">Pendientes</span>
                             @endif
-                        </td>
-                    </tr>
+                        </div>
+                    </div>
                 @endif
-            </table>
+            </div>
         </div>
     @endif
 
-    {{-- Indicadores Especiales --}}
+    {{-- Condiciones Especiales --}}
     <div class="section">
         <div class="section-title">CONDICIONES ESPECIALES</div>
-        <table>
-            <tr>
-                <td class="label-cell">De vacaciones</td>
-                <td class="value-cell">
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">De Vacaciones:</div>
+                <div class="info-value">
                     @if ($attendanceDay->on_vacation)
                         <span class="check-icon">✓</span> Sí
                     @else
                         <span class="cross-icon">✗</span> No
                     @endif
-                </td>
-            </tr>
-            <tr>
-                <td class="label-cell">Ausencia justificada</td>
-                <td class="value-cell">
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Ausencia Justificada:</div>
+                <div class="info-value">
                     @if ($attendanceDay->justified_absence)
                         <span class="check-icon">✓</span> Sí
                     @else
                         <span class="cross-icon">✗</span> No
                     @endif
-                </td>
-            </tr>
-            <tr>
-                <td class="label-cell">Día feriado</td>
-                <td class="value-cell">
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Día Feriado:</div>
+                <div class="info-value">
                     @if ($attendanceDay->is_holiday)
                         <span class="check-icon">✓</span> Sí
                     @else
                         <span class="cross-icon">✗</span> No
                     @endif
-                </td>
-            </tr>
-            <tr>
-                <td class="label-cell">Fin de semana</td>
-                <td class="value-cell">
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Fin de Semana:</div>
+                <div class="info-value">
                     @if ($attendanceDay->is_weekend)
                         <span class="check-icon">✓</span> Sí
                     @else
                         <span class="cross-icon">✗</span> No
                     @endif
-                </td>
-            </tr>
+                </div>
+            </div>
             @if ($attendanceDay->is_extraordinary_work)
-                <tr>
-                    <td class="label-cell">Trabajo extraordinario</td>
-                    <td class="value-cell highlight-warning">
+                <div class="info-row">
+                    <div class="info-label">Trabajo Extraordinario:</div>
+                    <div class="info-value highlight-warning">
                         <span class="check-icon">✓</span> Sí (Feriado/Fin de semana)
-                    </td>
-                </tr>
+                    </div>
+                </div>
             @endif
-            <tr>
-                <td class="label-cell">Ajuste manual</td>
-                <td class="value-cell">
+            <div class="info-row">
+                <div class="info-label">Ajuste Manual:</div>
+                <div class="info-value">
                     @if ($attendanceDay->manual_adjustment)
                         <span class="badge badge-info">Sí</span>
                     @else
                         <span class="cross-icon">✗</span> No
                     @endif
-                </td>
-            </tr>
-            <tr>
-                <td class="label-cell">Anomalía detectada</td>
-                <td class="value-cell">
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Anomalía Detectada:</div>
+                <div class="info-value">
                     @if ($attendanceDay->anomaly_flag)
                         <span class="badge badge-danger">Sí</span>
                     @else
                         <span class="check-icon">✓</span> No
                     @endif
-                </td>
-            </tr>
-        </table>
+                </div>
+            </div>
+        </div>
     </div>
 
     {{-- Eventos de Marcación --}}
@@ -454,23 +447,23 @@
             <table class="events-table">
                 <thead>
                     <tr>
-                        <th style="width: 25%;">Hora</th>
+                        <th style="width: 20%;">Hora</th>
                         <th style="width: 50%;">Tipo de Evento</th>
-                        <th style="width: 25%;">Estado</th>
+                        <th style="width: 30%;">Estado</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($attendanceDay->events->sortBy('recorded_at') as $event)
                         <tr>
-                            <td><strong>{{ \Carbon\Carbon::parse($event->recorded_at)->format('H:i:s') }}</strong></td>
+                            <td>{{ \Carbon\Carbon::parse($event->recorded_at)->format('H:i:s') }}</td>
                             <td>
                                 @switch($event->event_type)
                                     @case('check_in')
-                                        → Entrada jornada
+                                        → Entrada a la jornada
                                     @break
 
                                     @case('check_out')
-                                        ← Salida jornada
+                                        ← Salida de la jornada
                                     @break
 
                                     @case('break_start')
@@ -482,10 +475,10 @@
                                     @break
 
                                     @default
-                                        ? Otro
+                                        Otro evento
                                 @endswitch
                             </td>
-                            <td>
+                            <td style="text-align: center;">
                                 @switch($event->event_type)
                                     @case('check_in')
                                         <span class="badge badge-success">Entrada</span>
@@ -523,8 +516,10 @@
 
     {{-- Footer --}}
     <div class="footer">
-        <p>Documento generado automáticamente el {{ now()->format('d/m/Y') }} a las {{ now()->format('H:i') }}</p>
-        <p>Sistema de Gestión de Recursos Humanos</p>
+        Documento generado el {{ now()->format('d/m/Y H:i') }} | Sistema de Gestión de Recursos Humanos
+        @if ($attendanceDay->is_calculated)
+            | Calculado el {{ $attendanceDay->calculated_at?->format('d/m/Y H:i') }}
+        @endif
     </div>
 </body>
 

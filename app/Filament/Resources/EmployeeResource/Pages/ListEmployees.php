@@ -7,7 +7,6 @@ use Illuminate\Database\Eloquent\Builder;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
 use Filament\Actions\CreateAction;
-use Filament\Actions\Action;
 use Filament\Resources\Pages\ListRecords;
 use Maatwebsite\Excel\Excel;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
@@ -94,26 +93,5 @@ class ListEmployees extends ListRecords
     public function getDefaultActiveTab(): string | int | null
     {
         return 'active';
-    }
-
-    // Personalizar el título de la página
-    public function getTitle(): string
-    {
-        return 'Empleados';
-    }
-
-    // Personalizar el heading
-    public function getHeading(): string
-    {
-        return 'Gestión de empleados';
-    }
-
-    // Personalizar el subheading con estadísticas
-    public function getSubheading(): ?string
-    {
-        $total = Employee::count();
-        $active = Employee::where('status', 'active')->count();
-
-        return "Total: {$total} empleados | Activos: {$active}";
     }
 }

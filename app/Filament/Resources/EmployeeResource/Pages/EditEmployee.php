@@ -114,20 +114,6 @@ class EditEmployee extends EditRecord
         return $data;
     }
 
-    protected function afterSave(): void
-    {
-        // Redirigir a la misma página de edición después de guardar
-        // Esto mantiene al usuario en contexto
-        $this->redirect($this->getResource()::getUrl('edit', [
-            'record' => $this->record,
-        ]));
-    }
-
-    protected function getSavedNotificationTitle(): ?string
-    {
-        return 'Empleado actualizado exitosamente';
-    }
-
     protected function getSavedNotification(): ?\Filament\Notifications\Notification
     {
         return Notification::make()
@@ -136,30 +122,5 @@ class EditEmployee extends EditRecord
             ->body('Los datos de ' . $this->record->first_name . ' ' . $this->record->last_name . ' han sido actualizados.')
             ->duration(5000)
             ->send();
-    }
-
-    // Personalizar el título de la página
-    public function getTitle(): string
-    {
-        return 'Editar empleado: ' . $this->record->first_name . ' ' . $this->record->last_name;
-    }
-
-    // Personalizar el breadcrumb
-    public function getBreadcrumb(): string
-    {
-        return 'Editar';
-    }
-
-    // Prevenir la navegación accidental
-    protected function getFormActions(): array
-    {
-        return [
-            $this->getSaveFormAction()
-                ->label('Guardar cambios'),
-
-            $this->getCancelFormAction()
-                ->label('Cancelar')
-                ->color('gray'),
-        ];
     }
 }

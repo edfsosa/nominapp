@@ -2,88 +2,144 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Infolists\Infolist;
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Filament\Infolists\Components\Fieldset;
+use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PayrollPeriodResource extends Resource
 {
     protected static ?string $model = PayrollPeriod::class;
     protected static ?string $navigationGroup = 'Nóminas';
-    protected static ?string $navigationLabel = 'Periodos';
+    protected static ?string $navigationLabel = 'Períodos';
+    protected static ?string $label = 'Período';
+    protected static ?string $pluralLabel = 'Períodos';
     protected static ?string $slug = 'periodos';
-    protected static ?string $pluralModelLabel = 'periodos';
-    protected static ?string $modelLabel = 'periodo';
-    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
+    protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                TextInput::make('name')
-                    ->label('Nombre')
-                    ->maxLength(255)
-                    ->nullable(),
-                Select::make('frequency')
-                    ->label('Frecuencia')
-                    ->options([
-                        'monthly' => 'Mensual',
-                        'biweekly' => 'Quincenal',
-                        'weekly' => 'Semanal',
+                Section::make('Información del Período')
+                    ->schema([
+                        TextInput::make('name')
+                            ->label('Nombre')
+                            ->placeholder('Ejemplo: Enero 2024')
+                            ->maxLength(255)
+                            ->columnSpan(2),
+
+                        Select::make('frequency')
+                            ->label('Frecuencia')
+                            ->options([
+                                'monthly'  => 'Mensual',
+                                'biweekly' => 'Quincenal',
+                                'weekly'   => 'Semanal',
+                            ])
+                            ->native(false)
+                            ->required()
+                            ->reactive()
+                            ->columnSpan(1),
                     ])
-                    ->native(false)
-                    ->required(),
-                DatePicker::make('start_date')
-                    ->label('Fecha de inicio')
-                    ->displayFormat('d/m/Y')
-                    ->closeOnDateSelection()
-                    ->native(false)
-                    ->required(),
-                DatePicker::make('end_date')
-                    ->label('Fecha de fin')
-                    ->displayFormat('d/m/Y')
-                    ->closeOnDateSelection()
-                    ->native(false)
-                    ->required(),
-                Select::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'draft' => 'Borrador',
-                        'processing' => 'En proceso',
-                        'closed' => 'Cerrado',
+                    ->columns(3),
+
+                Section::make('Fechas del Período')
+                    ->schema([
+                        DatePicker::make('start_date')
+                            ->label('Fecha de Inicio')
+                            ->displayFormat('d/m/Y')
+                            ->native(false)
+                            ->closeOnDateSelection()
+                            ->required()
+                            ->reactive()
+                            ->afterStateUpdated(fn($state, callable $set) => $set('end_date', null))
+                            ->columnSpan(1),
+
+                        DatePicker::make('end_date')
+                            ->label('Fecha de Fin')
+                            ->displayFormat('d/m/Y')
+                            ->native(false)
+                            ->closeOnDateSelection()
+                            ->required()
+                            ->minDate(fn($get) => $get('start_date'))
+                            ->disabled(fn($get) => !$get('start_date'))
+                            ->helperText('La fecha de fin debe ser posterior a la fecha de inicio')
+                            ->rules([
+                                function ($get) {
+                                    return function (string $attribute, $value, \Closure $fail) use ($get) {
+                                        $query = \App\Models\PayrollPeriod::where('frequency', $get('frequency'))
+                                            ->where('start_date', $get('start_date'))
+                                            ->where('end_date', $value);
+
+                                        // Obtener el ID del registro actual si existe (cuando editamos)
+                                        $recordId = $get('id');
+                                        if ($recordId) {
+                                            $query->where('id', '!=', $recordId);
+                                        }
+
+                                        if ($query->exists()) {
+                                            $fail('Ya existe un período con esta frecuencia y fechas.');
+                                        }
+                                    };
+                                },
+                            ])
+                            ->columnSpan(1),
                     ])
-                    ->native(false)
-                    ->default('draft')
-                    ->required(),
-                DateTimePicker::make('closed_at')
-                    ->label('Cerrado en')
-                    ->displayFormat('d/m/Y H:i')
-                    ->closeOnDateSelection()
-                    ->native(false)
-                    ->nullable(),
-                Textarea::make('notes')
-                    ->label('Notas')
-                    ->maxLength(65535)
-                    ->rows(3)
-                    ->columnSpanFull()
-                    ->nullable(),
+                    ->columns(2),
+
+                Section::make('Estado y Notas')
+                    ->schema([
+                        Select::make('status')
+                            ->label('Estado')
+                            ->options([
+                                'draft'      => 'Borrador',
+                                'processing' => 'En Proceso',
+                                'closed'     => 'Cerrado',
+                            ])
+                            ->native(false)
+                            ->default('draft')
+                            ->required()
+                            ->columnSpan(1),
+
+                        DateTimePicker::make('closed_at')
+                            ->label('Fecha de Cierre')
+                            ->displayFormat('d/m/Y H:i')
+                            ->native(false)
+                            ->disabled()
+                            ->helperText('Se establece automáticamente al cerrar el período')
+                            ->columnSpan(1),
+
+                        Textarea::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Observaciones o comentarios sobre este período')
+                            ->rows(3)
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
             ]);
     }
 
@@ -94,43 +150,72 @@ class PayrollPeriodResource extends Resource
                 TextColumn::make('name')
                     ->label('Nombre')
                     ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->icon('heroicon-o-calendar-days')
+                    ->iconColor('primary'),
+
+                TextColumn::make('frequency')
+                    ->label('Frecuencia')
+                    ->badge()
+                    ->color('info')
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'monthly'  => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly'   => 'Semanal',
+                        default    => $state,
+                    })
                     ->sortable(),
+
                 TextColumn::make('start_date')
-                    ->label('Fecha de inicio')
+                    ->label('Inicio')
                     ->date('d/m/Y')
                     ->sortable(),
+
                 TextColumn::make('end_date')
-                    ->label('Fecha de fin')
+                    ->label('Fin')
                     ->date('d/m/Y')
                     ->sortable(),
+
+                TextColumn::make('payrolls_count')
+                    ->label('Recibos')
+                    ->counts('payrolls')
+                    ->alignCenter()
+                    ->badge()
+                    ->color('success')
+                    ->sortable(),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
-                        'draft' => 'gray',
+                        'draft'      => 'gray',
                         'processing' => 'warning',
-                        'closed' => 'success',
-                        default => 'primary',
+                        'closed'     => 'success',
+                        default      => 'primary',
                     })
                     ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'draft' => 'Borrador',
-                        'processing' => 'En proceso',
-                        'closed' => 'Cerrado',
-                        default => $state,
+                        'draft'      => 'Borrador',
+                        'processing' => 'En Proceso',
+                        'closed'     => 'Cerrado',
+                        default      => $state,
                     })
                     ->sortable(),
+
                 TextColumn::make('closed_at')
-                    ->label('Cerrado en')
+                    ->label('Cerrado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
-                    ->label('Creado en')
+                    ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('updated_at')
-                    ->label('Actualizado en')
+                    ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -139,48 +224,74 @@ class PayrollPeriodResource extends Resource
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
-                        'draft' => 'Borrador',
-                        'processing' => 'En proceso',
-                        'closed' => 'Cerrado',
+                        'draft'      => 'Borrador',
+                        'processing' => 'En Proceso',
+                        'closed'     => 'Cerrado',
                     ])
-                    ->native(false)
-                    ->multiple(),
+                    ->native(false),
+
+                SelectFilter::make('frequency')
+                    ->label('Frecuencia')
+                    ->options([
+                        'monthly'  => 'Mensual',
+                        'biweekly' => 'Quincenal',
+                        'weekly'   => 'Semanal',
+                    ])
+                    ->native(false),
+
+                Filter::make('current_year')
+                    ->label('Año Actual')
+                    ->query(fn($query) => $query->whereYear('start_date', now()->year))
+                    ->default(),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
-                Tables\Actions\Action::make('generatePayrolls')
-                    ->label('Generar recibos')
-                    ->icon('heroicon-o-document-text')
-                    ->requiresConfirmation()
+                ViewAction::make(),
+
+                Action::make('generate_payrolls')
+                    ->label('Generar Recibos')
+                    ->icon('heroicon-o-document-plus')
                     ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Recibos de Nómina')
+                    ->modalDescription(
+                        fn(PayrollPeriod $record) =>
+                        "¿Está seguro de generar los recibos de nómina para el período {$record->name}? " .
+                            "Esta acción creará recibos para todos los empleados activos."
+                    )
                     ->action(function (PayrollPeriod $record, PayrollService $payrollService) {
                         $count = $payrollService->generateForPeriod($record);
 
                         if ($count > 0) {
-                            // Cambiar estado del periodo si lo necesitás
                             $record->update([
-                                'status' => 'processing', // o 'closed' si querés marcarlo como cerrado
-                                'closed_at' => now(),
+                                'status' => 'processing',
                             ]);
 
                             Notification::make()
-                                ->title("Se generaron {$count} recibos.")
                                 ->success()
+                                ->title('Recibos generados')
+                                ->body("Se generaron exitosamente {$count} recibos de nómina.")
                                 ->send();
                         } else {
                             Notification::make()
-                                ->title('No se generaron recibos.')
-                                ->body('Es posible que ya hayan sido generados o que no haya empleados válidos.')
-                                ->danger()
+                                ->warning()
+                                ->title('No se generaron recibos')
+                                ->body('Es posible que ya hayan sido generados o que no haya empleados activos.')
                                 ->send();
                         }
                     })
                     ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
-                Tables\Actions\Action::make('closePeriod')
-                    ->label('Cerrar periodo')
+
+                Action::make('close_period')
+                    ->label('Cerrar Período')
                     ->icon('heroicon-o-lock-closed')
-                    ->requiresConfirmation()
                     ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Cerrar Período de Nómina')
+                    ->modalDescription(
+                        fn(PayrollPeriod $record) =>
+                        "¿Está seguro de cerrar el período {$record->name}? " .
+                            "Una vez cerrado, no se podrán generar más recibos para este período."
+                    )
                     ->action(function (PayrollPeriod $record) {
                         $record->update([
                             'status' => 'closed',
@@ -188,16 +299,130 @@ class PayrollPeriodResource extends Resource
                         ]);
 
                         Notification::make()
-                            ->title('El periodo ha sido cerrado.')
                             ->success()
+                            ->title('Período cerrado')
+                            ->body("El período {$record->name} ha sido cerrado exitosamente.")
                             ->send();
                     })
                     ->visible(fn(PayrollPeriod $record) => $record->status === 'processing'),
+
+                EditAction::make(),
+                DeleteAction::make()
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->action(function ($records) {
+                            $deleted = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'draft') {
+                                    $record->delete();
+                                    $deleted++;
+                                }
+                            }
+
+                            if ($deleted > 0) {
+                                Notification::make()
+                                    ->success()
+                                    ->title("Se eliminaron {$deleted} períodos en borrador")
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Solo se pueden eliminar períodos en borrador')
+                                    ->send();
+                            }
+                        }),
                 ]),
+            ])
+            ->defaultSort('start_date', 'desc')
+            ->emptyStateHeading('No hay períodos de nómina registrados')
+            ->emptyStateDescription('Comienza a crear períodos de nómina para gestionar los pagos de los empleados.')
+            ->emptyStateIcon('heroicon-o-calendar-days');
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                InfolistSection::make('Información del Período')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('name')
+                                ->label('Nombre')
+                                ->icon('heroicon-o-calendar-days'),
+
+                            TextEntry::make('frequency')
+                                ->label('Frecuencia')
+                                ->badge()
+                                ->color('info')
+                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                    'monthly'  => 'Mensual',
+                                    'biweekly' => 'Quincenal',
+                                    'weekly'   => 'Semanal',
+                                    default    => $state,
+                                }),
+                        ])->columns(2),
+
+                        Group::make([
+                            TextEntry::make('start_date')
+                                ->label('Fecha de Inicio')
+                                ->date('d/m/Y')
+                                ->icon('heroicon-o-calendar'),
+
+                            TextEntry::make('end_date')
+                                ->label('Fecha de Fin')
+                                ->date('d/m/Y')
+                                ->icon('heroicon-o-calendar'),
+                        ])->columns(2),
+                    ]),
+
+                InfolistSection::make('Estado del Período')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('status')
+                                ->label('Estado')
+                                ->badge()
+                                ->color(fn(string $state): string => match ($state) {
+                                    'draft'      => 'gray',
+                                    'processing' => 'warning',
+                                    'closed'     => 'success',
+                                    default      => 'primary',
+                                })
+                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                    'draft'      => 'Borrador',
+                                    'processing' => 'En Proceso',
+                                    'closed'     => 'Cerrado',
+                                    default      => $state,
+                                }),
+
+                            TextEntry::make('closed_at')
+                                ->label('Fecha de Cierre')
+                                ->dateTime('d/m/Y H:i')
+                                ->icon('heroicon-o-lock-closed')
+                                ->placeholder('No cerrado'),
+                        ])->columns(2),
+
+                        TextEntry::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Sin notas')
+                            ->columnSpanFull(),
+                    ]),
+
+                InfolistSection::make('Información del Sistema')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('created_at')
+                                ->label('Creado')
+                                ->dateTime('d/m/Y H:i'),
+
+                            TextEntry::make('updated_at')
+                                ->label('Actualizado')
+                                ->dateTime('d/m/Y H:i'),
+                        ])->columns(2),
+                    ])
+                    ->collapsed(),
             ]);
     }
 
@@ -216,45 +441,5 @@ class PayrollPeriodResource extends Resource
             'view' => Pages\ViewPayrollPeriod::route('/{record}'),
             'edit' => Pages\EditPayrollPeriod::route('/{record}/edit'),
         ];
-    }
-
-    public static function infolist(Infolist $infolist): Infolist
-    {
-        return $infolist
-            ->schema([
-                Fieldset::make('Detalles del Periodo de Nómina')
-                    ->schema([
-                        TextEntry::make('name')
-                            ->label('Nombre'),
-                        TextEntry::make('frequency')
-                            ->label('Frecuencia')
-                            ->formatStateUsing(fn(string $state): string => match ($state) {
-                                'monthly' => 'Mensual',
-                                'biweekly' => 'Quincenal',
-                                'weekly' => 'Semanal',
-                                default => $state,
-                            }),
-                        TextEntry::make('start_date')
-                            ->label('Fecha de inicio')
-                            ->date('d/m/Y'),
-                        TextEntry::make('end_date')
-                            ->label('Fecha de fin')
-                            ->date('d/m/Y'),
-                        TextEntry::make('status')
-                            ->label('Estado')
-                            ->formatStateUsing(fn(string $state): string => match ($state) {
-                                'draft' => 'Borrador',
-                                'processing' => 'En proceso',
-                                'closed' => 'Cerrado',
-                                default => $state,
-                            }),
-                        TextEntry::make('closed_at')
-                            ->label('Cerrado en')
-                            ->dateTime('d/m/Y H:i'),
-                        TextEntry::make('notes')
-                            ->label('Notas')
-                            ->columnSpanFull(),
-                    ])->columns(2),
-            ]);
     }
 }

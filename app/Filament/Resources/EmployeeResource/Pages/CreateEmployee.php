@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
 use App\Filament\Resources\EmployeeResource;
-use Filament\Actions;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
@@ -65,18 +64,7 @@ class CreateEmployee extends CreateRecord
         return $data;
     }
 
-    protected function afterCreate(): void
-    {
-        // Redirigir al índice después de crear
-        $this->redirect($this->getResource()::getUrl('index'));
-    }
-
-    protected function getCreatedNotificationTitle(): ?string
-    {
-        return 'Empleado registrado exitosamente';
-    }
-
-    protected function getCreatedNotification(): ?\Filament\Notifications\Notification
+    protected function getCreatedNotification(): Notification
     {
         return Notification::make()
             ->success()
@@ -84,17 +72,5 @@ class CreateEmployee extends CreateRecord
             ->body('El empleado ' . $this->record->first_name . ' ' . $this->record->last_name . ' ha sido creado correctamente.')
             ->duration(5000)
             ->send();
-    }
-
-    // Personalizar el título de la página
-    public function getTitle(): string
-    {
-        return 'Registrar nuevo empleado';
-    }
-
-    // Personalizar el breadcrumb
-    public function getBreadcrumb(): string
-    {
-        return 'Nuevo empleado';
     }
 }

@@ -5,128 +5,180 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\ScheduleResource\Pages;
 use App\Models\Schedule;
 use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
-use Filament\Tables;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
 class ScheduleResource extends Resource
 {
     protected static ?string $model = Schedule::class;
+    protected static ?string $navigationGroup = 'Empresa';
     protected static ?string $navigationLabel = 'Horarios';
     protected static ?string $label = 'Horario';
-    protected static ?string $pluralLabel = 'horarios';
+    protected static ?string $pluralLabel = 'Horarios';
     protected static ?string $slug = 'horarios';
-    protected static ?string $navigationIcon = 'heroicon-o-calendar';
-    protected static ?string $navigationGroup = 'Empresa';
+    protected static ?string $navigationIcon = 'heroicon-o-clock';
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                TextInput::make('name')
-                    ->label('Nombre')
-                    ->required()
-                    ->maxLength(60),
-                TextInput::make('description')
-                    ->label('Descripción')
-                    ->maxLength(100)
-                    ->nullable(),
-                Repeater::make('days')
-                    ->relationship()
-                    ->label('Días')
+                Section::make('Información del Horario')
                     ->schema([
-                        Select::make('day_of_week')
-                            ->label('Día de la semana')
-                            ->options([
-                                1 => 'Lunes',
-                                2 => 'Martes',
-                                3 => 'Miércoles',
-                                4 => 'Jueves',
-                                5 => 'Viernes',
-                                6 => 'Sábado',
-                                7 => 'Domingo',
-                            ])
-                            ->native(false)
-                            ->required(),
-                        TimePicker::make('start_time')
-                            ->label('Hora de inicio')
-                            ->native(false)
-                            ->closeOnDateSelection()
-                            ->seconds(false)
-                            ->required(),
-                        TimePicker::make('end_time')
-                            ->label('Hora de fin')
-                            ->native(false)
-                            ->closeOnDateSelection()
-                            ->seconds(false)
-                            ->required(),
-                        Repeater::make('breaks')
+                        TextInput::make('name')
+                            ->label('Nombre')
+                            ->placeholder('Ejemplo: Horario Estándar')
+                            ->required()
+                            ->maxLength(60)
+                            ->columnSpan(1),
+
+                        Textarea::make('description')
+                            ->label('Descripción')
+                            ->placeholder('Descripción general del horario')
+                            ->rows(2)
+                            ->maxLength(100)
+                            ->columnSpan(1),
+                    ])
+                    ->columns(2),
+
+                Section::make('Configuración de Días')
+                    ->schema([
+                        Repeater::make('days')
                             ->relationship()
-                            ->label('Descansos')
+                            ->label('Días Laborales')
                             ->schema([
-                                TextInput::make('name')
-                                    ->label('Nombre')
-                                    ->maxLength(60)
-                                    ->required(),
+                                Select::make('day_of_week')
+                                    ->label('Día')
+                                    ->options([
+                                        1 => 'Lunes',
+                                        2 => 'Martes',
+                                        3 => 'Miércoles',
+                                        4 => 'Jueves',
+                                        5 => 'Viernes',
+                                        6 => 'Sábado',
+                                        7 => 'Domingo',
+                                    ])
+                                    ->native(false)
+                                    ->required()
+                                    ->distinct()
+                                    ->columnSpan(1),
+
                                 TimePicker::make('start_time')
-                                    ->label('Inicio descanso')
+                                    ->label('Entrada')
                                     ->native(false)
-                                    ->closeOnDateSelection()
                                     ->seconds(false)
-                                    ->required(),
+                                    ->required()
+                                    ->columnSpan(1),
+
                                 TimePicker::make('end_time')
-                                    ->label('Fin descanso')
+                                    ->label('Salida')
                                     ->native(false)
-                                    ->closeOnDateSelection()
                                     ->seconds(false)
-                                    ->required(),
+                                    ->required()
+                                    ->after('start_time')
+                                    ->columnSpan(1),
+
+                                Repeater::make('breaks')
+                                    ->relationship()
+                                    ->label('Descansos')
+                                    ->schema([
+                                        TextInput::make('name')
+                                            ->label('Nombre')
+                                            ->placeholder('Ejemplo: Almuerzo')
+                                            ->maxLength(60)
+                                            ->required(),
+
+                                        TimePicker::make('start_time')
+                                            ->label('Inicio')
+                                            ->native(false)
+                                            ->seconds(false)
+                                            ->required(),
+
+                                        TimePicker::make('end_time')
+                                            ->label('Fin')
+                                            ->native(false)
+                                            ->seconds(false)
+                                            ->required()
+                                            ->after('start_time'),
+                                    ])
+                                    ->columns(3)
+                                    ->minItems(0)
+                                    ->maxItems(6)
+                                    ->defaultItems(0)
+                                    ->collapsible()
+                                    ->collapsed()
+                                    ->cloneable()
+                                    ->addActionLabel('Agregar Descanso')
+                                    ->deletable()
+                                    ->reorderable()
+                                    ->columnSpanFull(),
                             ])
                             ->columns(3)
                             ->required()
                             ->minItems(1)
-                            ->maxItems(6)
+                            ->maxItems(7)
+                            ->defaultItems(1)
                             ->collapsible()
                             ->cloneable()
-                            ->addActionLabel('Agregar')
+                            ->addActionLabel('Agregar Día')
                             ->deletable()
                             ->reorderable()
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(3)
-                    ->required()
-                    ->minItems(1)
-                    ->maxItems(7)
-                    ->cloneable()
-                    ->addActionLabel('Agregar')
-                    ->deletable()
-                    ->reorderable(),
-            ])->columns(1);
+                            ->itemLabel(
+                                fn(array $state): ?string =>
+                                isset($state['day_of_week'])
+                                    ? match ($state['day_of_week']) {
+                                        1 => 'Lunes',
+                                        2 => 'Martes',
+                                        3 => 'Miércoles',
+                                        4 => 'Jueves',
+                                        5 => 'Viernes',
+                                        6 => 'Sábado',
+                                        7 => 'Domingo',
+                                        default => null
+                                    }
+                                    : null
+                            ),
+                    ]),
+            ]);
     }
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
-                    ->sortable()
-                    ->searchable(),
                 TextColumn::make('name')
                     ->label('Nombre')
-                    ->searchable(),
-                TextColumn::make('description')
-                    ->label('Descripción')
-                    ->searchable(),
+                    ->searchable()
+                    ->sortable()
+                    ->weight('bold')
+                    ->icon('heroicon-o-clock')
+                    ->iconColor('primary'),
+
+                TextColumn::make('days_count')
+                    ->label('Días')
+                    ->counts('days')
+                    ->alignCenter()
+                    ->badge()
+                    ->color('info')
+                    ->sortable(),
+
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
@@ -137,14 +189,21 @@ class ScheduleResource extends Resource
                 //
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
                 ]),
-            ]);
+            ])
+            ->defaultSort('name')
+            ->emptyStateHeading('No hay horarios registrados')
+            ->emptyStateDescription('Comienza a crear horarios de trabajo para asignar a los empleados.')
+            ->emptyStateIcon('heroicon-o-clock');
     }
+
 
     public static function getRelations(): array
     {
@@ -158,6 +217,7 @@ class ScheduleResource extends Resource
         return [
             'index' => Pages\ListSchedules::route('/'),
             'create' => Pages\CreateSchedule::route('/create'),
+            'view' => Pages\ViewSchedule::route('/{record}'),
             'edit' => Pages\EditSchedule::route('/{record}/edit'),
         ];
     }
