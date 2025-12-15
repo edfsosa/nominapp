@@ -6,7 +6,7 @@ use App\Filament\Resources\EmployeeLeaveResource;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
-class CreateEmployeeLeave extends CreateRecord
+class CreateEmployeeLeaves extends CreateRecord
 {
     protected static string $resource = EmployeeLeaveResource::class;
 

@@ -26,6 +26,16 @@ class AttendanceEventResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-finger-print';
     protected static ?string $navigationGroup = 'Asistencias';
     protected static ?int $navigationSort = 2;
+    
+    public static function getEloquentQuery(): Builder
+{
+    return parent::getEloquentQuery()
+        ->with([
+            'day.employee.branch',
+            'day.employee.position.department'
+        ]);
+}
+
 
     public static function table(Table $table): Table
     {
@@ -80,7 +90,6 @@ class AttendanceEventResource extends Resource
                             ? 'CI: ' . $record->day->employee->ci
                             : ''
                     )
-                    ->searchable(['day.employee.first_name', 'day.employee.last_name', 'day.employee.ci'])
                     ->sortable()
                     ->weight('medium')
                     ->wrap(),
@@ -90,8 +99,7 @@ class AttendanceEventResource extends Resource
                     ->icon('heroicon-o-building-office-2')
                     ->badge()
                     ->color('info')
-                    ->sortable()
-                    ->searchable()
+                    ->sortable()    
                     ->toggleable(),
 
                 TextColumn::make('day.employee.position.name')
@@ -102,7 +110,6 @@ class AttendanceEventResource extends Resource
                     )
                     ->icon('heroicon-o-briefcase')
                     ->sortable()
-                    ->searchable()
                     ->wrap()
                     ->toggleable(),
 

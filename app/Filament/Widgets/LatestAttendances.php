@@ -149,13 +149,13 @@ class LatestAttendances extends BaseWidget
                     ->default(),
             ])
             ->actions([
-                Tables\Actions\Action::make('view_day')
+                /*Tables\Actions\Action::make('view_day')
                     ->label('Ver Día')
                     ->icon('heroicon-o-eye')
                     ->color('info')
                     ->url(fn($record) => route('filament.admin.resources.attendance-days.view', [
                         'record' => $record->attendance_day_id
-                    ])),
+                    ])),*/
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
