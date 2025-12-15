@@ -108,6 +108,10 @@ body {
     text-rendering: optimizeLegibility;
 }
 
+body.modal-open {
+    overflow: hidden;
+}
+
 /* CORRECCIÓN 10: Container más robusto */
 .container {
     max-width: 1200px; /* Más ancho para mejor aprovechamiento */
@@ -386,21 +390,39 @@ canvas {
     border: 0 !important;
 }
 
-/* CORRECCIÓN 24: Modal mejorado */
+/* CORRECCIÓN 24: Modal mejorado con backdrop y animaciones */
 .modal {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
+    z-index: 1000;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000;
     padding: var(--space-4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-med), visibility var(--transition-med);
+}
+
+.modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Backdrop del modal */
+.modal::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
     backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s ease-out;
 }
 
 .modal-content {
+    position: relative;
+    z-index: 1001;
     background: var(--color-surface);
     color: var(--color-text);
     padding: var(--space-8);
@@ -409,7 +431,12 @@ canvas {
     width: 100%;
     box-shadow: var(--shadow-modal);
     border: 1px solid var(--color-border);
-    animation: modalEnter 0.3s ease-out;
+    transform: scale(0.9) translateY(-20px);
+    transition: transform var(--transition-med);
+}
+
+.modal.show .modal-content {
+    transform: scale(1) translateY(0);
 }
 
 .modal-content h2 {
@@ -427,8 +454,7 @@ canvas {
     line-height: var(--line-height-relaxed);
 }
 
-#closeModal,
-#closeErrorModal {
+.modal-content button {
     width: 100%;
     background: var(--btn-green);
     color: white;
@@ -438,15 +464,28 @@ canvas {
     font-size: var(--font-size-base);
     font-weight: 600;
     cursor: pointer;
-    transition: background var(--transition-med);
+    transition: background var(--transition-med), transform var(--transition-fast);
 }
 
-#closeModal:hover,
-#closeErrorModal:hover {
+.modal-content button:hover:not(:disabled) {
     background: var(--btn-blue);
+    transform: translateY(-1px);
+}
+
+.modal-content button:active:not(:disabled) {
+    transform: translateY(0);
 }
 
 /* CORRECCIÓN 25: Animaciones mejoradas */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
 @keyframes modalEnter {
     from {
         opacity: 0;
@@ -510,6 +549,14 @@ canvas {
 
     .modal-content {
         animation: none;
+    }
+
+    .modal::before {
+        animation: none;
+    }
+
+    .modal.show .modal-content {
+        transform: none;
     }
 }
 
@@ -594,14 +641,341 @@ canvas {
     .no-js-warning {
         display: none !important;
     }
-    
+
     body {
         background: white !important;
         color: black !important;
     }
-    
+
     .card {
         border: 1px solid #000 !important;
         box-shadow: none !important;
     }
+}
+
+/* Utility classes para reemplazar estilos inline */
+.hidden {
+    display: none;
+}
+
+.emp-name {
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.label-spacing {
+    margin-bottom: var(--space-2);
+}
+
+.status-spacing {
+    margin-top: var(--space-2);
+}
+
+/* Warning de no-js */
+.no-js-warning {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    padding: var(--space-4);
+    text-align: center;
+    font-weight: 500;
+    border-bottom: 2px solid var(--btn-red);
+}
+
+/* Modal variants - Success y Error */
+.modal-success h2 {
+    color: var(--btn-green);
+}
+
+.modal-success h2::before {
+    content: '✓';
+    display: inline-block;
+    margin-right: var(--space-2);
+    font-size: 1.5em;
+    vertical-align: middle;
+}
+
+.modal-error h2 {
+    color: var(--btn-red);
+}
+
+.modal-error h2::before {
+    content: '⚠';
+    display: inline-block;
+    margin-right: var(--space-2);
+    font-size: 1.5em;
+    vertical-align: middle;
+}
+
+.modal-error .modal-content button {
+    background: var(--btn-red);
+}
+
+.modal-error .modal-content button:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+/* Alert boxes para mensajes inline */
+.alert-box {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-4);
+    border-left: 4px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    animation: slideIn 0.3s ease-out;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.alert-box-error {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    border-left-color: var(--btn-red);
+}
+
+.alert-box-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border-left-color: #f59e0b;
+}
+
+.alert-box-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border-left-color: #3b82f6;
+}
+
+.alert-box-success {
+    background: var(--alert-bg);
+    color: var(--alert-fg);
+    border-left-color: var(--btn-green);
+}
+
+.alert-box-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.alert-box-content {
+    flex: 1;
+}
+
+.alert-box-title {
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+}
+
+.alert-box-message {
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dark mode adjustments para alerts */
+@media (prefers-color-scheme: dark) {
+    .alert-box-warning {
+        background: #78350f;
+        color: #fef3c7;
+    }
+
+    .alert-box-info {
+        background: #1e3a8a;
+        color: #dbeafe;
+    }
+}
+
+/* ===== MEJORAS DE ACCESIBILIDAD ===== */
+
+/* Skip links - Enlaces de salto para navegación por teclado */
+.skip-links {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+}
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--btn-blue);
+    color: white;
+    padding: var(--space-3) var(--space-4);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    border-radius: 0 0 var(--radius) 0;
+    box-shadow: var(--shadow-lg);
+    transition: top var(--transition-fast);
+    z-index: 10000;
+}
+
+.skip-link:focus {
+    top: 0;
+    outline: 3px solid var(--btn-focus);
+    outline-offset: 2px;
+}
+
+.skip-link:hover {
+    background: #2563eb;
+}
+
+/* Mejora para focus visible en todos los elementos interactivos */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--btn-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+/* Asegurar que el foco sea visible incluso en dark mode */
+@media (prefers-color-scheme: dark) {
+    .skip-link {
+        background: var(--btn-blue);
+        color: white;
+    }
+
+    .skip-link:focus {
+        outline-color: #60a5fa;
+    }
+}
+
+/* Focus trap styles para modales */
+.modal.show {
+    /* El modal ya previene el scroll del body */
+}
+
+/* Mejor indicador visual para elementos deshabilitados */
+button:disabled,
+select:disabled,
+input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+}
+
+button:disabled::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0, 0, 0, 0.03) 10px,
+        rgba(0, 0, 0, 0.03) 20px
+    );
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* Mejora de contraste para textos importantes */
+strong {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Indicador de carga accesible */
+.loading-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.loading-indicator::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--btn-blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Mejor feedback visual para estados de validación */
+input:invalid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--btn-red);
+    background-color: var(--error-bg);
+}
+
+input:valid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--btn-green);
+}
+
+/* Asegurar que los íconos decorativos sean ignorados por lectores de pantalla */
+[aria-hidden="true"] {
+    /* Ya está en el HTML, este CSS es para reforzar */
+}
+
+/* Mejorar la visibilidad del texto seleccionado */
+::selection {
+    background: var(--btn-blue);
+    color: white;
+}
+
+@media (prefers-color-scheme: dark) {
+    ::selection {
+        background: #60a5fa;
+        color: var(--color-bg);
+    }
+}
+
+/* Asegurar suficiente espacio táctil en dispositivos móviles */
+@media (max-width: 768px) {
+    button,
+    a.btn,
+    select,
+    input {
+        min-height: 44px; /* Tamaño mínimo recomendado por WCAG */
+        min-width: 44px;
+    }
+}
+
+/* Indicador de región "live" para actualizaciones dinámicas */
+[aria-live="polite"],
+[aria-live="assertive"] {
+    /* El comportamiento es manejado por el navegador/screen reader */
+}
+
+/* Mejora visual para noscript warning */
+.no-js-warning {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    padding: var(--space-4);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 3px solid var(--btn-red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.no-js-warning::before {
+    content: '⚠';
+    font-size: 1.5em;
 }

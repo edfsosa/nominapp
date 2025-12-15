@@ -8,7 +8,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const btnGeo = document.getElementById("btnGeo");
     const btnMark = document.getElementById("btnMark");
 
-    const statusEl = document.getElementById("status");
     const eventTypeEl = document.getElementById("eventType");
 
     const empCard = document.getElementById("empCard");
@@ -54,12 +53,10 @@ document.addEventListener("DOMContentLoaded", () => {
         scoreThreshold: 0.5,
     });
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+    // Función simplificada para logging (solo para debugging)
     const logStatus = (m) => {
-        if (statusEl) {
-            statusEl.textContent = m;
-        } else {
-            console.log("Status:", m);
-        }
+        console.log("[Status]", m);
     };
 
     // CORRECCIÓN 3: Verificar elementos del DOM antes de usar
@@ -71,7 +68,6 @@ document.addEventListener("DOMContentLoaded", () => {
             btnIdentify,
             btnGeo,
             btnMark,
-            statusEl,
             eventTypeEl,
             empCard,
             empName,
@@ -90,7 +86,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (missingElements.length > 0) {
             console.error("Elementos del DOM faltantes:", missingElements);
-            logStatus("Error: Faltan elementos requeridos en la página");
+            const errorMsg = "Error: Faltan elementos requeridos en la página. Por favor, recarga.";
+            logStatus(errorMsg);
+            showErrorModal("Error de inicialización", errorMsg);
             return false;
         }
         return true;
@@ -104,18 +102,25 @@ document.addEventListener("DOMContentLoaded", () => {
     // Función asíncrona para cargar los modelos de face-api.js
     async function loadModels() {
         try {
-            logStatus("Cargando modelos...");
+            logStatus("Cargando modelos de reconocimiento facial...");
+            showAlert("info", "Cargando modelos de reconocimiento facial...", 0);
+
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URI),
             ]);
+
             modelsLoaded = true;
-            logStatus("Modelos cargados");
+            logStatus("Modelos cargados correctamente");
+            showAlert("success", "Modelos cargados. Presiona 'Iniciar cámara' para comenzar.", 4000);
         } catch (error) {
             modelsLoaded = false;
-            logStatus(
-                "Error al cargar los modelos. Por favor, recarga la página."
+            const errorMsg = "Error al cargar los modelos de reconocimiento facial. Por favor, recarga la página.";
+            logStatus(errorMsg);
+            showErrorModal(
+                "Error al cargar modelos",
+                errorMsg + " Si el problema persiste, verifica tu conexión a internet."
             );
             console.error("Error al cargar los modelos:", error);
             throw error;
@@ -156,24 +161,37 @@ document.addEventListener("DOMContentLoaded", () => {
                 drawLoopActive = true;
                 requestAnimationFrame(drawLoop);
             } else {
-                logStatus("Los modelos no están cargados. Recarga la página.");
+                const errorMsg = "Los modelos no están cargados. Por favor, recarga la página.";
+                logStatus(errorMsg);
+                showErrorModal("Modelos no cargados", errorMsg);
                 return;
             }
 
             // Habilitar el botón
             btnIdentify.disabled = false;
-            logStatus(
-                "Cámara iniciada. Presiona 'Identificar' cuando estés listo."
-            );
+            btnIdentify.removeAttribute('aria-disabled');
+            logStatus("Cámara iniciada correctamente");
+            showAlert("success", "Cámara iniciada. Presiona 'Identificar' cuando estés listo.", 4000);
         } catch (e) {
             // Manejo de errores
+            let errorTitle = "Error de cámara";
+            let errorMsg = "";
+
             if (e.name === "NotAllowedError") {
-                logStatus("Permiso denegado, por favor habilita la cámara y recarga la página.");
+                errorTitle = "Permiso denegado";
+                errorMsg = "Por favor, habilita el acceso a la cámara en tu navegador y recarga la página.";
             } else if (e.name === "NotFoundError") {
-                logStatus("No se encontró una cámara en el dispositivo. Por favor, conecta una cámara y recarga la página.");
+                errorTitle = "Cámara no encontrada";
+                errorMsg = "No se detectó ninguna cámara en tu dispositivo. Por favor, conecta una cámara y recarga la página.";
+            } else if (e.name === "NotReadableError") {
+                errorTitle = "Cámara en uso";
+                errorMsg = "La cámara está siendo utilizada por otra aplicación. Cierra otras aplicaciones que puedan estar usando la cámara e intenta nuevamente.";
             } else {
-                logStatus("No se pudo iniciar la cámara: " + e.message);
+                errorMsg = "No se pudo iniciar la cámara: " + e.message;
             }
+
+            logStatus(errorMsg);
+            showErrorModal(errorTitle, errorMsg);
             console.error("Error al iniciar la cámara:", e);
         }
     }
@@ -262,7 +280,9 @@ document.addEventListener("DOMContentLoaded", () => {
             );
         }
 
-        logStatus(`Capturando (${samples})… mantené la cara estable`);
+        logStatus(`Capturando ${samples} muestras de rostro...`);
+        showAlert("info", `Capturando rostro... mantén la cara estable`, 0);
+
         const list = [];
         let attempts = 0;
         const maxAttempts = samples * 3;
@@ -270,9 +290,7 @@ document.addEventListener("DOMContentLoaded", () => {
         try {
             while (list.length < samples && attempts < maxAttempts) {
                 // Mostrar progreso dinámico
-                logStatus(
-                    `Capturando rostro (${list.length + 1} de ${samples})…`
-                );
+                logStatus(`Captura ${list.length + 1} de ${samples}`);
 
                 // Detectar rostro y descriptor
                 const det = await faceapi
@@ -379,14 +397,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // Función para deshabilitar múltiples elementos
     function disableElements(elements) {
         elements.forEach((el) => {
-            if (el) el.disabled = true;
+            if (el) {
+                el.disabled = true;
+                el.setAttribute('aria-disabled', 'true');
+            }
         });
     }
 
     // Función para habilitar múltiples elementos
     function enableElements(elements) {
         elements.forEach((el) => {
-            if (el) el.disabled = false;
+            if (el) {
+                el.disabled = false;
+                el.removeAttribute('aria-disabled');
+            }
         });
     }
 
@@ -422,8 +446,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Función para actualizar la interfaz de usuario con los datos del empleado
     function updateEmployeeUI(employee, lastEvent) {
         try {
-            // CORRECCIÓN 4: Verificar que los elementos existen antes de usarlos
-            if (empCard) empCard.style.display = "flex";
+            // CORRECCIÓN 4: Usar clases CSS en lugar de style.display
+            if (empCard) empCard.classList.remove("hidden");
 
             if (empName) {
                 empName.textContent = `${employee.first_name || ""} ${
@@ -447,6 +471,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Variable para controlar si ya se agregó el listener al modal
     let modalListenerAdded = false;
+    let errorModalListenerAdded = false;
+    let previousActiveElement = null;
+    let currentAlertTimeout = null;
 
     // Función para mostrar el modal
     function showSuccessModal() {
@@ -458,22 +485,241 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        // Mostrar el modal
-        modal.style.display = "flex";
+        // Guardar el elemento que tiene el foco actualmente
+        previousActiveElement = document.activeElement;
 
-        // Agregar evento para cerrar el modal solo si no se ha agregado antes
+        // Mostrar el modal usando clases CSS con un pequeño delay para la animación
+        modal.classList.remove("hidden");
+
+        // Forzar reflow para que la animación funcione correctamente
+        void modal.offsetWidth;
+
+        // Agregar clase show para activar la animación
+        requestAnimationFrame(() => {
+            modal.classList.add("show");
+        });
+
+        // Enfocar el botón del modal para accesibilidad y anunciar a lectores de pantalla
+        setTimeout(() => {
+            closeModal.focus();
+            // Anunciar el mensaje a lectores de pantalla
+            modal.setAttribute('aria-hidden', 'false');
+        }, 100);
+
+        // Prevenir scroll del body cuando el modal está abierto
+        document.body.classList.add("modal-open");
+
+        // Agregar eventos para cerrar el modal solo si no se ha agregado antes
         if (!modalListenerAdded) {
-            closeModal.addEventListener("click", () => {
-                modal.style.display = "none";
-                resetSystem();
+            // Cerrar con el botón
+            closeModal.addEventListener("click", closeModalHandler);
+
+            // Cerrar al hacer clic en el backdrop (fuera del contenido)
+            modal.addEventListener("click", (e) => {
+                if (e.target === modal) {
+                    closeModalHandler();
+                }
             });
+
+            // Cerrar con tecla ESC
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && modal.classList.contains("show")) {
+                    closeModalHandler();
+                }
+            });
+
             modalListenerAdded = true;
+        }
+    }
+
+    // Función para cerrar el modal de éxito
+    function closeModalHandler() {
+        const modal = document.getElementById("successModal");
+
+        if (!modal) return;
+
+        // Ocultar de lectores de pantalla
+        modal.setAttribute('aria-hidden', 'true');
+
+        // Remover clase show para activar animación de salida
+        modal.classList.remove("show");
+
+        // Esperar a que termine la animación antes de ocultar completamente
+        setTimeout(() => {
+            modal.classList.add("hidden");
+
+            // Restaurar scroll del body
+            document.body.classList.remove("modal-open");
+
+            // Restaurar el foco al elemento anterior
+            if (previousActiveElement && previousActiveElement.focus) {
+                previousActiveElement.focus();
+            }
+
+            // Resetear el sistema
+            resetSystem();
+        }, 250); // Duración de la animación
+    }
+
+    // Función para mostrar el modal de error
+    function showErrorModal(title, message) {
+        const modal = document.getElementById("errorModal");
+        const closeBtn = document.getElementById("closeErrorModal");
+        const titleEl = document.getElementById("errorModalTitle");
+        const descEl = document.getElementById("errorModalDesc");
+
+        if (!modal || !closeBtn || !titleEl || !descEl) {
+            console.error("Elementos del modal de error no encontrados");
+            return;
+        }
+
+        // Guardar el elemento que tiene el foco actualmente
+        previousActiveElement = document.activeElement;
+
+        // Establecer el contenido del modal
+        titleEl.textContent = title || "Error";
+        descEl.textContent = message || "Ha ocurrido un error inesperado.";
+
+        // Mostrar el modal usando clases CSS
+        modal.classList.remove("hidden");
+
+        // Forzar reflow para la animación
+        void modal.offsetWidth;
+
+        // Agregar clase show para activar la animación
+        requestAnimationFrame(() => {
+            modal.classList.add("show");
+        });
+
+        // Enfocar el botón del modal para accesibilidad y anunciar a lectores de pantalla
+        setTimeout(() => {
+            closeBtn.focus();
+            // Anunciar el mensaje a lectores de pantalla
+            modal.setAttribute('aria-hidden', 'false');
+        }, 100);
+
+        // Prevenir scroll del body
+        document.body.classList.add("modal-open");
+
+        // Agregar eventos para cerrar el modal solo si no se ha agregado antes
+        if (!errorModalListenerAdded) {
+            // Cerrar con el botón
+            closeBtn.addEventListener("click", closeErrorModalHandler);
+
+            // Cerrar al hacer clic en el backdrop
+            modal.addEventListener("click", (e) => {
+                if (e.target === modal) {
+                    closeErrorModalHandler();
+                }
+            });
+
+            // Cerrar con tecla ESC
+            document.addEventListener("keydown", (e) => {
+                if (e.key === "Escape" && modal.classList.contains("show")) {
+                    closeErrorModalHandler();
+                }
+            });
+
+            errorModalListenerAdded = true;
+        }
+    }
+
+    // Función para cerrar el modal de error
+    function closeErrorModalHandler() {
+        const modal = document.getElementById("errorModal");
+
+        if (!modal) return;
+
+        // Ocultar de lectores de pantalla
+        modal.setAttribute('aria-hidden', 'true');
+
+        // Remover clase show para animación de salida
+        modal.classList.remove("show");
+
+        // Esperar a que termine la animación
+        setTimeout(() => {
+            modal.classList.add("hidden");
+
+            // Restaurar scroll del body
+            document.body.classList.remove("modal-open");
+
+            // Restaurar el foco al elemento anterior
+            if (previousActiveElement && previousActiveElement.focus) {
+                previousActiveElement.focus();
+            }
+        }, 250);
+    }
+
+    // Función para mostrar alertas inline
+    function showAlert(type, message, duration = 5000) {
+        const container = document.getElementById("alertContainer");
+
+        if (!container) {
+            console.error("Contenedor de alertas no encontrado");
+            return;
+        }
+
+        // Limpiar timeout anterior si existe
+        if (currentAlertTimeout) {
+            clearTimeout(currentAlertTimeout);
+        }
+
+        // Mapeo de iconos por tipo
+        const icons = {
+            error: "⚠",
+            warning: "⚠",
+            info: "ℹ",
+            success: "✓",
+        };
+
+        // Crear el elemento de alerta
+        const alertBox = document.createElement("div");
+        alertBox.className = `alert-box alert-box-${type}`;
+        alertBox.setAttribute("role", "alert");
+
+        alertBox.innerHTML = `
+            <div class="alert-box-icon">${icons[type] || "ℹ"}</div>
+            <div class="alert-box-content">
+                <div class="alert-box-message">${message}</div>
+            </div>
+        `;
+
+        // Limpiar el contenedor y agregar la nueva alerta
+        container.innerHTML = "";
+        container.appendChild(alertBox);
+
+        // Auto-ocultar después del tiempo especificado
+        if (duration > 0) {
+            currentAlertTimeout = setTimeout(() => {
+                alertBox.style.opacity = "0";
+                alertBox.style.transform = "translateY(-10px)";
+                setTimeout(() => {
+                    if (alertBox.parentNode === container) {
+                        container.removeChild(alertBox);
+                    }
+                }, 300);
+            }, duration);
+        }
+    }
+
+    // Función para limpiar alertas
+    function clearAlerts() {
+        const container = document.getElementById("alertContainer");
+        if (container) {
+            container.innerHTML = "";
+        }
+        if (currentAlertTimeout) {
+            clearTimeout(currentAlertTimeout);
+            currentAlertTimeout = null;
         }
     }
 
     // Función para resetear el sistema
     function resetSystem() {
         try {
+            // Limpiar alertas
+            clearAlerts();
+
             // Limpiar el estado global
             state.employee = null;
             state.allowed = [];
@@ -508,17 +754,28 @@ document.addEventListener("DOMContentLoaded", () => {
                 eventTypeEl.innerHTML =
                     '<option value="">— primero identificate —</option>';
             }
-            if (empCard) empCard.style.display = "none";
+            if (empCard) empCard.classList.add("hidden");
 
             // Resetear botones - verificar que existan
-            if (btnStart) btnStart.disabled = false;
-            if (btnIdentify) btnIdentify.disabled = true;
-            if (btnGeo) btnGeo.disabled = true;
-            if (btnMark) btnMark.disabled = true;
+            if (btnStart) {
+                btnStart.disabled = false;
+                btnStart.removeAttribute('aria-disabled');
+            }
+            if (btnIdentify) {
+                btnIdentify.disabled = true;
+                btnIdentify.setAttribute('aria-disabled', 'true');
+            }
+            if (btnGeo) {
+                btnGeo.disabled = true;
+                btnGeo.setAttribute('aria-disabled', 'true');
+            }
+            if (btnMark) {
+                btnMark.disabled = true;
+                btnMark.setAttribute('aria-disabled', 'true');
+            }
 
-            logStatus(
-                "Sistema reiniciado. Presiona 'Iniciar cámara' para comenzar."
-            );
+            logStatus("Sistema reiniciado");
+            showAlert("info", "Sistema reiniciado. Presiona 'Iniciar cámara' para comenzar.", 4000);
         } catch (error) {
             console.error("Error al resetear el sistema:", error);
         }
@@ -547,10 +804,11 @@ document.addEventListener("DOMContentLoaded", () => {
             btnIdentify.disabled = true;
 
             try {
-                logStatus("Capturando rostro...");
+                logStatus("Iniciando captura de rostro...");
                 const descriptor = await captureDescriptor(5, 160);
 
-                logStatus("Identificando empleado...");
+                logStatus("Enviando datos para identificación...");
+                showAlert("info", "Identificando empleado...", 0);
 
                 // CORRECCIÓN 6: Verificar que el token CSRF existe
                 if (!CSRF) {
@@ -588,9 +846,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 checkEnableMark();
 
                 logStatus("Empleado identificado ✓");
+                showAlert("success", "Empleado identificado correctamente", 3000);
             } catch (e) {
                 console.error("Error en la identificación:", e);
-                logStatus("Error: " + e.message);
+                let errorMsg = e.message || "No se pudo identificar al empleado";
+                logStatus("Error: " + errorMsg);
+                showAlert("error", errorMsg, 7000);
             } finally {
                 btnIdentify.disabled = false;
             }
@@ -601,12 +862,15 @@ document.addEventListener("DOMContentLoaded", () => {
     if (btnGeo) {
         btnGeo.addEventListener("click", () => {
             if (!navigator.geolocation) {
-                logStatus("Geolocalización no soportada en este navegador");
+                const errorMsg = "Tu navegador no soporta geolocalización. Por favor, usa un navegador moderno.";
+                logStatus(errorMsg);
+                showErrorModal("Geolocalización no soportada", errorMsg);
                 return;
             }
 
             btnGeo.disabled = true;
-            logStatus("Obteniendo ubicación...");
+            logStatus("Solicitando ubicación GPS...");
+            showAlert("info", "Obteniendo ubicación...", 0);
 
             navigator.geolocation.getCurrentPosition(
                 (pos) => {
@@ -618,27 +882,30 @@ document.addEventListener("DOMContentLoaded", () => {
                     };
                     checkEnableMark();
                     logStatus("Ubicación obtenida correctamente");
+                    showAlert("success", "Ubicación obtenida correctamente", 3000);
                     btnGeo.disabled = false;
                 },
                 (err) => {
                     console.error("Error de geolocalización:", err);
+                    let errorMsg = "";
+
                     switch (err.code) {
                         case 1:
-                            logStatus(
-                                "Permiso denegado, por favor habilita la ubicación y recarga la página."
-                            );
+                            errorMsg = "Permiso denegado. Por favor, habilita la ubicación en tu navegador.";
                             break;
                         case 2:
-                            logStatus("No se pudo obtener la ubicación. Por favor, intenta de nuevo.");
+                            errorMsg = "No se pudo obtener la ubicación. Verifica que el GPS esté activado.";
                             break;
                         case 3:
-                            logStatus("Tiempo de espera agotado. Por favor, intenta de nuevo.");
+                            errorMsg = "Tiempo de espera agotado. Por favor, intenta de nuevo.";
                             break;
-                    
-                        default: 
-                            logStatus("Error desconocido al obtener ubicación. Por favor, intenta de nuevo.");
+                        default:
+                            errorMsg = "Error desconocido al obtener ubicación. Por favor, intenta de nuevo.";
                             break;
                     }
+
+                    logStatus(errorMsg);
+                    showAlert("error", errorMsg, 6000);
                     btnGeo.disabled = false;
                 },
                 {
@@ -682,7 +949,8 @@ document.addEventListener("DOMContentLoaded", () => {
                     },
                 };
 
-                logStatus("Enviando marcación...");
+                logStatus("Enviando marcación al servidor...");
+                showAlert("info", "Registrando marcación...", 0);
 
                 // Enviar la solicitud
                 const resp = await fetch("/marcar", {
@@ -704,11 +972,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
                 logStatus(json.message || "Marcación registrada correctamente");
 
+                // Limpiar alertas previas antes de mostrar el modal de éxito
+                clearAlerts();
+
                 // Mostrar el modal de confirmación
                 showSuccessModal();
             } catch (e) {
                 console.error("Error en la marcación:", e);
-                logStatus("Error: " + e.message);
+                const errorMsg = e.message || "No se pudo registrar la marcación. Por favor, intenta de nuevo.";
+                logStatus("Error: " + errorMsg);
+                showErrorModal("Error al registrar marcación", errorMsg);
             } finally {
                 btnMark.disabled = false;
             }
