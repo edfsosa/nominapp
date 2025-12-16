@@ -25,12 +25,13 @@ use Filament\Tables\Table;
 class DeductionResource extends Resource
 {
     protected static ?string $model = Deduction::class;
-    protected static ?string $navigationGroup = 'Definiciones';
+    protected static ?string $navigationGroup = 'Nóminas';
     protected static ?string $navigationLabel = 'Deducciones';
     protected static ?string $label = 'Deducción';
     protected static ?string $pluralLabel = 'Deducciones';
     protected static ?string $slug = 'deducciones';
     protected static ?string $navigationIcon = 'heroicon-o-minus-circle';
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {

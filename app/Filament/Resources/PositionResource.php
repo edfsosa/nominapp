@@ -30,6 +30,7 @@ class PositionResource extends Resource
     protected static ?string $slug = 'cargos';
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
     protected static ?string $recordTitleAttribute = 'name';
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

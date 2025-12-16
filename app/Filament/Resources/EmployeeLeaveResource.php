@@ -33,7 +33,7 @@ class EmployeeLeaveResource extends Resource
     protected static ?string $navigationLabel = 'Permisos';
     protected static ?string $modelLabel = 'permiso';
     protected static ?string $pluralModelLabel = 'permisos';
-    protected static ?string $navigationGroup = 'Gestión de Personal';
+    protected static ?string $navigationGroup = 'Empleados';
     protected static ?string $slug = 'permisos';
     protected static ?int $navigationSort = 4;
 

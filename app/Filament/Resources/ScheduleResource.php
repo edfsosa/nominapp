@@ -29,6 +29,7 @@ class ScheduleResource extends Resource
     protected static ?string $pluralLabel = 'Horarios';
     protected static ?string $slug = 'horarios';
     protected static ?string $navigationIcon = 'heroicon-o-clock';
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {

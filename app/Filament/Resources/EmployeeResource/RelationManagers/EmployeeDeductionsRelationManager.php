@@ -8,7 +8,9 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\DeleteAction;
@@ -18,6 +20,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Log;
 
 class EmployeeDeductionsRelationManager extends RelationManager
 {
@@ -163,6 +166,39 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->default(),
             ])
             ->headerActions([
+                Action::make('assign_deduction')
+                    ->label('Asignar deducciones obligatorias')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->action(function () {
+                        try {
+                            $assignedCount = $this->ownerRecord->assignMandatoryDeductions();
+
+                            Notification::make()
+                                ->title('Deducciones asignadas exitosamente')
+                                ->body("Se han asignado {$assignedCount} " .
+                                       ($assignedCount === 1 ? 'deducción obligatoria' : 'deducciones obligatorias') .
+                                       " al empleado {$this->ownerRecord->full_name}.")
+                                ->success()
+                                ->send();
+                        } catch (\Exception $e) {
+                            Log::error('Error al asignar deducciones obligatorias', [
+                                'employee_id' => $this->ownerRecord->id,
+                                'employee_name' => $this->ownerRecord->full_name,
+                                'error' => $e->getMessage(),
+                                'trace' => $e->getTraceAsString(),
+                            ]);
+
+                            Notification::make()
+                                ->title('Error al asignar deducciones')
+                                ->body($e->getMessage())
+                                ->danger()
+                                ->send();
+                        }
+                    })
+                    ->requiresConfirmation()
+                    ->modalHeading('Asignar deducciones obligatorias')
+                    ->modalDescription('¿Deseas asignar las deducciones obligatorias al empleado? Solo se asignarán las que aún no tenga.'),
                 CreateAction::make()
                     ->label('Agregar deducción')
                     ->icon('heroicon-o-plus'),

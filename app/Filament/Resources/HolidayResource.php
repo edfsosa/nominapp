@@ -21,12 +21,13 @@ use Illuminate\Database\Eloquent\Builder;
 class HolidayResource extends Resource
 {
     protected static ?string $model = Holiday::class;
-    protected static ?string $navigationGroup = 'Definiciones';
+    protected static ?string $navigationGroup = 'Empresa';
     protected static ?string $navigationLabel = 'Feriados';
     protected static ?string $label = 'Feriado';
     protected static ?string $pluralLabel = 'Feriados';
     protected static ?string $slug = 'feriados';
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+    protected static ?int $navigationSort = 5;
 
     public static function form(Form $form): Form
     {

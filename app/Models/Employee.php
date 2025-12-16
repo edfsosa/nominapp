@@ -202,4 +202,50 @@ class Employee extends Model
     {
         return "{$this->first_name} {$this->last_name}";
     }
+
+    /**
+     * Asigna todas las deducciones obligatorias activas al empleado
+     *
+     * @return int Cantidad de deducciones asignadas
+     * @throws \Exception Si hay un error al asignar las deducciones
+     */
+    public function assignMandatoryDeductions(): int
+    {
+        // Obtener todas las deducciones obligatorias y activas
+        $mandatoryDeductions = Deduction::where('is_mandatory', true)
+            ->where('is_active', true)
+            ->get();
+
+        if ($mandatoryDeductions->isEmpty()) {
+            throw new \Exception('No hay deducciones obligatorias activas disponibles.');
+        }
+
+        // Obtener los IDs de las deducciones ya asignadas al empleado
+        $existingDeductionIds = $this->employeeDeductions()
+            ->whereNull('end_date')
+            ->pluck('deduction_id')
+            ->toArray();
+
+        $assignedCount = 0;
+
+        // Asignar solo las deducciones que no están ya asignadas
+        foreach ($mandatoryDeductions as $deduction) {
+            if (!in_array($deduction->id, $existingDeductionIds)) {
+                $this->employeeDeductions()->create([
+                    'deduction_id' => $deduction->id,
+                    'start_date' => now(),
+                    'end_date' => null,
+                    'custom_amount' => null,
+                    'notes' => 'Deducción obligatoria asignada automáticamente',
+                ]);
+                $assignedCount++;
+            }
+        }
+
+        if ($assignedCount === 0) {
+            throw new \Exception('Todas las deducciones obligatorias ya están asignadas al empleado.');
+        }
+
+        return $assignedCount;
+    }
 }
