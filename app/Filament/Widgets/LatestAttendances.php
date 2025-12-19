@@ -108,6 +108,30 @@ class LatestAttendances extends BaseWidget
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('employee_id')
+                    ->label('Empleado')
+                    ->options(fn() => AttendanceEvent::query()
+                        ->whereHas('day.employee', function (Builder $query) {
+                            $query->where('status', 'active');
+                        })
+                        ->with('day.employee')
+                        ->get()
+                        ->pluck('day.employee.full_name', 'day.employee.id')
+                        ->unique()
+                        ->sort()
+                    )
+                    ->query(function (Builder $query, array $data) {
+                        if (filled($data['values'])) {
+                            return $query->whereHas('day.employee', function (Builder $q) use ($data) {
+                                $q->whereIn('id', $data['values']);
+                            });
+                        }
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->multiple(),
+
                 SelectFilter::make('event_type')
                     ->label('Tipo de Evento')
                     ->options([
