@@ -3,10 +3,17 @@
 namespace App\Filament\Widgets;
 
 use App\Models\AttendanceEvent;
-use Filament\Tables;
+use App\Models\Branch;
+use App\Models\Department;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class LatestAttendances extends BaseWidget
 {
@@ -22,54 +29,54 @@ class LatestAttendances extends BaseWidget
                 AttendanceEvent::query()
                     ->with([
                         'day.employee.position.department',
-                        'day.employee.branch'
+                        'day.employee.branch',
+                        'day'
                     ])
                     ->whereHas('day.employee', function (Builder $query) {
                         $query->where('status', 'active');
                     })
-                    ->whereDate('recorded_at', '>=', now()->subDays(7)) // Últimos 7 días
+                    ->whereDate('recorded_at', '>=', now()->subDays(7))
                     ->latest('recorded_at')
-                    ->limit(15)
             )
             ->columns([
-                Tables\Columns\TextColumn::make('recorded_at')
+                TextColumn::make('recorded_at')
                     ->label('Fecha y Hora')
                     ->dateTime('d/m/Y H:i:s')
                     ->sortable()
                     ->weight('bold')
                     ->icon('heroicon-o-clock')
-                    ->iconColor('primary'),
+                    ->iconColor('primary')
+                    ->description(fn(AttendanceEvent $record) => 'Hace ' . $record->recorded_at->diffForHumans()),
 
-                Tables\Columns\TextColumn::make('day.employee.ci')
-                    ->label('CI')
-                    ->searchable()
+                TextColumn::make('day.employee.full_name')
+                    ->label('Empleado')
+                    ->searchable(['first_name', 'last_name'])
+                    ->wrap()
+                    ->weight('medium')
+                    ->description(fn(AttendanceEvent $record) => 'CI: ' . $record->day->employee->ci)
                     ->copyable()
+                    ->copyableState(fn(AttendanceEvent $record) => $record->day->employee->ci)
                     ->copyMessage('CI copiado'),
 
-                Tables\Columns\TextColumn::make('day.employee.full_name')
-                    ->label('Empleado')
-                    ->searchable(['day.employee.first_name', 'day.employee.last_name'])
-                    ->wrap(),
-
-                Tables\Columns\TextColumn::make('day.employee.position.name')
+                TextColumn::make('day.employee.position.name')
                     ->label('Cargo')
                     ->badge()
                     ->color('info')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('day.employee.position.department.name')
+                TextColumn::make('day.employee.position.department.name')
                     ->label('Departamento')
                     ->badge()
                     ->color('warning')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('day.employee.branch.name')
+                TextColumn::make('day.employee.branch.name')
                     ->label('Sucursal')
                     ->badge()
                     ->color('primary')
                     ->toggleable(),
 
-                Tables\Columns\TextColumn::make('event_type')
+                TextColumn::make('event_type')
                     ->label('Evento')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'check_in'    => 'Entrada',
@@ -95,13 +102,13 @@ class LatestAttendances extends BaseWidget
                     })
                     ->sortable(),
 
-                Tables\Columns\TextColumn::make('day.date')
+                TextColumn::make('day.date')
                     ->label('Día')
                     ->date('d/m/Y')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                Tables\Filters\SelectFilter::make('event_type')
+                SelectFilter::make('event_type')
                     ->label('Tipo de Evento')
                     ->options([
                         'check_in'    => 'Entrada',
@@ -112,9 +119,9 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
 
-                Tables\Filters\SelectFilter::make('branch_id')
+                SelectFilter::make('branch_id')
                     ->label('Sucursal')
-                    ->options(\App\Models\Branch::pluck('name', 'id'))
+                    ->options(Branch::pluck('name', 'id'))
                     ->query(function (Builder $query, array $data) {
                         if (filled($data['values'])) {
                             return $query->whereHas('day.employee', function (Builder $q) use ($data) {
@@ -127,9 +134,9 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
 
-                Tables\Filters\SelectFilter::make('department_id')
+                SelectFilter::make('department_id')
                     ->label('Departamento')
-                    ->options(\App\Models\Department::pluck('name', 'id'))
+                    ->options(Department::pluck('name', 'id'))
                     ->query(function (Builder $query, array $data) {
                         if (filled($data['values'])) {
                             return $query->whereHas('day.employee.position', function (Builder $q) use ($data) {
@@ -142,24 +149,30 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
 
-                Tables\Filters\Filter::make('today')
+                Filter::make('today')
                     ->label('Solo Hoy')
                     ->query(fn(Builder $query) => $query->whereDate('recorded_at', today()))
                     ->toggle()
                     ->default(),
             ])
             ->actions([
-                /*Tables\Actions\Action::make('view_day')
-                    ->label('Ver Día')
-                    ->icon('heroicon-o-eye')
-                    ->color('info')
-                    ->url(fn($record) => route('filament.admin.resources.attendance-days.view', [
-                        'record' => $record->attendance_day_id
-                    ])),*/
+                // Sin acciones individuales
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    // Sin bulk actions
+                BulkActionGroup::make([
+                    ExportBulkAction::make()
+                        ->exports([
+                            ExcelExport::make()
+                                ->fromTable()
+                                ->except([
+                                    'created_at',
+                                    'updated_at',
+                                ])
+                                ->withFilename('ultimas_marcaciones_' . now()->format('d_m_Y_H_i_s')),
+                        ])
+                        ->label('Exportar seleccionados')
+                        ->color('success')
+                        ->icon('heroicon-o-arrow-down-tray'),
                 ]),
             ])
             ->defaultSort('recorded_at', 'desc')
