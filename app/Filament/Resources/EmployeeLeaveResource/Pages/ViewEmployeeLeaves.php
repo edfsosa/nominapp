@@ -6,7 +6,7 @@ use App\Filament\Resources\EmployeeLeaveResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
-class ViewEmployeeLeave extends ViewRecord
+class ViewEmployeeLeaves extends ViewRecord
 {
     protected static string $resource = EmployeeLeaveResource::class;
 

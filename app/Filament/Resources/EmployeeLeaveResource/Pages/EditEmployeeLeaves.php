@@ -7,7 +7,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
-class EditEmployeeLeave extends EditRecord
+class EditEmployeeLeaves extends EditRecord
 {
     protected static string $resource = EmployeeLeaveResource::class;
 

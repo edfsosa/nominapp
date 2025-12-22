@@ -428,8 +428,8 @@ class EmployeeLeaveResource extends Resource
         return [
             'index' => Pages\ListEmployeeLeaves::route('/'),
             'create' => Pages\CreateEmployeeLeaves::route('/create'),
-            'view' => Pages\ViewEmployeeLeave::route('/{record}'),
-            'edit' => Pages\EditEmployeeLeave::route('/{record}/edit'),
+            'view' => Pages\ViewEmployeeLeaves::route('/{record}'),
+            'edit' => Pages\EditEmployeeLeaves::route('/{record}/edit'),
         ];
     }
 }
