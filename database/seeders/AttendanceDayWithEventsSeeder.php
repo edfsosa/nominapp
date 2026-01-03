@@ -29,6 +29,15 @@ class AttendanceDayWithEventsSeeder extends Seeder
             for ($i = 0; $i < 10; $i++) {
                 $date = Carbon::today()->subDays($i);
 
+                // Determinar status automáticamente
+                if ($date->isWeekend()) {
+                    $status = 'weekend';
+                    $isWeekend = true;
+                } else {
+                    $status = $statuses[array_rand(['present', 'absent', 'on_leave'])];
+                    $isWeekend = false;
+                }
+
                 // 1. Crear o actualizar el día
                 $day = AttendanceDay::updateOrCreate(
                     [
@@ -37,6 +46,7 @@ class AttendanceDayWithEventsSeeder extends Seeder
                     ],
                     [
                         'status'      => $status = $statuses[array_rand($statuses)],
+                        'is_weekend' => $isWeekend,
                         'created_at'  => now(),
                         'updated_at'  => now(),
                     ]

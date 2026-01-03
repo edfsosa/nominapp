@@ -12,6 +12,9 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use App\Models\Employee;
+use Filament\Notifications\Notification;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
@@ -185,26 +188,6 @@ class DeductionResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                IconColumn::make('affects_ips')
-                    ->label('IPS')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('gray')
-                    ->sortable()
-                    ->toggleable(),
-
-                IconColumn::make('affects_irp')
-                    ->label('IRP')
-                    ->boolean()
-                    ->trueIcon('heroicon-o-check-circle')
-                    ->falseIcon('heroicon-o-x-circle')
-                    ->trueColor('success')
-                    ->falseColor('gray')
-                    ->sortable()
-                    ->toggleable(),
-
                 IconColumn::make('is_active')
                     ->label('Estado')
                     ->boolean()
@@ -264,6 +247,74 @@ class DeductionResource extends Resource
                     ->native(false),
             ])
             ->actions([
+                Action::make('assignToAllEmployees')
+                    ->label('Asignar')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('success')
+                    ->visible(fn(Deduction $record) => $record->is_active && $record->is_mandatory)
+                    ->requiresConfirmation()
+                    ->modalHeading('Asignar Deducción a Empleados')
+                    ->modalDescription(fn(Deduction $record) => "¿Está seguro de que desea asignar la deducción \"{$record->name}\" a todos los empleados activos que aún no la tienen?")
+                    ->modalSubmitActionLabel('Sí, asignar')
+                    ->action(function (Deduction $record) {
+                        try {
+                            // Obtener todos los empleados activos
+                            $employees = Employee::where('status', 'active')->get();
+
+                            if ($employees->isEmpty()) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('No hay empleados activos')
+                                    ->body('No hay empleados activos para asignar la deducción.')
+                                    ->send();
+                                return;
+                            }
+
+                            $totalAssigned = 0;
+                            $alreadyAssigned = 0;
+
+                            foreach ($employees as $employee) {
+                                // Verificar si el empleado ya tiene la deducción asignada
+                                $hasDeduction = $employee->employeeDeductions()
+                                    ->where('deduction_id', $record->id)
+                                    ->whereNull('end_date')
+                                    ->exists();
+
+                                if (!$hasDeduction) {
+                                    $employee->employeeDeductions()->create([
+                                        'deduction_id' => $record->id,
+                                        'start_date' => now(),
+                                        'end_date' => null,
+                                        'custom_amount' => null,
+                                        'notes' => 'Asignado masivamente desde el panel de deducciones',
+                                    ]);
+                                    $totalAssigned++;
+                                } else {
+                                    $alreadyAssigned++;
+                                }
+                            }
+
+                            if ($totalAssigned > 0) {
+                                Notification::make()
+                                    ->success()
+                                    ->title('Deducción asignada exitosamente')
+                                    ->body("La deducción \"{$record->name}\" fue asignada a {$totalAssigned} empleado(s). {$alreadyAssigned} empleado(s) ya tenían esta deducción.")
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->info()
+                                    ->title('Sin cambios')
+                                    ->body('Todos los empleados activos ya tienen esta deducción asignada.')
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Error al asignar la deducción')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
+                    }),
                 EditAction::make(),
                 DeleteAction::make(),
             ])
