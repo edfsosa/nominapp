@@ -13,12 +13,12 @@ return new class extends Migration
     {
         Schema::create('branches', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique();
-            $table->string('phone')->nullable();
-            $table->string('email')->nullable();
-            $table->string('address')->nullable();
-            $table->string('city')->nullable();
-            $table->string('location')->nullable();  // Ej: lat,lng o texto
+            $table->string('name', 100)->unique();
+            $table->string('phone', 20)->nullable();
+            $table->string('email', 100)->nullable();
+            $table->string('address', 100)->nullable();
+            $table->string('city', 60)->nullable();
+            $table->json('coordinates')->nullable();  // Ej: -25.303772, -57.611112
             $table->timestamps();
         });
     }

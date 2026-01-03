@@ -2,18 +2,25 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class EmployeePerception extends Model
+class EmployeePerception extends Pivot
 {
+    protected $table = 'employee_perceptions';
+
     protected $fillable = [
         'employee_id',
-        'perception_type_id',
+        'perception_id',
         'start_date',
         'end_date',
-        'installments',
-        'remaining_installments',
         'custom_amount',
+        'notes',
+    ];
+
+    protected $casts = [
+        'start_date'    => 'date',
+        'end_date'      => 'date',
+        'custom_amount' => 'decimal:2',
     ];
 
     public function employee()
@@ -21,8 +28,10 @@ class EmployeePerception extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function type()
+    public function perception()
     {
-        return $this->belongsTo(PerceptionType::class);
+        return $this->belongsTo(Perception::class);
     }
+
+    public $incrementing = true;
 }

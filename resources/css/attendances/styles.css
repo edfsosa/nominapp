@@ -1,0 +1,981 @@
+/* Design tokens y normalización */
+:root {
+    color-scheme: light dark; /* CORRECCIÓN 1: Soporte para ambos modos */
+
+    /* Colores base - modo claro por defecto */
+    --color-bg: #ffffff;
+    --color-surface: #f8fafc;
+    --color-border: #e2e8f0;
+    --color-text: #0f172a;
+    --color-muted: #64748b;
+    --color-label: #374151;
+
+    /* Botones */
+    --btn-gray: #6b7280;
+    --btn-blue: #3b82f6;
+    --btn-green: #10b981; /* CORRECCIÓN 2: Mejor contraste para AA */
+    --btn-red: #ef4444;
+    --btn-focus: #3b82f6;
+
+    /* Feedback */
+    --alert-bg: #dcfce7;
+    --alert-fg: #166534;
+    --error-bg: #fecaca;
+    --error-fg: #991b1b;
+
+    /* Layout */
+    --radius-lg: 12px;
+    --radius: 8px; /* CORRECCIÓN 3: Valor más estándar */
+    --space-1: 4px; /* CORRECCIÓN 4: Escala más consistente */
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px; /* Espacio adicional */
+
+    /* Efectos */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+    --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+    --transition-fast: 0.15s ease-in-out;
+    --transition-med: 0.25s ease-in-out; /* CORRECCIÓN 5: Transición más suave */
+
+    /* Typography */
+    --font-family-base: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    --font-size-sm: 0.875rem;
+    --font-size-base: 1rem;
+    --font-size-lg: 1.125rem;
+    --font-size-xl: 1.25rem;
+    --line-height-tight: 1.25;
+    --line-height-normal: 1.5;
+    --line-height-relaxed: 1.75;
+}
+
+/* CORRECCIÓN 6: Variables específicas para modo oscuro */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-bg: #0f172a;
+        --color-surface: #1e293b;
+        --color-border: #334155;
+        --color-text: #f1f5f9;
+        --color-muted: #94a3b8;
+        --color-label: #cbd5e1;
+
+        --btn-gray: #475569;
+        --btn-blue: #3b82f6;
+        --btn-green: #10b981;
+        --btn-red: #ef4444;
+        --btn-focus: #60a5fa;
+
+        --alert-bg: #064e3b;
+        --alert-fg: #d1fae5;
+        --error-bg: #7f1d1d;
+        --error-fg: #fee2e2;
+
+        --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4);
+        --shadow-modal: 0 25px 50px -12px rgba(0, 0, 0, 0.6);
+    }
+}
+
+/* CORRECCIÓN 7: Reset CSS más completo */
+*,
+*::before,
+*::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* CORRECCIÓN 8: Mejores estilos base */
+html {
+    font-size: 16px; /* Base font size explícita */
+    scroll-behavior: smooth;
+}
+
+body {
+    font-family: var(--font-family-base);
+    font-size: var(--font-size-base);
+    line-height: var(--line-height-normal);
+    background: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100vh; /* CORRECCIÓN 9: Altura mínima completa */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+body.modal-open {
+    overflow: hidden;
+}
+
+/* CORRECCIÓN 10: Container más robusto */
+.container {
+    max-width: 1200px; /* Más ancho para mejor aprovechamiento */
+    margin: 0 auto;
+    padding: var(--space-4);
+    width: 100%;
+}
+
+/* CORRECCIÓN 11: Grid más flexible */
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 400px; /* Columna derecha más ancha */
+    gap: var(--space-6);
+    align-items: start; /* Alineación superior */
+}
+
+@supports not (display: grid) {
+    /* Fallback para navegadores sin soporte de grid */
+    .grid {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--space-6);
+    }
+    
+    .grid > * {
+        flex: 1;
+        min-width: 300px;
+    }
+}
+
+.card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    padding: var(--space-6);
+    box-shadow: var(--shadow-sm); /* CORRECCIÓN 12: Sombra sutil */
+    transition: box-shadow var(--transition-med);
+}
+
+.card:hover {
+    box-shadow: var(--shadow-md);
+}
+
+.row {
+    display: flex;
+    gap: var(--space-3);
+    align-items: center;
+    flex-wrap: wrap;
+    margin-top: var(--space-4); /* CORRECCIÓN 13: Espaciado más consistente */
+}
+
+.row:first-child {
+    margin-top: 0;
+}
+
+/* CORRECCIÓN 14: Tipografía mejorada */
+h1, h2, h3, h4, h5, h6 {
+    font-weight: 600;
+    line-height: var(--line-height-tight);
+    margin-bottom: var(--space-3);
+    color: var(--color-text);
+}
+
+h1 {
+    font-size: 2rem;
+    margin-bottom: var(--space-6);
+}
+
+h2 {
+    font-size: var(--font-size-xl);
+    margin-bottom: var(--space-4);
+}
+
+p {
+    margin-bottom: var(--space-3);
+    line-height: var(--line-height-normal);
+}
+
+/* CORRECCIÓN 15: Labels mejorados */
+label {
+    display: block;
+    font-size: var(--font-size-sm);
+    font-weight: 500;
+    color: var(--color-label);
+    margin-bottom: var(--space-1);
+}
+
+/* CORRECCIÓN 16: Form controls mejorados */
+select,
+input[type="text"],
+input[type="number"],
+input[type="email"],
+textarea {
+    width: 100%;
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    color: var(--color-text);
+    font-size: var(--font-size-base);
+    font-family: inherit;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+select:hover,
+input:hover:not(:disabled) {
+    border-color: var(--btn-blue);
+}
+
+select:focus,
+input:focus {
+    outline: none;
+    border-color: var(--btn-blue);
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+/* CORRECCIÓN 17: Placeholder más accesible */
+::placeholder {
+    color: var(--color-muted);
+    opacity: 1; /* Firefox fix */
+}
+
+/* CORRECCIÓN 18: Botones más robustos */
+button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    border: none;
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-4);
+    font-size: var(--font-size-base);
+    font-weight: 500;
+    font-family: inherit;
+    line-height: 1;
+    color: white;
+    background: var(--btn-gray);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    min-height: 44px; /* CORRECCIÓN 19: Altura mínima para accesibilidad */
+    user-select: none;
+}
+
+/* Variantes de botones */
+.btn-gray {
+    background: var(--btn-gray);
+}
+.btn-blue {
+    background: var(--btn-blue);
+}
+.btn-green {
+    background: var(--btn-green);
+}
+.btn-red {
+    background: var(--btn-red);
+}
+
+/* Estados interactivos mejorados */
+button:hover:not(:disabled) {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+}
+
+button:active:not(:disabled) {
+    transform: translateY(0);
+    box-shadow: var(--shadow-sm);
+}
+
+/* CORRECCIÓN 20: Focus states más accesibles */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--btn-focus);
+    outline-offset: 2px;
+}
+
+/* Estados disabled mejorados */
+button:disabled,
+select:disabled,
+input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none !important;
+    box-shadow: none !important;
+}
+
+/* CORRECCIÓN 21: Video wrapper más robusto */
+.video-wrap {
+    position: relative;
+    width: 100%;
+    aspect-ratio: 4 / 3; /* Mejor proporción para cámara */
+    background: #000;
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-md);
+}
+
+video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+canvas {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* CORRECCIÓN 22: Status y feedback mejorados */
+.status {
+    font-size: var(--font-size-sm);
+    color: var(--color-muted);
+    font-style: italic;
+}
+
+.alert {
+    background: var(--alert-bg);
+    color: var(--alert-fg);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    border: 1px solid currentColor;
+    margin-bottom: var(--space-4);
+}
+
+.error {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    border: 1px solid currentColor;
+    margin-bottom: var(--space-4);
+}
+
+/* CORRECCIÓN 23: Employee card mejorada */
+.emp {
+    display: flex;
+    gap: var(--space-4);
+    align-items: center;
+    padding: var(--space-4);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    margin-top: var(--space-4);
+}
+
+.emp img {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-border);
+    flex-shrink: 0;
+}
+
+/* Utilidades */
+.is-hidden {
+    display: none !important;
+}
+
+.sr-only {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    padding: 0 !important;
+    margin: -1px !important;
+    overflow: hidden !important;
+    clip: rect(0, 0, 0, 0) !important;
+    white-space: nowrap !important;
+    border: 0 !important;
+}
+
+/* CORRECCIÓN 24: Modal mejorado con backdrop y animaciones */
+.modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: var(--space-4);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity var(--transition-med), visibility var(--transition-med);
+}
+
+.modal.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Backdrop del modal */
+.modal::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    animation: fadeIn 0.3s ease-out;
+}
+
+.modal-content {
+    position: relative;
+    z-index: 1001;
+    background: var(--color-surface);
+    color: var(--color-text);
+    padding: var(--space-8);
+    border-radius: var(--radius-lg);
+    max-width: 480px;
+    width: 100%;
+    box-shadow: var(--shadow-modal);
+    border: 1px solid var(--color-border);
+    transform: scale(0.9) translateY(-20px);
+    transition: transform var(--transition-med);
+}
+
+.modal.show .modal-content {
+    transform: scale(1) translateY(0);
+}
+
+.modal-content h2 {
+    margin-top: 0;
+    margin-bottom: var(--space-4);
+    font-size: var(--font-size-xl);
+    color: var(--btn-green);
+    text-align: center;
+}
+
+.modal-content p {
+    margin-bottom: var(--space-6);
+    font-size: var(--font-size-base);
+    text-align: center;
+    line-height: var(--line-height-relaxed);
+}
+
+.modal-content button {
+    width: 100%;
+    background: var(--btn-green);
+    color: white;
+    border: none;
+    padding: var(--space-3) var(--space-6);
+    border-radius: var(--radius);
+    font-size: var(--font-size-base);
+    font-weight: 600;
+    cursor: pointer;
+    transition: background var(--transition-med), transform var(--transition-fast);
+}
+
+.modal-content button:hover:not(:disabled) {
+    background: var(--btn-blue);
+    transform: translateY(-1px);
+}
+
+.modal-content button:active:not(:disabled) {
+    transform: translateY(0);
+}
+
+/* CORRECCIÓN 25: Animaciones mejoradas */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes modalEnter {
+    from {
+        opacity: 0;
+        transform: scale(0.95) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1) translateY(0);
+    }
+}
+
+/* CORRECCIÓN 26: Loading states */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+    transform: translateX(-100%);
+    animation: loading 1.5s infinite;
+}
+
+@keyframes loading {
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 2px solid var(--color-border);
+    border-top: 2px solid var(--btn-blue);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* CORRECCIÓN 27: Respeto a preferencias del usuario */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.001ms !important;
+        scroll-behavior: auto !important;
+    }
+
+    .modal-content {
+        animation: none;
+    }
+
+    .modal::before {
+        animation: none;
+    }
+
+    .modal.show .modal-content {
+        transform: none;
+    }
+}
+
+/* CORRECCIÓN 28: Mejorar contraste para usuarios con baja visión */
+@media (prefers-contrast: high) {
+    :root {
+        --color-border: #000;
+        --btn-focus: #ff0;
+    }
+    
+    button:focus-visible {
+        outline: 3px solid var(--btn-focus);
+        outline-offset: 3px;
+    }
+}
+
+/* CORRECCIÓN 29: Media queries más robustas */
+@media (max-width: 1024px) {
+    .grid {
+        grid-template-columns: 1fr 300px;
+        gap: var(--space-4);
+    }
+}
+
+@media (max-width: 768px) {
+    .container {
+        padding: var(--space-3);
+    }
+    
+    .grid {
+        grid-template-columns: 1fr;
+        gap: var(--space-4);
+    }
+
+    .card {
+        padding: var(--space-4);
+    }
+
+    .row {
+        flex-direction: column;
+        gap: var(--space-2);
+        align-items: stretch;
+    }
+
+    button {
+        width: 100%;
+        justify-content: center;
+    }
+
+    .modal {
+        padding: var(--space-2);
+    }
+    
+    .modal-content {
+        padding: var(--space-6);
+    }
+    
+    h1 {
+        font-size: 1.75rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .container {
+        padding: var(--space-2);
+    }
+    
+    .card {
+        padding: var(--space-3);
+    }
+    
+    .video-wrap {
+        aspect-ratio: 1; /* Cuadrado en móviles muy pequeños */
+    }
+}
+
+/* CORRECCIÓN 30: Print styles */
+@media print {
+    .modal,
+    .video-wrap,
+    button,
+    .no-js-warning {
+        display: none !important;
+    }
+
+    body {
+        background: white !important;
+        color: black !important;
+    }
+
+    .card {
+        border: 1px solid #000 !important;
+        box-shadow: none !important;
+    }
+}
+
+/* Utility classes para reemplazar estilos inline */
+.hidden {
+    display: none;
+}
+
+.emp-name {
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: var(--space-4);
+}
+
+.label-spacing {
+    margin-bottom: var(--space-2);
+}
+
+.status-spacing {
+    margin-top: var(--space-2);
+}
+
+/* Warning de no-js */
+.no-js-warning {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    padding: var(--space-4);
+    text-align: center;
+    font-weight: 500;
+    border-bottom: 2px solid var(--btn-red);
+}
+
+/* Modal variants - Success y Error */
+.modal-success h2 {
+    color: var(--btn-green);
+}
+
+.modal-success h2::before {
+    content: '✓';
+    display: inline-block;
+    margin-right: var(--space-2);
+    font-size: 1.5em;
+    vertical-align: middle;
+}
+
+.modal-error h2 {
+    color: var(--btn-red);
+}
+
+.modal-error h2::before {
+    content: '⚠';
+    display: inline-block;
+    margin-right: var(--space-2);
+    font-size: 1.5em;
+    vertical-align: middle;
+}
+
+.modal-error .modal-content button {
+    background: var(--btn-red);
+}
+
+.modal-error .modal-content button:hover:not(:disabled) {
+    background: #dc2626;
+}
+
+/* Alert boxes para mensajes inline */
+.alert-box {
+    padding: var(--space-3) var(--space-4);
+    border-radius: var(--radius);
+    margin-bottom: var(--space-4);
+    border-left: 4px solid;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
+    animation: slideIn 0.3s ease-out;
+    transition: opacity 0.3s ease-out, transform 0.3s ease-out;
+}
+
+.alert-box-error {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    border-left-color: var(--btn-red);
+}
+
+.alert-box-warning {
+    background: #fef3c7;
+    color: #92400e;
+    border-left-color: #f59e0b;
+}
+
+.alert-box-info {
+    background: #dbeafe;
+    color: #1e40af;
+    border-left-color: #3b82f6;
+}
+
+.alert-box-success {
+    background: var(--alert-bg);
+    color: var(--alert-fg);
+    border-left-color: var(--btn-green);
+}
+
+.alert-box-icon {
+    font-size: 1.25rem;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.alert-box-content {
+    flex: 1;
+}
+
+.alert-box-title {
+    font-weight: 600;
+    margin-bottom: var(--space-1);
+}
+
+.alert-box-message {
+    font-size: var(--font-size-sm);
+    line-height: var(--line-height-normal);
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Dark mode adjustments para alerts */
+@media (prefers-color-scheme: dark) {
+    .alert-box-warning {
+        background: #78350f;
+        color: #fef3c7;
+    }
+
+    .alert-box-info {
+        background: #1e3a8a;
+        color: #dbeafe;
+    }
+}
+
+/* ===== MEJORAS DE ACCESIBILIDAD ===== */
+
+/* Skip links - Enlaces de salto para navegación por teclado */
+.skip-links {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+}
+
+.skip-link {
+    position: absolute;
+    top: -100px;
+    left: 0;
+    background: var(--btn-blue);
+    color: white;
+    padding: var(--space-3) var(--space-4);
+    text-decoration: none;
+    font-weight: 600;
+    font-size: var(--font-size-base);
+    border-radius: 0 0 var(--radius) 0;
+    box-shadow: var(--shadow-lg);
+    transition: top var(--transition-fast);
+    z-index: 10000;
+}
+
+.skip-link:focus {
+    top: 0;
+    outline: 3px solid var(--btn-focus);
+    outline-offset: 2px;
+}
+
+.skip-link:hover {
+    background: #2563eb;
+}
+
+/* Mejora para focus visible en todos los elementos interactivos */
+a:focus-visible,
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+textarea:focus-visible {
+    outline: 2px solid var(--btn-focus);
+    outline-offset: 2px;
+    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+}
+
+/* Asegurar que el foco sea visible incluso en dark mode */
+@media (prefers-color-scheme: dark) {
+    .skip-link {
+        background: var(--btn-blue);
+        color: white;
+    }
+
+    .skip-link:focus {
+        outline-color: #60a5fa;
+    }
+}
+
+/* Focus trap styles para modales */
+.modal.show {
+    /* El modal ya previene el scroll del body */
+}
+
+/* Mejor indicador visual para elementos deshabilitados */
+button:disabled,
+select:disabled,
+input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    position: relative;
+}
+
+button:disabled::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+        45deg,
+        transparent,
+        transparent 10px,
+        rgba(0, 0, 0, 0.03) 10px,
+        rgba(0, 0, 0, 0.03) 20px
+    );
+    pointer-events: none;
+    border-radius: inherit;
+}
+
+/* Mejora de contraste para textos importantes */
+strong {
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+/* Indicador de carga accesible */
+.loading-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+}
+
+.loading-indicator::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--color-border);
+    border-top-color: var(--btn-blue);
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Mejor feedback visual para estados de validación */
+input:invalid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--btn-red);
+    background-color: var(--error-bg);
+}
+
+input:valid:not(:focus):not(:placeholder-shown) {
+    border-color: var(--btn-green);
+}
+
+/* Asegurar que los íconos decorativos sean ignorados por lectores de pantalla */
+[aria-hidden="true"] {
+    /* Ya está en el HTML, este CSS es para reforzar */
+}
+
+/* Mejorar la visibilidad del texto seleccionado */
+::selection {
+    background: var(--btn-blue);
+    color: white;
+}
+
+@media (prefers-color-scheme: dark) {
+    ::selection {
+        background: #60a5fa;
+        color: var(--color-bg);
+    }
+}
+
+/* Asegurar suficiente espacio táctil en dispositivos móviles */
+@media (max-width: 768px) {
+    button,
+    a.btn,
+    select,
+    input {
+        min-height: 44px; /* Tamaño mínimo recomendado por WCAG */
+        min-width: 44px;
+    }
+}
+
+/* Indicador de región "live" para actualizaciones dinámicas */
+[aria-live="polite"],
+[aria-live="assertive"] {
+    /* El comportamiento es manejado por el navegador/screen reader */
+}
+
+/* Mejora visual para noscript warning */
+.no-js-warning {
+    background: var(--error-bg);
+    color: var(--error-fg);
+    padding: var(--space-4);
+    text-align: center;
+    font-weight: 600;
+    border-bottom: 3px solid var(--btn-red);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+}
+
+.no-js-warning::before {
+    content: '⚠';
+    font-size: 1.5em;
+}

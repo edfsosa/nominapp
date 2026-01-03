@@ -2,100 +2,111 @@
 
 namespace App\Services;
 
-use App\Models\{
-    Employee,
-    Payroll,
-    PayrollItem,
-    EmployeeDeduction,
-    EmployeePerception,
-};
+use App\Models\Payroll;
+use App\Models\PayrollItem;
+use App\Models\Employee;
+use App\Models\PayrollPeriod;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class PayrollService
 {
-    // Genera la nómina para todos los empleados
-    public function generatePayroll(Payroll $payroll)
+    protected PerceptionCalculator $perceptionCalculator;
+    protected DeductionCalculator $deductionCalculator;
+    protected ExtraHourCalculator $extraHourCalculator;
+    protected AbsencePenaltyCalculator $absencePenaltyCalculator;
+    protected PayrollPDFGenerator $payrollPDFGenerator;
+
+    public function __construct(
+        PerceptionCalculator $perceptionCalculator,
+        DeductionCalculator $deductionCalculator,
+        ExtraHourCalculator $extraHourCalculator,
+        AbsencePenaltyCalculator $absencePenaltyCalculator,
+        PayrollPDFGenerator $payrollPDFGenerator
+    ) {
+        $this->perceptionCalculator = $perceptionCalculator;
+        $this->deductionCalculator = $deductionCalculator;
+        $this->extraHourCalculator = $extraHourCalculator;
+        $this->absencePenaltyCalculator = $absencePenaltyCalculator;
+        $this->payrollPDFGenerator = $payrollPDFGenerator;
+    }
+
+    public function generateForPeriod(PayrollPeriod $period): int
     {
-        $employees = Employee::all();
+        $count = 0;
+
+        $employees = Employee::query()
+            ->where('payroll_type', $period->frequency)
+            ->whereNotNull('base_salary')
+            ->whereIn('status', ['active', 'suspended'])
+            ->get();
 
         foreach ($employees as $employee) {
-            // Salario base
-            PayrollItem::create([
-                'payroll_id' => $payroll->id,
-                'employee_id' => $employee->id,
-                'type' => 'salary',
-                'description' => 'Salario Base',
-                'amount' => $employee->base_salary
-            ]);
-
-            // Percepciones
-            foreach ($employee->perceptions as $perception) {
-                if ($this->isActive($perception->pivot, $payroll)) {
-                    $amount = $perception->pivot->custom_amount ?? $perception->calculateFor($employee);
-
-                    PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'employee_id' => $employee->id,
-                        'type' => 'perception',
-                        'description' => $perception->name,
-                        'amount' => $amount
-                    ]);
-
-                    // Actualizar cuotas restantes
-                    if ($perception->pivot->installments > 1) {
-                        $perception->pivot->remaining_installments -= 1;
-                        $perception->pivot->save();
-                    }
-                }
+            // Evitar duplicados
+            if (Payroll::where('employee_id', $employee->id)
+                ->where('payroll_period_id', $period->id)
+                ->exists()
+            ) {
+                continue;
             }
 
-            // Deducciones (incluyendo IPS)
-            $this->processDeductions($employee, $payroll);
-        }
+            DB::beginTransaction();
 
-        $payroll->update(['status' => 'processed']);
-    }
+            try {
+                $baseSalary = $employee->base_salary;
 
-    private function processDeductions(Employee $employee, Payroll $payroll)
-    {
-        // IPS (deducción global)
-        PayrollItem::create([
-            'payroll_id' => $payroll->id,
-            'employee_id' => $employee->id,
-            'type' => 'deduction',
-            'description' => 'IPS (9%)',
-            'amount' => $employee->base_salary * 0.09
-        ]);
+                // Cálculo modular
+                $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+                $deductions = $this->deductionCalculator->calculate($employee, $period);
+                $extras = $this->extraHourCalculator->calculate($employee, $period);
+                $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
 
-        // Otras deducciones
-        foreach ($employee->deductions as $deduction) {
-            if ($deduction->name !== 'IPS' && $this->isActive($deduction->pivot, $payroll)) {
-                $amount = $deduction->pivot->custom_amount ?? $deduction->calculateFor($employee);
+                $totalPerceptions = $perceptions['total'] + $extras['total'];
+                $totalDeductions = $deductions['total'] + $absences['total'];
+                $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
-                PayrollItem::create([
-                    'payroll_id' => $payroll->id,
+                $payroll = Payroll::create([
                     'employee_id' => $employee->id,
-                    'type' => 'deduction',
-                    'description' => $deduction->name,
-                    'amount' => $amount
+                    'payroll_period_id' => $period->id,
+                    'base_salary' => $baseSalary,
+                    'total_perceptions' => $totalPerceptions,
+                    'total_deductions' => $totalDeductions,
+                    'net_salary' => $netSalary,
+                    'gross_salary' => $baseSalary + $totalPerceptions,
+                    'generated_at' => now(),
                 ]);
 
-                // Actualizar cuotas restantes
-                if ($deduction->pivot->installments > 1) {
-                    $deduction->pivot->remaining_installments -= 1;
-                    $deduction->pivot->save();
+                // Ítems: percepciones
+                foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'type' => 'perception',
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                    ]);
                 }
+
+                // Ítems: deducciones
+                foreach (array_merge($deductions['items'], $absences['items']) as $item) {
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'type' => 'deduction',
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                    ]);
+                }
+
+                // Generar PDF
+                $pdfPath = $this->payrollPDFGenerator->generate($payroll);
+                $payroll->update(['pdf_path' => $pdfPath]);
+
+                DB::commit();
+                $count++;
+            } catch (\Throwable $e) {
+                DB::rollBack();
+                Log::error('Error al generar recibo: ' . $e->getMessage(), ['employee_id' => $employee->id]);
             }
         }
-    }
-
-    private function isActive($pivot, Payroll $payroll): bool
-    {
-        // Verificar si está activo en el período de la nómina
-        $start = $payroll->start_date;
-        $end = $payroll->end_date;
-
-        return (!$pivot->start_date || $pivot->start_date <= $end) &&
-            (!$pivot->end_date || $pivot->end_date >= $start) &&
-            ($pivot->remaining_installments > 0);
+        return $count;
     }
 }

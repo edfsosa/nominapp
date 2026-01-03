@@ -2,71 +2,194 @@
 
 namespace App\Filament\Resources\PayrollResource\RelationManagers;
 
-use Filament\Forms;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class ItemsRelationManager extends RelationManager
 {
     protected static string $relationship = 'items';
+    protected static ?string $title = 'Detalle de Nómina';
+    protected static ?string $modelLabel = 'ítem';
+    protected static ?string $pluralModelLabel = 'ítems';
 
-    /* public function form(Form $form): Form
+    public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('description')
+                Select::make('type')
+                    ->label('Tipo')
+                    ->options([
+                        'perception' => 'Percepción',
+                        'deduction'  => 'Deducción',
+                    ])
+                    ->native(false)
                     ->required()
-                    ->maxLength(255),
-            ]);
+                    ->reactive()
+                    ->columnSpan(1),
+
+                TextInput::make('description')
+                    ->label('Descripción')
+                    ->placeholder('Ejemplo: Bonificación por desempeño')
+                    ->required()
+                    ->maxLength(255)
+                    ->columnSpan(1),
+
+                TextInput::make('amount')
+                    ->label('Monto')
+                    ->numeric()
+                    ->prefix('₲')
+                    ->minValue(0)
+                    ->maxValue(999999999.99)
+                    ->step(0.01)
+                    ->required()
+                    ->columnSpanFull(),
+            ])
+            ->columns(2);
     }
- */
+
     public function table(Table $table): Table
     {
         return $table
             ->recordTitleAttribute('description')
             ->columns([
-                Tables\Columns\TextColumn::make('employee.first_name')
-                    ->label('Nombre(s)')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('employee.last_name')
-                    ->label('Apellido(s)')
-                    ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('type')
+                TextColumn::make('type')
                     ->label('Tipo')
-                    ->sortable()
+                    ->badge()
+                    ->color(fn($state) => $state === 'perception' ? 'success' : 'danger')
                     ->formatStateUsing(fn($state) => match ($state) {
-                        'salary' => 'Salario',
                         'perception' => 'Percepción',
-                        'deduction' => 'Deducción'
-                    }),
-                Tables\Columns\TextColumn::make('description')
+                        'deduction'  => 'Deducción',
+                        default      => $state,
+                    })
+                    ->sortable(),
+
+                TextColumn::make('description')
                     ->label('Descripción')
+                    ->searchable()
                     ->sortable()
-                    ->searchable(),
-                Tables\Columns\TextColumn::make('amount')
+                    ->wrap(),
+
+                TextColumn::make('amount')
                     ->label('Monto')
-                    ->money('PYG', 0)
+                    ->money('PYG', locale: 'es_PY')
+                    ->sortable()
+                    ->weight('bold')
+                    ->color(fn($record) => $record->type === 'perception' ? 'success' : 'danger'),
+
+                TextColumn::make('created_at')
+                    ->label('Creado')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                //
+                SelectFilter::make('type')
+                    ->label('Tipo')
+                    ->options([
+                        'perception' => 'Percepciones',
+                        'deduction'  => 'Deducciones',
+                    ])
+                    ->native(false),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make(),
+                Tables\Actions\CreateAction::make()
+                    ->label('Agregar Ítem')
+                    ->icon('heroicon-o-plus')
+                    ->successNotificationTitle('Ítem agregado exitosamente')
+                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make(),
-                Tables\Actions\DeleteAction::make(),
+                Tables\Actions\EditAction::make()
+                    ->successNotificationTitle('Ítem actualizado exitosamente')
+                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
+
+                Tables\Actions\DeleteAction::make()
+                    ->successNotificationTitle('Ítem eliminado exitosamente')
+                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make(),
+                    Tables\Actions\DeleteBulkAction::make()
+                        ->action(function ($records) {
+                            if ($this->getOwnerRecord()->period->status === 'closed') {
+                                \Filament\Notifications\Notification::make()
+                                    ->warning()
+                                    ->title('Período cerrado')
+                                    ->body('No se pueden eliminar ítems de un período cerrado.')
+                                    ->send();
+                                return;
+                            }
+
+                            $records->each->delete();
+
+                            \Filament\Notifications\Notification::make()
+                                ->success()
+                                ->title('Ítems eliminados')
+                                ->body('Los ítems seleccionados han sido eliminados.')
+                                ->send();
+                        }),
                 ]),
+            ])
+            ->emptyStateHeading('No hay ítems registrados')
+            ->emptyStateDescription('Los ítems de percepciones y deducciones aparecerán aquí.')
+            ->emptyStateIcon('heroicon-o-document-text')
+            ->defaultGroup('type')
+            ->groups([
+                Tables\Grouping\Group::make('type')
+                    ->label('Tipo')
+                    ->getTitleFromRecordUsing(fn($record) => match ($record->type) {
+                        'perception' => 'Percepciones',
+                        'deduction' => 'Deducciones',
+                        default => $record->type,
+                    })
+                    ->collapsible(),
             ]);
+    }
+
+    protected function afterCreate(): void
+    {
+        // Recalcular totales del recibo
+        $this->recalculatePayrollTotals();
+    }
+
+    protected function afterUpdate(): void
+    {
+        // Recalcular totales del recibo
+        $this->recalculatePayrollTotals();
+    }
+
+    protected function afterDelete(): void
+    {
+        // Recalcular totales del recibo
+        $this->recalculatePayrollTotals();
+    }
+
+    protected function recalculatePayrollTotals(): void
+    {
+        $payroll = $this->getOwnerRecord();
+
+        $totalPerceptions = $payroll->items()
+            ->where('type', 'perception')
+            ->sum('amount');
+
+        $totalDeductions = $payroll->items()
+            ->where('type', 'deduction')
+            ->sum('amount');
+
+        $grossSalary = $payroll->base_salary + $totalPerceptions;
+        $netSalary = $grossSalary - $totalDeductions;
+
+        $payroll->update([
+            'total_perceptions' => $totalPerceptions,
+            'total_deductions' => $totalDeductions,
+            'gross_salary' => $grossSalary,
+            'net_salary' => $netSalary,
+        ]);
     }
 }

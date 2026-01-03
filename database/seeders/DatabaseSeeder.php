@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-// use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
 class DatabaseSeeder extends Seeder
@@ -20,6 +19,15 @@ class DatabaseSeeder extends Seeder
             'email' => 'admin@example.com',
             'password' => bcrypt('password'),
         ]);
-        
+
+        $this->call(ScheduleSeeder::class);
+        $this->call(DepartmentSeeder::class);
+        $this->call(BranchSeeder::class);
+        $this->call(EmployeeSeeder::class);
+        $this->call(DeductionSeeder::class);
+        $this->call(PerceptionSeeder::class);
+        $this->call(HolidaySeeder::class);
+        $this->call(AttendanceDayWithEventsSeeder::class);
+        $this->call(PayrollPeriodSeeder::class);
     }
 }

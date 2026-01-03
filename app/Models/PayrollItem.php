@@ -3,30 +3,37 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PayrollItem extends Model
 {
     protected $fillable = [
         'payroll_id',
-        'employee_id',
         'type',
         'description',
         'amount',
     ];
 
+    protected $casts = [
+        'amount' => 'decimal:2',
+    ];
+
     /**
      * Relación con el modelo Payroll, un item pertenece a una nómina
      */
-    public function payroll()
+    public function payroll(): BelongsTo
     {
         return $this->belongsTo(Payroll::class);
     }
 
-    /**
-     * Relación con el modelo Employee, un item pertenece a un empleado
-     */
-    public function employee()
+    // Scopes
+    public function scopePerceptions($query)
     {
-        return $this->belongsTo(Employee::class);
+        return $query->where('type', 'perception');
+    }
+
+    public function scopeDeductions($query)
+    {
+        return $query->where('type', 'deduction');
     }
 }

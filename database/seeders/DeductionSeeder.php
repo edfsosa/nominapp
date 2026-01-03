@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use App\Models\Deduction;
-use App\Models\Employee;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DeductionSeeder extends Seeder
 {
@@ -14,11 +13,67 @@ class DeductionSeeder extends Seeder
      */
     public function run(): void
     {
-        if (Employee::count() === 0) {
-            $this->command->warn('No hay empleados. Generando 10 empleados primero.');
-            Employee::factory()->count(10)->create();
-        }
+        $now = now();
 
-        Deduction::factory()->count(50)->create();
+        $deductions = [
+            [
+                'name' => 'Aporte IPS',
+                'code' => 'IPS001',
+                'description' => 'Aporte al Instituto de Previsión Social (9% del salario)',
+                'calculation' => 'percentage',
+                'amount' => null, // No se usa para porcentaje
+                'percent' => 9.00, // Porcentaje del salario
+                'is_mandatory' => true, // Obligatorio
+                'affects_ips' => true,
+                'affects_irp' => false,
+                'is_active' => true, // Activo por defecto
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'Impuesto a la Renta Personal (IRP)',
+                'code' => 'IRP001',
+                'description' => 'Deducción de impuesto sobre la renta según la ley vigente',
+                'calculation' => 'percentage',
+                'amount' => null, // No se usa para porcentaje
+                'percent' => 8.00, // Porcentaje del salario
+                'is_mandatory' => true, // Obligatorio
+                'affects_ips' => false,
+                'affects_irp' => true,
+                'is_active' => true, // Activo por defecto
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'Seguro Médico Privado',
+                'code' => 'SMP001',
+                'description' => 'Prima mensual del seguro médico',
+                'calculation' => 'fixed',
+                'amount' => 150000.00, // Monto fijo
+                'percent' => null, // No se usa para monto fijo
+                'is_mandatory' => false, // No obligatorio
+                'affects_ips' => false,
+                'affects_irp' => false,
+                'is_active' => true, // Activo por defecto
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+            [
+                'name' => 'Aporte Sindical',
+                'code' => 'AS001',
+                'description' => 'Aporte mensual al sindicato de trabajadores',
+                'calculation' => 'fixed',
+                'amount' => 50000.00, // Monto fijo
+                'percent' => null, // No se usa para monto fijo
+                'is_mandatory' => false, // No obligatorio
+                'affects_ips' => false,
+                'affects_irp' => false,
+                'is_active' => true, // Activo por defecto
+                'created_at' => $now,
+                'updated_at' => $now,
+            ],
+        ];
+
+        DB::table('deductions')->insert($deductions);
     }
 }

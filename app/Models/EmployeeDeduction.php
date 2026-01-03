@@ -2,18 +2,25 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Pivot;
 
-class EmployeeDeduction extends Model
+class EmployeeDeduction extends Pivot
 {
+    protected $table = 'employee_deductions';
+
     protected $fillable = [
         'employee_id',
-        'deduction_type_id',
+        'deduction_id',
         'start_date',
         'end_date',
-        'installments',
-        'remaining_installments',
         'custom_amount',
+        'notes',
+    ];
+
+    protected $casts = [
+        'start_date'    => 'date',
+        'end_date'      => 'date',
+        'custom_amount' => 'decimal:2',
     ];
 
     public function employee()
@@ -21,8 +28,10 @@ class EmployeeDeduction extends Model
         return $this->belongsTo(Employee::class);
     }
 
-    public function type()
+    public function deduction()
     {
-        return $this->belongsTo(DeductionType::class);
+        return $this->belongsTo(Deduction::class);
     }
+
+    public $incrementing = true;
 }
