@@ -1,0 +1,40 @@
+<?php
+
+namespace App\Http\Controllers;
+
+use App\Models\Employee;
+use App\Models\Schedule;
+use Illuminate\Http\Request;
+
+class ScheduleEmployeeController extends Controller
+{
+    /**
+     * Remover un empleado de un horario
+     */
+    public function removeEmployee(Schedule $schedule, Employee $employee)
+    {
+        try {
+            // Verificar que el empleado tiene este horario asignado
+            if ($employee->schedule_id !== $schedule->id) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'El empleado no tiene este horario asignado.'
+                ], 400);
+            }
+
+            // Remover el horario del empleado
+            $employee->schedule_id = null;
+            $employee->save();
+
+            return response()->json([
+                'success' => true,
+                'message' => "El horario fue removido de {$employee->full_name} exitosamente."
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Ocurrió un error al remover el horario: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+}

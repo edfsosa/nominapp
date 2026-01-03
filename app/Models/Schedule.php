@@ -43,19 +43,12 @@ class Schedule extends Model
     }
 
     /**
-     * Empleados asignados a este horario (pivot con vigencia)
-     * @return BelongsToMany
+     * Empleados asignados a este horario
+     * @return HasMany
      */
-    public function employees(): BelongsToMany
+    public function employees(): HasMany
     {
-        return $this->belongsToMany(
-            Employee::class,
-            'employee_schedule',
-            'schedule_id',
-            'employee_id'
-        )
-            ->withPivot('effective_from', 'effective_to')
-            ->withTimestamps();
+        return $this->hasMany(Employee::class);
     }
 
     public function isDayOff($dayOfWeek)

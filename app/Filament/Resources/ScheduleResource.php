@@ -2,23 +2,27 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\ScheduleResource\Pages;
+use App\Models\Branch;
+use App\Models\Employee;
 use App\Models\Schedule;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
+use Filament\Tables\Table;
 use Filament\Resources\Resource;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\Action;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Forms\Components\TimePicker;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
+use App\Filament\Resources\ScheduleResource\Pages;
 
 class ScheduleResource extends Resource
 {
@@ -174,6 +178,14 @@ class ScheduleResource extends Resource
                     ->color('info')
                     ->sortable(),
 
+                TextColumn::make('employees_count')
+                    ->label('Empleados Asignados')
+                    ->counts('employees')
+                    ->alignCenter()
+                    ->badge()
+                    ->color('success')
+                    ->sortable(),
+
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -190,6 +202,147 @@ class ScheduleResource extends Resource
                 //
             ])
             ->actions([
+                Action::make('viewEmployees')
+                    ->label('Mostrar Empleados')
+                    ->icon('heroicon-o-users')
+                    ->color('info')
+                    ->modalHeading(fn(Schedule $record) => "Empleados con horario: {$record->name}")
+                    ->modalContent(function (Schedule $record) {
+                        $employees = $record->employees()
+                            ->orderBy('first_name')
+                            ->orderBy('last_name')
+                            ->get();
+
+                        return view('filament.modals.schedule-employees', [
+                            'schedule' => $record,
+                            'employees' => $employees
+                        ]);
+                    })
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar')
+                    ->modalWidth('3xl')
+                    ->slideOver(),
+                Action::make('assignToEmployees')
+                    ->label('Asignar')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('success')
+                    ->form([
+                        Section::make('Seleccionar Empleados')
+                            ->description('Seleccione los empleados a los que desea asignar este horario')
+                            ->schema([
+                                Select::make('filter_status')
+                                    ->label('Filtrar por Estado')
+                                    ->options([
+                                        'all' => 'Todos',
+                                        'active' => 'Activos',
+                                        'inactive' => 'Inactivos',
+                                        'suspended' => 'Suspendidos',
+                                    ])
+                                    ->default('active')
+                                    ->native(false)
+                                    ->live()
+                                    ->afterStateUpdated(fn(callable $set) => $set('employee_ids', []))
+                                    ->columnSpan(1),
+
+                                Select::make('filter_branch')
+                                    ->label('Filtrar por Sucursal')
+                                    ->options(function () {
+                                        return Branch::pluck('name', 'id');
+                                    })
+                                    ->searchable()
+                                    ->preload()
+                                    ->native(false)
+                                    ->live()
+                                    ->afterStateUpdated(fn(callable $set) => $set('employee_ids', []))
+                                    ->columnSpan(1),
+
+                                Select::make('employee_ids')
+                                    ->label('Empleados')
+                                    ->options(function (callable $get) {
+                                        $query = Employee::query();
+
+                                        $filterStatus = $get('filter_status');
+                                        if ($filterStatus && $filterStatus !== 'all') {
+                                            $query->where('status', $filterStatus);
+                                        }
+
+                                        $filterBranch = $get('filter_branch');
+                                        if ($filterBranch) {
+                                            $query->where('branch_id', $filterBranch);
+                                        }
+
+                                        return $query
+                                            ->orderBy('first_name')
+                                            ->orderBy('last_name')
+                                            ->get()
+                                            ->mapWithKeys(fn($employee) => [
+                                                $employee->id => "{$employee->full_name} - CI: {$employee->ci}"
+                                            ]);
+                                    })
+                                    ->multiple()
+                                    ->searchable()
+                                    ->required()
+                                    ->native(false)
+                                    ->helperText('Puede seleccionar múltiples empleados')
+                                    ->columnSpanFull(),
+                            ])
+                            ->columns(2),
+                    ])
+                    ->modalHeading('Asignar Horario a Empleados')
+                    ->modalSubmitActionLabel('Asignar Horario')
+                    ->modalWidth('2xl')
+                    ->action(function (Schedule $record, array $data) {
+                        try {
+                            $employeeIds = $data['employee_ids'] ?? [];
+
+                            if (empty($employeeIds)) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('No hay empleados seleccionados')
+                                    ->body('Debe seleccionar al menos un empleado.')
+                                    ->send();
+                                return;
+                            }
+
+                            // Contar empleados que ya tienen este horario
+                            $alreadyAssigned = Employee::whereIn('id', $employeeIds)
+                                ->where('schedule_id', $record->id)
+                                ->count();
+
+                            // Actualizar solo los empleados que no tienen este horario
+                            $updated = Employee::whereIn('id', $employeeIds)
+                                ->where(function ($query) use ($record) {
+                                    $query->whereNull('schedule_id')
+                                        ->orWhere('schedule_id', '!=', $record->id);
+                                })
+                                ->update(['schedule_id' => $record->id]);
+
+                            if ($updated > 0) {
+                                $message = "El horario \"{$record->name}\" fue asignado a {$updated} empleado(s).";
+                                if ($alreadyAssigned > 0) {
+                                    $message .= " {$alreadyAssigned} empleado(s) ya tenían este horario asignado.";
+                                }
+
+                                Notification::make()
+                                    ->success()
+                                    ->title('Horario asignado exitosamente')
+                                    ->body($message)
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->info()
+                                    ->title('Sin cambios')
+                                    ->body('Todos los empleados seleccionados ya tienen este horario asignado.')
+                                    ->send();
+                            }
+                        } catch (\Exception $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Error al asignar el horario')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
+                    }),
                 ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),

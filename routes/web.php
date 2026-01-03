@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\ScheduleEmployeeController;
 use Illuminate\Support\Facades\Route;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -32,4 +33,6 @@ Route::middleware(['auth'])->group(function () {
 
     Route::get('/recibos/{payroll}/download', [PayrollController::class, 'download'])->name('payrolls.download');
     Route::get('/recibos/{payroll}/view', [PayrollController::class, 'view'])->name('payrolls.view');
+
+    Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])->name('schedules.remove-employee');
 });
