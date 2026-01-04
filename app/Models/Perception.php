@@ -39,4 +39,29 @@ class Perception extends Model
             ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
             ->withTimestamps();
     }
+
+    /**
+     * Relación directa con la tabla pivot EmployeePerception
+     * Útil para acceder al historial completo y hacer queries complejas
+     */
+    public function employeePerceptions()
+    {
+        return $this->hasMany(EmployeePerception::class);
+    }
+
+    /**
+     * Obtener solo las asignaciones activas (sin fecha de fin)
+     */
+    public function activeEmployeePerceptions()
+    {
+        return $this->hasMany(EmployeePerception::class)->whereNull('end_date');
+    }
+
+    /**
+     * Obtener solo las asignaciones inactivas (con fecha de fin)
+     */
+    public function inactiveEmployeePerceptions()
+    {
+        return $this->hasMany(EmployeePerception::class)->whereNotNull('end_date');
+    }
 }

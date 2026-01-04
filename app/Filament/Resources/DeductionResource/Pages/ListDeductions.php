@@ -4,9 +4,9 @@ namespace App\Filament\Resources\DeductionResource\Pages;
 
 use App\Filament\Resources\DeductionResource;
 use Filament\Actions\CreateAction;
-use Filament\Resources\Pages\ManageRecords;
+use Filament\Resources\Pages\ListRecords;
 
-class ManageDeductions extends ManageRecords
+class ListDeductions extends ListRecords
 {
     protected static string $resource = DeductionResource::class;
 

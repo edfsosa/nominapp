@@ -39,4 +39,29 @@ class Deduction extends Model
             ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
             ->withTimestamps();
     }
+
+    /**
+     * Relación directa con la tabla pivot EmployeeDeduction
+     * Útil para acceder al historial completo y hacer queries complejas
+     */
+    public function employeeDeductions()
+    {
+        return $this->hasMany(EmployeeDeduction::class);
+    }
+
+    /**
+     * Obtener solo las asignaciones activas (sin fecha de fin)
+     */
+    public function activeEmployeeDeductions()
+    {
+        return $this->hasMany(EmployeeDeduction::class)->whereNull('end_date');
+    }
+
+    /**
+     * Obtener solo las asignaciones inactivas (con fecha de fin)
+     */
+    public function inactiveEmployeeDeductions()
+    {
+        return $this->hasMany(EmployeeDeduction::class)->whereNotNull('end_date');
+    }
 }

@@ -2,34 +2,27 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\DeductionResource\Pages;
-use App\Models\Deduction;
 use Filament\Forms;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
-use Filament\Forms\Form;
-use Filament\Infolists\Infolist;
-use Filament\Resources\Resource;
 use App\Models\Employee;
+use Filament\Forms\Form;
+use App\Models\Deduction;
+use Filament\Tables\Table;
+use Filament\Resources\Resource;
 use Illuminate\Support\Facades\DB;
-use Filament\Notifications\Notification;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Table;
-use Filament\Infolists\Components\Group;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\ImageEntry;
-use Filament\Infolists\Components\RepeatableEntry;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
+use App\Filament\Resources\DeductionResource\Pages;
 
 class DeductionResource extends Resource
 {
@@ -262,169 +255,6 @@ class DeductionResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                Action::make('viewAssignedEmployees')
-                    ->label('Ver Empleados')
-                    ->icon('heroicon-o-eye')
-                    ->color('info')
-                    ->modalHeading(fn(Deduction $record) => "Empleados con la deducción: {$record->name}")
-                    ->infolist(function (Deduction $record): array {
-                        $employees = $record->employees()
-                            ->wherePivot('end_date', null)
-                            ->orderBy('first_name')
-                            ->orderBy('last_name')
-                            ->get();
-
-                        if ($employees->isEmpty()) {
-                            return [
-                                \Filament\Infolists\Components\Section::make()
-                                    ->schema([
-                                        TextEntry::make('empty')
-                                            ->label('')
-                                            ->default('No hay empleados con esta deducción asignada actualmente.')
-                                            ->color('gray')
-                                            ->icon('heroicon-o-information-circle'),
-                                    ])
-                            ];
-                        }
-
-                        return [
-                            RepeatableEntry::make('employees')
-                                ->label('')
-                                ->state($employees)
-                                ->schema([
-                                    Group::make([
-                                        ImageEntry::make('photo')
-                                            ->label('Foto')
-                                            ->circular()
-                                            ->size(50),
-
-                                        TextEntry::make('full_name')
-                                            ->label('Empleado')
-                                            ->state(fn($record) => $record->first_name . ' ' . $record->last_name)
-                                            ->icon('heroicon-o-user')
-                                            ->weight('bold')
-                                            ->color('primary'),
-
-                                        TextEntry::make('ci')
-                                            ->label('CI')
-                                            ->badge()
-                                            ->color('gray'),
-
-                                        TextEntry::make('position.name')
-                                            ->label('Cargo')
-                                            ->default('-')
-                                            ->badge()
-                                            ->color('info'),
-
-                                        TextEntry::make('pivot.start_date')
-                                            ->label('Inicio')
-                                            ->date('d/m/Y')
-                                            ->badge()
-                                            ->color('success'),
-                                    ])->columns(5),
-                                ])
-                                ->contained(false),
-
-                            \Filament\Infolists\Components\Section::make()
-                                ->schema([
-                                    TextEntry::make('total')
-                                        ->label('')
-                                        ->state('Total: ' . $employees->count() . ' empleado' . ($employees->count() != 1 ? 's' : ''))
-                                        ->badge()
-                                        ->color('success')
-                                        ->icon('heroicon-o-users'),
-                                ])
-                                ->compact(),
-                        ];
-                    })
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar')
-                    ->slideOver(),
-                Action::make('assignToSelectedEmployees')
-                    ->label('Asignar a...')
-                    ->icon('heroicon-o-user-plus')
-                    ->color('success')
-                    ->visible(fn(Deduction $record) => $record->is_active)
-                    ->form([
-                        Select::make('employee_ids')
-                            ->label('Seleccionar Empleados')
-                            ->options(function (Deduction $record) {
-                                return Employee::where('status', 'active')
-                                    ->whereDoesntHave('employeeDeductions', function ($query) use ($record) {
-                                        $query->where('deduction_id', $record->id)
-                                            ->whereNull('end_date');
-                                    })
-                                    ->get()
-                                    ->mapWithKeys(fn($employee) => [
-                                        $employee->id => $employee->first_name . ' ' . $employee->last_name . ' (' . $employee->ci . ')'
-                                    ]);
-                            })
-                            ->multiple()
-                            ->searchable()
-                            ->required()
-                            ->placeholder('Seleccione uno o más empleados')
-                            ->helperText('Solo se muestran empleados activos que no tienen esta deducción asignada')
-                            ->native(false)
-                            ->preload(),
-                    ])
-                    ->modalHeading('Asignar Deducción a Empleados')
-                    ->modalDescription(fn(Deduction $record) => "Seleccione los empleados a los que desea asignar la deducción \"{$record->name}\"")
-                    ->modalSubmitActionLabel('Asignar deducción')
-                    ->action(function (Deduction $record, array $data) {
-                        try {
-                            if (empty($data['employee_ids'])) {
-                                Notification::make()
-                                    ->warning()
-                                    ->title('No se seleccionaron empleados')
-                                    ->body('Debe seleccionar al menos un empleado.')
-                                    ->send();
-                                return;
-                            }
-
-                            $totalAssigned = 0;
-
-                            foreach ($data['employee_ids'] as $employeeId) {
-                                $employee = Employee::find($employeeId);
-                                if ($employee) {
-                                    // Verificar si existe un registro con la misma fecha de inicio (histórico)
-                                    $existingRecord = $employee->employeeDeductions()
-                                        ->where('deduction_id', $record->id)
-                                        ->whereDate('start_date', now()->toDateString())
-                                        ->first();
-
-                                    if ($existingRecord) {
-                                        // Si existe un registro con la misma fecha de inicio, reactivarlo
-                                        $existingRecord->update([
-                                            'end_date' => null,
-                                            'notes' => 'Reasignado desde el panel de deducciones',
-                                        ]);
-                                    } else {
-                                        // Crear nuevo registro
-                                        $employee->employeeDeductions()->create([
-                                            'deduction_id' => $record->id,
-                                            'start_date' => now(),
-                                            'end_date' => null,
-                                            'custom_amount' => null,
-                                            'notes' => 'Asignado desde el panel de deducciones',
-                                        ]);
-                                    }
-                                    $totalAssigned++;
-                                }
-                            }
-
-                            Notification::make()
-                                ->success()
-                                ->title('Deducción asignada exitosamente')
-                                ->body("La deducción \"{$record->name}\" fue asignada a {$totalAssigned} empleado(s).")
-                                ->send();
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error al asignar la deducción')
-                                ->body($e->getMessage())
-                                ->send();
-                        }
-                    }),
                 Action::make('assignToAllEmployees')
                     ->label('Asignar a Todos')
                     ->icon('heroicon-o-users')
@@ -507,84 +337,6 @@ class DeductionResource extends Resource
                                 ->send();
                         }
                     }),
-                Action::make('removeFromSelectedEmployees')
-                    ->label('Remover de...')
-                    ->icon('heroicon-o-user-minus')
-                    ->color('warning')
-                    ->form(function (Deduction $record) {
-                        $hasEmployees = $record->employees()
-                            ->wherePivot('end_date', null)
-                            ->exists();
-
-                        if (!$hasEmployees) {
-                            return [
-                                \Filament\Forms\Components\Placeholder::make('no_employees')
-                                    ->label('')
-                                    ->content('No hay empleados con esta deducción asignada actualmente.')
-                            ];
-                        }
-
-                        return [
-                            Select::make('employee_ids')
-                                ->label('Seleccionar Empleados')
-                                ->options(function () use ($record) {
-                                    return $record->employees()
-                                        ->wherePivot('end_date', null)
-                                        ->get()
-                                        ->mapWithKeys(fn($employee) => [
-                                            $employee->id => $employee->first_name . ' ' . $employee->last_name . ' (' . $employee->ci . ')'
-                                        ]);
-                                })
-                                ->multiple()
-                                ->searchable()
-                                ->required()
-                                ->placeholder('Seleccione uno o más empleados')
-                                ->helperText('Solo se muestran empleados que tienen esta deducción asignada')
-                                ->native(false)
-                                ->preload(),
-                        ];
-                    })
-                    ->modalHeading('Remover Deducción de Empleados')
-                    ->modalDescription(fn(Deduction $record) => "Seleccione los empleados de los que desea remover la deducción \"{$record->name}\"")
-                    ->modalSubmitActionLabel('Remover deducción')
-                    ->action(function (Deduction $record, array $data) {
-                        try {
-                            if (empty($data['employee_ids'])) {
-                                Notification::make()
-                                    ->warning()
-                                    ->title('No se seleccionaron empleados')
-                                    ->body('Debe seleccionar al menos un empleado.')
-                                    ->send();
-                                return;
-                            }
-
-                            $totalRemoved = 0;
-
-                            foreach ($data['employee_ids'] as $employeeId) {
-                                DB::table('employee_deductions')
-                                    ->where('deduction_id', $record->id)
-                                    ->where('employee_id', $employeeId)
-                                    ->whereNull('end_date')
-                                    ->update([
-                                        'end_date' => now(),
-                                        'updated_at' => now(),
-                                    ]);
-                                $totalRemoved++;
-                            }
-
-                            Notification::make()
-                                ->success()
-                                ->title('Deducción removida exitosamente')
-                                ->body("La deducción \"{$record->name}\" fue removida de {$totalRemoved} empleado(s).")
-                                ->send();
-                        } catch (\Exception $e) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error al remover la deducción')
-                                ->body($e->getMessage())
-                                ->send();
-                        }
-                    }),
                 Action::make('removeFromAllEmployees')
                     ->label('Remover de Todos')
                     ->icon('heroicon-o-user-group')
@@ -629,8 +381,6 @@ class DeductionResource extends Resource
                                 ->send();
                         }
                     }),
-                EditAction::make(),
-                DeleteAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -645,7 +395,9 @@ class DeductionResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageDeductions::route('/'),
+            'index' => Pages\ListDeductions::route('/'),
+            'create' => Pages\CreateDeduction::route('/create'),
+            'edit' => Pages\EditDeduction::route('/{record}/edit'),
         ];
     }
 }

@@ -34,4 +34,60 @@ class EmployeeDeduction extends Pivot
     }
 
     public $incrementing = true;
+
+    /**
+     * Scope para obtener solo asignaciones activas
+     */
+    public function scopeActive($query)
+    {
+        return $query->whereNull('end_date');
+    }
+
+    /**
+     * Scope para obtener solo asignaciones inactivas
+     */
+    public function scopeInactive($query)
+    {
+        return $query->whereNotNull('end_date');
+    }
+
+    /**
+     * Scope para filtrar por empleado
+     */
+    public function scopeForEmployee($query, $employeeId)
+    {
+        return $query->where('employee_id', $employeeId);
+    }
+
+    /**
+     * Scope para filtrar por deducción
+     */
+    public function scopeForDeduction($query, $deductionId)
+    {
+        return $query->where('deduction_id', $deductionId);
+    }
+
+    /**
+     * Verificar si la asignación está activa
+     */
+    public function isActive(): bool
+    {
+        return is_null($this->end_date);
+    }
+
+    /**
+     * Marcar la asignación como inactiva
+     */
+    public function deactivate(): bool
+    {
+        return $this->update(['end_date' => now()]);
+    }
+
+    /**
+     * Reactivar una asignación
+     */
+    public function reactivate(): bool
+    {
+        return $this->update(['end_date' => null]);
+    }
 }
