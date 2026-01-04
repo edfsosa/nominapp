@@ -82,7 +82,7 @@ class EmployeesRelationManager extends RelationManager
                             ->mapWithKeys(function ($employee) {
                                 $label = "{$employee->full_name} - CI: {$employee->ci}";
 
-                                if ($employee->schedule_id) {
+                                if ($employee->schedule_id && $employee->schedule) {
                                     $label .= " ⚠ (Horario actual: {$employee->schedule->name})";
                                 }
 
