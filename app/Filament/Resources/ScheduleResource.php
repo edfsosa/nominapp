@@ -202,28 +202,8 @@ class ScheduleResource extends Resource
                 //
             ])
             ->actions([
-                Action::make('viewEmployees')
-                    ->label('Mostrar Empleados')
-                    ->icon('heroicon-o-users')
-                    ->color('info')
-                    ->modalHeading(fn(Schedule $record) => "Empleados con horario: {$record->name}")
-                    ->modalContent(function (Schedule $record) {
-                        $employees = $record->employees()
-                            ->orderBy('first_name')
-                            ->orderBy('last_name')
-                            ->get();
-
-                        return view('filament.modals.schedule-employees', [
-                            'schedule' => $record,
-                            'employees' => $employees
-                        ]);
-                    })
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar')
-                    ->modalWidth('3xl')
-                    ->slideOver(),
                 Action::make('assignToEmployees')
-                    ->label('Asignar')
+                    ->label('Asignar a Empleados')
                     ->icon('heroicon-o-user-plus')
                     ->color('success')
                     ->form([
@@ -304,10 +284,15 @@ class ScheduleResource extends Resource
                                 return;
                             }
 
-                            // Contar empleados que ya tienen este horario
-                            $alreadyAssigned = Employee::whereIn('id', $employeeIds)
-                                ->where('schedule_id', $record->id)
-                                ->count();
+                            // Obtener información detallada de los empleados
+                            $employees = Employee::whereIn('id', $employeeIds)->get();
+
+                            // Clasificar empleados por su estado actual
+                            $alreadyAssigned = $employees->where('schedule_id', $record->id)->count();
+                            $withoutSchedule = $employees->whereNull('schedule_id')->count();
+                            $withDifferentSchedule = $employees->filter(function ($employee) use ($record) {
+                                return $employee->schedule_id !== null && $employee->schedule_id !== $record->id;
+                            })->count();
 
                             // Actualizar solo los empleados que no tienen este horario
                             $updated = Employee::whereIn('id', $employeeIds)
@@ -318,15 +303,24 @@ class ScheduleResource extends Resource
                                 ->update(['schedule_id' => $record->id]);
 
                             if ($updated > 0) {
-                                $message = "El horario \"{$record->name}\" fue asignado a {$updated} empleado(s).";
+                                $message = "El horario \"{$record->name}\" fue asignado exitosamente:\n\n";
+
+                                if ($withoutSchedule > 0) {
+                                    $message .= "✓ {$withoutSchedule} empleado(s) sin horario previo\n";
+                                }
+
+                                if ($withDifferentSchedule > 0) {
+                                    $message .= "⚠ {$withDifferentSchedule} empleado(s) cambiaron de horario\n";
+                                }
+
                                 if ($alreadyAssigned > 0) {
-                                    $message .= " {$alreadyAssigned} empleado(s) ya tenían este horario asignado.";
+                                    $message .= "ℹ {$alreadyAssigned} empleado(s) ya tenían este horario";
                                 }
 
                                 Notification::make()
                                     ->success()
                                     ->title('Horario asignado exitosamente')
-                                    ->body($message)
+                                    ->body(trim($message))
                                     ->send();
                             } else {
                                 Notification::make()

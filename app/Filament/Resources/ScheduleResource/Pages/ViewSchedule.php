@@ -92,4 +92,11 @@ class ViewSchedule extends ViewRecord
                     ]),
             ]);
     }
+
+    public function getRelationManagers(): array
+    {
+        return [
+            ScheduleResource\RelationManagers\EmployeesRelationManager::class,
+        ];
+    }
 }

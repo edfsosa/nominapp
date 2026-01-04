@@ -31,6 +31,13 @@ class EditSchedule extends EditRecord
         return Notification::make()
             ->success()
             ->title('Horario actualizado')
-            ->body("El horario \"{$this->record->name}\" ha sido actualizado correctamente.");         
+            ->body("El horario \"{$this->record->name}\" ha sido actualizado correctamente.");
+    }
+
+    public function getRelationManagers(): array
+    {
+        return [
+            ScheduleResource\RelationManagers\EmployeesRelationManager::class,
+        ];
     }
 }
