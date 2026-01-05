@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\AttendanceEventResource\Pages;
 
-use Filament\Resources\Components\Tab;
-use App\Filament\Resources\AttendanceEventResource;
-use App\Models\AttendanceEvent;
 use Filament\Actions\Action;
-use Filament\Resources\Pages\ManageRecords;
+use App\Models\AttendanceEvent;
+use Illuminate\Support\Facades\DB;
+use Filament\Resources\Components\Tab;
 use Illuminate\Database\Eloquent\Builder;
+use Filament\Resources\Pages\ManageRecords;
+use App\Filament\Resources\AttendanceEventResource;
 
 class ManageAttendanceEvents extends ManageRecords
 {
@@ -27,47 +28,50 @@ class ManageAttendanceEvents extends ManageRecords
 
     public function getTabs(): array
     {
-        // Optimización: ejecutar queries una sola vez
-        $allCount = AttendanceEvent::count();
-        $checkInCount = AttendanceEvent::where('event_type', 'check_in')->count();
-        $checkOutCount = AttendanceEvent::where('event_type', 'check_out')->count();
-        $breakStartCount = AttendanceEvent::where('event_type', 'break_start')->count();
-        $breakEndCount = AttendanceEvent::where('event_type', 'break_end')->count();
-        $todayCount = AttendanceEvent::whereDate('recorded_at', now())->count();
+        $counts = DB::table('attendance_events')
+            ->selectRaw('
+                COUNT(*) as all_count,
+                SUM(CASE WHEN event_type = "check_in" THEN 1 ELSE 0 END) as check_in_count,
+                SUM(CASE WHEN event_type = "check_out" THEN 1 ELSE 0 END) as check_out_count,
+                SUM(CASE WHEN event_type = "break_start" THEN 1 ELSE 0 END) as break_start_count,
+                SUM(CASE WHEN event_type = "break_end" THEN 1 ELSE 0 END) as break_end_count,
+                SUM(CASE WHEN DATE(recorded_at) = CURDATE() THEN 1 ELSE 0 END) as today_count
+            ')
+            ->first();
 
         return [
             'all' => Tab::make('Todos')
-                ->badge($allCount)
+                ->badge($counts->all_count)
                 ->badgeColor('gray')
                 ->icon('heroicon-o-finger-print'),
 
             'today' => Tab::make('Hoy')
                 ->modifyQueryUsing(fn(Builder $query) => $query->whereDate('recorded_at', now()))
-                ->badge($todayCount)
+                ->badge($counts->today_count)
                 ->badgeColor('primary')
                 ->icon('heroicon-o-calendar-days'),
 
             'check_in' => Tab::make('Entradas')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'check_in'))
-                ->badge($checkInCount)
+                ->badge($counts->check_in_count)
                 ->badgeColor('success')
                 ->icon('heroicon-o-arrow-right-circle'),
 
             'check_out' => Tab::make('Salidas')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'check_out'))
-                ->badge($checkOutCount)
+                ->badge($counts->check_out_count)
                 ->badgeColor('danger')
                 ->icon('heroicon-o-arrow-left-circle'),
 
             'break_start' => Tab::make('Inicio descanso')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'break_start'))
-                ->badge($breakStartCount)
+                ->badge($counts->break_start_count)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-pause-circle'),
 
             'break_end' => Tab::make('Fin descanso')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'break_end'))
-                ->badge($breakEndCount)
+                ->badge($counts->break_end_count)
                 ->badgeColor('info')
                 ->icon('heroicon-o-play-circle'),
         ];

@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Models\AttendanceDay;
+use App\Models\AttendanceEvent;
 use App\Observers\AttendanceDayObserver;
+use App\Observers\AttendanceEventObserver;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,5 +24,6 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         AttendanceDay::observe(AttendanceDayObserver::class);
+        AttendanceEvent::observe(AttendanceEventObserver::class);
     }
 }

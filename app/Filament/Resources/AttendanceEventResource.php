@@ -2,19 +2,20 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\AttendanceEventResource\Pages;
-use App\Models\AttendanceEvent;
-use Filament\Forms\Components\DatePicker;
-use Filament\Resources\Resource;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
+use Carbon\Carbon;
 use Filament\Tables\Table;
+use App\Models\AttendanceEvent;
+use Filament\Resources\Resource;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Log;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use App\Filament\Resources\AttendanceEventResource\Pages;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
 class AttendanceEventResource extends Resource
 {
@@ -26,15 +27,11 @@ class AttendanceEventResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-finger-print';
     protected static ?string $navigationGroup = 'Asistencias';
     protected static ?int $navigationSort = 2;
-    
+
     public static function getEloquentQuery(): Builder
-{
-    return parent::getEloquentQuery()
-        ->with([
-            'day.employee.branch',
-            'day.employee.position.department'
-        ]);
-}
+    {
+        return parent::getEloquentQuery();
+    }
 
 
     public static function table(Table $table): Table
@@ -76,116 +73,56 @@ class AttendanceEventResource extends Resource
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('employee_info')
+                TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->getStateUsing(
-                        fn($record) =>
-                        $record->day?->employee
-                            ? $record->day->employee->first_name . ' ' . $record->day->employee->last_name
-                            : 'N/A'
-                    )
-                    ->description(
-                        fn($record) =>
-                        $record->day?->employee
-                            ? 'CI: ' . $record->day->employee->ci
-                            : ''
-                    )
+                    ->description(fn($record) => $record->employee_ci ? 'CI: ' . $record->employee_ci : '')
                     ->sortable()
+                    ->searchable()
                     ->weight('medium')
-                    ->wrap(),
+                    ->wrap()
+                    ->placeholder('N/A'),
 
-                TextColumn::make('day.employee.branch.name')
+                TextColumn::make('branch_name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-office-2')
                     ->badge()
                     ->color('info')
-                    ->sortable()    
-                    ->toggleable(),
-
-                TextColumn::make('day.employee.position.name')
-                    ->label('Cargo')
-                    ->description(
-                        fn($record) =>
-                        $record->day?->employee?->position?->department?->name ?? ''
-                    )
-                    ->icon('heroicon-o-briefcase')
                     ->sortable()
-                    ->wrap()
-                    ->toggleable(),
+                    ->searchable()
+                    ->toggleable()
+                    ->placeholder('N/A'),
 
                 TextColumn::make('location_display')
                     ->label('Ubicación')
-                    ->getStateUsing(function ($record) {
-                        if (!$record->location) {
-                            return 'Sin ubicación';
-                        }
-
-                        try {
-                            $location = is_string($record->location)
-                                ? json_decode($record->location, true)
-                                : $record->location;
-
-                            if (json_last_error() !== JSON_ERROR_NONE) {
-                                return 'Error en formato';
-                            }
-
-                            if (isset($location['lat']) && isset($location['lng'])) {
-                                return sprintf(
-                                    'Lat: %s, Lng: %s',
-                                    number_format($location['lat'], 6, '.', ''),
-                                    number_format($location['lng'], 6, '.', '')
-                                );
-                            }
-
-                            if (is_array($location)) {
-                                return collect($location)
-                                    ->map(fn($value, $key) => "{$key}: {$value}")
-                                    ->join(', ');
-                            }
-
-                            return is_string($location) ? $location : json_encode($location);
-                        } catch (\Exception $e) {
-                            return 'Error al procesar ubicación';
-                        }
-                    })
                     ->icon('heroicon-o-map-pin')
                     ->color('gray')
                     ->limit(50)
-                    ->url(fn($record) => $record->location ? static::getGoogleMapsUrl($record->location) : null)
+                    ->url(fn($record) => $record->google_maps_url)
                     ->openUrlInNewTab()
                     ->placeholder('Sin ubicación')
                     ->toggleable(),
             ])
             ->defaultSort('recorded_at', 'desc')
             ->filters([
-                SelectFilter::make('day.employee_id')
+                SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->placeholder('Todos los empleados')
-                    ->relationship('day.employee', 'first_name')
+                    ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(
                         fn($record) =>
                         $record->first_name . ' ' . $record->last_name . ' (CI: ' . $record->ci . ')'
                     )
                     ->searchable()
-                    ->preload()
+                    ->preload(false)
                     ->native(false)
                     ->multiple(),
 
-                SelectFilter::make('day.employee.branch_id')
+                SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->placeholder('Todas las sucursales')
-                    ->relationship('day.employee.branch', 'name')
+                    ->relationship('branch', 'name')
                     ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->multiple(),
-
-                SelectFilter::make('day.employee.position_id')
-                    ->label('Cargo')
-                    ->placeholder('Todos los cargos')
-                    ->relationship('day.employee.position', 'name')
-                    ->searchable()
-                    ->preload()
+                    ->preload(false)
                     ->native(false)
                     ->multiple(),
 
@@ -233,11 +170,11 @@ class AttendanceEventResource extends Resource
                         $indicators = [];
 
                         if ($data['recorded_from'] ?? null) {
-                            $indicators['recorded_from'] = 'Desde: ' . \Carbon\Carbon::parse($data['recorded_from'])->format('d/m/Y');
+                            $indicators['recorded_from'] = 'Desde: ' . Carbon::parse($data['recorded_from'])->format('d/m/Y');
                         }
 
                         if ($data['recorded_until'] ?? null) {
-                            $indicators['recorded_until'] = 'Hasta: ' . \Carbon\Carbon::parse($data['recorded_until'])->format('d/m/Y');
+                            $indicators['recorded_until'] = 'Hasta: ' . Carbon::parse($data['recorded_until'])->format('d/m/Y');
                         }
 
                         return $indicators;
@@ -247,6 +184,16 @@ class AttendanceEventResource extends Resource
                     ->label('Solo hoy')
                     ->query(fn(Builder $query) => $query->whereDate('recorded_at', now()))
                     ->toggle(),
+            ])
+            ->actions([
+                ViewAction::make()
+                    ->label('Ver')
+                    ->modalHeading('Detalle de Marcación')
+                    ->modalContent(fn($record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
+                        'record' => $record,
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('Cerrar'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -268,45 +215,8 @@ class AttendanceEventResource extends Resource
             ->emptyStateHeading('No hay marcaciones registradas')
             ->emptyStateDescription('Las marcaciones aparecerán aquí cuando los empleados registren su asistencia')
             ->emptyStateIcon('heroicon-o-finger-print')
-            ->poll('30s');
-    }
-
-    protected static function getGoogleMapsUrl($location): ?string
-    {
-        if (!$location) {
-            return null;
-        }
-
-        try {
-            $locationData = is_string($location)
-                ? json_decode($location, true)
-                : $location;
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return null;
-            }
-
-            if (isset($locationData['lat']) && isset($locationData['lng'])) {
-                $lat = (float) $locationData['lat'];
-                $lng = (float) $locationData['lng'];
-
-                // Validar que las coordenadas sean válidas
-                if ($lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180) {
-                    return sprintf(
-                        'https://www.google.com/maps?q=%s,%s',
-                        $lat,
-                        $lng
-                    );
-                }
-            }
-        } catch (\Exception $e) {
-            Log::warning('Error generando URL de Google Maps', [
-                'location' => $location,
-                'error' => $e->getMessage()
-            ]);
-        }
-
-        return null;
+            ->paginated([10, 25, 50, 100])
+            ->defaultPaginationPageOption(10);
     }
 
     public static function getPages(): array
