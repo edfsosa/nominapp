@@ -2,16 +2,17 @@
 
 namespace App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 
+use Filament\Tables;
 use App\Models\Payroll;
+use App\Models\Position;
+use Filament\Tables\Table;
+use Filament\Infolists\Infolist;
+use Filament\Tables\Columns\TextColumn;
 use Filament\Infolists\Components\Group;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Table;
 
 class PayrollsRelationManager extends RelationManager
 {
@@ -103,16 +104,26 @@ class PayrollsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('employee.department_id')
-                    ->label('Departamento')
-                    ->relationship('employee.department', 'name')
-                    ->searchable()
+                SelectFilter::make('employee_id')
+                    ->label('Empleado')
+                    ->relationship('employee', 'first_name')
+                    ->getOptionLabelFromRecordUsing(fn($record) => $record->full_name)
+                    ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->native(false),
 
-                SelectFilter::make('employee.position_id')
+                SelectFilter::make('position')
                     ->label('Cargo')
-                    ->relationship('employee.position', 'name')
+                    ->options(function () {
+                        return Position::pluck('name', 'id');
+                    })
+                    ->query(function ($query, $data) {
+                        if (filled($data['value'])) {
+                            return $query->whereHas('employee', function ($query) use ($data) {
+                                $query->where('position_id', $data['value']);
+                            });
+                        }
+                    })
                     ->searchable()
                     ->preload()
                     ->native(false),
