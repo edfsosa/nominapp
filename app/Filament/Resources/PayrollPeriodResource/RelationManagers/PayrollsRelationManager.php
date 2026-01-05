@@ -2,17 +2,25 @@
 
 namespace App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 
-use Filament\Tables;
 use App\Models\Payroll;
 use App\Models\Position;
 use Filament\Tables\Table;
+use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Infolist;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Infolists\Components\Group;
+use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Filters\Filter;
 use Filament\Resources\RelationManagers\RelationManager;
+use Illuminate\Database\Eloquent\Builder;
 
 class PayrollsRelationManager extends RelationManager
 {
@@ -25,6 +33,7 @@ class PayrollsRelationManager extends RelationManager
     {
         return $table
             ->recordTitle(fn(Payroll $record): string => "Recibo de {$record->employee->full_name}")
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.position']))
             ->columns([
                 TextColumn::make('employee.ci')
                     ->label('CI')
@@ -36,15 +45,16 @@ class PayrollsRelationManager extends RelationManager
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['first_name', 'last_name'])
-                    ->sortable(['first_name', 'last_name'])
+                    ->searchable(['employee.first_name', 'employee.last_name'])
+                    ->sortable()
                     ->wrap(),
 
                 TextColumn::make('employee.position.name')
                     ->label('Cargo')
                     ->badge()
                     ->color('info')
-                    ->toggleable(),
+                    ->toggleable()
+                    ->sortable(),
 
                 TextColumn::make('base_salary')
                     ->label('Salario Base')
@@ -58,7 +68,7 @@ class PayrollsRelationManager extends RelationManager
                     ->sortable()
                     ->color('success')
                     ->summarize([
-                        Tables\Columns\Summarizers\Sum::make()
+                        Sum::make()
                             ->money('PYG', locale: 'es_PY')
                             ->label('Total'),
                     ]),
@@ -69,7 +79,7 @@ class PayrollsRelationManager extends RelationManager
                     ->sortable()
                     ->color('danger')
                     ->summarize([
-                        Tables\Columns\Summarizers\Sum::make()
+                        Sum::make()
                             ->money('PYG', locale: 'es_PY')
                             ->label('Total'),
                     ]),
@@ -80,7 +90,7 @@ class PayrollsRelationManager extends RelationManager
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->summarize([
-                        Tables\Columns\Summarizers\Sum::make()
+                        Sum::make()
                             ->money('PYG', locale: 'es_PY')
                             ->label('Total'),
                     ]),
@@ -92,7 +102,7 @@ class PayrollsRelationManager extends RelationManager
                     ->weight('bold')
                     ->color('success')
                     ->summarize([
-                        Tables\Columns\Summarizers\Sum::make()
+                        Sum::make()
                             ->money('PYG', locale: 'es_PY')
                             ->label('Total a Pagar'),
                     ]),
@@ -117,9 +127,9 @@ class PayrollsRelationManager extends RelationManager
                     ->options(function () {
                         return Position::pluck('name', 'id');
                     })
-                    ->query(function ($query, $data) {
+                    ->query(function (Builder $query, array $data) {
                         if (filled($data['value'])) {
-                            return $query->whereHas('employee', function ($query) use ($data) {
+                            return $query->whereHas('employee', function (Builder $query) use ($data) {
                                 $query->where('position_id', $data['value']);
                             });
                         }
@@ -127,65 +137,92 @@ class PayrollsRelationManager extends RelationManager
                     ->searchable()
                     ->preload()
                     ->native(false),
+
+                Filter::make('generated_at')
+                    ->label('Fecha de generación')
+                    ->form([
+                        DatePicker::make('generated_from')
+                            ->label('Desde')
+                            ->native(false)
+                            ->closeOnDateSelection(),
+                        DatePicker::make('generated_until')
+                            ->label('Hasta')
+                            ->native(false)
+                            ->closeOnDateSelection(),
+                    ])
+                    ->columns(2)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['generated_from'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('generated_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['generated_until'],
+                                fn(Builder $query, $date): Builder => $query->whereDate('generated_at', '<=', $date),
+                            );
+                    }),
+
+                Filter::make('net_salary_range')
+                    ->label('Rango de salario neto')
+                    ->form([
+                        \Filament\Forms\Components\TextInput::make('net_salary_from')
+                            ->label('Desde')
+                            ->numeric()
+                            ->prefix('₲')
+                            ->placeholder('0'),
+                        \Filament\Forms\Components\TextInput::make('net_salary_to')
+                            ->label('Hasta')
+                            ->numeric()
+                            ->prefix('₲')
+                            ->placeholder('999999999'),
+                    ])
+                    ->columns(2)
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['net_salary_from'],
+                                fn(Builder $query, $amount): Builder => $query->where('net_salary', '>=', $amount),
+                            )
+                            ->when(
+                                $data['net_salary_to'],
+                                fn(Builder $query, $amount): Builder => $query->where('net_salary', '<=', $amount),
+                            );
+                    }),
             ])
             ->headerActions([
                 // No permitimos crear desde aquí, se generan automáticamente
             ])
             ->actions([
-                Tables\Actions\ViewAction::make(),
+                ViewAction::make(),
 
-                Tables\Actions\Action::make('download_pdf')
+                Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
                     ->url(fn(Payroll $record) => route('payrolls.download', $record))
                     ->openUrlInNewTab(),
 
-                Tables\Actions\Action::make('view_detail')
+                Action::make('view_detail')
                     ->label('Ver Detalle')
                     ->icon('heroicon-o-eye')
                     ->color('primary')
                     ->url(fn(Payroll $record) => route('filament.admin.resources.recibos.view', ['record' => $record])),
 
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->visible(fn() => $this->getOwnerRecord()->status === 'draft')
                     ->successNotificationTitle('Recibo eliminado exitosamente'),
             ])
             ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\BulkAction::make('download_pdfs')
-                        ->label('Descargar PDFs')
-                        ->icon('heroicon-o-arrow-down-tray')
-                        ->color('info')
-                        ->requiresConfirmation()
-                        ->modalHeading('Descargar PDFs Seleccionados')
-                        ->modalDescription('Se generará un archivo ZIP con todos los recibos seleccionados.')
-                        ->action(function ($records) {
-                            // Lógica para generar ZIP con múltiples PDFs
-                            \Filament\Notifications\Notification::make()
-                                ->success()
-                                ->title('Descarga iniciada')
-                                ->body('Los PDFs se están generando y descargando.')
-                                ->send();
-                        }),
-
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn() => $this->getOwnerRecord()->status === 'draft')
-                        ->action(function ($records) {
-                            $records->each->delete();
-
-                            \Filament\Notifications\Notification::make()
-                                ->success()
-                                ->title('Recibos eliminados')
-                                ->body('Los recibos seleccionados han sido eliminados.')
-                                ->send();
-                        }),
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
                 ]),
             ])
             ->emptyStateHeading('No hay recibos generados')
             ->emptyStateDescription('Los recibos aparecerán aquí una vez que se generen desde el período.')
             ->emptyStateIcon('heroicon-o-document-text')
-            ->defaultSort('employee.last_name', 'asc');
+            ->defaultSort('generated_at', 'desc');
     }
 
     public function infolist(Infolist $infolist): Infolist
@@ -211,11 +248,12 @@ class PayrollsRelationManager extends RelationManager
                                 ->badge()
                                 ->color('info'),
 
-                            TextEntry::make('employee.department.name')
+                            TextEntry::make('employee.position.department.name')
                                 ->label('Departamento')
                                 ->icon('heroicon-o-building-office-2')
                                 ->badge()
-                                ->color('primary'),
+                                ->color('primary')
+                                ->default('N/A'),
                         ])->columns(2),
                     ]),
 
