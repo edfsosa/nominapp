@@ -107,4 +107,109 @@ class AttendanceEvent extends Model
 
         return null;
     }
+
+    /**
+     * Obtiene el label traducido del tipo de evento
+     */
+    public static function getEventTypeLabel(string $eventType): string
+    {
+        return match ($eventType) {
+            'check_in' => 'Entrada jornada',
+            'break_start' => 'Inicio descanso',
+            'break_end' => 'Fin descanso',
+            'check_out' => 'Salida jornada',
+            default => 'Desconocido',
+        };
+    }
+
+    /**
+     * Obtiene el color del badge según el tipo de evento
+     */
+    public static function getEventTypeColor(string $eventType): string
+    {
+        return match ($eventType) {
+            'check_in' => 'success',
+            'break_start' => 'warning',
+            'break_end' => 'info',
+            'check_out' => 'danger',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Obtiene el icono según el tipo de evento
+     */
+    public static function getEventTypeIcon(string $eventType): string
+    {
+        return match ($eventType) {
+            'check_in' => 'heroicon-o-arrow-right-on-rectangle',
+            'break_start' => 'heroicon-o-pause-circle',
+            'break_end' => 'heroicon-o-play-circle',
+            'check_out' => 'heroicon-o-arrow-left-on-rectangle',
+            default => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    /**
+     * Obtiene todas las opciones de tipo de evento para selects
+     */
+    public static function getEventTypeOptions(): array
+    {
+        return [
+            'check_in' => 'Entrada jornada',
+            'break_start' => 'Inicio descanso',
+            'break_end' => 'Fin descanso',
+            'check_out' => 'Salida jornada',
+        ];
+    }
+
+    /**
+     * Verifica si tiene una ubicación válida
+     */
+    public function hasValidLocation(): bool
+    {
+        return is_array($this->location)
+            && isset($this->location['lat'])
+            && isset($this->location['lng']);
+    }
+
+    /**
+     * Obtiene la ubicación formateada para mostrar
+     */
+    public function getFormattedLocation(): string
+    {
+        if (!$this->hasValidLocation()) {
+            return 'Sin ubicación';
+        }
+
+        return sprintf(
+            '📍 %s, %s',
+            $this->location['lat'],
+            $this->location['lng']
+        );
+    }
+
+    /**
+     * Obtiene la URL de Google Maps
+     */
+    public function getMapUrl(): ?string
+    {
+        return $this->google_maps_url;
+    }
+
+    /**
+     * Obtiene el tooltip con información de ubicación
+     */
+    public function getLocationTooltip(): string
+    {
+        if (!$this->hasValidLocation()) {
+            return 'No hay datos de ubicación';
+        }
+
+        return sprintf(
+            "Latitud: %s\nLongitud: %s\nClick en 'Mapa' para ver en Google Maps",
+            $this->location['lat'],
+            $this->location['lng']
+        );
+    }
 }

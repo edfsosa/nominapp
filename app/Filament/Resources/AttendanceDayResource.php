@@ -2,44 +2,42 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\AttendanceDayResource\Pages;
-use App\Filament\Resources\AttendanceDayResource\RelationManagers;
-use App\Models\AttendanceDay;
-use App\Services\AttendanceCalculator;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\TimePicker;
-use Filament\Forms\Components\Toggle;
+use App\Models\Branch;
 use Filament\Forms\Form;
-use Filament\Resources\Resource;
-use Filament\Tables\Actions\ViewAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
+use App\Models\AttendanceDay;
+use Illuminate\Support\Carbon;
+use Filament\Infolists\Infolist;
+use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Filters\Filter;
+use Illuminate\Support\Facades\Log;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Toggle;
+use App\Services\AttendanceCalculator;
+use Filament\Forms\Components\Section;
+use Filament\Tables\Filters\Indicator;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Model;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\TimePicker;
+use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Forms\Components\Placeholder;
 use Filament\Infolists\Components\Fieldset;
 use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Infolist;
-use Filament\Notifications\Notification;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkAction;
-use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Log;
-use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Actions\BulkActionGroup;
+use Illuminate\Database\Eloquent\Collection;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\CreateAction;
-use Illuminate\Support\Carbon;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use App\Filament\Resources\AttendanceDayResource\Pages;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use App\Filament\Resources\AttendanceDayResource\RelationManagers;
 
 class AttendanceDayResource extends Resource
 {
@@ -80,13 +78,7 @@ class AttendanceDayResource extends Resource
 
                         Select::make('status')
                             ->label('Estado')
-                            ->options([
-                                'present' => 'Presente',
-                                'absent' => 'Ausente',
-                                'on_leave' => 'De permiso',
-                                'holiday' => 'Feriado',
-                                'weekend' => 'Fin de semana',
-                            ])
+                            ->options(AttendanceDay::getStatusOptions())
                             ->native(false)
                             ->required(),
 
@@ -213,63 +205,48 @@ class AttendanceDayResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.branch', 'employee.position.department']))
             ->columns([
                 TextColumn::make('date')
                     ->label('Fecha')
                     ->date('d/m/Y')
                     ->sortable()
                     ->searchable(),
-                TextColumn::make('employee.ci')
-                    ->label('CI')
-                    ->numeric()
-                    ->copyable()
+
+                TextColumn::make('employee.full_name')
+                    ->label('Empleado')
+                    ->description(fn($record) => $record->employee->ci ? 'CI: ' . $record->employee->ci : '')
+                    ->getStateUsing(fn($record) => $record->employee ? "{$record->employee->first_name} {$record->employee->last_name}" : 'N/A')
+                    ->searchable(['first_name', 'last_name'])
                     ->sortable()
-                    ->searchable(),
-                TextColumn::make('employee.first_name')
-                    ->label('Nombre')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('employee.last_name')
-                    ->label('Apellido')
-                    ->searchable()
-                    ->sortable(),
+                    ->weight('medium')
+                    ->wrap(),
+
                 TextColumn::make('employee.branch.name')
                     ->label('Sucursal')
-                    ->searchable()
-                    ->sortable(),
+                    ->badge()
+                    ->color('info')
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('employee.position.name')
                     ->label('Cargo')
-                    ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('employee.position.department.name')
                     ->label('Departamento')
-                    ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('status')
                     ->label('Estado')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'present' => 'Presente',
-                        'absent' => 'Ausente',
-                        'on_leave' => 'De permiso',
-                        default => 'Desconocido',
-                    })
+                    ->formatStateUsing(fn($state) => AttendanceDay::getStatusLabel($state))
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'present' => 'success',
-                        'absent' => 'danger',
-                        'on_leave' => 'warning',
-                        default => 'gray',
-                    })
-                    ->icon(fn($state) => match ($state) {
-                        'present' => 'heroicon-o-check-circle',
-                        'absent' => 'heroicon-o-x-circle',
-                        'on_leave' => 'heroicon-o-document-text',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->searchable()
+                    ->color(fn($state) => AttendanceDay::getStatusColor($state))
+                    ->icon(fn($state) => AttendanceDay::getStatusIcon($state))
                     ->sortable(),
+
                 TextColumn::make('is_calculated')
                     ->label('Calculado')
                     ->badge()
@@ -282,6 +259,7 @@ class AttendanceDayResource extends Resource
                             : 'Aún no calculado'
                     )
                     ->sortable(),
+
                 TextColumn::make('check_in_time')
                     ->label('Entrada')
                     ->time('H:i')
@@ -293,6 +271,7 @@ class AttendanceDayResource extends Resource
                             : 'A tiempo'
                     )
                     ->toggleable(),
+
                 TextColumn::make('check_out_time')
                     ->label('Salida')
                     ->time('H:i')
@@ -304,60 +283,25 @@ class AttendanceDayResource extends Resource
                             : 'A tiempo'
                     )
                     ->toggleable(),
-                TextColumn::make('total_hours')
-                    ->label('Horas')
-                    ->icon('heroicon-o-clock')
-                    ->numeric(decimalPlaces: 2)
-                    ->sortable()
-                    ->toggleable(),
-                TextColumn::make('late_minutes')
-                    ->label('Min. Tarde')
-                    ->badge()
-                    ->color(fn($state) => $state > 0 ? 'danger' : 'success')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('extra_hours')
-                    ->label('Horas Extra')
-                    ->badge()
-                    ->color(fn($state) => $state > 0 ? 'warning' : 'gray')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('is_extraordinary_work')
-                    ->label('Extra.')
-                    ->badge()
-                    ->formatStateUsing(fn(bool $state) => $state ? 'Sí' : 'No')
-                    ->color(fn(bool $state) => $state ? 'warning' : 'gray')
-                    ->tooltip('Trabajo extraordinario (feriado/fin de semana)')
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('anomaly_flag')
-                    ->label('Anomalía')
-                    ->badge()
-                    ->formatStateUsing(fn(bool $state) => $state ? 'Sí' : 'No')
-                    ->color(fn(bool $state) => $state ? 'danger' : 'success')
-                    ->icon(fn(bool $state) => $state ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle')
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])->defaultSort('date', 'desc')
+            ])
+            ->defaultSort('date', 'desc')
             ->filters([
-                SelectFilter::make('employee.ci')
-                    ->label('CI')
-                    ->placeholder('Seleccionar CI')
-                    ->relationship('employee', 'ci')
+                SelectFilter::make('employee_id')
+                    ->label('Empleado')
+                    ->relationship('employee', 'first_name')
+                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->preload(false)
                     ->native(false)
-                    ->searchable()
-                    ->preload()
                     ->multiple(),
+
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->placeholder('Seleccionar estado')
-                    ->options([
-                        'present' => 'Presente',
-                        'absent' => 'Ausente',
-                        'on_leave' => 'De permiso',
-                        'holiday' => 'Feriado',
-                        'weekend' => 'Fin de semana',
-                    ])
+                    ->placeholder('Todos los estados')
+                    ->options(AttendanceDay::getStatusOptions())
                     ->native(false)
                     ->multiple(),
+
                 SelectFilter::make('is_calculated')
                     ->label('Estado de Cálculo')
                     ->placeholder('Todos')
@@ -366,44 +310,24 @@ class AttendanceDayResource extends Resource
                         '0' => 'Sin calcular',
                     ])
                     ->native(false),
-                TernaryFilter::make('anomaly_flag')
-                    ->label('Con anomalías')
-                    ->placeholder('Todos')
-                    ->trueLabel('Sí')
-                    ->falseLabel('No')
-                    ->native(false),
-                TernaryFilter::make('is_extraordinary_work')
-                    ->label('Trabajo extraordinario')
-                    ->placeholder('Todos')
-                    ->trueLabel('Sí')
-                    ->falseLabel('No')
-                    ->native(false),
-                TernaryFilter::make('on_vacation')
-                    ->label('De vacaciones')
-                    ->placeholder('Todos')
-                    ->trueLabel('Sí')
-                    ->falseLabel('No')
-                    ->native(false),
-                TernaryFilter::make('justified_absence')
-                    ->label('Ausencia justificada')
-                    ->placeholder('Todos')
-                    ->trueLabel('Sí')
-                    ->falseLabel('No')
-                    ->native(false),
-                SelectFilter::make('employee.branch_id')
+
+                SelectFilter::make('branch')
                     ->label('Sucursal')
-                    ->placeholder('Seleccionar sucursal')
-                    ->relationship('employee.branch', 'name')
-                    ->native(false)
+                    ->placeholder('Todas las sucursales')
+                    ->options(function () {
+                        return Branch::pluck('name', 'id');
+                    })
+                    ->query(function (Builder $query, array $data) {
+                        if (filled($data['value'])) {
+                            return $query->whereHas('employee', function (Builder $query) use ($data) {
+                                $query->where('branch_id', $data['value']);
+                            });
+                        }
+                    })
                     ->searchable()
-                    ->preload(),
-                SelectFilter::make('employee.position.department_id')
-                    ->label('Departamento')
-                    ->placeholder('Seleccionar departamento')
-                    ->relationship('employee.position.department', 'name')
-                    ->native(false)
-                    ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->native(false),
+
                 Filter::make('date')
                     ->label('Rango de Fechas')
                     ->form([
@@ -435,30 +359,28 @@ class AttendanceDayResource extends Resource
                         }
                         return $indicators;
                     }),
+
                 Filter::make('late')
                     ->label('Llegadas tarde')
                     ->query(fn(Builder $query): Builder => $query->where('late_minutes', '>', 0))
                     ->toggle(),
+
                 Filter::make('extra_hours')
                     ->label('Con horas extra')
                     ->query(fn(Builder $query): Builder => $query->where('extra_hours', '>', 0))
                     ->toggle(),
             ])
-            ->filtersTriggerAction(
-                fn(Action $action) => $action
-                    ->button()
-                    ->label('Filtros')
-            )
             ->actions([
                 ViewAction::make()
                     ->color('primary'),
-                EditAction::make(),
+
                 Action::make('export')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
                     ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
                     ->openUrlInNewTab(),
+
                 Action::make('calculate')
                     ->label(fn(AttendanceDay $record) => $record->is_calculated ? 'Recalcular' : 'Calcular')
                     ->icon('heroicon-o-calculator')
@@ -533,6 +455,7 @@ class AttendanceDayResource extends Resource
                     ->label('Exportar')
                     ->color('primary')
                     ->icon('heroicon-o-arrow-down-tray'),
+
                 BulkAction::make('calculate')
                     ->label('Calcular/Recalcular')
                     ->icon('heroicon-o-calculator')
@@ -585,11 +508,6 @@ class AttendanceDayResource extends Resource
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
                 ]),
-            ])
-            ->emptyStateActions([
-                CreateAction::make()
-                    ->label('Crear primer registro')
-                    ->icon('heroicon-o-plus'),
             ]);
     }
 
@@ -620,202 +538,221 @@ class AttendanceDayResource extends Resource
                             ->label('Fecha')
                             ->date('d/m/Y')
                             ->icon('heroicon-o-calendar'),
+
                         TextEntry::make('status')
                             ->label('Estado')
                             ->badge()
-                            ->color(fn($state) => match ($state) {
-                                'present' => 'success',
-                                'absent' => 'danger',
-                                'on_leave' => 'warning',
-                                'holiday' => 'info',
-                                'weekend' => 'gray',
-                                default => 'gray',
-                            })
-                            ->formatStateUsing(fn($state) => match ($state) {
-                                'present' => 'Presente',
-                                'absent' => 'Ausente',
-                                'on_leave' => 'De permiso',
-                                'holiday' => 'Feriado',
-                                'weekend' => 'Fin de semana',
-                                default => 'Desconocido',
-                            }),
+                            ->color(fn($state) => AttendanceDay::getStatusColor($state))
+                            ->formatStateUsing(fn($state) => AttendanceDay::getStatusLabel($state))
+                            ->icon(fn($state) => AttendanceDay::getStatusIcon($state)),
+
                         TextEntry::make('is_calculated')
                             ->label('Estado de Cálculo')
                             ->badge()
-                            ->color(fn($state) => $state ? 'success' : 'warning')
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'success', 'warning'))
                             ->formatStateUsing(fn($state) => $state ? 'Calculado' : 'Pendiente')
                             ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-clock'),
+
                         TextEntry::make('calculated_at')
                             ->label('Último Cálculo')
                             ->dateTime('d/m/Y H:i')
                             ->placeholder('Nunca calculado')
                             ->icon('heroicon-o-calendar-days')
-                            ->visible(fn($record) => $record->is_calculated),
-                        TextEntry::make('is_extraordinary_work')
-                            ->label('Trabajo Extraordinario')
-                            ->badge()
-                            ->color(fn($state) => $state ? 'warning' : 'gray')
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
-                            ->icon(fn($state) => $state ? 'heroicon-o-star' : null)
-                            ->visible(fn($record) => $record->is_extraordinary_work),
+                            ->hidden(fn($record) => !$record->is_calculated),
+
                         TextEntry::make('anomaly_flag')
-                            ->label('Anomalía detectada')
+                            ->label('Anomalía')
                             ->badge()
-                            ->color(fn($state) => $state ? 'danger' : 'success')
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'danger', 'success'))
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
                             ->icon(fn($state) => $state ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle'),
+
                         TextEntry::make('manual_adjustment')
-                            ->label('Ajustado manualmente')
+                            ->label('Ajuste Manual')
                             ->badge()
-                            ->color(fn($state) => $state ? 'info' : 'gray')
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'info', 'gray'))
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
                             ->icon(fn($state) => $state ? 'heroicon-o-pencil-square' : null),
-                        TextEntry::make('is_weekend')
-                            ->label('Es domingo')
-                            ->badge()
-                            ->color(fn($state) => $state ? 'gray' : null)
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
-                            ->visible(fn($record) => $record->is_weekend),
-                        TextEntry::make('is_holiday')
-                            ->label('Es feriado')
-                            ->badge()
-                            ->color(fn($state) => $state ? 'info' : null)
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
-                            ->icon('heroicon-o-gift')
-                            ->visible(fn($record) => $record->is_holiday),
-                        TextEntry::make('on_vacation')
-                            ->label('De vacaciones')
-                            ->badge()
-                            ->color(fn($state) => $state ? 'success' : null)
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
-                            ->icon('heroicon-o-sun')
-                            ->visible(fn($record) => $record->on_vacation),
-                        TextEntry::make('justified_absence')
-                            ->label('Ausencia justificada')
-                            ->badge()
-                            ->color(fn($state) => $state ? 'warning' : null)
-                            ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
-                            ->icon('heroicon-o-document-text')
-                            ->visible(fn($record) => $record->justified_absence),
-                        TextEntry::make('notes')
-                            ->label('Notas')
-                            ->columnSpanFull()
-                            ->icon('heroicon-o-chat-bubble-left-right')
-                            ->visible(fn($record) => !empty($record->notes)),
                     ])->columns(3),
 
                 Fieldset::make('Empleado')
                     ->schema([
                         TextEntry::make('employee.ci')
-                            ->label('CI')
-                            ->icon('heroicon-o-identification'),
-                        TextEntry::make('employee.first_name')
-                            ->label('Nombre')
+                            ->label('Cédula de Identidad')
+                            ->icon('heroicon-o-identification')
+                            ->copyable()
+                            ->copyMessage('CI copiado')
+                            ->weight('bold'),
+
+                        TextEntry::make('employee.full_name')
+                            ->label('Nombre Completo')
+                            ->getStateUsing(fn($record) => $record->employee ? "{$record->employee->first_name} {$record->employee->last_name}" : 'N/A')
                             ->icon('heroicon-o-user'),
-                        TextEntry::make('employee.last_name')
-                            ->label('Apellido')
-                            ->icon('heroicon-o-user'),
+
                         TextEntry::make('employee.branch.name')
                             ->label('Sucursal')
-                            ->icon('heroicon-o-building-office'),
+                            ->icon('heroicon-o-building-office')
+                            ->badge()
+                            ->color('info'),
+
                         TextEntry::make('employee.position.name')
                             ->label('Cargo')
                             ->icon('heroicon-o-briefcase'),
+
                         TextEntry::make('employee.position.department.name')
                             ->label('Departamento')
-                            ->icon('heroicon-o-building-office-2'),
+                            ->icon('heroicon-o-building-office-2')
+                            ->default('N/A'),
                     ])->columns(3),
 
-                Fieldset::make('Tiempos de Entrada')
+                Fieldset::make('Condiciones Especiales')
+                    ->schema([
+                        TextEntry::make('is_extraordinary_work')
+                            ->label('Trabajo Extraordinario')
+                            ->badge()
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'warning'))
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
+                            ->icon(fn($state) => $state ? 'heroicon-o-star' : null)
+                            ->hidden(fn($record) => !$record->is_extraordinary_work),
+
+                        TextEntry::make('is_weekend')
+                            ->label('Fin de Semana')
+                            ->badge()
+                            ->color('gray')
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
+                            ->icon('heroicon-o-calendar')
+                            ->hidden(fn($record) => !$record->is_weekend),
+
+                        TextEntry::make('is_holiday')
+                            ->label('Feriado')
+                            ->badge()
+                            ->color('info')
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
+                            ->icon('heroicon-o-gift')
+                            ->hidden(fn($record) => !$record->is_holiday),
+
+                        TextEntry::make('on_vacation')
+                            ->label('Vacaciones')
+                            ->badge()
+                            ->color('success')
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
+                            ->icon('heroicon-o-sun')
+                            ->hidden(fn($record) => !$record->on_vacation),
+
+                        TextEntry::make('justified_absence')
+                            ->label('Ausencia Justificada')
+                            ->badge()
+                            ->color('warning')
+                            ->formatStateUsing(fn($state) => AttendanceDay::formatBoolean($state))
+                            ->icon('heroicon-o-document-text')
+                            ->hidden(fn($record) => !$record->justified_absence),
+
+                        TextEntry::make('notes')
+                            ->label('Notas')
+                            ->columnSpanFull()
+                            ->icon('heroicon-o-chat-bubble-left-right')
+                            ->hidden(fn($record) => empty($record->notes)),
+                    ])->columns(3)
+                    ->hidden(fn($record) => !$record->is_extraordinary_work && !$record->is_weekend && !$record->is_holiday && !$record->on_vacation && !$record->justified_absence && empty($record->notes)),
+
+                Fieldset::make('Tiempos de Entrada y Salida')
                     ->schema([
                         TextEntry::make('expected_check_in')
-                            ->label('Entrada esperada')
+                            ->label('Entrada Esperada')
                             ->icon('heroicon-o-clock')
                             ->placeholder('No definida'),
+
                         TextEntry::make('check_in_time')
-                            ->label('Entrada marcada')
+                            ->label('Entrada Marcada')
                             ->icon('heroicon-o-arrow-right-on-rectangle')
                             ->color(fn($record) => $record->late_minutes > 0 ? 'danger' : 'success')
                             ->weight(fn($record) => $record->late_minutes > 0 ? 'bold' : null)
                             ->placeholder('Sin marcar'),
+
                         TextEntry::make('late_minutes')
-                            ->label('Minutos tarde')
+                            ->label('Retraso')
                             ->badge()
                             ->color(fn($state) => $state > 0 ? 'danger' : 'success')
-                            ->formatStateUsing(fn($state) => $state > 0 ? "{$state} min" : 'A tiempo')
+                            ->formatStateUsing(fn($state) => $state > 0 ? "{$state} min tarde" : 'A tiempo')
                             ->icon(fn($state) => $state > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle'),
-                    ])->columns(3)
-                    ->visible(fn($record) => $record->status === 'present' || $record->check_in_time),
 
-                Fieldset::make('Tiempos de Salida')
-                    ->schema([
                         TextEntry::make('expected_check_out')
-                            ->label('Salida esperada')
+                            ->label('Salida Esperada')
                             ->icon('heroicon-o-clock')
                             ->placeholder('No definida'),
+
                         TextEntry::make('check_out_time')
-                            ->label('Salida marcada')
+                            ->label('Salida Marcada')
                             ->icon('heroicon-o-arrow-left-on-rectangle')
                             ->color(fn($record) => $record->early_leave_minutes > 0 ? 'warning' : 'success')
                             ->weight(fn($record) => $record->early_leave_minutes > 0 ? 'bold' : null)
                             ->placeholder('Sin marcar'),
+
                         TextEntry::make('early_leave_minutes')
-                            ->label('Minutos de salida anticipada')
+                            ->label('Salida Anticipada')
                             ->badge()
                             ->color(fn($state) => $state > 0 ? 'warning' : 'success')
-                            ->formatStateUsing(fn($state) => $state > 0 ? "{$state} min" : 'A tiempo')
+                            ->formatStateUsing(fn($state) => $state > 0 ? "{$state} min antes" : 'A tiempo')
                             ->icon(fn($state) => $state > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle'),
                     ])->columns(3)
-                    ->visible(fn($record) => $record->status === 'present' || $record->check_out_time),
+                    ->hidden(fn($record) => $record->status !== 'present' && !$record->check_in_time && !$record->check_out_time),
 
-                Fieldset::make('Horas y Descansos')
+                Fieldset::make('Resumen de Horas')
                     ->schema([
                         TextEntry::make('expected_hours')
-                            ->label('Horas esperadas')
+                            ->label('Horas Esperadas')
                             ->icon('heroicon-o-clock')
                             ->suffix(' hrs')
                             ->placeholder('No definidas'),
+
                         TextEntry::make('total_hours')
-                            ->label('Horas trabajadas')
+                            ->label('Horas Trabajadas')
                             ->icon('heroicon-o-calculator')
                             ->suffix(' hrs')
                             ->weight('bold')
                             ->color('primary')
                             ->placeholder('0 hrs'),
+
                         TextEntry::make('net_hours')
-                            ->label('Horas netas')
+                            ->label('Horas Netas')
                             ->icon('heroicon-o-check-badge')
                             ->suffix(' hrs')
                             ->weight('bold')
                             ->color('success')
                             ->placeholder('0 hrs'),
-                        TextEntry::make('break_minutes')
-                            ->label('Descanso tomado')
-                            ->icon('heroicon-o-pause-circle')
-                            ->suffix(' min')
-                            ->color(fn($record) => $record->break_minutes > ($record->expected_break_minutes ?? 0) ? 'warning' : null)
-                            ->placeholder('0 min'),
+
                         TextEntry::make('expected_break_minutes')
-                            ->label('Descanso esperado')
+                            ->label('Descanso Esperado')
                             ->icon('heroicon-o-clock')
                             ->suffix(' min')
                             ->placeholder('No definido'),
+
+                        TextEntry::make('break_minutes')
+                            ->label('Descanso Tomado')
+                            ->icon('heroicon-o-pause-circle')
+                            ->suffix(' min')
+                            ->color(fn($record) => $record->break_minutes > ($record->expected_break_minutes ?? 0) ? 'warning' : null)
+                            ->weight(fn($record) => $record->break_minutes > ($record->expected_break_minutes ?? 0) ? 'bold' : null)
+                            ->placeholder('0 min'),
+
                         TextEntry::make('extra_hours')
-                            ->label('Horas extra')
+                            ->label('Horas Extra')
                             ->badge()
                             ->icon('heroicon-o-star')
                             ->color(fn($state) => $state > 0 ? 'warning' : 'gray')
-                            ->formatStateUsing(fn($state) => $state > 0 ? "{$state} hrs" : 'Sin horas extra')
-                            ->visible(fn($record) => $record->extra_hours > 0 || $record->overtime_approved),
+                            ->suffix(' hrs')
+                            ->placeholder('0')
+                            ->hidden(fn($record) => $record->extra_hours <= 0 && !$record->overtime_approved),
+
                         TextEntry::make('overtime_approved')
-                            ->label('Horas extra aprobadas')
+                            ->label('Aprobación Horas Extra')
                             ->badge()
-                            ->color(fn($state) => $state ? 'success' : 'gray')
-                            ->formatStateUsing(fn($state) => $state ? 'Aprobadas' : 'No aprobadas')
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'success', 'danger'))
+                            ->formatStateUsing(fn($state) => $state ? 'Aprobadas' : 'Pendientes')
                             ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
-                            ->visible(fn($record) => $record->extra_hours > 0),
+                            ->hidden(fn($record) => $record->extra_hours <= 0),
                     ])->columns(3)
-                    ->visible(fn($record) => $record->status === 'present'),
+                    ->hidden(fn($record) => $record->status !== 'present'),
             ]);
     }
 }

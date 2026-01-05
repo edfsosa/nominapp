@@ -77,17 +77,98 @@ class AttendanceDay extends Model
 
     public function getStatusInSpanishAttribute(): string
     {
-        switch ($this->status) {
-            case 'present':
-                return 'Presente';
-            case 'absent':
-                return 'Ausente';
-            case 'on_leave':
-                return 'De permiso';
-            case 'holiday':
-                return 'Festivo';
-            default:
-                return 'Desconocido';
-        }
+        return self::getStatusLabel($this->status);
+    }
+
+    /**
+     * Obtiene el label traducido del estado
+     */
+    public static function getStatusLabel(string $status): string
+    {
+        return match ($status) {
+            'present' => 'Presente',
+            'absent' => 'Ausente',
+            'on_leave' => 'De permiso',
+            'holiday' => 'Feriado',
+            'weekend' => 'Fin de semana',
+            default => 'Desconocido',
+        };
+    }
+
+    /**
+     * Obtiene el color del badge según el estado
+     */
+    public static function getStatusColor(string $status): string
+    {
+        return match ($status) {
+            'present' => 'success',
+            'absent' => 'danger',
+            'on_leave' => 'warning',
+            'holiday' => 'info',
+            'weekend' => 'gray',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Obtiene el icono según el estado
+     */
+    public static function getStatusIcon(string $status): string
+    {
+        return match ($status) {
+            'present' => 'heroicon-o-check-circle',
+            'absent' => 'heroicon-o-x-circle',
+            'on_leave' => 'heroicon-o-document-text',
+            'holiday' => 'heroicon-o-gift',
+            'weekend' => 'heroicon-o-calendar',
+            default => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    /**
+     * Obtiene todas las opciones de estado para selects
+     */
+    public static function getStatusOptions(): array
+    {
+        return [
+            'present' => 'Presente',
+            'absent' => 'Ausente',
+            'on_leave' => 'De permiso',
+            'holiday' => 'Feriado',
+            'weekend' => 'Fin de semana',
+        ];
+    }
+
+    /**
+     * Formatea un valor booleano para mostrar Sí/No
+     */
+    public static function formatBoolean(bool $value): string
+    {
+        return $value ? 'Sí' : 'No';
+    }
+
+    /**
+     * Obtiene el color para un badge booleano
+     */
+    public static function getBooleanColor(bool $value, string $trueColor = 'success', string $falseColor = 'gray'): string
+    {
+        return $value ? $trueColor : $falseColor;
+    }
+
+    /**
+     * Obtiene el mensaje de status después de calcular/recalcular
+     */
+    public function getStatusMessage(bool $wasCalculated): string
+    {
+        $action = $wasCalculated ? 'recalculado' : 'calculado';
+
+        return match ($this->status) {
+            'present' => "✓ Empleado presente - Cálculos {$action}s",
+            'absent' => "⚠ Empleado ausente",
+            'on_leave' => "📋 Empleado con permiso/vacaciones",
+            'holiday' => "🎉 Día feriado",
+            'weekend' => "📅 Fin de semana",
+            default => "Cálculo {$action}",
+        };
     }
 }

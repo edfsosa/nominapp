@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\AttendanceDayResource\Pages;
 
-use App\Filament\Resources\AttendanceDayResource;
-use App\Services\AttendanceCalculator;
 use Filament\Actions\Action;
+use Filament\Actions\EditAction;
+use Illuminate\Support\Facades\Log;
+use App\Services\AttendanceCalculator;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use Illuminate\Support\Facades\Log;
+use App\Filament\Resources\AttendanceDayResource;
 
 class ViewAttendanceDay extends ViewRecord
 {
@@ -16,17 +17,20 @@ class ViewAttendanceDay extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            EditAction::make()
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary'),
 
-            // Acción para exportar el día de asistencia en PDF
             Action::make('export')
-                ->label('Exportar (PDF)')
+                ->label('Exportar PDF')
                 ->icon('heroicon-o-printer')
+                ->color('gray')
                 ->url(fn() => route('attendance-days.export', ['attendance_day' => $this->record->id]))
                 ->openUrlInNewTab(),
 
-            // Calcula usando el Service AttendanceCalculator para el día actual
             Action::make('calculate')
-                ->label(fn() => $this->record->is_calculated ? 'Recalcular Asistencia' : 'Calcular Asistencia')
+                ->label(fn() => $this->record->is_calculated ? 'Recalcular' : 'Calcular')
                 ->icon('heroicon-o-calculator')
                 ->color(fn() => $this->record->is_calculated ? 'warning' : 'success')
                 ->tooltip(
@@ -43,7 +47,7 @@ class ViewAttendanceDay extends ViewRecord
                 ->modalDescription(
                     fn() => $this->record->is_calculated
                         ? 'Este registro ya fue calculado el ' . $this->record->calculated_at?->format('d/m/Y H:i') . '. ¿Deseas recalcularlo?'
-                        : 'Se calcularán todos los campos de asistencia (horas trabajadas, descansos, llegadas tarde, etc.) para este registro.'
+                        : 'Se calcularán todos los campos de asistencia para este registro.'
                 )
                 ->modalSubmitActionLabel(fn() => $this->record->is_calculated ? 'Sí, recalcular' : 'Sí, calcular')
                 ->action(function () {
@@ -52,26 +56,13 @@ class ViewAttendanceDay extends ViewRecord
 
                         AttendanceCalculator::apply($this->record);
                         $this->record->save();
-
-                        // Refrescar el registro para mostrar los cambios
                         $this->record->refresh();
 
                         $action = $wasCalculated ? 'recalculado' : 'calculado';
 
-                        // Mensaje más detallado según el status
-                        $statusMessages = [
-                            'present' => "✓ Empleado presente - Cálculos {$action}s",
-                            'absent' => "⚠ Empleado ausente",
-                            'on_leave' => "📋 Empleado con permiso/vacaciones",
-                            'holiday' => "🎉 Día feriado",
-                            'weekend' => "📅 Fin de semana",
-                        ];
-
-                        $message = $statusMessages[$this->record->status] ?? "Cálculo {$action}";
-
                         Notification::make()
                             ->title("¡Registro {$action} exitosamente!")
-                            ->body($message)
+                            ->body($this->record->getStatusMessage($wasCalculated))
                             ->success()
                             ->duration(5000)
                             ->send();
@@ -88,7 +79,6 @@ class ViewAttendanceDay extends ViewRecord
                             ->send();
                     }
                 }),
-
         ];
     }
 }
