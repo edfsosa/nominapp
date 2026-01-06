@@ -13,6 +13,9 @@ Route::get('/marcar', [AttendanceFaceMarkController::class, 'show'])->name('mark
 Route::post('/marcar/identificar', [AttendanceFaceMarkController::class, 'identify'])->name('mark.identify');
 Route::post('/marcar', [AttendanceFaceMarkController::class, 'store'])->name('mark.store');
 
+// Terminal/Kiosco mode - uses same backend endpoints
+Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.show');
+
 Route::get('/api/employees', function (Request $request) {
     $branch_id = $request->query('branch_id'); // Obtener branch_id del parámetro de consulta
 

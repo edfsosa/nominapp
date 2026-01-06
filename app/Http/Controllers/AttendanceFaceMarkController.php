@@ -24,6 +24,12 @@ class AttendanceFaceMarkController extends Controller
         return view('attendances.mark', ['title' => 'Marcación Facial']);
     }
 
+    /** Muestra la página de marcación en modo terminal/kiosco */
+    public function terminal(): ViewContract
+    {
+        return view('attendances.terminal', ['title' => 'Terminal de Marcación']);
+    }
+
     /** 1) Identifica al empleado por descriptor y devuelve data + eventos permitidos */
     public function identify(Request $request): JsonResponse
     {
@@ -131,23 +137,23 @@ class AttendanceFaceMarkController extends Controller
         }
     }
 
-    /** 2) Registra la marcación (requiere ubicación obligatoria) */
+    /** 2) Registra la marcación (ubicación opcional - si no se envía, usa coordenadas de sucursal) */
     public function store(Request $request): JsonResponse
     {
         try {
             // CORRECCIÓN 6: Validación más robusta con mensajes personalizados
+            // TERMINAL MODE: location es ahora opcional (nullable)
             $data = $request->validate([
                 'employee_id'        => ['required', 'integer', 'exists:employees,id'],
                 'event_type'         => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
-                'location'           => ['required', 'array'],
-                'location.lat'       => ['required', 'numeric', 'between:-90,90'],
-                'location.lng'       => ['required', 'numeric', 'between:-180,180'],
+                'location'           => ['nullable', 'array'],
+                'location.lat'       => ['required_with:location', 'numeric', 'between:-90,90'],
+                'location.lng'       => ['required_with:location', 'numeric', 'between:-180,180'],
             ], [
                 'employee_id.required' => 'ID de empleado es requerido.',
                 'employee_id.exists' => 'El empleado no existe.',
                 'event_type.required' => 'Tipo de evento es requerido.',
                 'event_type.in' => 'Tipo de evento inválido.',
-                'location.required' => 'La ubicación es requerida.',
                 'location.lat.between' => 'Latitud debe estar entre -90 y 90.',
                 'location.lng.between' => 'Longitud debe estar entre -180 y 180.',
             ]);
@@ -160,8 +166,9 @@ class AttendanceFaceMarkController extends Controller
         }
 
         try {
-            // CORRECCIÓN 7: Verificar que el empleado esté activo
-            $employee = Employee::where('id', $data['employee_id'])
+            // CORRECCIÓN 7: Verificar que el empleado esté activo y cargar sucursal
+            $employee = Employee::with('branch')
+                ->where('id', $data['employee_id'])
                 ->where('status', 'active')
                 ->firstOrFail();
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
@@ -171,11 +178,48 @@ class AttendanceFaceMarkController extends Controller
             ], 422);
         }
 
+        // TERMINAL MODE: Si no se envía location, usar coordenadas de la sucursal
+        if (empty($data['location'])) {
+            // Verificar que el empleado tenga sucursal asignada
+            if (!$employee->branch) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'El empleado no tiene una sucursal asignada. No se puede determinar la ubicación.',
+                ], 422);
+            }
+
+            $branchCoords = $employee->branch->coordinates;
+
+            // Verificar que la sucursal tenga coordenadas configuradas
+            if (!$branchCoords || !isset($branchCoords['lat'], $branchCoords['lng'])) {
+                return response()->json([
+                    'ok' => false,
+                    'message' => 'La sucursal del empleado no tiene coordenadas configuradas. Por favor, contacte al administrador.',
+                ], 422);
+            }
+
+            // Usar coordenadas de la sucursal
+            $location = [
+                'lat' => (float) $branchCoords['lat'],
+                'lng' => (float) $branchCoords['lng'],
+            ];
+
+            Log::info('Usando coordenadas de sucursal para marcación', [
+                'employee_id' => $employee->id,
+                'branch_id' => $employee->branch->id,
+                'branch_name' => $employee->branch->name,
+                'coordinates' => $location,
+            ]);
+        } else {
+            // Usar ubicación enviada desde el cliente (modo normal)
+            $location = $data['location'];
+        }
+
         // CORRECCIÓN 8: Usar timezone de la aplicación
         $today = Carbon::now(config('app.timezone'))->toDateString();
 
         try {
-            $result = DB::transaction(function () use ($employee, $today, $data) {
+            $result = DB::transaction(function () use ($employee, $today, $data, $location) {
                 // Asegurar AttendanceDay del día (firstOrCreate es atómico)
                 $day = AttendanceDay::firstOrCreate(
                     ['employee_id' => $employee->id, 'date' => $today],
@@ -196,18 +240,24 @@ class AttendanceFaceMarkController extends Controller
                 $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (!in_array($data['event_type'], $allowed, true)) {
-                    // CORRECCIÓN 9: Mensaje más descriptivo del error
-                    $currentState = $last?->event_type ?? 'ninguno';
-                    $allowedStr = empty($allowed) ? 'ninguno' : implode(', ', $allowed);
+                    // CORRECCIÓN 9: Mensaje más descriptivo del error con traducciones en español
+                    $eventTypeNames = $this->getEventTypeNames();
+
+                    $requestedEventName = $eventTypeNames[$data['event_type']] ?? $data['event_type'];
+                    $currentStateName = $last?->event_type ? ($eventTypeNames[$last->event_type] ?? $last->event_type) : 'ninguna';
+                    $allowedNames = empty($allowed)
+                        ? 'ninguno'
+                        : implode(', ', array_map(fn($e) => $eventTypeNames[$e] ?? $e, $allowed));
 
                     throw ValidationException::withMessages([
-                        'event_type' => "Evento '{$data['event_type']}' no permitido. Estado actual: '{$currentState}'. Eventos permitidos: {$allowedStr}",
+                        'event_type' => "No puede marcar '{$requestedEventName}' en este momento. Última marcación: '{$currentStateName}'. Solo puede marcar: {$allowedNames}.",
                     ]);
                 }
 
                 // CORRECCIÓN 10: Validar que la ubicación no sea 0,0 (ubicación inválida común)
-                $lat = (float) $data['location']['lat'];
-                $lng = (float) $data['location']['lng'];
+                // TERMINAL MODE: Usar $location determinada arriba (de sucursal o de cliente)
+                $lat = (float) $location['lat'];
+                $lng = (float) $location['lng'];
 
                 if ($lat === 0.0 && $lng === 0.0) {
                     throw ValidationException::withMessages([
@@ -410,5 +460,16 @@ class AttendanceFaceMarkController extends Controller
             'check_out'   => [], // ya terminó el día
             default       => ['check_in'], // fallback seguro
         };
+    }
+
+    /** Traducciones de tipos de eventos a español */
+    protected function getEventTypeNames(): array
+    {
+        return [
+            'check_in' => 'Entrada',
+            'break_start' => 'Inicio de descanso',
+            'break_end' => 'Fin de descanso',
+            'check_out' => 'Salida',
+        ];
     }
 }
