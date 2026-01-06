@@ -2,12 +2,13 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
-use App\Filament\Resources\EmployeeResource;
-use Filament\Actions\DeleteAction;
+use App\Models\Employee;
 use Filament\Actions\Action;
+use Filament\Actions\DeleteAction;
+use Illuminate\Support\Facades\Storage;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use Illuminate\Support\Facades\Storage;
+use App\Filament\Resources\EmployeeResource;
 
 class EditEmployee extends EditRecord
 {
@@ -16,25 +17,14 @@ class EditEmployee extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('view_profile')
-                ->label('Ver perfil completo')
-                ->icon('heroicon-o-eye')
-                ->color('info')
-                ->url(fn() => $this->getResource()::getUrl('view', ['record' => $this->record]))
-                ->visible(fn() => $this->getResource()::hasPage('view')),
-
             Action::make('capture_face')
-                ->label(fn() => $this->record->face_descriptor ? 'Actualizar rostro' : 'Capturar rostro')
+                ->label(fn() => $this->record->has_face ? 'Actualizar rostro' : 'Capturar rostro')
                 ->icon('heroicon-o-camera')
-                ->color(fn() => $this->record->face_descriptor ? 'warning' : 'success')
+                ->color(fn() => $this->record->has_face ? 'warning' : 'success')
                 ->url(fn() => route('face.capture', $this->record))
                 ->visible(fn() => $this->record->status === 'active'),
 
             DeleteAction::make()
-                ->label('Eliminar')
-                ->modalHeading('Eliminar empleado')
-                ->modalDescription('¿Estás seguro de que deseas eliminar este empleado? Esta acción no se puede deshacer.')
-                ->successNotificationTitle('Empleado eliminado')
                 ->before(function () {
                     // Eliminar la foto si existe
                     if ($this->record->photo && Storage::disk('public')->exists($this->record->photo)) {
@@ -47,51 +37,8 @@ class EditEmployee extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        // Convertir nombres y apellidos a mayúsculas
-        if (isset($data['first_name'])) {
-            $data['first_name'] = mb_strtoupper($data['first_name'], 'UTF-8');
-        }
-
-        if (isset($data['last_name'])) {
-            $data['last_name'] = mb_strtoupper($data['last_name'], 'UTF-8');
-        }
-
-        // Convertir email a minúsculas y limpiar espacios
-        if (isset($data['email'])) {
-            $data['email'] = strtolower(trim($data['email']));
-        }
-
-        // Limpiar CI: eliminar ceros a la izquierda y espacios
-        if (isset($data['ci'])) {
-            $data['ci'] = ltrim(str_replace(' ', '', $data['ci']), '0') ?: '0';
-        }
-
-        // Limpiar teléfono: eliminar espacios, guiones y ceros a la izquierda
-        if (isset($data['phone'])) {
-            $cleaned = str_replace([' ', '-', '+595'], '', $data['phone']);
-            $data['phone'] = ltrim($cleaned, '0') ?: null;
-        }
-
-        // Asegurar que solo se guarde el campo correcto según el tipo de empleo
-        if (isset($data['employment_type'])) {
-            if ($data['employment_type'] === 'full_time') {
-                // Si es tiempo completo, asegurar que daily_rate sea null
-                $data['daily_rate'] = null;
-
-                // Limpiar y validar base_salary
-                if (isset($data['base_salary'])) {
-                    $data['base_salary'] = (float) $data['base_salary'] ?: null;
-                }
-            } else {
-                // Si es jornalero, asegurar que base_salary sea null
-                $data['base_salary'] = null;
-
-                // Limpiar y validar daily_rate
-                if (isset($data['daily_rate'])) {
-                    $data['daily_rate'] = (float) $data['daily_rate'] ?: null;
-                }
-            }
-        }
+        // Sanitizar datos usando el método del modelo
+        $data = Employee::sanitizeFormData($data, isCreating: false);
 
         // Preservar el face_descriptor existente (no debe modificarse desde el formulario)
         $data['face_descriptor'] = $this->record->face_descriptor;
@@ -114,12 +61,12 @@ class EditEmployee extends EditRecord
         return $data;
     }
 
-    protected function getSavedNotification(): ?\Filament\Notifications\Notification
+    protected function getSavedNotification(): Notification
     {
         return Notification::make()
             ->success()
             ->title('Empleado actualizado exitosamente')
-            ->body('Los datos de ' . $this->record->first_name . ' ' . $this->record->last_name . ' han sido actualizados.')
+            ->body('Los datos de ' . $this->record->full_name . ' han sido actualizados.')
             ->duration(5000)
             ->send();
     }

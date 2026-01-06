@@ -98,27 +98,36 @@ class EmployeePerceptionsRelationManager extends RelationManager
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => 'https://ui-avatars.com/api/?name=' . urlencode($record->employee->first_name . ' ' . $record->employee->last_name)),
+                    ->defaultImageUrl(url('/images/default-avatar.png'))
+                    ->size(40)
+                    ->toggleable(),
 
                 TextColumn::make('employee.full_name')
                     ->label('Nombre Completo')
                     ->state(fn($record) => $record->employee->first_name . ' ' . $record->employee->last_name)
                     ->searchable(['employee.first_name', 'employee.last_name'])
                     ->sortable(['employee.first_name', 'employee.last_name'])
-                    ->weight('bold'),
+                    ->wrap(),
 
                 TextColumn::make('employee.ci')
                     ->label('CI')
+                    ->icon('heroicon-o-identification')
                     ->searchable()
                     ->sortable()
                     ->badge()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->copyable()
+                    ->tooltip('Haz clic para copiar')
+                    ->copyMessage('Cédula copiada'),
 
                 TextColumn::make('employee.position.name')
                     ->label('Cargo')
-                    ->default('-')
+                    ->icon('heroicon-o-briefcase')
+                    ->sortable()
+                    ->searchable()
                     ->badge()
-                    ->color('info'),
+                    ->color('primary')
+                    ->default('-'),
 
                 TextColumn::make('start_date')
                     ->label('Fecha Inicio')

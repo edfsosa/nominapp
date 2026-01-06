@@ -15,9 +15,26 @@ class Position extends Model
     {
         return $this->belongsTo(Department::class);
     }
-    
+
     public function employees()
     {
         return $this->hasMany(Employee::class);
+    }
+
+    /**
+     * Obtiene las opciones de cargos con sus departamentos para selects
+     */
+    public static function getOptionsWithDepartment(): array
+    {
+        return static::with('department')
+            ->get()
+            ->mapWithKeys(function ($position) {
+                $label = $position->name;
+                if ($position->department) {
+                    $label .= ' - ' . $position->department->name;
+                }
+                return [$position->id => $label];
+            })
+            ->toArray();
     }
 }

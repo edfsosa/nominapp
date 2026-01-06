@@ -18,7 +18,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
-use Filament\Tables;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -32,6 +31,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
@@ -155,10 +155,7 @@ class EmployeeResource extends Resource
 
                                 Select::make('employment_type')
                                     ->label('Tipo de empleo')
-                                    ->options([
-                                        'full_time' => 'Tiempo Completo',
-                                        'day_laborer' => 'Jornalero',
-                                    ])
+                                    ->options(Employee::getEmploymentTypeOptions())
                                     ->native(false)
                                     ->live()
                                     ->default('full_time')
@@ -174,22 +171,14 @@ class EmployeeResource extends Resource
 
                                 Select::make('payroll_type')
                                     ->label('Tipo de nómina')
-                                    ->options([
-                                        'monthly' => 'Mensual',
-                                        'biweekly' => 'Quincenal',
-                                        'weekly' => 'Semanal',
-                                    ])
+                                    ->options(Employee::getPayrollTypeOptions())
                                     ->native(false)
                                     ->default('monthly')
                                     ->required(),
 
                                 Select::make('payment_method')
                                     ->label('Método de pago')
-                                    ->options([
-                                        'debit' => 'Tarjeta de Débito',
-                                        'cash' => 'Efectivo',
-                                        'check' => 'Cheque',
-                                    ])
+                                    ->options(Employee::getPaymentMethodOptions())
                                     ->native(false)
                                     ->default('debit')
                                     ->required(),
@@ -234,18 +223,7 @@ class EmployeeResource extends Resource
                             ->schema([
                                 Select::make('position_id')
                                     ->label('Cargo')
-                                    ->options(function () {
-                                        return \App\Models\Position::with('department')
-                                            ->get()
-                                            ->mapWithKeys(function ($position) {
-                                                $label = $position->name;
-                                                if ($position->department) {
-                                                    $label .= ' - ' . $position->department->name;
-                                                }
-                                                return [$position->id => $label];
-                                            })
-                                            ->toArray();
-                                    })
+                                    ->options(\App\Models\Position::getOptionsWithDepartment())
                                     ->searchable()
                                     ->preload()
                                     ->native(false)
@@ -282,11 +260,7 @@ class EmployeeResource extends Resource
                             ->schema([
                                 Select::make('status')
                                     ->label('Estado del empleado')
-                                    ->options([
-                                        'active' => 'Activo',
-                                        'inactive' => 'Inactivo',
-                                        'suspended' => 'Suspendido',
-                                    ])
+                                    ->options(Employee::getStatusOptions())
                                     ->native(false)
                                     ->default('active')
                                     ->required()
@@ -321,129 +295,98 @@ class EmployeeResource extends Resource
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(url('/images/default-avatar.png'))
-                    ->size(40),
+                    ->defaultImageUrl(fn(Employee $record): string => $record->photo_url)
+                    ->size(40)
+                    ->toggleable(),
 
                 TextColumn::make('full_name')
-                    ->label('Nombre completo')
-                    ->getStateUsing(fn(Employee $record) => $record->first_name . ' ' . $record->last_name)
+                    ->label('Nombre Completo')
+                    ->getStateUsing(fn(Employee $record): string => $record->full_name)
                     ->searchable(['first_name', 'last_name'])
-                    ->sortable()
-                    ->description(fn(Employee $record) => 'CI: ' . $record->ci)
-                    ->weight('medium')
+                    ->sortable(['first_name', 'last_name'])
                     ->wrap(),
+
+                TextColumn::make('ci')
+                    ->label('CI')
+                    ->icon('heroicon-o-identification')
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable()
+                    ->badge()
+                    ->color('gray')
+                    ->copyable()
+                    ->tooltip('Haz clic para copiar')
+                    ->copyMessage('Cédula copiada'),
 
                 TextColumn::make('position.name')
                     ->label('Cargo')
-                    ->description(fn(Employee $record) => $record->position?->department?->name)
                     ->icon('heroicon-o-briefcase')
                     ->sortable()
                     ->searchable()
+                    ->toggleable()
                     ->wrap()
-                    ->toggleable(),
+                    ->badge()
+                    ->color('primary'),
 
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-office-2')
-                    ->description(fn($record) => $record->schedule ? 'Horario: ' . $record->schedule->name : '')
                     ->sortable()
                     ->searchable()
+                    ->toggleable()
+                    ->wrap()
                     ->badge()
-                    ->color('info')
-                    ->toggleable(),
+                    ->color('info'),
 
                 TextColumn::make('employment_type')
                     ->label('Tipo')
+                    ->icon(fn(Employee $record): string => $record->employment_type_icon)
+                    ->color(fn(Employee $record): string => $record->employment_type_color)
+                    ->formatStateUsing(fn(Employee $record): string => $record->employment_type_label)
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'full_time' => 'success',
-                        'day_laborer' => 'warning',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'full_time' => 'heroicon-o-clock',
-                        'day_laborer' => 'heroicon-o-calendar-days',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'full_time' => 'Tiempo Completo',
-                        'day_laborer' => 'Jornalero',
-                        default => $state,
-                    })
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(),
 
                 TextColumn::make('contact')
                     ->label('Contacto')
-                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin datos')
                     ->icon('heroicon-o-phone')
-                    ->url(
-                        fn(Employee $record): ?string =>
-                        $record->phone
-                            ? 'https://api.whatsapp.com/send?phone=595' . $record->phone
-                            : ($record->email ? 'mailto:' . $record->email : null)
-                    )
+                    ->getStateUsing(fn(Employee $record): string => $record->contact_text)
+                    ->url(fn(Employee $record): ?string => $record->contact_url)
                     ->openUrlInNewTab()
-                    ->color('info')
                     ->toggleable(),
 
                 TextColumn::make('status')
                     ->label('Estado')
+                    ->icon(fn(Employee $record): string => $record->status_icon)
+                    ->color(fn(Employee $record): string => $record->status_color)
+                    ->formatStateUsing(fn(Employee $record): string => $record->status_label)
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'active' => 'success',
-                        'inactive' => 'danger',
-                        'suspended' => 'warning',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'active' => 'heroicon-o-check-circle',
-                        'inactive' => 'heroicon-o-x-circle',
-                        'suspended' => 'heroicon-o-pause-circle',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                        default => $state,
-                    })
                     ->sortable()
                     ->searchable(),
 
                 IconColumn::make('has_face')
                     ->label('Rostro')
                     ->boolean()
-                    ->getStateUsing(fn(Employee $record) => filled($record->face_descriptor))
+                    ->getStateUsing(fn(Employee $record): bool => $record->has_face)
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
                     ->trueColor('success')
                     ->falseColor('warning')
-                    ->tooltip(
-                        fn(Employee $record) =>
-                        filled($record->face_descriptor)
-                            ? 'Rostro registrado'
-                            : 'Sin rostro registrado'
-                    )
+                    ->tooltip(fn(Employee $record): string => $record->face_tooltip)
                     ->alignCenter(),
 
                 TextColumn::make('hire_date')
                     ->label('Antigüedad')
                     ->date('d/m/Y')
-                    ->description(
-                        fn(Employee $record) =>
-                        $record->hire_date->diffForHumans(null, true) . ' en la empresa'
-                    )
+                    ->description(fn(Employee $record): string => $record->antiquity_description)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('birth_date')
                     ->label('Fecha de nacimiento')
                     ->date('d/m/Y')
-                    ->description(
-                        fn(Employee $record) =>
-                        $record->birth_date ? $record->birth_date->age . ' años' : ''
-                    )
+                    ->description(fn(Employee $record): string => $record->age_description)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -452,69 +395,37 @@ class EmployeeResource extends Resource
                     ->icon('heroicon-o-envelope')
                     ->copyable()
                     ->copyMessage('Email copiado')
+                    ->tooltip('Haz clic para copiar')
                     ->sortable()
                     ->searchable()
                     ->toggleable(),
 
                 TextColumn::make('payment_method')
                     ->label('Método de pago')
+                    ->icon(fn(Employee $record): string => $record->payment_method_icon)
+                    ->color(fn(Employee $record): string => $record->payment_method_color)
+                    ->formatStateUsing(fn(Employee $record): string => $record->payment_method_label)
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'debit' => 'success',
-                        'cash' => 'warning',
-                        'check' => 'info',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'debit' => 'heroicon-o-credit-card',
-                        'cash' => 'heroicon-o-banknotes',
-                        'check' => 'heroicon-o-document-text',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'debit' => 'Tarjeta de Débito',
-                        'cash' => 'Efectivo',
-                        'check' => 'Cheque',
-                        default => $state,
-                    })
                     ->sortable()
                     ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('created_at')
+                TextColumn::make('created_at_description')
                     ->label('Registrado')
-                    ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->since()
-                    ->description(fn(Employee $record) => $record->created_at->format('d/m/Y H:i'))
+                    ->description(fn(Employee $record): string => $record->created_at_since)
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('updated_at')
+                TextColumn::make('updated_at_description')
                     ->label('Última actualización')
-                    ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->since()
-                    ->description(fn(Employee $record) => $record->updated_at->format('d/m/Y H:i'))
+                    ->description(fn(Employee $record): string => $record->updated_at_since)
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                    ])
-                    ->placeholder('Todos los estados')
-                    ->native(false)
-                    ->multiple(),
-
                 SelectFilter::make('employment_type')
                     ->label('Tipo de empleo')
-                    ->options([
-                        'full_time' => 'Tiempo Completo',
-                        'day_laborer' => 'Jornalero',
-                    ])
+                    ->options(Employee::getEmploymentTypeOptions())
                     ->placeholder('Todos los tipos')
                     ->native(false)
                     ->multiple(),
@@ -539,35 +450,17 @@ class EmployeeResource extends Resource
 
                 SelectFilter::make('payroll_type')
                     ->label('Tipo de nómina')
-                    ->options([
-                        'monthly' => 'Mensual',
-                        'biweekly' => 'Quincenal',
-                        'weekly' => 'Semanal',
-                    ])
+                    ->options(Employee::getPayrollTypeOptions())
                     ->placeholder('Todos los tipos')
                     ->native(false)
                     ->multiple(),
 
                 SelectFilter::make('payment_method')
                     ->label('Método de pago')
-                    ->options([
-                        'debit' => 'Tarjeta de Débito',
-                        'cash' => 'Efectivo',
-                        'check' => 'Cheque',
-                    ])
+                    ->options(Employee::getPaymentMethodOptions())
                     ->placeholder('Todos los métodos')
                     ->native(false)
                     ->multiple(),
-
-                Filter::make('has_face_descriptor')
-                    ->label('Con rostro registrado')
-                    ->query(fn(Builder $query) => $query->whereNotNull('face_descriptor'))
-                    ->toggle(),
-
-                Filter::make('without_face_descriptor')
-                    ->label('Sin rostro registrado')
-                    ->query(fn(Builder $query) => $query->whereNull('face_descriptor'))
-                    ->toggle(),
 
                 Filter::make('hire_date')
                     ->label('Fecha de contratación')
@@ -594,47 +487,9 @@ class EmployeeResource extends Resource
                             );
                     }),
 
-                Filter::make('created_at')
-                    ->label('Fecha de registro')
-                    ->form([
-                        DatePicker::make('created_from')
-                            ->label('Desde')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                        DatePicker::make('created_until')
-                            ->label('Hasta')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                    ])
-                    ->columns(2)
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['created_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
-                            )
-                            ->when(
-                                $data['created_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
-                            );
-                    }),
-
                 SelectFilter::make('birthday_month')
                     ->label('Mes de Cumpleaños')
-                    ->options([
-                        1  => 'Enero',
-                        2  => 'Febrero',
-                        3  => 'Marzo',
-                        4  => 'Abril',
-                        5  => 'Mayo',
-                        6  => 'Junio',
-                        7  => 'Julio',
-                        8  => 'Agosto',
-                        9  => 'Septiembre',
-                        10 => 'Octubre',
-                        11 => 'Noviembre',
-                        12 => 'Diciembre',
-                    ])
+                    ->options(Employee::getMonthOptions())
                     ->query(function ($query, array $data) {
                         if (filled($data['value'])) {
                             return $query->whereMonth('birth_date', $data['value']);
@@ -644,34 +499,19 @@ class EmployeeResource extends Resource
 
             ])
             ->actions([
-                ViewAction::make()
-                    ->label('Ver')
-                    ->color('info'),
+                ViewAction::make(),
 
-                EditAction::make()
-                    ->label('Editar'),
+                EditAction::make(),
 
                 Action::make('capture_face')
-                    ->label(
-                        fn(Employee $record): string =>
-                        filled($record->face_descriptor) ? 'Actualizar rostro' : 'Capturar rostro'
-                    )
+                    ->label(fn(Employee $record): string => $record->has_face ? 'Actualizar rostro' : 'Capturar rostro')
                     ->icon('heroicon-o-camera')
                     ->url(fn(Employee $record): string => route('face.capture', $record))
-                    ->color(
-                        fn(Employee $record): string =>
-                        filled($record->face_descriptor) ? 'warning' : 'success'
-                    )
-                    ->tooltip(
-                        fn(Employee $record): string =>
-                        filled($record->face_descriptor)
-                            ? 'Actualizar el rostro registrado'
-                            : 'Ir a captura facial'
-                    )
+                    ->color(fn(Employee $record): string => $record->has_face ? 'warning' : 'success')
+                    ->tooltip(fn(Employee $record): string => $record->has_face ? 'Actualizar el rostro registrado' : 'Ir a captura facial')
                     ->visible(fn(Employee $record): bool => $record->status === 'active'),
 
                 DeleteAction::make()
-                    ->label('Eliminar')
                     ->modalHeading('Eliminar empleado')
                     ->modalDescription('¿Estás seguro de que deseas eliminar este empleado? Esta acción no se puede deshacer.')
                     ->before(function (Employee $record) {
@@ -688,7 +528,17 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->action(fn(Collection $records) => $records->each->update(['status' => 'active']))
+                        ->modalHeading('Activar empleados')
+                        ->modalDescription('¿Estás seguro de que deseas activar estos empleados?')
+                        ->action(function (Collection $records): void {
+                            $count = $records->count();
+                            $records->each->update(['status' => 'active']);
+                            Notification::make()
+                                ->success()
+                                ->title('Empleados activados')
+                                ->body("{$count} empleado(s) activado(s) correctamente.")
+                                ->send();
+                        })
                         ->deselectRecordsAfterCompletion(),
 
                     BulkAction::make('suspend')
@@ -696,7 +546,17 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-pause-circle')
                         ->color('warning')
                         ->requiresConfirmation()
-                        ->action(fn(Collection $records) => $records->each->update(['status' => 'suspended']))
+                        ->modalHeading('Suspender empleados')
+                        ->modalDescription('¿Estás seguro de que deseas suspender estos empleados?')
+                        ->action(function (Collection $records): void {
+                            $count = $records->count();
+                            $records->each->update(['status' => 'suspended']);
+                            Notification::make()
+                                ->warning()
+                                ->title('Empleados suspendidos')
+                                ->body("{$count} empleado(s) suspendido(s) correctamente.")
+                                ->send();
+                        })
                         ->deselectRecordsAfterCompletion(),
 
                     BulkAction::make('deactivate')
@@ -704,17 +564,24 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->action(fn(Collection $records) => $records->each->update(['status' => 'inactive']))
+                        ->modalHeading('Desactivar empleados')
+                        ->modalDescription('¿Estás seguro de que deseas desactivar estos empleados?')
+                        ->action(function (Collection $records): void {
+                            $count = $records->count();
+                            $records->each->update(['status' => 'inactive']);
+                            Notification::make()
+                                ->danger()
+                                ->title('Empleados desactivados')
+                                ->body("{$count} empleado(s) desactivado(s) correctamente.")
+                                ->send();
+                        })
                         ->deselectRecordsAfterCompletion(),
 
                     ExportBulkAction::make()
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()
-                                ->except([
-                                    'photo',
-                                    'face_descriptor',
-                                ])
+                                ->except(['photo', 'face_descriptor', 'has_face'])
                                 ->withFilename('empleados_' . now()->format('d_m_Y_H_i_s')),
                         ])
                         ->label('Exportar seleccionados')
@@ -725,18 +592,17 @@ class EmployeeResource extends Resource
                         ->label('Eliminar seleccionados')
                         ->modalHeading('Eliminar empleados')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estos empleados? Esta acción no se puede deshacer.')
-                        ->before(function (Collection $records) {
-                            // Eliminar las fotos de los registros
+                        ->before(function (Collection $records): void {
                             foreach ($records as $record) {
                                 if ($record->photo && Storage::disk('public')->exists($record->photo)) {
                                     Storage::disk('public')->delete($record->photo);
                                 }
                             }
-                        }),
+                        })
+                        ->successNotificationTitle(fn(Collection $records): string => "{$records->count()} empleado(s) eliminado(s) correctamente"),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')
-            ->poll('30s') // Actualizar cada 30 segundos
             ->striped()
             ->emptyStateHeading('No hay empleados registrados')
             ->emptyStateDescription('Comienza agregando tu primer empleado al sistema')

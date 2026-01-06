@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Models\Vacation;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -33,39 +34,40 @@ class VacationsRelationManager extends RelationManager
             ->schema([
                 DatePicker::make('start_date')
                     ->label('Fecha de inicio')
+                    ->displayFormat('d/m/Y')
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required()
-                    ->maxDate(fn(Get $get) => $get('end_date')),
+                    ->maxDate(fn(Get $get) => $get('end_date'))
+                    ->helperText('Selecciona la fecha de inicio de las vacaciones')
+                    ->reactive(),
 
                 DatePicker::make('end_date')
                     ->label('Fecha de fin')
+                    ->displayFormat('d/m/Y')
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required()
-                    ->minDate(fn(Get $get) => $get('start_date'))
-                    ->afterOrEqual('start_date'),
+                    ->minDate(fn(Get $get) => $get('start_date') ?: now())
+                    ->helperText('Selecciona la fecha de fin de las vacaciones')
+                    ->reactive(),
 
                 Select::make('type')
                     ->label('Tipo de vacación')
-                    ->options([
-                        'paid' => 'Remunerada',
-                        'unpaid' => 'No Remunerada',
-                    ])
+                    ->options(Vacation::getTypeOptions())
                     ->default('paid')
                     ->native(false)
                     ->required(),
 
                 Select::make('status')
                     ->label('Estado')
-                    ->options([
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(Vacation::getStatusOptions())
                     ->default('pending')
                     ->native(false)
                     ->required()
+                    ->disabled()
+                    ->dehydrated()
+                    ->helperText('El estado solo puede cambiarse usando los botones Aprobar/Rechazar')
                     ->hiddenOn('create'),
 
                 Textarea::make('reason')
@@ -85,109 +87,53 @@ class VacationsRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('period')
                     ->label('Período')
-                    ->getStateUsing(
-                        fn($record) =>
-                        $record->start_date->format('d/m/Y') . ' → ' . $record->end_date->format('d/m/Y')
-                    )
-                    ->description(
-                        fn($record) =>
-                        $record->start_date->diffInDays($record->end_date) + 1 . ' ' .
-                            ($record->start_date->diffInDays($record->end_date) + 1 === 1 ? 'día' : 'días')
-                    )
+                    ->state(fn(Vacation $record): string => $record->period_formatted)
+                    ->description(fn(Vacation $record): string => $record->days_description)
                     ->icon('heroicon-o-calendar-days')
                     ->sortable(['start_date', 'end_date'])
                     ->searchable(['start_date', 'end_date']),
 
                 TextColumn::make('type')
                     ->label('Tipo')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'paid' => 'Remunerada',
-                        'unpaid' => 'No Remunerada',
-                        default => $state,
-                    })
+                    ->formatStateUsing(fn(Vacation $record): string => $record->type_label)
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'paid' => 'success',
-                        'unpaid' => 'warning',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'paid' => 'heroicon-o-currency-dollar',
-                        'unpaid' => 'heroicon-o-minus-circle',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
+                    ->color(fn(Vacation $record): string => $record->type_color)
+                    ->icon(fn(Vacation $record): string => $record->type_icon)
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'pending' => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                        default => 'gray',
-                    })
-                    ->icon(fn(string $state): string => match ($state) {
-                        'pending' => 'heroicon-o-clock',
-                        'approved' => 'heroicon-o-check-circle',
-                        'rejected' => 'heroicon-o-x-circle',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                        default => $state,
-                    })
+                    ->color(fn(Vacation $record): string => $record->status_color)
+                    ->icon(fn(Vacation $record): string => $record->status_icon)
+                    ->formatStateUsing(fn(Vacation $record): string => $record->status_label)
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('reason')
-                    ->label('Motivo')
-                    ->limit(40)
-                    ->tooltip(fn($record) => $record->reason)
-                    ->placeholder('Sin motivo especificado')
-                    ->wrap()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                TextColumn::make('created_at')
+                TextColumn::make('created_at_description')
                     ->label('Solicitado el')
-                    ->dateTime('d/m/Y H:i')
+                    ->description(fn(Vacation $record): string => $record->created_at_since)
                     ->sortable()
-                    ->since()
-                    ->description(fn($record) => $record->created_at->format('d/m/Y H:i'))
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('updated_at')
+                TextColumn::make('updated_at_description')
                     ->label('Última actualización')
-                    ->dateTime('d/m/Y H:i')
+                    ->description(fn(Vacation $record): string => $record->updated_at_since)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo')
-                    ->options([
-                        'paid' => 'Remunerada',
-                        'unpaid' => 'No Remunerada',
-                    ])
+                    ->options(Vacation::getTypeOptions())
                     ->native(false),
 
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(Vacation::getStatusOptions())
                     ->multiple()
                     ->native(false),
-
-                Filter::make('current_year')
-                    ->label('Año actual')
-                    ->query(fn($query) => $query->whereYear('start_date', now()->year))
-                    ->default(),
 
                 Filter::make('upcoming')
                     ->label('Próximas vacaciones')
@@ -210,26 +156,25 @@ class VacationsRelationManager extends RelationManager
                     ->label('Aprobar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn($record) => $record->status === 'pending')
+                    ->visible(fn(Vacation $record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar solicitud de vacaciones')
                     ->modalDescription(
-                        fn($record) =>
-                        'Se aprobarán ' . ($record->start_date->diffInDays($record->end_date) + 1) .
-                            ' días de vacaciones del ' . $record->start_date->format('d/m/Y') .
-                            ' al ' . $record->end_date->format('d/m/Y')
+                        fn(Vacation $record) =>
+                        'Se aprobarán ' . $record->days_description .
+                            ' de vacaciones del ' . $record->period_formatted
                     )
-                    ->action(fn($record) => $record->update(['status' => 'approved'])),
+                    ->action(fn(Vacation $record) => $record->update(['status' => 'approved'])),
 
                 Action::make('reject')
                     ->label('Rechazar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn($record) => $record->status === 'pending')
+                    ->visible(fn(Vacation $record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar solicitud de vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas rechazar esta solicitud de vacaciones?')
-                    ->action(fn($record) => $record->update(['status' => 'rejected'])),
+                    ->action(fn(Vacation $record) => $record->update(['status' => 'rejected'])),
 
                 EditAction::make()
                     ->label('Editar')
@@ -271,11 +216,6 @@ class VacationsRelationManager extends RelationManager
             ->defaultSort('start_date', 'desc')
             ->emptyStateHeading('No hay vacaciones registradas')
             ->emptyStateDescription('Comienza solicitando las vacaciones del empleado')
-            ->emptyStateIcon('heroicon-o-sun')
-            ->emptyStateActions([
-                CreateAction::make()
-                    ->label('Solicitar primera vacación')
-                    ->icon('heroicon-o-plus-circle'),
-            ]);
+            ->emptyStateIcon('heroicon-o-sun');
     }
 }
