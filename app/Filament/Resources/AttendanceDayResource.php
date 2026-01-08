@@ -253,36 +253,38 @@ class AttendanceDayResource extends Resource
                     ->formatStateUsing(fn(bool $state) => $state ? 'Sí' : 'No')
                     ->color(fn(bool $state) => $state ? 'success' : 'warning')
                     ->icon(fn(bool $state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-clock')
-                    ->tooltip(
-                        fn(AttendanceDay $record) => $record->calculated_at
-                            ? 'Calculado: ' . $record->calculated_at->format('d/m/Y H:i')
-                            : 'Aún no calculado'
-                    )
+                    ->tooltip(fn(AttendanceDay $record) => $record->getCalculationTooltip())
                     ->sortable(),
 
                 TextColumn::make('check_in_time')
                     ->label('Entrada')
                     ->time('H:i')
                     ->icon('heroicon-o-arrow-right-on-rectangle')
-                    ->color(fn(AttendanceDay $record) => $record->late_minutes > 0 ? 'danger' : 'success')
-                    ->tooltip(
-                        fn(AttendanceDay $record) => $record->late_minutes > 0
-                            ? "Tarde: {$record->late_minutes} min"
-                            : 'A tiempo'
-                    )
+                    ->color(fn(AttendanceDay $record) => $record->getCheckInStatusColor())
+                    ->tooltip(fn(AttendanceDay $record) => $record->getCheckInTooltip())
                     ->toggleable(),
 
                 TextColumn::make('check_out_time')
                     ->label('Salida')
                     ->time('H:i')
                     ->icon('heroicon-o-arrow-left-on-rectangle')
-                    ->color(fn(AttendanceDay $record) => $record->early_leave_minutes > 0 ? 'warning' : 'success')
-                    ->tooltip(
-                        fn(AttendanceDay $record) => $record->early_leave_minutes > 0
-                            ? "Salida anticipada: {$record->early_leave_minutes} min"
-                            : 'A tiempo'
-                    )
+                    ->color(fn(AttendanceDay $record) => $record->getCheckOutStatusColor())
+                    ->tooltip(fn(AttendanceDay $record) => $record->getCheckOutTooltip())
                     ->toggleable(),
+
+                TextColumn::make('late_minutes')
+                    ->label('Tardanza')
+                    ->suffix(' min')
+                    ->default(0)
+                    ->color(fn($state) => $state > 0 ? 'danger' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('total_hours')
+                    ->label('Horas trabajadas')
+                    ->suffix(' hrs')
+                    ->default(0)
+                    ->numeric(2)
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('date', 'desc')
             ->filters([
@@ -403,42 +405,7 @@ class AttendanceDayResource extends Resource
                     )
                     ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->is_calculated ? 'Sí, recalcular' : 'Sí, calcular')
                     ->action(function (AttendanceDay $record) {
-                        try {
-                            $wasCalculated = $record->is_calculated;
-
-                            AttendanceCalculator::apply($record);
-                            $record->save();
-
-                            $action = $wasCalculated ? 'recalculado' : 'calculado';
-
-                            $statusMessages = [
-                                'present' => "✓ Empleado presente - Cálculos {$action}s",
-                                'absent' => "⚠ Empleado ausente",
-                                'on_leave' => "📋 Empleado con permiso/vacaciones",
-                                'holiday' => "🎉 Día feriado",
-                                'weekend' => "📅 Fin de semana",
-                            ];
-
-                            $message = $statusMessages[$record->status] ?? "Cálculo {$action}";
-
-                            Notification::make()
-                                ->title("¡Registro {$action} exitosamente!")
-                                ->body($message)
-                                ->success()
-                                ->duration(5000)
-                                ->send();
-                        } catch (\Exception $e) {
-                            Log::error("Error calculando AttendanceDay {$record->id}: {$e->getMessage()}", [
-                                'trace' => $e->getTraceAsString()
-                            ]);
-
-                            Notification::make()
-                                ->title('Error al calcular')
-                                ->body('Ocurrió un error al procesar el registro. Revisa los logs para más detalles.')
-                                ->danger()
-                                ->persistent()
-                                ->send();
-                        }
+                        self::calculateAttendanceRecord($record);
                     }),
             ])
             ->bulkActions([
@@ -509,6 +476,41 @@ class AttendanceDayResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Calcula un registro de asistencia y muestra notificación
+     */
+    private static function calculateAttendanceRecord(AttendanceDay $record): void
+    {
+        try {
+            $wasCalculated = $record->is_calculated;
+
+            AttendanceCalculator::apply($record);
+            $record->save();
+
+            $action = $wasCalculated ? 'recalculado' : 'calculado';
+            $statusMessages = AttendanceDay::getCalculationStatusMessages($wasCalculated);
+            $message = $statusMessages[$record->status] ?? "Cálculo {$action}";
+
+            Notification::make()
+                ->title("¡Registro {$action} exitosamente!")
+                ->body($message)
+                ->success()
+                ->duration(5000)
+                ->send();
+        } catch (\Exception $e) {
+            Log::error("Error calculando AttendanceDay {$record->id}: {$e->getMessage()}", [
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            Notification::make()
+                ->title('Error al calcular')
+                ->body('Ocurrió un error al procesar el registro. Revisa los logs para más detalles.')
+                ->danger()
+                ->persistent()
+                ->send();
+        }
     }
 
     public static function getRelations(): array

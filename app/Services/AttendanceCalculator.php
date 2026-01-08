@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AttendanceDay;
+use App\Models\Employee;
 use App\Models\Holiday;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -92,10 +93,19 @@ class AttendanceCalculator
 
     /**
      * Aplica el cálculo de asistencia para un rango de fechas.
+     * Genera registros faltantes para empleados sin marcación.
      */
     public static function applyForDateRange(Carbon $startDate, Carbon $endDate): void
     {
         DB::transaction(function () use ($startDate, $endDate) {
+            // Primero, generar registros faltantes para cada día del rango
+            $currentDate = $startDate->copy();
+            while ($currentDate->lte($endDate)) {
+                self::generateMissingAttendanceRecords($currentDate);
+                $currentDate->addDay();
+            }
+
+            // Luego, calcular/recalcular todos los registros en el rango
             AttendanceDay::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
                 ->chunk(100, function ($days) {
                     foreach ($days as $day) {
@@ -287,6 +297,38 @@ class AttendanceCalculator
             return $actual->lessThan($expected) ? $expected->diffInMinutes($actual) : 0;
         }
         return null;
+    }
+
+    /**
+     * Genera registros de AttendanceDay para empleados que no marcaron asistencia en una fecha específica.
+     * Solo crea registros para empleados activos con horario asignado.
+     */
+    public static function generateMissingAttendanceRecords(Carbon $date): void
+    {
+        // Obtener IDs de empleados que YA tienen registro en esta fecha
+        $employeesWithAttendance = AttendanceDay::where('date', $date->toDateString())
+            ->pluck('employee_id')
+            ->toArray();
+
+        // Obtener empleados activos con horario asignado que NO tienen registro
+        $employeesWithoutAttendance = Employee::where('status', 'active')
+            ->whereNotNull('schedule_id')
+            ->whereNotIn('id', $employeesWithAttendance)
+            ->get();
+
+        // Crear registros para cada empleado sin marcación
+        foreach ($employeesWithoutAttendance as $employee) {
+            try {
+                AttendanceDay::create([
+                    'employee_id' => $employee->id,
+                    'date' => $date->toDateString(),
+                    'status' => self::STATUS_ABSENT, // Por defecto ausente, se actualizará en apply()
+                    'is_calculated' => false,
+                ]);
+            } catch (\Exception $e) {
+                Log::error("Error creando AttendanceDay para empleado {$employee->id} en fecha {$date->toDateString()}: {$e->getMessage()}");
+            }
+        }
     }
 
     /**

@@ -171,4 +171,74 @@ class AttendanceDay extends Model
             default => "Cálculo {$action}",
         };
     }
+
+    /**
+     * Obtiene el color para la columna de entrada según si llegó tarde
+     */
+    public function getCheckInStatusColor(): string
+    {
+        return $this->late_minutes > 0 ? 'danger' : 'success';
+    }
+
+    /**
+     * Obtiene el tooltip para la columna de entrada
+     */
+    public function getCheckInTooltip(): string
+    {
+        if (!$this->check_in_time) {
+            return 'Sin marcación de entrada';
+        }
+
+        return $this->late_minutes > 0
+            ? "Tarde: {$this->late_minutes} min"
+            : 'A tiempo';
+    }
+
+    /**
+     * Obtiene el color para la columna de salida según si salió antes
+     */
+    public function getCheckOutStatusColor(): string
+    {
+        return $this->early_leave_minutes > 0 ? 'warning' : 'success';
+    }
+
+    /**
+     * Obtiene el tooltip para la columna de salida
+     */
+    public function getCheckOutTooltip(): string
+    {
+        if (!$this->check_out_time) {
+            return 'Sin marcación de salida';
+        }
+
+        return $this->early_leave_minutes > 0
+            ? "Salida anticipada: {$this->early_leave_minutes} min"
+            : 'A tiempo';
+    }
+
+    /**
+     * Obtiene el tooltip para el estado de cálculo
+     */
+    public function getCalculationTooltip(): string
+    {
+        return $this->calculated_at
+            ? 'Calculado: ' . $this->calculated_at->format('d/m/Y H:i')
+            : 'Aún no calculado';
+    }
+
+    /**
+     * Obtiene los mensajes de estado para notificaciones después de calcular
+     */
+    public static function getCalculationStatusMessages(bool $wasCalculated): array
+    {
+        $action = $wasCalculated ? 'recalculado' : 'calculado';
+
+        return [
+            'present' => "✓ Empleado presente - Cálculos {$action}s",
+            'absent' => "⚠ Empleado ausente",
+            'on_leave' => "📋 Empleado con permiso/vacaciones",
+            'holiday' => "🎉 Día feriado",
+            'weekend' => "📅 Fin de semana",
+        ];
+    }
 }
