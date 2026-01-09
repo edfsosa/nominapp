@@ -2,7 +2,10 @@
 
 namespace App\Observers;
 
+use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
+use App\Services\AttendanceCalculator;
+use Illuminate\Support\Facades\Log;
 
 class AttendanceEventObserver
 {
@@ -13,6 +16,43 @@ class AttendanceEventObserver
     public function creating(AttendanceEvent $attendanceEvent): void
     {
         $this->populateDenormalizedData($attendanceEvent);
+    }
+
+    /**
+     * Handle the AttendanceEvent "created" event.
+     * Crear o actualizar AttendanceDay cuando se marca entrada
+     */
+    public function created(AttendanceEvent $attendanceEvent): void
+    {
+        // Solo procesar eventos de check_in (entrada)
+        if ($attendanceEvent->event_type !== 'check_in') {
+            return;
+        }
+
+        try {
+            $day = $attendanceEvent->day;
+
+            if (!$day) {
+                Log::warning("AttendanceEvent {$attendanceEvent->id} no tiene AttendanceDay asociado");
+                return;
+            }
+
+            // Si el registro existe y está marcado como ausente, actualizarlo
+            if ($day->status === 'absent') {
+                Log::info("Empleado {$day->employee_id} marcó entrada tarde. Actualizando de ausente a presente.", [
+                    'attendance_day_id' => $day->id,
+                    'date' => $day->date,
+                ]);
+
+                // Calcular y actualizar el registro
+                AttendanceCalculator::apply($day);
+                $day->save();
+            }
+        } catch (\Exception $e) {
+            Log::error("Error procesando AttendanceEvent {$attendanceEvent->id} en created: {$e->getMessage()}", [
+                'trace' => $e->getTraceAsString()
+            ]);
+        }
     }
 
     /**
