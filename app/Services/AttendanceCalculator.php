@@ -147,39 +147,44 @@ class AttendanceCalculator
      */
     private static function calculateAttendanceDetails(AttendanceDay $day, $events): void
     {
-        // Obtener horarios programados
-        $scheduledCheckIn = $day->employee->today_scheduled_check_in;
-        $scheduledCheckOut = $day->employee->today_scheduled_check_out;
-        $expectedBreakMinutes = $day->employee->today_expected_break_minutes;
+        // Solo actualizar valores esperados en el PRIMER cálculo
+        // En recalculos, mantener los valores originales (aunque sean NULL)
+        if (!$day->is_calculated) {
+            $day->expected_check_in = $day->employee->today_scheduled_check_in;
+            $day->expected_check_out = $day->employee->today_scheduled_check_out;
+            $day->expected_break_minutes = $day->employee->today_expected_break_minutes;
+            $day->expected_hours = self::calculateExpectedHours(
+                $day->expected_check_in,
+                $day->expected_check_out
+            );
+        }
 
-        // Calcular horas esperadas
-        $day->expected_hours = self::calculateExpectedHours($scheduledCheckIn, $scheduledCheckOut);
+        // Usar los valores esperados guardados (no los actuales del empleado)
+        $scheduledCheckIn = $day->expected_check_in;
+        $scheduledCheckOut = $day->expected_check_out;
 
         // Calcular tiempos de entrada, salida y descansos
         $checkIn = self::getFirstEventTime($events, self::EVENT_CHECK_IN);
         $checkOut = self::getLastEventTime($events, self::EVENT_CHECK_OUT);
         $breakMinutes = self::calculateBreakMinutes($events);
 
-        // Asignar valores calculados al modelo
+        // Asignar valores REALES calculados (estos SÍ se recalculan siempre)
         $day->check_in_time = optional($checkIn)->format('H:i:s');
         $day->check_out_time = optional($checkOut)->format('H:i:s');
         $day->break_minutes = $breakMinutes;
-        $day->expected_break_minutes = $expectedBreakMinutes;
-        $day->expected_check_in = $scheduledCheckIn;
-        $day->expected_check_out = $scheduledCheckOut;
 
         // Calcular horas trabajadas
         [$totalHours, $netHours] = self::calculateWorkedHours($checkIn, $checkOut, $breakMinutes);
         $day->total_hours = $totalHours;
         $day->net_hours = $netHours;
 
-        // Calcular horas extra
+        // Calcular horas extra (basado en expected_hours guardadas)
         $day->extra_hours = self::calculateExtraHours($totalHours, $day->expected_hours);
 
-        // Calcular minutos de llegada tarde
+        // Calcular minutos de llegada tarde (basado en expected_check_in guardada)
         $day->late_minutes = self::calculateLateMinutes($scheduledCheckIn, $day->check_in_time);
 
-        // Calcular minutos de salida anticipada
+        // Calcular minutos de salida anticipada (basado en expected_check_out guardada)
         $day->early_leave_minutes = self::calculateEarlyLeaveMinutes($scheduledCheckOut, $day->check_out_time);
     }
 
