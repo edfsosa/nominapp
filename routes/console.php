@@ -1,20 +1,45 @@
 <?php
 
-use App\Console\Commands\CalculateAttendance;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
+/**
+ * Comando de ejemplo para mostrar frases inspiradoras
+ */
 Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Calcular asistencias al final del día
-Schedule::command('app:calculate-attendance')->dailyAt('23:30')->withoutOverlapping();
+/**
+ * Calcular asistencias del día
+ * Se ejecuta todos los días a las 23:00 (hora Paraguay)
+ * Calcula horas trabajadas, descansos, tardanzas, etc.
+ */
+Schedule::command('app:calculate-attendance')
+    ->dailyAt('23:00')
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Cálculo automático de asistencias completado con éxito');
+    })
+    ->onFailure(function () {
+        Log::error('Falló el cálculo automático de asistencias');
+    });
 
-// Verificar ausencias cada 15 minutos (de lunes a sábado, de 6am a 8pm)
+/**
+ * Verificar y generar registros de ausencias faltantes
+ * Se ejecuta cada 15 minutos durante horario laboral (6am - 8pm)
+ * Solo días laborables: Lunes a Sabado
+ */
 Schedule::command('attendance:check-missing')
     ->everyFifteenMinutes()
     ->between('06:00', '20:00')
-    ->weekdays()
-    ->withoutOverlapping();
+    ->days([1, 2, 3, 4, 5, 6]) // 1 = Monday, 6 = Saturday
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Verificación de ausencias completada con éxito');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la verificación de ausencias');
+    });

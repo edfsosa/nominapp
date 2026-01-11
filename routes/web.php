@@ -5,37 +5,82 @@ use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
-use Illuminate\Support\Facades\Route;
 use App\Models\Employee;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 
-Route::get('/marcar', [AttendanceFaceMarkController::class, 'show'])->name('mark.show');
-Route::post('/marcar/identificar', [AttendanceFaceMarkController::class, 'identify'])->name('mark.identify');
-Route::post('/marcar', [AttendanceFaceMarkController::class, 'store'])->name('mark.store');
+/*
+|--------------------------------------------------------------------------
+| Rutas Públicas - Marcación de Asistencia
+|--------------------------------------------------------------------------
+|
+| Rutas para el sistema de marcación facial sin autenticación.
+| Estas rutas son accesibles desde kioscos/terminales públicas.
+|
+*/
 
-// Terminal/Kiosco mode - uses same backend endpoints
+Route::prefix('marcar')->name('mark.')->group(function () {
+    Route::get('/', [AttendanceFaceMarkController::class, 'show'])->name('show');
+    Route::post('/identificar', [AttendanceFaceMarkController::class, 'identify'])->name('identify');
+    Route::post('/', [AttendanceFaceMarkController::class, 'store'])->name('store');
+});
+
+// Terminal/Kiosco mode (interfaz alternativa para marcación)
 Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.show');
 
-Route::get('/api/employees', function (Request $request) {
-    $branch_id = $request->query('branch_id'); // Obtener branch_id del parámetro de consulta
+/*
+|--------------------------------------------------------------------------
+| API Pública - Empleados
+|--------------------------------------------------------------------------
+|
+| Endpoint para obtener lista de empleados activos con rostro registrado.
+| Usado por el sistema de reconocimiento facial para identificación.
+| Requiere que el empleado tenga face_descriptor (datos biométricos).
+|
+*/
 
-    $employees = Employee::where('status', 'activo')
-        ->where('branch_id', $branch_id) // Filtrar por sucursal
-        ->whereNotNull('photo')
-        ->select('id', 'first_name', 'last_name', 'ci', 'photo')
+Route::get('/api/employees', function (Request $request) {
+    $branchId = $request->query('branch_id');
+
+    $employees = Employee::query()
+        ->where('status', 'activo')
+        ->when($branchId, fn($query) => $query->where('branch_id', $branchId))
+        ->whereNotNull('face_descriptor') // Requiere rostro registrado para reconocimiento
+        ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
         ->get();
 
     return response()->json($employees);
-});
+})->name('api.employees');
+
+/*
+|--------------------------------------------------------------------------
+| Rutas Autenticadas
+|--------------------------------------------------------------------------
+|
+| Rutas que requieren autenticación de usuario.
+| Incluyen exportaciones, gestión de horarios, recibos, etc.
+|
+*/
 
 Route::middleware(['auth'])->group(function () {
-    Route::get('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'show'])->name('face.capture');
-    Route::post('/employees/{employee}/capture-face', [EmployeeFaceController::class, 'store'])->name('face.capture.store');
 
-    Route::get('/asistencias/{attendance_day}/export', [AttendanceExportController::class, 'export'])->name('attendance-days.export');
+    // Captura de rostro de empleados
+    Route::prefix('employees/{employee}')->name('face.')->group(function () {
+        Route::get('/capture-face', [EmployeeFaceController::class, 'show'])->name('capture');
+        Route::post('/capture-face', [EmployeeFaceController::class, 'store'])->name('capture.store');
+    });
 
-    Route::get('/recibos/{payroll}/download', [PayrollController::class, 'download'])->name('payrolls.download');
-    Route::get('/recibos/{payroll}/view', [PayrollController::class, 'view'])->name('payrolls.view');
+    // Exportación de asistencias
+    Route::get('/asistencias/{attendance_day}/export', [AttendanceExportController::class, 'export'])
+        ->name('attendance-days.export');
 
-    Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])->name('schedules.remove-employee');
+    // Recibos de pago (nómina)
+    Route::prefix('recibos/{payroll}')->name('payrolls.')->group(function () {
+        Route::get('/download', [PayrollController::class, 'download'])->name('download');
+        Route::get('/view', [PayrollController::class, 'view'])->name('view');
+    });
+
+    // Administración de horarios
+    Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])
+        ->name('schedules.remove-employee');
 });
