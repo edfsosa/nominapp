@@ -9,7 +9,8 @@ use App\Models\AttendanceDay;
 use Illuminate\Support\Carbon;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
-use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\Action as TableAction;
+use Filament\Actions\Action;
 use Filament\Tables\Filters\Filter;
 use Illuminate\Support\Facades\Log;
 use Filament\Forms\Components\Select;
@@ -29,6 +30,7 @@ use Filament\Forms\Components\TimePicker;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Fieldset;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -215,12 +217,23 @@ class AttendanceDayResource extends Resource
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->description(fn($record) => $record->employee->ci ? 'CI: ' . $record->employee->ci : '')
                     ->getStateUsing(fn($record) => $record->employee ? "{$record->employee->first_name} {$record->employee->last_name}" : 'N/A')
                     ->searchable(['first_name', 'last_name'])
                     ->sortable()
                     ->weight('medium')
                     ->wrap(),
+
+                TextColumn::make('employee.ci')
+                    ->label('CI')
+                    ->icon('heroicon-o-identification')
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable()
+                    ->badge()
+                    ->color('gray')
+                    ->copyable()
+                    ->tooltip('Haz clic para copiar')
+                    ->copyMessage('Cédula copiada'),
 
                 TextColumn::make('employee.branch.name')
                     ->label('Sucursal')
@@ -254,7 +267,8 @@ class AttendanceDayResource extends Resource
                     ->color(fn(bool $state) => $state ? 'success' : 'warning')
                     ->icon(fn(bool $state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-clock')
                     ->tooltip(fn(AttendanceDay $record) => $record->getCalculationTooltip())
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('check_in_time')
                     ->label('Entrada')
@@ -262,7 +276,8 @@ class AttendanceDayResource extends Resource
                     ->icon('heroicon-o-arrow-right-on-rectangle')
                     ->color(fn(AttendanceDay $record) => $record->getCheckInStatusColor())
                     ->tooltip(fn(AttendanceDay $record) => $record->getCheckInTooltip())
-                    ->toggleable(),
+                    ->toggleable()
+                    ->sortable(),
 
                 TextColumn::make('check_out_time')
                     ->label('Salida')
@@ -270,7 +285,8 @@ class AttendanceDayResource extends Resource
                     ->icon('heroicon-o-arrow-left-on-rectangle')
                     ->color(fn(AttendanceDay $record) => $record->getCheckOutStatusColor())
                     ->tooltip(fn(AttendanceDay $record) => $record->getCheckOutTooltip())
-                    ->toggleable(),
+                    ->toggleable()
+                    ->sortable(),
 
                 TextColumn::make('late_minutes')
                     ->label('Tardanza')
@@ -288,6 +304,12 @@ class AttendanceDayResource extends Resource
             ])
             ->defaultSort('date', 'desc')
             ->filters([
+                Filter::make('today')
+                    ->label('Hoy')
+                    ->query(fn(Builder $query): Builder => $query->whereDate('date', now()))
+                    ->toggle()
+                    ->default(true),
+
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
@@ -296,22 +318,6 @@ class AttendanceDayResource extends Resource
                     ->preload(false)
                     ->native(false)
                     ->multiple(),
-
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->placeholder('Todos los estados')
-                    ->options(AttendanceDay::getStatusOptions())
-                    ->native(false)
-                    ->multiple(),
-
-                SelectFilter::make('is_calculated')
-                    ->label('Estado de Cálculo')
-                    ->placeholder('Todos')
-                    ->options([
-                        '1' => 'Calculados',
-                        '0' => 'Sin calcular',
-                    ])
-                    ->native(false),
 
                 SelectFilter::make('branch')
                     ->label('Sucursal')
@@ -330,16 +336,36 @@ class AttendanceDayResource extends Resource
                     ->preload()
                     ->native(false),
 
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->placeholder('Todos los estados')
+                    ->options(AttendanceDay::getStatusOptions())
+                    ->native(false)
+                    ->multiple(),
+
+                SelectFilter::make('is_calculated')
+                    ->label('Estado de Cálculo')
+                    ->placeholder('Todos')
+                    ->options([
+                        '1' => 'Calculados',
+                        '0' => 'Sin calcular',
+                    ])
+                    ->native(false),
+
                 Filter::make('date')
                     ->label('Rango de Fechas')
                     ->form([
                         DatePicker::make('from')
                             ->label('Desde')
                             ->native(false)
+                            ->displayFormat('d/m/Y')
+                            ->closeOnDateSelection()
                             ->maxDate(now()),
                         DatePicker::make('to')
                             ->label('Hasta')
                             ->native(false)
+                            ->displayFormat('d/m/Y')
+                            ->closeOnDateSelection()
                             ->maxDate(now())
                             ->afterOrEqual('from'),
                     ])
@@ -373,109 +399,490 @@ class AttendanceDayResource extends Resource
                     ->toggle(),
             ])
             ->actions([
-                ViewAction::make()
-                    ->color('primary'),
+                self::getApproveOvertimeTableAction(),
 
-                Action::make('export')
-                    ->label('PDF')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('gray')
-                    ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
-                    ->openUrlInNewTab(),
+                ViewAction::make(),
 
-                Action::make('calculate')
-                    ->label(fn(AttendanceDay $record) => $record->is_calculated ? 'Recalcular' : 'Calcular')
-                    ->icon('heroicon-o-calculator')
-                    ->color(fn(AttendanceDay $record) => $record->is_calculated ? 'warning' : 'success')
-                    ->tooltip(
-                        fn(AttendanceDay $record) => $record->is_calculated
-                            ? 'Última vez calculado: ' . $record->calculated_at?->diffForHumans()
-                            : 'Este registro aún no ha sido calculado'
-                    )
-                    ->requiresConfirmation()
-                    ->modalHeading(
-                        fn(AttendanceDay $record) => $record->is_calculated
-                            ? 'Recalcular asistencia'
-                            : 'Calcular asistencia'
-                    )
-                    ->modalDescription(
-                        fn(AttendanceDay $record) => $record->is_calculated
-                            ? 'Este registro ya fue calculado el ' . $record->calculated_at?->format('d/m/Y H:i') . '. ¿Deseas recalcularlo?'
-                            : 'Se calcularán todos los campos de asistencia para este registro.'
-                    )
-                    ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->is_calculated ? 'Sí, recalcular' : 'Sí, calcular')
-                    ->action(function (AttendanceDay $record) {
-                        self::calculateAttendanceRecord($record);
-                    }),
+                self::getExportPdfTableAction(),
+
+                self::getCalculateTableAction(),
             ])
             ->bulkActions([
-                ExportBulkAction::make()
-                    ->exports([
-                        ExcelExport::make()
-                            ->fromTable()
-                            ->except([
-                                'created_at',
-                                'updated_at',
-                            ])
-                            ->withFilename('asistencias_' . now()->format('d_m_Y_H_i_s')),
-                    ])
-                    ->label('Exportar')
-                    ->color('primary')
-                    ->icon('heroicon-o-arrow-down-tray'),
+                BulkActionGroup::make([
+                    ExportBulkAction::make()
+                        ->exports([
+                            ExcelExport::make()
+                                ->fromTable()
+                                ->except([
+                                    'created_at',
+                                    'updated_at',
+                                ])
+                                ->withFilename('asistencias_' . now()->format('d_m_Y_H_i_s')),
+                        ])
+                        ->label('Exportar a Excel')
+                        ->color('primary')
+                        ->icon('heroicon-o-arrow-down-tray'),
 
-                BulkAction::make('calculate')
-                    ->label('Calcular/Recalcular')
-                    ->icon('heroicon-o-calculator')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Calcular asistencias seleccionadas')
-                    ->modalDescription(function (Collection $records) {
-                        $calculated = $records->where('is_calculated', true)->count();
-                        $notCalculated = $records->where('is_calculated', false)->count();
+                    BulkAction::make('approve_overtime')
+                        ->label('Aprobar Horas Extra')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar horas extra seleccionadas')
+                        ->modalDescription(function (Collection $records) {
+                            $withExtraHours = $records->where('extra_hours', '>', 0);
+                            $totalHours = $withExtraHours->sum('extra_hours');
+                            $alreadyApproved = $withExtraHours->where('overtime_approved', true)->count();
+                            $pending = $withExtraHours->where('overtime_approved', false)->count();
 
-                        return "Se procesarán {$records->count()} registro(s): {$notCalculated} sin calcular y {$calculated} para recalcular.";
-                    })
-                    ->modalSubmitActionLabel('Calcular')
-                    ->deselectRecordsAfterCompletion()
-                    ->action(function (Collection $records) {
-                        $successful = 0;
-                        $failed = 0;
-                        $recalculated = 0;
-                        $calculated = 0;
+                            return "Total: {$withExtraHours->count()} registro(s) con {$totalHours} hrs extra. Aprobadas: {$alreadyApproved}, Pendientes: {$pending}.";
+                        })
+                        ->modalSubmitActionLabel('Aprobar')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $approved = 0;
+                            $skipped = 0;
 
-                        foreach ($records as $day) {
-                            try {
-                                $wasCalculated = $day->is_calculated;
-
-                                AttendanceCalculator::apply($day);
-                                $day->save();
-
-                                $successful++;
-                                $wasCalculated ? $recalculated++ : $calculated++;
-                            } catch (\Exception $e) {
-                                $failed++;
-                                Log::error("Error calculando AttendanceDay {$day->id}: {$e->getMessage()}");
+                            foreach ($records as $day) {
+                                if ($day->extra_hours > 0 && !$day->overtime_approved) {
+                                    $day->overtime_approved = true;
+                                    $day->save();
+                                    $approved++;
+                                } else {
+                                    $skipped++;
+                                }
                             }
-                        }
 
-                        if ($failed > 0) {
                             Notification::make()
-                                ->title('Cálculo completado con advertencias')
-                                ->body("✓ Exitosos: {$successful} ({$calculated} nuevos, {$recalculated} recalculados) | ✗ Fallidos: {$failed}")
-                                ->warning()
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->title('¡Cálculo completado exitosamente!')
-                                ->body("Se procesaron {$successful} registro(s): {$calculated} calculado(s) y {$recalculated} recalculado(s).")
+                                ->title('¡Aprobación completada!')
+                                ->body("Aprobadas: {$approved} | Omitidas (sin hrs extra o ya aprobadas): {$skipped}")
                                 ->success()
                                 ->send();
-                        }
-                    }),
-                BulkActionGroup::make([
+                        }),
+
+                    BulkAction::make('revoke_overtime')
+                        ->label('Revocar Horas Extra')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Revocar aprobación de horas extra')
+                        ->modalDescription(function (Collection $records) {
+                            $approved = $records->where('overtime_approved', true)->count();
+                            $totalHours = $records->where('overtime_approved', true)->sum('extra_hours');
+
+                            return "Se revocará la aprobación de {$approved} registro(s) con {$totalHours} hrs extra aprobadas.";
+                        })
+                        ->modalSubmitActionLabel('Revocar')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $revoked = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $day) {
+                                if ($day->overtime_approved) {
+                                    $day->overtime_approved = false;
+                                    $day->save();
+                                    $revoked++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->title('¡Revocación completada!')
+                                ->body("Revocadas: {$revoked} | Omitidas (ya sin aprobar): {$skipped}")
+                                ->success()
+                                ->send();
+                        }),
+
+                    BulkAction::make('calculate')
+                        ->label('Calcular/Recalcular')
+                        ->icon('heroicon-o-calculator')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Calcular asistencias seleccionadas')
+                        ->modalDescription(function (Collection $records) {
+                            $calculated = $records->where('is_calculated', true)->count();
+                            $notCalculated = $records->where('is_calculated', false)->count();
+
+                            return "Se procesarán {$records->count()} registro(s): {$notCalculated} sin calcular y {$calculated} para recalcular.";
+                        })
+                        ->modalSubmitActionLabel('Calcular')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $successful = 0;
+                            $failed = 0;
+                            $recalculated = 0;
+                            $calculated = 0;
+
+                            foreach ($records as $day) {
+                                try {
+                                    $wasCalculated = $day->is_calculated;
+
+                                    AttendanceCalculator::apply($day);
+                                    $day->save();
+
+                                    $successful++;
+                                    $wasCalculated ? $recalculated++ : $calculated++;
+                                } catch (\Exception $e) {
+                                    $failed++;
+                                    Log::error("Error calculando AttendanceDay {$day->id}: {$e->getMessage()}");
+                                }
+                            }
+
+                            if ($failed > 0) {
+                                Notification::make()
+                                    ->title('Cálculo completado con advertencias')
+                                    ->body("✓ Exitosos: {$successful} ({$calculated} nuevos, {$recalculated} recalculados) | ✗ Fallidos: {$failed}")
+                                    ->warning()
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->title('¡Cálculo completado exitosamente!')
+                                    ->body("Se procesaron {$successful} registro(s): {$calculated} calculado(s) y {$recalculated} recalculado(s).")
+                                    ->success()
+                                    ->send();
+                            }
+                        }),
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * Retorna la acción de aprobar/revocar horas extras para tabla
+     */
+    public static function getApproveOvertimeTableAction(): TableAction
+    {
+        return TableAction::make('approve_overtime')
+            ->label(fn(AttendanceDay $record) => $record->overtime_approved ? 'Revocar' : 'Aprobar')
+            ->icon(fn(AttendanceDay $record) => $record->overtime_approved ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color(fn(AttendanceDay $record) => $record->overtime_approved ? 'danger' : 'success')
+            ->visible(fn(AttendanceDay $record) => $record->extra_hours > 0)
+            ->tooltip(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? 'Revocar aprobación de ' . $record->extra_hours . ' hrs extra'
+                    : 'Aprobar ' . $record->extra_hours . ' hrs extra'
+            )
+            ->requiresConfirmation()
+            ->modalHeading(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? 'Revocar aprobación de horas extra'
+                    : 'Aprobar horas extra'
+            )
+            ->modalDescription(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? "Se revocará la aprobación de {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+                    : "Se aprobarán {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+            )
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->overtime_approved ? 'Sí, revocar' : 'Sí, aprobar')
+            ->action(function (AttendanceDay $record) {
+                $wasApproved = $record->overtime_approved;
+                $record->overtime_approved = !$wasApproved;
+                $record->save();
+
+                $action = $wasApproved ? 'revocada' : 'aprobada';
+
+                Notification::make()
+                    ->title("Aprobación {$action}")
+                    ->body("Las {$record->extra_hours} hrs extra han sido {$action}s exitosamente.")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Retorna la acción de aprobar/revocar horas extras para páginas (header actions)
+     */
+    public static function getApproveOvertimeAction(): Action
+    {
+        return Action::make('approve_overtime')
+            ->label(fn(AttendanceDay $record) => $record->overtime_approved ? 'Revocar Horas Extra' : 'Aprobar Horas Extra')
+            ->icon(fn(AttendanceDay $record) => $record->overtime_approved ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color(fn(AttendanceDay $record) => $record->overtime_approved ? 'danger' : 'success')
+            ->visible(fn(AttendanceDay $record) => $record->extra_hours > 0)
+            ->tooltip(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? 'Revocar aprobación de ' . $record->extra_hours . ' hrs extra'
+                    : 'Aprobar ' . $record->extra_hours . ' hrs extra'
+            )
+            ->requiresConfirmation()
+            ->modalHeading(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? 'Revocar aprobación de horas extra'
+                    : 'Aprobar horas extra'
+            )
+            ->modalDescription(
+                fn(AttendanceDay $record) => $record->overtime_approved
+                    ? "Se revocará la aprobación de {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+                    : "Se aprobarán {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+            )
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->overtime_approved ? 'Sí, revocar' : 'Sí, aprobar')
+            ->action(function (AttendanceDay $record) {
+                $wasApproved = $record->overtime_approved;
+                $record->overtime_approved = !$wasApproved;
+                $record->save();
+
+                $action = $wasApproved ? 'revocada' : 'aprobada';
+
+                Notification::make()
+                    ->title("Aprobación {$action}")
+                    ->body("Las {$record->extra_hours} hrs extra han sido {$action}s exitosamente.")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Retorna la acción de exportar PDF para tabla
+     */
+    public static function getExportPdfTableAction(): TableAction
+    {
+        return TableAction::make('export')
+            ->label('PDF')
+            ->icon('heroicon-o-printer')
+            ->color('info')
+            ->tooltip('Exportar registro como PDF')
+            ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
+            ->openUrlInNewTab();
+    }
+
+    /**
+     * Retorna la acción de exportar PDF para páginas (header actions)
+     */
+    public static function getExportPdfAction(): Action
+    {
+        return Action::make('export')
+            ->label('PDF')
+            ->icon('heroicon-o-printer')
+            ->color('info')
+            ->tooltip('Exportar registro como PDF')
+            ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
+            ->openUrlInNewTab();
+    }
+
+    /**
+     * Retorna la acción de calcular/recalcular asistencia para tabla
+     */
+    public static function getCalculateTableAction(): TableAction
+    {
+        return TableAction::make('calculate')
+            ->label(fn(AttendanceDay $record) => $record->is_calculated ? 'Recalcular' : 'Calcular')
+            ->icon('heroicon-o-calculator')
+            ->color(fn(AttendanceDay $record) => $record->is_calculated ? 'warning' : 'success')
+            ->tooltip(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Última vez calculado: ' . $record->calculated_at?->diffForHumans()
+                    : 'Este registro aún no ha sido calculado'
+            )
+            ->requiresConfirmation()
+            ->modalHeading(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Recalcular asistencia'
+                    : 'Calcular asistencia'
+            )
+            ->modalDescription(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Este registro ya fue calculado el ' . $record->calculated_at?->format('d/m/Y H:i') . '. ¿Deseas recalcularlo?'
+                    : 'Se calcularán todos los campos de asistencia para este registro.'
+            )
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->is_calculated ? 'Sí, recalcular' : 'Sí, calcular')
+            ->action(function (AttendanceDay $record) {
+                self::calculateAttendanceRecord($record);
+            });
+    }
+
+    /**
+     * Retorna la acción de calcular/recalcular asistencia para páginas (header actions)
+     */
+    public static function getCalculateAction(): Action
+    {
+        return Action::make('calculate')
+            ->label(fn(AttendanceDay $record) => $record->is_calculated ? 'Recalcular' : 'Calcular')
+            ->icon('heroicon-o-calculator')
+            ->color(fn(AttendanceDay $record) => $record->is_calculated ? 'warning' : 'success')
+            ->tooltip(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Última vez calculado: ' . $record->calculated_at?->diffForHumans()
+                    : 'Este registro aún no ha sido calculado'
+            )
+            ->requiresConfirmation()
+            ->modalHeading(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Recalcular asistencia'
+                    : 'Calcular asistencia'
+            )
+            ->modalDescription(
+                fn(AttendanceDay $record) => $record->is_calculated
+                    ? 'Este registro ya fue calculado el ' . $record->calculated_at?->format('d/m/Y H:i') . '. ¿Deseas recalcularlo?'
+                    : 'Se calcularán todos los campos de asistencia para este registro.'
+            )
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->is_calculated ? 'Sí, recalcular' : 'Sí, calcular')
+            ->action(function (AttendanceDay $record) {
+                self::calculateAttendanceRecord($record);
+            });
+    }
+
+    /**
+     * Retorna la acción de calcular asistencias para el día de hoy
+     */
+    public static function getCalculateTodayAction(): Action
+    {
+        return Action::make('calculate_today')
+            ->label('Calcular hoy')
+            ->icon('heroicon-o-bolt')
+            ->color('primary')
+            ->requiresConfirmation()
+            ->modalHeading('Calcular asistencias de hoy')
+            ->modalDescription('Se calcularán o recalcularán las asistencias del día de hoy.')
+            ->action(function () {
+                try {
+                    $today = now();
+
+                    // Contar registros antes
+                    $totalBefore = AttendanceDay::whereDate('date', $today)
+                        ->where('is_calculated', true)
+                        ->count();
+
+                    AttendanceCalculator::applyForDateRange($today, $today);
+
+                    // Contar registros después
+                    $totalAfter = AttendanceDay::whereDate('date', $today)
+                        ->where('is_calculated', true)
+                        ->count();
+
+                    $total = AttendanceDay::whereDate('date', $today)->count();
+                    $newCalculated = $totalAfter - $totalBefore;
+                    $recalculated = $totalBefore;
+
+                    Notification::make()
+                        ->title('Cálculo del día completado')
+                        ->body("Fecha: {$today->format('d/m/Y')} | Total: {$total} | Nuevos: {$newCalculated} | Recalculados: {$recalculated}")
+                        ->success()
+                        ->duration(8000)
+                        ->send();
+                } catch (\Exception $e) {
+                    Log::error('Error calculando asistencias de hoy', [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
+                    Notification::make()
+                        ->title('Error al calcular')
+                        ->body('No se pudo calcular las asistencias de hoy. Revisa los logs para más detalles.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                }
+            });
+    }
+
+    /**
+     * Retorna la acción de calcular asistencias por rango de fechas
+     */
+    public static function getCalculateRangeAction(): Action
+    {
+        return Action::make('calculate_range')
+            ->label('Calcular Asistencia')
+            ->icon('heroicon-o-calculator')
+            ->color('success')
+            ->form([
+                DatePicker::make('start_date')
+                    ->label('Fecha de inicio')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
+                    ->required()
+                    ->maxDate(now())
+                    ->default(now()->startOfMonth())
+                    ->reactive(),
+
+                DatePicker::make('end_date')
+                    ->label('Fecha de fin')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
+                    ->required()
+                    ->maxDate(now())
+                    ->default(now())
+                    ->afterOrEqual('start_date')
+                    ->minDate(fn(Get $get) => $get('start_date'))
+                    ->reactive(),
+
+                Placeholder::make('stats')
+                    ->label('Resumen del rango')
+                    ->content(function (Get $get) {
+                        $start = $get('start_date');
+                        $end = $get('end_date');
+
+                        if (!$start || !$end) {
+                            return 'Selecciona ambas fechas para ver estadísticas.';
+                        }
+
+                        $total = AttendanceDay::whereBetween('date', [$start, $end])->count();
+                        $calculated = AttendanceDay::whereBetween('date', [$start, $end])
+                            ->where('is_calculated', true)
+                            ->count();
+                        $notCalculated = $total - $calculated;
+
+                        if ($total === 0) {
+                            return 'No hay registros en este rango de fechas.';
+                        }
+
+                        return "Total: {$total} | Calculados: {$calculated} | Sin calcular: {$notCalculated}";
+                    })
+                    ->columnSpanFull(),
+            ])
+            ->requiresConfirmation()
+            ->modalHeading('Calcular asistencias por rango de fechas')
+            ->modalDescription('Esto calculará o recalculará las asistencias de los registros entre las fechas seleccionadas.')
+            ->modalSubmitActionLabel('Calcular')
+            ->modalWidth('lg')
+            ->action(function (array $data) {
+                try {
+                    $startDate = Carbon::parse($data['start_date']);
+                    $endDate = Carbon::parse($data['end_date']);
+
+                    // Contar registros antes
+                    $totalBefore = AttendanceDay::whereBetween('date', [
+                        $startDate->toDateString(),
+                        $endDate->toDateString()
+                    ])->where('is_calculated', true)->count();
+
+                    // Ejecutar cálculo
+                    AttendanceCalculator::applyForDateRange($startDate, $endDate);
+
+                    // Contar registros después
+                    $totalAfter = AttendanceDay::whereBetween('date', [
+                        $startDate->toDateString(),
+                        $endDate->toDateString()
+                    ])->where('is_calculated', true)->count();
+
+                    $newCalculated = $totalAfter - $totalBefore;
+                    $recalculated = $totalBefore;
+
+                    Notification::make()
+                        ->title('Cálculo completado exitosamente')
+                        ->body("Período: {$startDate->format('d/m/Y')} al {$endDate->format('d/m/Y')} | Nuevos calculados: {$newCalculated} | Recalculados: {$recalculated}")
+                        ->success()
+                        ->duration(8000)
+                        ->send();
+                } catch (\Exception $e) {
+                    Log::error('Error calculando asistencias en rango de fechas', [
+                        'start_date' => $data['start_date'] ?? null,
+                        'end_date' => $data['end_date'] ?? null,
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                    ]);
+
+                    Notification::make()
+                        ->title('Error al calcular asistencias')
+                        ->body('No se pudo completar el cálculo. Verifica las fechas e intenta nuevamente.')
+                        ->danger()
+                        ->persistent()
+                        ->send();
+                }
+            });
     }
 
     /**

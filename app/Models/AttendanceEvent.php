@@ -183,7 +183,7 @@ class AttendanceEvent extends Model
         }
 
         return sprintf(
-            '📍 %s, %s',
+            '%s, %s',
             $this->location['lat'],
             $this->location['lng']
         );

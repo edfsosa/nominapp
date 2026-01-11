@@ -2,15 +2,12 @@
 
 namespace App\Filament\Resources\AttendanceDayResource\RelationManagers;
 
-use Filament\Tables;
 use Filament\Tables\Table;
 use App\Models\AttendanceEvent;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Resources\RelationManagers\RelationManager;
 
 class EventsRelationManager extends RelationManager
@@ -29,8 +26,7 @@ class EventsRelationManager extends RelationManager
                     ->label('Fecha y Hora')
                     ->dateTime('d/m/Y H:i:s')
                     ->icon('heroicon-o-clock')
-                    ->sortable()
-                    ->searchable(),
+                    ->sortable(),
 
                 TextColumn::make('event_type')
                     ->label('Tipo de Evento')
@@ -65,10 +61,13 @@ class EventsRelationManager extends RelationManager
                     ->native(false)
                     ->multiple(),
             ])
-            ->headerActions([
-                // Vacío intencionalmente - no se crean eventos manualmente
-            ])
             ->actions([
+                ViewAction::make()
+                    ->modalHeading('Detalle de Marcación')
+                    ->modalContent(fn(AttendanceEvent $record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
+                        'record' => $record,
+                    ])),
+
                 Action::make('view_map')
                     ->label('Mapa')
                     ->icon('heroicon-o-map-pin')
@@ -77,24 +76,6 @@ class EventsRelationManager extends RelationManager
                     ->url(fn(AttendanceEvent $record) => $record->getMapUrl())
                     ->openUrlInNewTab()
                     ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation()),
-
-                ViewAction::make()
-                    ->label('Ver')
-                    ->modalHeading('Detalle de Marcación')
-                    ->modalContent(fn(AttendanceEvent $record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
-                        'record' => $record,
-                    ]))
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar'),
-            ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make()
-                        ->requiresConfirmation()
-                        ->modalHeading('Eliminar marcaciones seleccionadas')
-                        ->modalDescription('¿Estás seguro de que deseas eliminar estas marcaciones? Esta acción no se puede deshacer.')
-                        ->modalSubmitActionLabel('Sí, eliminar'),
-                ]),
             ])
             ->emptyStateHeading('Sin marcaciones')
             ->emptyStateDescription('No hay eventos de marcación registrados para este día.')
