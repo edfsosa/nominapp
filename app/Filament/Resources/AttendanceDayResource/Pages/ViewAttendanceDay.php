@@ -18,14 +18,12 @@ class ViewAttendanceDay extends ViewRecord
     {
         return [
             EditAction::make()
-                ->label('Editar')
-                ->icon('heroicon-o-pencil-square')
-                ->color('primary'),
+                ->icon('heroicon-o-pencil-square'),
 
             Action::make('export')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-printer')
-                ->color('gray')
+                ->color('info')
                 ->url(fn() => route('attendance-days.export', ['attendance_day' => $this->record->id]))
                 ->openUrlInNewTab(),
 

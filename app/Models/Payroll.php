@@ -62,4 +62,57 @@ class Payroll extends Model
     {
         return 'Nómina de ' . $this->employee->first_name . ' ' . $this->employee->last_name . ' - ' . $this->period->name;
     }
+
+    /**
+     * Formatea un monto en guaraníes paraguayos
+     * Ejemplo: 1500000 -> "Gs. 1.500.000"
+     */
+    public static function formatCurrency(float|int|null $amount): string
+    {
+        if ($amount === null) {
+            return 'Gs. 0';
+        }
+
+        return 'Gs. ' . number_format($amount, 0, ',', '.');
+    }
+
+    /**
+     * Formatea el salario base en guaraníes
+     */
+    public function getFormattedBaseSalaryAttribute(): string
+    {
+        return self::formatCurrency($this->base_salary);
+    }
+
+    /**
+     * Formatea el total de percepciones en guaraníes
+     */
+    public function getFormattedTotalPerceptionsAttribute(): string
+    {
+        return '+ ' . self::formatCurrency($this->total_perceptions);
+    }
+
+    /**
+     * Formatea el salario bruto en guaraníes
+     */
+    public function getFormattedGrossSalaryAttribute(): string
+    {
+        return self::formatCurrency($this->gross_salary);
+    }
+
+    /**
+     * Formatea el total de deducciones en guaraníes
+     */
+    public function getFormattedTotalDeductionsAttribute(): string
+    {
+        return '- ' . self::formatCurrency($this->total_deductions);
+    }
+
+    /**
+     * Formatea el salario neto en guaraníes
+     */
+    public function getFormattedNetSalaryAttribute(): string
+    {
+        return self::formatCurrency($this->net_salary);
+    }
 }

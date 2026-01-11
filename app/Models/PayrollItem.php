@@ -36,4 +36,28 @@ class PayrollItem extends Model
     {
         return $query->where('type', 'deduction');
     }
+
+    /**
+     * Formatea el monto del item en guaraníes paraguayos
+     */
+    public function getFormattedAmountAttribute(): string
+    {
+        return Payroll::formatCurrency($this->amount);
+    }
+
+    /**
+     * Formatea el monto del item como percepción (con +)
+     */
+    public function getFormattedPerceptionAttribute(): string
+    {
+        return Payroll::formatCurrency($this->amount);
+    }
+
+    /**
+     * Formatea el monto del item como deducción (con -)
+     */
+    public function getFormattedDeductionAttribute(): string
+    {
+        return '- ' . Payroll::formatCurrency($this->amount);
+    }
 }

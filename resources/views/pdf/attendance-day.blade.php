@@ -8,198 +8,141 @@
     <title>Resumen de Asistencia</title>
     <style>
         * {
-            margin: 0;
+            margin: 6px;
             padding: 0;
             box-sizing: border-box;
         }
 
         body {
             font-family: Arial, sans-serif;
-            padding: 40px;
-            font-size: 11px;
-            line-height: 1.4;
+            padding: 20px 30px;
+            font-size: 10px;
+            line-height: 1.3;
+            color: #000;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 15px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #000;
+            padding-bottom: 8px;
         }
 
         .header h1 {
-            font-size: 18px;
-            margin-bottom: 5px;
+            font-size: 14px;
+            margin-bottom: 3px;
+            font-weight: bold;
         }
 
         .header p {
-            font-size: 10px;
-            color: #666;
+            font-size: 9px;
+            margin-top: 2px;
         }
 
         .section {
-            margin-bottom: 20px;
+            margin-bottom: 12px;
         }
 
         .section-title {
             font-weight: bold;
-            font-size: 12px;
-            background-color: #f0f0f0;
-            padding: 8px;
-            margin-bottom: 10px;
-            border-left: 3px solid #333;
-        }
-
-        .info-grid {
-            display: table;
-            width: 100%;
-            border-collapse: collapse;
+            font-size: 10px;
+            padding: 4px 0;
+            margin-bottom: 6px;
+            border-bottom: 1px solid #000;
+            text-transform: uppercase;
         }
 
         .info-row {
-            display: table-row;
+            display: flex;
+            padding: 3px 0;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
         }
 
         .info-label {
-            display: table-cell;
             font-weight: bold;
-            width: 40%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            background-color: #f9f9f9;
+            width: 35%;
+            padding-right: 8px;
         }
 
         .info-value {
-            display: table-cell;
-            padding: 8px;
-            border: 1px solid #ddd;
-        }
-
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 10px;
-            font-weight: bold;
-        }
-
-        .badge-success {
-            background-color: #d4edda;
-            color: #155724;
-        }
-
-        .badge-danger {
-            background-color: #f8d7da;
-            color: #721c24;
-        }
-
-        .badge-warning {
-            background-color: #fff3cd;
-            color: #856404;
-        }
-
-        .badge-info {
-            background-color: #d1ecf1;
-            color: #0c5460;
-        }
-
-        .badge-gray {
-            background-color: #e2e3e5;
-            color: #383d41;
-        }
-
-        .highlight-positive {
-            color: #155724;
-            font-weight: bold;
-        }
-
-        .highlight-negative {
-            color: #721c24;
-            font-weight: bold;
-        }
-
-        .highlight-warning {
-            color: #856404;
-            font-weight: bold;
+            width: 65%;
         }
 
         .metrics-grid {
             display: table;
             width: 100%;
-            margin-bottom: 15px;
+            border: 1px solid #000;
+            border-collapse: collapse;
         }
 
         .metric-item {
             display: table-cell;
             width: 33.33%;
-            padding: 12px;
+            padding: 6px;
             text-align: center;
-            border: 1px solid #ddd;
-            background-color: #f9f9f9;
+            border-right: 1px solid #ddd;
+        }
+
+        .metric-item:last-child {
+            border-right: none;
         }
 
         .metric-value {
-            font-size: 16px;
+            font-size: 14px;
             font-weight: bold;
-            color: #333;
         }
 
         .metric-label {
-            font-size: 9px;
-            color: #666;
+            font-size: 8px;
+            margin-top: 2px;
             text-transform: uppercase;
-            margin-top: 4px;
         }
 
-        .events-table {
+        .table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 10px;
+            border: 1px solid #000;
         }
 
-        .events-table th {
-            background-color: #f0f0f0;
-            padding: 8px;
-            border: 1px solid #ddd;
+        .table th {
+            background-color: #f5f5f5;
+            padding: 4px 6px;
+            border: 1px solid #000;
             text-align: left;
-            font-size: 10px;
-        }
-
-        .events-table td {
-            padding: 6px 8px;
-            border: 1px solid #ddd;
-            font-size: 10px;
-        }
-
-        .events-table td:first-child {
+            font-size: 9px;
             font-weight: bold;
-            text-align: center;
+        }
+
+        .table td {
+            padding: 3px 6px;
+            border: 1px solid #ddd;
+            font-size: 9px;
         }
 
         .notes-box {
-            border: 1px solid #ddd;
-            padding: 12px;
-            background-color: #fff9e6;
-            border-radius: 4px;
-            border-left: 3px solid #ffc107;
+            border: 1px solid #000;
+            padding: 6px;
+            font-size: 9px;
         }
 
         .footer {
-            margin-top: 40px;
+            margin-top: 15px;
             text-align: center;
-            font-size: 9px;
-            color: #999;
+            font-size: 8px;
+            color: #666;
             border-top: 1px solid #ddd;
-            padding-top: 10px;
+            padding-top: 6px;
         }
 
-        .check-icon {
-            color: #155724;
-            font-weight: bold;
+        .text-center {
+            text-align: center;
         }
 
-        .cross-icon {
-            color: #721c24;
+        .text-bold {
             font-weight: bold;
         }
     </style>
@@ -208,54 +151,36 @@
 <body>
     {{-- Header --}}
     <div class="header">
-        <h1>RESUMEN DE ASISTENCIA</h1>
-        <p>Registro Diario de Control de Asistencia</p>
-        <p style="margin-top: 5px;">
-            <strong>{{ $attendanceDay->date->locale('es')->isoFormat('dddd, D [de] MMMM [de] YYYY') }}</strong></p>
+        <h1>RESUMEN DE ASISTENCIA DIARIO</h1>
+        <p>{{ $attendanceDay->date->locale('es')->isoFormat('dddd, D [de] MMMM [de] YYYY') }}</p>
     </div>
 
     {{-- Información del Empleado --}}
     <div class="section">
-        <div class="section-title">INFORMACIÓN DEL EMPLEADO</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $attendanceDay->employee->full_name }}</div>
+        <div class="section-title">Información del Empleado</div>
+        <div class="info-row">
+            <div class="info-label">Empleado:</div>
+            <div class="info-value">{{ $attendanceDay->employee->full_name }} (CI: {{ $attendanceDay->employee->ci }})
             </div>
-            <div class="info-row">
-                <div class="info-label">Cédula de Identidad:</div>
-                <div class="info-value">{{ $attendanceDay->employee->ci }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $attendanceDay->employee->position->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $attendanceDay->employee->position->department->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Sucursal:</div>
-                <div class="info-value">{{ $attendanceDay->employee->branch->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Estado de Asistencia:</div>
-                <div class="info-value">
-                    @php
-                        $statusConfig = [
-                            'present' => ['label' => 'Presente', 'class' => 'badge-success'],
-                            'absent' => ['label' => 'Ausente', 'class' => 'badge-danger'],
-                            'on_leave' => ['label' => 'De Permiso', 'class' => 'badge-warning'],
-                            'holiday' => ['label' => 'Feriado', 'class' => 'badge-info'],
-                            'weekend' => ['label' => 'Fin de Semana', 'class' => 'badge-gray'],
-                        ];
-                        $config = $statusConfig[$attendanceDay->status] ?? [
-                            'label' => $attendanceDay->status,
-                            'class' => 'badge-gray',
-                        ];
-                    @endphp
-                    <span class="badge {{ $config['class'] }}">{{ $config['label'] }}</span>
-                </div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Cargo/Dpto:</div>
+            <div class="info-value">{{ $attendanceDay->employee->position->name ?? 'N/A' }} -
+                {{ $attendanceDay->employee->position->department->name ?? 'N/A' }}</div>
+        </div>
+        <div class="info-row">
+            <div class="info-label">Estado:</div>
+            <div class="info-value text-bold">
+                @php
+                    $statusLabels = [
+                        'present' => 'Presente',
+                        'absent' => 'Ausente',
+                        'on_leave' => 'De Permiso',
+                        'holiday' => 'Feriado',
+                        'weekend' => 'Fin de Semana',
+                    ];
+                @endphp
+                {{ $statusLabels[$attendanceDay->status] ?? $attendanceDay->status }}
             </div>
         </div>
     </div>
@@ -263,238 +188,142 @@
     {{-- Métricas Principales --}}
     @if ($attendanceDay->status === 'present')
         <div class="section">
-            <div class="section-title">MÉTRICAS DE ASISTENCIA</div>
+            <div class="section-title">Resumen de Horas</div>
             <div class="metrics-grid">
                 <div class="metric-item">
-                    <div class="metric-value highlight-positive">{{ $attendanceDay->total_hours ?? 0 }} hrs</div>
-                    <div class="metric-label">Horas Totales</div>
+                    <div class="metric-value">{{ $attendanceDay->total_hours ?? 0 }} hrs</div>
+                    <div class="metric-label">Totales</div>
                 </div>
                 <div class="metric-item">
                     <div class="metric-value">{{ $attendanceDay->net_hours ?? 0 }} hrs</div>
-                    <div class="metric-label">Horas Netas</div>
+                    <div class="metric-label">Netas</div>
                 </div>
                 <div class="metric-item">
-                    <div class="metric-value {{ $attendanceDay->extra_hours > 0 ? 'highlight-warning' : '' }}">
-                        {{ $attendanceDay->extra_hours ?? 0 }} hrs
-                    </div>
-                    <div class="metric-label">Horas Extra</div>
+                    <div class="metric-value">{{ $attendanceDay->extra_hours ?? 0 }} hrs</div>
+                    <div class="metric-label">Extra</div>
                 </div>
             </div>
         </div>
     @endif
 
-    {{-- Horarios Programados --}}
+    {{-- Tabla Combinada: Horarios Esperados vs Registrados --}}
     <div class="section">
-        <div class="section-title">HORARIOS PROGRAMADOS</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Entrada Esperada:</div>
-                <div class="info-value">{{ $attendanceDay->expected_check_in ?? '—' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Salida Esperada:</div>
-                <div class="info-value">{{ $attendanceDay->expected_check_out ?? '—' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Horas Esperadas:</div>
-                <div class="info-value">{{ $attendanceDay->expected_hours ?? 0 }} hrs</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Descanso Esperado:</div>
-                <div class="info-value">{{ $attendanceDay->expected_break_minutes ?? 0 }} min</div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Asistencia Registrada --}}
-    @if ($attendanceDay->status === 'present')
-        <div class="section">
-            <div class="section-title">ASISTENCIA REGISTRADA</div>
-            <div class="info-grid">
-                <div class="info-row">
-                    <div class="info-label">Entrada Registrada:</div>
-                    <div
-                        class="info-value {{ $attendanceDay->late_minutes > 0 ? 'highlight-negative' : 'highlight-positive' }}">
-                        {{ $attendanceDay->check_in_time ?? '—' }}
+        <div class="section-title">Horarios y Asistencia</div>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th style="width: 30%;">Concepto</th>
+                    <th style="width: 25%;">Esperado</th>
+                    <th style="width: 25%;">Registrado</th>
+                    <th style="width: 20%;">Diferencia</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td class="text-bold">Entrada</td>
+                    <td>{{ $attendanceDay->expected_check_in ?? '—' }}</td>
+                    <td>{{ $attendanceDay->check_in_time ?? '—' }}</td>
+                    <td>
                         @if ($attendanceDay->late_minutes > 0)
-                            <span class="badge badge-danger">{{ $attendanceDay->late_minutes }} min tarde</span>
+                            +{{ $attendanceDay->late_minutes }} min
+                        @elseif($attendanceDay->check_in_time)
+                            —
+                        @else
+                            —
                         @endif
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Salida Registrada:</div>
-                    <div
-                        class="info-value {{ $attendanceDay->early_leave_minutes > 0 ? 'highlight-warning' : 'highlight-positive' }}">
-                        {{ $attendanceDay->check_out_time ?? '—' }}
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-bold">Salida</td>
+                    <td>{{ $attendanceDay->expected_check_out ?? '—' }}</td>
+                    <td>{{ $attendanceDay->check_out_time ?? '—' }}</td>
+                    <td>
                         @if ($attendanceDay->early_leave_minutes > 0)
-                            <span class="badge badge-warning">{{ $attendanceDay->early_leave_minutes }} min
-                                antes</span>
+                            -{{ $attendanceDay->early_leave_minutes }} min
+                        @elseif($attendanceDay->check_out_time)
+                            —
+                        @else
+                            —
                         @endif
-                    </div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Horas Trabajadas:</div>
-                    <div class="info-value"><strong>{{ $attendanceDay->total_hours ?? 0 }} hrs</strong></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Horas Netas (sin descansos):</div>
-                    <div class="info-value highlight-positive"><strong>{{ $attendanceDay->net_hours ?? 0 }}
-                            hrs</strong></div>
-                </div>
-                <div class="info-row">
-                    <div class="info-label">Descansos Tomados:</div>
-                    <div
-                        class="info-value {{ ($attendanceDay->break_minutes ?? 0) > ($attendanceDay->expected_break_minutes ?? 0) ? 'highlight-warning' : '' }}">
-                        {{ $attendanceDay->break_minutes ?? 0 }} min
-                    </div>
-                </div>
-                @if ($attendanceDay->extra_hours > 0)
-                    <div class="info-row">
-                        <div class="info-label">Horas Extra:</div>
-                        <div class="info-value highlight-warning">
-                            <strong>{{ $attendanceDay->extra_hours }} hrs</strong>
-                            @if ($attendanceDay->overtime_approved)
-                                <span class="badge badge-success">Aprobadas</span>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="text-bold">Descanso</td>
+                    <td>{{ $attendanceDay->expected_break_minutes ?? 0 }} min</td>
+                    <td>{{ $attendanceDay->break_minutes ?? 0 }} min</td>
+                    <td>
+                        @php
+                            $breakDiff =
+                                ($attendanceDay->break_minutes ?? 0) - ($attendanceDay->expected_break_minutes ?? 0);
+                        @endphp
+                        @if ($breakDiff > 0)
+                            +{{ $breakDiff }} min
+                        @elseif($breakDiff < 0)
+                            {{ $breakDiff }} min
+                        @else
+                            —
+                        @endif
+                    </td>
+                </tr>
+                @if ($attendanceDay->status === 'present')
+                    <tr>
+                        <td class="text-bold">Total Horas</td>
+                        <td>{{ $attendanceDay->expected_hours ?? 0 }} hrs</td>
+                        <td>{{ $attendanceDay->total_hours ?? 0 }} hrs</td>
+                        <td>
+                            @php
+                                $hoursDiff = ($attendanceDay->total_hours ?? 0) - ($attendanceDay->expected_hours ?? 0);
+                            @endphp
+                            @if ($hoursDiff > 0)
+                                +{{ number_format($hoursDiff, 1) }} hrs
+                            @elseif($hoursDiff < 0)
+                                {{ number_format($hoursDiff, 1) }} hrs
                             @else
-                                <span class="badge badge-warning">Pendientes</span>
+                                —
                             @endif
-                        </div>
-                    </div>
+                        </td>
+                    </tr>
                 @endif
-            </div>
-        </div>
-    @endif
-
-    {{-- Condiciones Especiales --}}
-    <div class="section">
-        <div class="section-title">CONDICIONES ESPECIALES</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">De Vacaciones:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->on_vacation)
-                        <span class="check-icon">✓</span> Sí
-                    @else
-                        <span class="cross-icon">✗</span> No
-                    @endif
-                </div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Ausencia Justificada:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->justified_absence)
-                        <span class="check-icon">✓</span> Sí
-                    @else
-                        <span class="cross-icon">✗</span> No
-                    @endif
-                </div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Día Feriado:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->is_holiday)
-                        <span class="check-icon">✓</span> Sí
-                    @else
-                        <span class="cross-icon">✗</span> No
-                    @endif
-                </div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Fin de Semana:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->is_weekend)
-                        <span class="check-icon">✓</span> Sí
-                    @else
-                        <span class="cross-icon">✗</span> No
-                    @endif
-                </div>
-            </div>
-            @if ($attendanceDay->is_extraordinary_work)
-                <div class="info-row">
-                    <div class="info-label">Trabajo Extraordinario:</div>
-                    <div class="info-value highlight-warning">
-                        <span class="check-icon">✓</span> Sí (Feriado/Fin de semana)
-                    </div>
-                </div>
-            @endif
-            <div class="info-row">
-                <div class="info-label">Ajuste Manual:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->manual_adjustment)
-                        <span class="badge badge-info">Sí</span>
-                    @else
-                        <span class="cross-icon">✗</span> No
-                    @endif
-                </div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Anomalía Detectada:</div>
-                <div class="info-value">
-                    @if ($attendanceDay->anomaly_flag)
-                        <span class="badge badge-danger">Sí</span>
-                    @else
-                        <span class="check-icon">✓</span> No
-                    @endif
-                </div>
-            </div>
-        </div>
+            </tbody>
+        </table>
     </div>
 
     {{-- Eventos de Marcación --}}
     @if ($attendanceDay->events->isNotEmpty())
         <div class="section">
-            <div class="section-title">EVENTOS DE MARCACIÓN</div>
-            <table class="events-table">
+            <div class="section-title">Eventos de Marcación</div>
+            <table class="table">
                 <thead>
                     <tr>
                         <th style="width: 20%;">Hora</th>
-                        <th style="width: 50%;">Tipo de Evento</th>
-                        <th style="width: 30%;">Estado</th>
+                        <th style="width: 80%;">Tipo de Evento</th>
                     </tr>
                 </thead>
                 <tbody>
                     @foreach ($attendanceDay->events->sortBy('recorded_at') as $event)
                         <tr>
-                            <td>{{ \Carbon\Carbon::parse($event->recorded_at)->format('H:i:s') }}</td>
+                            <td class="text-center text-bold">
+                                {{ \Carbon\Carbon::parse($event->recorded_at)->format('H:i:s') }}</td>
                             <td>
                                 @switch($event->event_type)
                                     @case('check_in')
-                                        → Entrada a la jornada
+                                        Entrada a la jornada
                                     @break
 
                                     @case('check_out')
-                                        ← Salida de la jornada
+                                        Salida de la jornada
                                     @break
 
                                     @case('break_start')
-                                        ⏸ Inicio de descanso
+                                        Inicio de descanso
                                     @break
 
                                     @case('break_end')
-                                        ▶ Fin de descanso
+                                        Fin de descanso
                                     @break
 
                                     @default
                                         Otro evento
-                                @endswitch
-                            </td>
-                            <td style="text-align: center;">
-                                @switch($event->event_type)
-                                    @case('check_in')
-                                        <span class="badge badge-success">Entrada</span>
-                                    @break
-
-                                    @case('check_out')
-                                        <span class="badge badge-danger">Salida</span>
-                                    @break
-
-                                    @case('break_start')
-                                        <span class="badge badge-warning">Descanso</span>
-                                    @break
-
-                                    @case('break_end')
-                                        <span class="badge badge-info">Retorno</span>
-                                    @break
                                 @endswitch
                             </td>
                         </tr>
@@ -507,18 +336,16 @@
     {{-- Notas --}}
     @if ($attendanceDay->notes)
         <div class="section">
-            <div class="section-title">NOTAS Y OBSERVACIONES</div>
-            <div class="notes-box">
-                {{ $attendanceDay->notes }}
-            </div>
+            <div class="section-title">Notas</div>
+            <div class="notes-box">{{ $attendanceDay->notes }}</div>
         </div>
     @endif
 
     {{-- Footer --}}
     <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i') }} | Sistema de Gestión de Recursos Humanos
+        Generado: {{ now()->format('d/m/Y H:i') }}
         @if ($attendanceDay->is_calculated)
-            | Calculado el {{ $attendanceDay->calculated_at?->format('d/m/Y H:i') }}
+            | Calculado: {{ $attendanceDay->calculated_at?->format('d/m/Y H:i') }}
         @endif
     </div>
 </body>
