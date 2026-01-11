@@ -6,6 +6,7 @@ use App\Models\AttendanceDay;
 use App\Services\AttendanceCalculator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
 
 class CalculateAttendance extends Command
 {
@@ -13,66 +14,91 @@ class CalculateAttendance extends Command
 
     protected $description = 'Calcular horas trabajadas, descansos y registros de asistencia del día';
 
-    // Constantes para mensajes
-    private const START_MESSAGE = "🕒 Iniciando cálculo de asistencia para: ";
-    private const NO_RECORDS_MESSAGE = "⚠️ No se encontraron registros de asistencia para la fecha: ";
-    private const SUCCESS_MESSAGE = "✅ Cálculo de asistencia finalizado correctamente.";
-    private const PROCESSED_MESSAGE = "✅ Procesado ID: ";
-
     public function handle()
     {
         // Obtener la fecha del argumento o usar la fecha actual
         $date = $this->argument('date') ?? Carbon::now()->toDateString();
+        $dateFormatted = Carbon::parse($date)->format('d/m/Y');
 
-        // Mostrar mensaje de inicio
-        $this->info(self::START_MESSAGE . $date);
+        $this->info("🕒 Iniciando cálculo de asistencia para: {$dateFormatted}");
+
+        // Contadores para estadísticas
+        $stats = [
+            'total' => 0,
+            'calculated' => 0,
+            'recalculated' => 0,
+            'failed' => 0,
+            'present' => 0,
+            'absent' => 0,
+            'on_leave' => 0,
+            'holiday' => 0,
+            'weekend' => 0,
+        ];
 
         // Procesar los registros de asistencia
-        $recordsProcessed = $this->processAttendanceForDate($date);
-
-        // Mostrar mensaje según el resultado
-        if (! $recordsProcessed) {
-            $this->warn(self::NO_RECORDS_MESSAGE . $date);
-        } else {
-            $this->info(self::SUCCESS_MESSAGE);
-        }
-
-        return Command::SUCCESS;
-    }
-
-    /**
-     * Procesa los registros de asistencia para una fecha específica.
-     *
-     * @param string $date
-     * @return bool
-     */
-    private function processAttendanceForDate(string $date): bool
-    {
-        $recordsFound = false;
-
         AttendanceDay::with('employee', 'events')
             ->where('date', $date)
-            ->chunk(100, function ($days) use (&$recordsFound) {
-                $recordsFound = true;
-
+            ->chunk(100, function ($days) use (&$stats) {
                 foreach ($days as $day) {
-                    AttendanceCalculator::apply($day);
-                    $day->saveQuietly();
-                    $this->logProcessedRecord($day->id);
+                    $stats['total']++;
+                    $wasCalculated = $day->is_calculated;
+
+                    try {
+                        AttendanceCalculator::apply($day);
+                        $day->save();
+
+                        // Actualizar estadísticas
+                        $wasCalculated ? $stats['recalculated']++ : $stats['calculated']++;
+                        $stats[$day->status] = ($stats[$day->status] ?? 0) + 1;
+
+                    } catch (\Exception $e) {
+                        $stats['failed']++;
+                        Log::error("Error calculando AttendanceDay {$day->id}: {$e->getMessage()}");
+                        $this->error("  ✗ Error procesando ID: {$day->id}");
+                    }
                 }
             });
 
-        return $recordsFound;
-    }
+        // Mostrar resultados
+        $this->newLine();
 
-    /**
-     * Muestra un mensaje en la consola para un registro procesado.
-     *
-     * @param int $id
-     * @return void
-     */
-    private function logProcessedRecord(int $id): void
-    {
-        $this->line(self::PROCESSED_MESSAGE . $id);
+        if ($stats['total'] === 0) {
+            $this->warn("⚠️  No se encontraron registros de asistencia para la fecha: {$dateFormatted}");
+            return Command::SUCCESS;
+        }
+
+        // Log para auditoría
+        Log::info("Cálculo de asistencia completado para {$date}", $stats);
+
+        // Mostrar tabla de estadísticas
+        $this->info("📊 Resumen del cálculo - {$dateFormatted}:");
+        $this->newLine();
+
+        $this->table(
+            ['Estado', 'Cantidad'],
+            [
+                ['✅ Presentes', $stats['present']],
+                ['❌ Ausentes', $stats['absent']],
+                ['📋 De permiso', $stats['on_leave']],
+                ['🎉 Feriado', $stats['holiday']],
+                ['📅 Fin de semana', $stats['weekend']],
+                ['---', '---'],
+                ['🆕 Calculados (nuevos)', $stats['calculated']],
+                ['🔄 Recalculados', $stats['recalculated']],
+                ['✗ Errores', $stats['failed']],
+                ['---', '---'],
+                ['📊 TOTAL PROCESADOS', $stats['total']],
+            ]
+        );
+
+        $this->newLine();
+
+        if ($stats['failed'] > 0) {
+            $this->warn("⚠️  Completado con {$stats['failed']} error(es). Revisa los logs para más detalles.");
+            return Command::FAILURE;
+        }
+
+        $this->info("✅ Cálculo de asistencia finalizado exitosamente.");
+        return Command::SUCCESS;
     }
 }
