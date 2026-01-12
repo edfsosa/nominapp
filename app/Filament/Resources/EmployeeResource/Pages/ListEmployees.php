@@ -16,11 +16,16 @@ class ListEmployees extends ListRecords
 {
     protected static string $resource = EmployeeResource::class;
 
+    /**
+     * Define las acciones del encabezado de la página de listado.
+     *
+     * @return array
+     */
     protected function getHeaderActions(): array
     {
         return [
             CreateAction::make()
-                ->label('Agregar empleado')
+                ->label('Nuevo Empleado')
                 ->icon('heroicon-o-plus-circle'),
 
             ExportAction::make()
@@ -31,13 +36,18 @@ class ListEmployees extends ListRecords
                         ->withFilename(fn() => 'empleados_' . now()->format('d_m_Y_H_i_s'))
                         ->withWriterType(Excel::XLSX)
                 ])
-                ->label('Exportar')
+                ->label('Exportar a Excel')
                 ->color('success')
-                ->icon('heroicon-o-arrow-down-tray')
+                ->icon('heroicon-o-share')
                 ->tooltip('Exportar listado de empleados'),
         ];
     }
 
+    /**
+     * Define las pestañas para filtrar los registros.
+     *
+     * @return array
+     */
     public function getTabs(): array
     {
         $counts = Employee::getTabCounts();
@@ -81,6 +91,11 @@ class ListEmployees extends ListRecords
         ];
     }
 
+    /**
+     * Define la pestaña activa por defecto.
+     *
+     * @return void
+     */
     public function getDefaultActiveTab(): string | int | null
     {
         return 'active';

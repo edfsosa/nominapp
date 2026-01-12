@@ -264,6 +264,33 @@ class Employee extends Model
         ];
     }
 
+    /**
+     * Obtiene el salario base formateado
+     */
+    public function getBaseSalaryFormattedAttribute(): ?string
+    {
+        if ($this->base_salary === null) {
+            return null;
+        }
+
+        return number_format($this->base_salary, 0, ',', '.');
+    }
+
+    /**
+     * Obtiene la tarifa diaria formateada
+     */
+    public function getDailyRateFormattedAttribute(): ?string
+    {
+        if ($this->daily_rate === null) {
+            return null;
+        }
+
+        return number_format($this->daily_rate, 0, ',', '.');
+    }
+
+    /**
+     * Obtiene el nombre completo del empleado
+     */
     public function getFullNameAttribute()
     {
         return "{$this->first_name} {$this->last_name}";

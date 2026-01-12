@@ -11,11 +11,22 @@ class CreateEmployee extends CreateRecord
 {
     protected static string $resource = EmployeeResource::class;
 
+    /**
+     * Modifica los datos del formulario antes de crear el registro.
+     *
+     * @param array $data
+     * @return array
+     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         return Employee::sanitizeFormData($data, isCreating: true);
     }
 
+    /**
+     * Personaliza la notificación que se muestra después de crear el registro.
+     *
+     * @return Notification
+     */
     protected function getCreatedNotification(): Notification
     {
         return Notification::make()

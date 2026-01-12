@@ -14,6 +14,11 @@ class EditEmployee extends EditRecord
 {
     protected static string $resource = EmployeeResource::class;
 
+    /**
+     * Define las acciones del encabezado de la página de edición.
+     *
+     * @return array
+     */
     protected function getHeaderActions(): array
     {
         return [
@@ -25,6 +30,7 @@ class EditEmployee extends EditRecord
                 ->visible(fn() => $this->record->status === 'active'),
 
             DeleteAction::make()
+                ->icon('heroicon-o-trash')
                 ->before(function () {
                     // Eliminar la foto si existe
                     if ($this->record->photo && Storage::disk('public')->exists($this->record->photo)) {
@@ -35,6 +41,12 @@ class EditEmployee extends EditRecord
         ];
     }
 
+    /**
+     * Modifica los datos del formulario antes de guardarlos.
+     *
+     * @param array $data
+     * @return array
+     */
     protected function mutateFormDataBeforeSave(array $data): array
     {
         // Sanitizar datos usando el método del modelo
@@ -46,6 +58,12 @@ class EditEmployee extends EditRecord
         return $data;
     }
 
+    /**
+     * Modifica los datos del formulario antes de mostrarlos.
+     *
+     * @param array $data
+     * @return array
+     */
     protected function mutateFormDataBeforeFill(array $data): array
     {
         // Al cargar el formulario, asegurar que se muestre el campo correcto
@@ -61,6 +79,11 @@ class EditEmployee extends EditRecord
         return $data;
     }
 
+    /**
+     * Personaliza la notificación que se muestra después de guardar.
+     *
+     * @return Notification
+     */
     protected function getSavedNotification(): Notification
     {
         return Notification::make()
