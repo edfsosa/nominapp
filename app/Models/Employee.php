@@ -267,25 +267,25 @@ class Employee extends Model
     /**
      * Obtiene el salario base formateado
      */
-    public function getBaseSalaryFormattedAttribute(): ?string
+    public function getBaseSalaryFormattedAttribute()
     {
         if ($this->base_salary === null) {
             return null;
         }
 
-        return number_format($this->base_salary, 0, ',', '.');
+        return number_format((int) $this->base_salary, 0, '', '.');
     }
 
     /**
      * Obtiene la tarifa diaria formateada
      */
-    public function getDailyRateFormattedAttribute(): ?string
+    public function getDailyRateFormattedAttribute()
     {
         if ($this->daily_rate === null) {
             return null;
         }
 
-        return number_format($this->daily_rate, 0, ',', '.');
+        return number_format((int) $this->daily_rate, 0, '', '.');
     }
 
     /**

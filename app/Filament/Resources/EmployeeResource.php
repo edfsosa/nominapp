@@ -193,8 +193,7 @@ class EmployeeResource extends Resource
                                     ->prefix('Gs.')
                                     ->required(fn(Get $get) => $get('employment_type') === 'full_time')
                                     ->visible(fn(Get $get) => $get('employment_type') === 'full_time')
-                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'full_time')
-                                    ->formatStateUsing(fn(?Employee $record): string => $record?->base_salary_formatted ?? '0'),
+                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'full_time'),
 
                                 TextInput::make('daily_rate')
                                     ->label('Tarifa diaria')
@@ -206,8 +205,7 @@ class EmployeeResource extends Resource
                                     ->prefix('Gs.')
                                     ->required(fn(Get $get) => $get('employment_type') === 'day_laborer')
                                     ->visible(fn(Get $get) => $get('employment_type') === 'day_laborer')
-                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'day_laborer')
-                                    ->formatStateUsing(fn(?Employee $record): string => $record?->daily_rate_formatted ?? '0'),
+                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'day_laborer'),
                             ]),
                     ]),
 
