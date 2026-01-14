@@ -2,10 +2,13 @@
 
 namespace App\Filament\Resources\AttendanceDayResource\RelationManagers;
 
+use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Models\AttendanceEvent;
-use Filament\Tables\Actions\Action;
+use Filament\Forms\Components\Select;
 use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -16,6 +19,19 @@ class EventsRelationManager extends RelationManager
     protected static ?string $title = 'Marcaciones';
     protected static ?string $modelLabel = 'Marcación';
     protected static ?string $pluralModelLabel = 'Marcaciones';
+
+    public function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Select::make('event_type')
+                    ->label('Tipo de Evento')
+                    ->options(AttendanceEvent::getEventTypeOptions())
+                    ->native(false)
+                    ->required()
+                    ->columnSpanFull(),
+            ]);
+    }
 
     public function table(Table $table): Table
     {
@@ -68,14 +84,24 @@ class EventsRelationManager extends RelationManager
                         'record' => $record,
                     ])),
 
-                Action::make('view_map')
+                EditAction::make()
+                    ->modalHeading('Editar Marcación')
+                    ->successNotificationTitle('Marcación actualizada exitosamente'),
+
+                /* Action::make('view_map')
                     ->label('Mapa')
                     ->icon('heroicon-o-map-pin')
                     ->color('info')
                     ->tooltip('Ver ubicación en Google Maps')
                     ->url(fn(AttendanceEvent $record) => $record->getMapUrl())
                     ->openUrlInNewTab()
-                    ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation()),
+                    ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation()), */
+
+                DeleteAction::make()
+                    ->icon('heroicon-o-trash')
+                    ->modalHeading('Eliminar Marcación')
+                    ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
+                    ->successNotificationTitle('Marcación eliminada exitosamente'),
             ])
             ->emptyStateHeading('Sin marcaciones')
             ->emptyStateDescription('No hay eventos de marcación registrados para este día.')

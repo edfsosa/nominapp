@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use Carbon\Carbon;
+use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Models\AttendanceEvent;
 use Filament\Resources\Resource;
@@ -15,6 +16,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Actions\BulkActionGroup;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\AttendanceEventResource\Pages;
+use Filament\Forms\Components\Select;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\EditAction;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
 class AttendanceEventResource extends Resource
@@ -33,6 +37,18 @@ class AttendanceEventResource extends Resource
         return parent::getEloquentQuery();
     }
 
+    public static function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Select::make('event_type')
+                    ->label('Tipo de Evento')
+                    ->options(AttendanceEvent::getEventTypeOptions())
+                    ->native(false)
+                    ->required()
+                    ->columnSpanFull(),
+            ]);
+    }
 
     public static function table(Table $table): Table
     {
@@ -187,13 +203,22 @@ class AttendanceEventResource extends Resource
             ])
             ->actions([
                 ViewAction::make()
-                    ->label('Ver')
                     ->modalHeading('Detalle de Marcación')
                     ->modalContent(fn($record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
                         'record' => $record,
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
+                
+                EditAction::make()
+                    ->modalHeading('Editar Marcación')
+                    ->successNotificationTitle('Marcación actualizada exitosamente'),
+
+                DeleteAction::make()
+                    ->icon('heroicon-o-trash')
+                    ->modalHeading('Eliminar Marcación')
+                    ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
+                    ->successNotificationTitle('Marcación eliminada exitosamente'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
