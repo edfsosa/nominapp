@@ -18,6 +18,8 @@
         <div class="no-js-warning">Esta página requiere JavaScript para funcionar correctamente.</div>
     </noscript>
 
+    <x-attendance.mark-loading />
+
     <main id="main-content" class="container">
         <h1>Marcación facial</h1>
 

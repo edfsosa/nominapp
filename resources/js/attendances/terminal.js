@@ -3,11 +3,20 @@ document.addEventListener("DOMContentLoaded", () => {
     // ELEMENTOS DEL DOM
     // ============================================================================
     const screens = {
+        loading: document.getElementById("loadingScreen"),
         typeSelection: document.getElementById("typeSelectionScreen"),
         identification: document.getElementById("identificationScreen"),
         success: document.getElementById("successScreen"),
         error: document.getElementById("errorScreen"),
     };
+
+    // Loading screen elements
+    const loadingMessage = document.getElementById("loadingMessage");
+    const loadingProgress = document.getElementById("loadingProgress");
+    const loadingPercentage = document.getElementById("loadingPercentage");
+    const loadingStep1 = document.getElementById("step1");
+    const loadingStep2 = document.getElementById("step2");
+    const loadingStep3 = document.getElementById("step3");
 
     const video = document.getElementById("terminalVideo");
     const overlay = document.getElementById("terminalOverlay");
@@ -53,11 +62,12 @@ document.addEventListener("DOMContentLoaded", () => {
         drawLoopActive: false,
         employee: null,
         countdownTimer: null,
+        isProcessing: false, // Flag para bloquear procesamiento simultáneo
     };
 
     const tinyOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 320,
-        scoreThreshold: 0.5,
+        inputSize: 416,      // Aumentado de 320 para mejor precisión
+        scoreThreshold: 0.6, // Aumentado de 0.5 para rechazar detecciones de baja calidad
     });
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -69,6 +79,95 @@ document.addEventListener("DOMContentLoaded", () => {
         break_end: "FIN DESCANSO",
         check_out: "SALIDA",
     };
+
+    // ============================================================================
+    // FUNCIONES DE PANTALLA DE CARGA
+    // ============================================================================
+    function updateLoadingProgress(percentage, message, stepNumber) {
+        if (loadingProgress) {
+            loadingProgress.style.width = `${percentage}%`;
+        }
+        if (loadingPercentage) {
+            loadingPercentage.textContent = `${percentage}%`;
+        }
+        if (loadingMessage && message) {
+            loadingMessage.textContent = message;
+        }
+
+        // Actualizar estado de los pasos
+        const steps = [loadingStep1, loadingStep2, loadingStep3];
+        steps.forEach((step, index) => {
+            if (!step) return;
+
+            step.classList.remove("active", "completed");
+
+            if (index + 1 < stepNumber) {
+                step.classList.add("completed");
+            } else if (index + 1 === stepNumber) {
+                step.classList.add("active");
+            }
+        });
+    }
+
+    async function initializeSystem() {
+        try {
+            // Paso 1: Verificar compatibilidad
+            updateLoadingProgress(10, "Verificando compatibilidad del navegador...", 1);
+            await sleep(300);
+
+            // Verificar que face-api esté disponible
+            if (typeof faceapi === "undefined") {
+                throw new Error("La biblioteca face-api.js no está disponible");
+            }
+
+            // Verificar soporte de getUserMedia
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                throw new Error("Tu navegador no soporta acceso a la cámara");
+            }
+
+            updateLoadingProgress(30, "Navegador compatible ✓", 1);
+            await sleep(200);
+
+            // Paso 2: Cargar modelos
+            updateLoadingProgress(40, "Cargando modelos de reconocimiento facial...", 2);
+
+            if (!terminalState.modelsLoaded) {
+                await Promise.all([
+                    faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
+                    faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI),
+                    faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URI),
+                ]);
+                terminalState.modelsLoaded = true;
+            }
+
+            updateLoadingProgress(80, "Modelos cargados correctamente ✓", 2);
+            await sleep(300);
+
+            // Paso 3: Preparar sistema
+            updateLoadingProgress(90, "Preparando sistema de marcación...", 3);
+            await sleep(300);
+
+            updateLoadingProgress(100, "Sistema listo ✓", 3);
+            await sleep(500);
+
+            // Ocultar pantalla de carga y mostrar selección de tipo
+            console.log("Sistema inicializado correctamente");
+            showScreen("typeSelection");
+
+        } catch (error) {
+            console.error("Error en la inicialización:", error);
+
+            // Mostrar error en la pantalla de carga
+            if (loadingMessage) {
+                loadingMessage.textContent = `Error: ${error.message}`;
+                loadingMessage.style.color = "#ef4444";
+            }
+
+            // Después de 3 segundos, mostrar pantalla de error
+            await sleep(3000);
+            showError("Error al inicializar el sistema. " + error.message + " Por favor, recargue la página.");
+        }
+    }
 
     // ============================================================================
     // FUNCIONES DE NAVEGACIÓN ENTRE PANTALLAS
@@ -198,8 +297,9 @@ document.addEventListener("DOMContentLoaded", () => {
         setTimeout(drawLoop, 200);
     }
 
-    async function captureDescriptor(samples = 3, intervalMs = 200) {
+    async function captureDescriptor(samples = 5, intervalMs = 150) {
         const descriptors = [];
+        const MIN_FACE_SIZE = 100; // Tamaño mínimo de rostro en píxeles
 
         for (let i = 0; i < samples; i++) {
             try {
@@ -209,7 +309,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     .withFaceDescriptor();
 
                 if (detection && detection.descriptor) {
-                    descriptors.push(Array.from(detection.descriptor));
+                    // Validar tamaño del rostro detectado
+                    const box = detection.detection.box;
+                    if (box.width >= MIN_FACE_SIZE && box.height >= MIN_FACE_SIZE) {
+                        descriptors.push(Array.from(detection.descriptor));
+                    } else {
+                        console.warn(`Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${MIN_FACE_SIZE}px)`);
+                    }
                 }
             } catch (error) {
                 console.error(`Error capturando muestra ${i + 1}:`, error);
@@ -220,8 +326,9 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
-        if (descriptors.length === 0) {
-            throw new Error("No se pudo capturar ningún descriptor facial");
+        // Requerir mínimo 3 muestras válidas de las 5 intentadas
+        if (descriptors.length < 3) {
+            throw new Error(`Solo se capturaron ${descriptors.length} muestras válidas (mínimo 3). Acerque el rostro a la cámara.`);
         }
 
         // Promediar descriptores
@@ -293,10 +400,19 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Intentar identificar cada 3 segundos
         terminalState.identifyInterval = setInterval(async () => {
+            // Verificar si ya hay un proceso en curso
+            if (terminalState.isProcessing) {
+                console.log("Proceso en curso, omitiendo ciclo de identificación");
+                return;
+            }
+
             try {
+                // Marcar inicio de procesamiento
+                terminalState.isProcessing = true;
+
                 updateStatus("Analizando rostro...", "loading");
 
-                const descriptor = await captureDescriptor(3, 200);
+                const descriptor = await captureDescriptor(5, 150);
                 const result = await identifyEmployee(descriptor);
 
                 if (result.ok && result.employee) {
@@ -312,8 +428,13 @@ document.addEventListener("DOMContentLoaded", () => {
             } catch (error) {
                 console.error("Error en auto-identificación:", error);
                 updateStatus("Error al analizar. Reintentando...", "error");
+            } finally {
+                // Liberar el bloqueo siempre (excepto si ya se detuvo por éxito)
+                if (terminalState.identifyInterval) {
+                    terminalState.isProcessing = false;
+                }
             }
-        }, 3000); // Cada 3 segundos como solicitaste
+        }, 3000);
     }
 
     function stopAutoIdentification() {
@@ -427,6 +548,7 @@ document.addEventListener("DOMContentLoaded", () => {
             drawLoopActive: false,
             employee: null,
             countdownTimer: null,
+            isProcessing: false, // Reset del flag de procesamiento
         };
 
         showScreen("typeSelection");
@@ -482,5 +604,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // INICIALIZACIÓN
     // ============================================================================
     console.log("Terminal de marcación inicializado");
-    showScreen("typeSelection");
+
+    // Mostrar pantalla de carga e iniciar el sistema
+    showScreen("loading");
+    initializeSystem();
 });

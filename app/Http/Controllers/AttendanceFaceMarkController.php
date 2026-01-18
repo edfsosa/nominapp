@@ -79,18 +79,25 @@ class AttendanceFaceMarkController extends Controller
 
         try {
             // CORRECCIÓN 4: Validar que el threshold sea válido
-            $threshold = (float) config('attendance.face_threshold', 0.6);
+            $threshold = (float) config('attendance.face_threshold', 0.45);
             if ($threshold <= 0 || $threshold > 2.0) {
                 Log::warning('Invalid face threshold in config', ['threshold' => $threshold]);
-                $threshold = 0.6; // valor por defecto seguro
+                $threshold = 0.45; // valor por defecto seguro
             }
 
-            [$employee, $distance] = $this->identifyEmployeeByDescriptor($live, $threshold);
+            [$employee, $distance, $reason] = $this->identifyEmployeeByDescriptor($live, $threshold);
 
             if (!$employee) {
+                $message = match($reason) {
+                    'ambiguous' => 'Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.',
+                    'no_match' => 'No se pudo identificar el rostro. Intente nuevamente.',
+                    default => 'Error al procesar el rostro.',
+                };
+
                 return response()->json([
                     'ok'      => false,
-                    'message' => 'No se pudo identificar el rostro. Intente nuevamente.',
+                    'message' => $message,
+                    'reason'  => $reason,
                 ], 422);
             }
 
@@ -242,15 +249,22 @@ class AttendanceFaceMarkController extends Controller
                 if (!in_array($data['event_type'], $allowed, true)) {
                     // CORRECCIÓN 9: Mensaje más descriptivo del error con traducciones en español
                     $eventTypeNames = $this->getEventTypeNames();
+                    $employeeName = $employee->full_name ?? $employee->name ?? "Empleado #{$employee->id}";
 
-                    $requestedEventName = $eventTypeNames[$data['event_type']] ?? $data['event_type'];
-                    $currentStateName = $last?->event_type ? ($eventTypeNames[$last->event_type] ?? $last->event_type) : 'ninguna';
                     $allowedNames = empty($allowed)
                         ? 'ninguno'
-                        : implode(', ', array_map(fn($e) => $eventTypeNames[$e] ?? $e, $allowed));
+                        : implode(', ', array_map(fn($e) => "'" . ($eventTypeNames[$e] ?? $e) . "'", $allowed));
+
+                    // Construir mensaje breve y claro
+                    if ($last) {
+                        $currentStateName = $eventTypeNames[$last->event_type] ?? $last->event_type;
+                        $message = "{$employeeName}, su última marcación fue '{$currentStateName}'.\nAhora puede marcar: {$allowedNames}";
+                    } else {
+                        $message = "{$employeeName}, aún no tiene marcaciones hoy.\nDebe iniciar con: {$allowedNames}";
+                    }
 
                     throw ValidationException::withMessages([
-                        'event_type' => "No puede marcar '{$requestedEventName}' en este momento. Última marcación: '{$currentStateName}'. Solo puede marcar: {$allowedNames}.",
+                        'event_type' => $message,
                     ]);
                 }
 
@@ -335,7 +349,7 @@ class AttendanceFaceMarkController extends Controller
     }
 
     /** Identifica empleado por distancia euclidiana */
-    protected function identifyEmployeeByDescriptor(array $live, float $threshold = 0.6): array
+    protected function identifyEmployeeByDescriptor(array $live, float $threshold = 0.45): array
     {
         try {
             // CORRECCIÓN 14: Agregar filtro de empleados activos y mejorar la consulta
@@ -347,11 +361,12 @@ class AttendanceFaceMarkController extends Controller
 
             if ($candidates->isEmpty()) {
                 Log::warning('No hay empleados con descriptores faciales activos.');
-                return [null, INF];
+                return [null, INF, 'no_candidates'];
             }
 
             $best = null;
             $bestDist = INF;
+            $secondBestDist = INF; // Guardar segundo mejor para validación de gap
             $processedCount = 0;
 
             foreach ($candidates as $emp) {
@@ -364,27 +379,59 @@ class AttendanceFaceMarkController extends Controller
                 }
 
                 $dist = $this->euclideanDistance($live, $saved);
+
                 if ($dist < $bestDist) {
+                    $secondBestDist = $bestDist; // Guardar anterior mejor como segundo
                     $bestDist = $dist;
                     $best = $emp;
+                } elseif ($dist < $secondBestDist) {
+                    $secondBestDist = $dist;
                 }
+
                 $processedCount++;
             }
 
+            // Obtener gap mínimo de configuración
+            $minGap = (float) config('attendance.face_min_confidence_gap', 0.1);
+
             Log::info("Procesados {$processedCount} empleados para identificación facial", [
-                'best_distance' => $bestDist,
+                'best_distance' => round($bestDist, 4),
+                'second_best_distance' => $secondBestDist === INF ? 'N/A' : round($secondBestDist, 4),
+                'gap' => $secondBestDist === INF ? 'N/A' : round($secondBestDist - $bestDist, 4),
+                'min_gap_required' => $minGap,
                 'threshold' => $threshold,
                 'identified' => $best ? "ID: {$best->id}" : 'ninguno',
             ]);
 
-            return ($best && $bestDist <= $threshold) ? [$best, $bestDist] : [null, $bestDist];
+            // Validar que supere el threshold
+            if (!$best || $bestDist > $threshold) {
+                return [null, $bestDist, 'no_match'];
+            }
+
+            // Validar que haya suficiente diferencia con el segundo mejor
+            if ($secondBestDist !== INF) {
+                $gap = $secondBestDist - $bestDist;
+
+                if ($gap < $minGap) {
+                    Log::warning("Identificación rechazada por gap insuficiente", [
+                        'employee_id' => $best->id,
+                        'best_distance' => round($bestDist, 4),
+                        'second_best_distance' => round($secondBestDist, 4),
+                        'gap' => round($gap, 4),
+                        'min_gap' => $minGap,
+                    ]);
+                    return [null, $bestDist, 'ambiguous'];
+                }
+            }
+
+            return [$best, $bestDist, null];
         } catch (Throwable $e) {
             Log::error('Error en identifyEmployeeByDescriptor', [
                 'msg' => $e->getMessage(),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
-            return [null, INF];
+            return [null, INF, 'error'];
         }
     }
 

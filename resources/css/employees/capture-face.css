@@ -1,39 +1,41 @@
 /* ==========================================================================
    ESTILOS PARA CAPTURA FACIAL DE EMPLEADOS
    Archivo: capture-face.css
-   Descripción: Estilos para la interfaz de captura y registro de descriptores faciales
+   Descripción: Estilos adaptativos con soporte para modo claro y oscuro
    ========================================================================== */
 
 /* ==========================================================================
-   VARIABLES CSS PERSONALIZADAS
+   VARIABLES CSS PERSONALIZADAS - MODO ADAPTATIVO
    ========================================================================== */
 :root {
-    /* Colores principales del tema oscuro */
-    --color-bg-primary: #0b1220;
-    --color-bg-secondary: #0f172a;
-    --color-bg-tertiary: #1e293b;
-    --color-border: #1f2937;
-    --color-border-light: #374151;
+    color-scheme: light dark;
+
+    /* Colores - Modo Claro */
+    --color-bg-primary: #ffffff;
+    --color-bg-secondary: #f8fafc;
+    --color-bg-tertiary: #f1f5f9;
+    --color-border: #e2e8f0;
+    --color-border-light: #cbd5e1;
 
     /* Colores de texto */
-    --color-text-primary: #e5e7eb;
-    --color-text-secondary: #cbd5e1;
-    --color-text-muted: #9ca3af;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #64748b;
 
     /* Colores de estado */
     --color-success: #059669;
     --color-success-light: #10b981;
-    --color-success-bg: #064e3b;
-    --color-success-text: #d1fae5;
+    --color-success-bg: #d1fae5;
+    --color-success-text: #065f46;
 
     --color-error: #b91c1c;
     --color-error-light: #dc2626;
-    --color-error-bg: #7f1d1d;
-    --color-error-text: #fee2e2;
+    --color-error-bg: #fee2e2;
+    --color-error-text: #991b1b;
 
     --color-warning: #d97706;
     --color-info: #2563eb;
-    --color-neutral: #374151;
+    --color-neutral: #6b7280;
 
     /* Espaciado consistente */
     --spacing-xs: 4px;
@@ -49,9 +51,9 @@
     --border-radius-lg: 12px;
     --border-radius-full: 50%;
 
-    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.1);
-    --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.15);
-    --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.4);
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 
     /* Transiciones suaves */
     --transition-fast: 0.15s ease-in-out;
@@ -65,25 +67,47 @@
     --font-size-base: 16px;
     --font-size-lg: 18px;
     --font-size-xl: 20px;
+}
 
-    /* Breakpoints para responsive */
-    --breakpoint-sm: 640px;
-    --breakpoint-md: 768px;
-    --breakpoint-lg: 1024px;
+/* Modo Oscuro */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --color-bg-primary: #0b1220;
+        --color-bg-secondary: #0f172a;
+        --color-bg-tertiary: #1e293b;
+        --color-border: #1f2937;
+        --color-border-light: #374151;
+
+        --color-text-primary: #e5e7eb;
+        --color-text-secondary: #cbd5e1;
+        --color-text-muted: #9ca3af;
+
+        --color-success-bg: #064e3b;
+        --color-success-text: #d1fae5;
+        --color-error-bg: #7f1d1d;
+        --color-error-text: #fee2e2;
+
+        --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
+        --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.4);
+        --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.5);
+    }
 }
 
 /* ==========================================================================
-     RESET Y CONFIGURACIÓN BASE
-     ========================================================================== */
+   RESET Y CONFIGURACIÓN BASE
+   ========================================================================== */
 
-/* Reset básico mejorado */
 *,
 *::before,
 *::after {
     box-sizing: border-box;
 }
 
-/* Configuración del body */
+html {
+    font-size: 16px;
+    scroll-behavior: smooth;
+}
+
 body {
     font-family: var(--font-family-system);
     background-color: var(--color-bg-primary);
@@ -91,27 +115,25 @@ body {
     margin: 0;
     padding: var(--spacing-xl);
     line-height: 1.5;
+    min-height: 100vh;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
 }
 
-/* Mejora de legibilidad para texto pequeño */
 small {
     line-height: 1.4;
 }
 
 /* ==========================================================================
-     LAYOUT PRINCIPAL
-     ========================================================================== */
+   LAYOUT PRINCIPAL
+   ========================================================================== */
 
-/* Contenedor principal */
 .container {
     max-width: 1000px;
     margin: 0 auto;
     padding: var(--spacing-lg);
 }
 
-/* Encabezado principal */
 header h1 {
     margin: 0 0 var(--spacing-xl) 0;
     font-size: 2rem;
@@ -120,7 +142,6 @@ header h1 {
     text-align: center;
 }
 
-/* Grid principal responsive */
 .grid {
     display: grid;
     grid-template-columns: 1fr 360px;
@@ -129,10 +150,9 @@ header h1 {
 }
 
 /* ==========================================================================
-     COMPONENTES DE TARJETAS
-     ========================================================================== */
+   COMPONENTES DE TARJETAS
+   ========================================================================== */
 
-/* Tarjetas base */
 .card {
     background-color: var(--color-bg-secondary);
     border: 1px solid var(--color-border);
@@ -146,7 +166,6 @@ header h1 {
     box-shadow: var(--shadow-md);
 }
 
-/* Encabezados de sección */
 .card h2 {
     margin: 0 0 var(--spacing-lg) 0;
     font-size: var(--font-size-xl);
@@ -156,7 +175,6 @@ header h1 {
     padding-bottom: var(--spacing-sm);
 }
 
-/* Secciones específicas */
 .capture-section {
     min-height: 500px;
 }
@@ -168,10 +186,9 @@ header h1 {
 }
 
 /* ==========================================================================
-     COMPONENTES DE VIDEO Y CAPTURA
-     ========================================================================== */
+   COMPONENTES DE VIDEO Y CAPTURA
+   ========================================================================== */
 
-/* Contenedor de video */
 .video-wrap {
     position: relative;
     aspect-ratio: 16/9;
@@ -182,7 +199,6 @@ header h1 {
     margin-bottom: var(--spacing-lg);
 }
 
-/* Elementos de video y canvas */
 video,
 canvas {
     position: absolute;
@@ -192,16 +208,14 @@ canvas {
     object-fit: cover;
 }
 
-/* Placeholder cuando no hay video */
 video[poster] {
     background-color: var(--color-bg-tertiary);
 }
 
 /* ==========================================================================
-     SISTEMA DE BOTONES
-     ========================================================================== */
+   SISTEMA DE BOTONES
+   ========================================================================== */
 
-/* Botones base */
 button {
     font-family: inherit;
     font-size: var(--font-size-base);
@@ -215,18 +229,17 @@ button {
     display: inline-flex;
     align-items: center;
     gap: var(--spacing-sm);
-    min-height: 44px; /* Accesibilidad: área táctil mínima */
+    min-height: 44px;
     text-decoration: none;
     user-select: none;
 }
 
-/* Variantes de botones */
 .btn-gray {
     background-color: var(--color-neutral);
 }
 
 .btn-gray:hover:not(:disabled) {
-    background-color: var(--color-border-light);
+    background-color: #4b5563;
     transform: translateY(-1px);
 }
 
@@ -265,7 +278,6 @@ button {
     background-color: var(--color-success-light);
 }
 
-/* Estados de botones */
 .btn:disabled,
 button:disabled {
     opacity: 0.6;
@@ -279,11 +291,15 @@ button:focus {
     outline-offset: 2px;
 }
 
-/* ==========================================================================
-     FORMULARIOS Y CONTROLES
-     ========================================================================== */
+button:focus-visible {
+    outline: 2px solid var(--color-info);
+    outline-offset: 2px;
+}
 
-/* Contenedores de controles */
+/* ==========================================================================
+   FORMULARIOS Y CONTROLES
+   ========================================================================== */
+
 .controls,
 .row {
     display: flex;
@@ -297,7 +313,6 @@ button:focus {
     margin-top: var(--spacing-xl);
 }
 
-/* Etiquetas */
 label {
     font-size: var(--font-size-sm);
     color: var(--color-text-secondary);
@@ -306,7 +321,6 @@ label {
     margin-bottom: var(--spacing-xs);
 }
 
-/* Campos de entrada */
 input[type="text"],
 input[type="email"],
 input[type="number"] {
@@ -329,8 +343,8 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     INFORMACIÓN DEL EMPLEADO
-     ========================================================================== */
+   INFORMACIÓN DEL EMPLEADO
+   ========================================================================== */
 
 .employee-info {
     background-color: var(--color-bg-primary);
@@ -362,7 +376,6 @@ input[type="number"]:focus {
     border-top: 1px solid var(--color-border);
 }
 
-/* Contenedor de empleado legacy (mantenido para compatibilidad) */
 .emp {
     display: flex;
     gap: var(--spacing-md);
@@ -379,10 +392,9 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     ESTADOS Y MENSAJES
-     ========================================================================== */
+   ESTADOS Y MENSAJES
+   ========================================================================== */
 
-/* Área de estado */
 .status-area {
     margin-top: var(--spacing-lg);
     padding: var(--spacing-md);
@@ -391,7 +403,6 @@ input[type="number"]:focus {
     border: 1px solid var(--color-border);
 }
 
-/* Texto de estado */
 .status,
 .status-text {
     font-size: var(--font-size-sm);
@@ -399,19 +410,17 @@ input[type="number"]:focus {
     margin: 0;
 }
 
-/* Texto de ayuda */
 .help-text {
     display: block;
     margin-top: var(--spacing-md);
     padding: var(--spacing-md);
-    background-color: rgba(59, 130, 246, 0.1);
+    background-color: rgba(37, 99, 235, 0.1);
     border-radius: var(--border-radius-md);
     color: var(--color-text-secondary);
     font-size: var(--font-size-sm);
     border-left: 3px solid var(--color-info);
 }
 
-/* Alertas y notificaciones */
 .alert {
     background-color: var(--color-success-bg);
     color: var(--color-success-text);
@@ -431,10 +440,9 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     SISTEMA DE MODAL
-     ========================================================================== */
+   SISTEMA DE MODAL
+   ========================================================================== */
 
-/* Overlay del modal */
 .modal {
     position: fixed;
     inset: 0;
@@ -449,14 +457,12 @@ input[type="number"]:focus {
     transition: all var(--transition-slow);
 }
 
-/* Fondo del modal (para clics de cierre) */
 .modal-backdrop {
     position: absolute;
     inset: 0;
     cursor: pointer;
 }
 
-/* Contenido del modal */
 .modal-content {
     position: relative;
     background-color: var(--color-bg-tertiary);
@@ -471,7 +477,6 @@ input[type="number"]:focus {
     animation: modalSlideIn var(--transition-slow) ease-out;
 }
 
-/* Secciones del modal */
 .modal-header {
     padding: var(--spacing-xl) var(--spacing-xl) var(--spacing-md);
     border-bottom: 1px solid var(--color-border);
@@ -489,7 +494,6 @@ input[type="number"]:focus {
     gap: var(--spacing-md);
 }
 
-/* Título del modal */
 .modal-content h2,
 #modal-title {
     margin: 0;
@@ -499,7 +503,6 @@ input[type="number"]:focus {
     text-align: center;
 }
 
-/* Texto del modal */
 .modal-content p,
 #modal-description {
     margin: 0;
@@ -509,7 +512,6 @@ input[type="number"]:focus {
     text-align: center;
 }
 
-/* Botón de cerrar modal */
 #closeModal {
     background-color: var(--color-success);
     color: white;
@@ -533,10 +535,133 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     ANIMACIONES
-     ========================================================================== */
+   PANTALLA DE CARGA
+   ========================================================================== */
 
-/* Animación de entrada del modal */
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--color-bg-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loading-content {
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    padding: var(--spacing-2xl);
+}
+
+.loading-spinner {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto var(--spacing-2xl);
+}
+
+.spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 6px solid transparent;
+    border-radius: 50%;
+    animation: spin 2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.spinner-ring:nth-child(1) {
+    border-top-color: var(--color-info);
+    animation-delay: -0.45s;
+}
+
+.spinner-ring:nth-child(2) {
+    border-top-color: var(--color-success);
+    animation-delay: -0.3s;
+}
+
+.spinner-ring:nth-child(3) {
+    border-top-color: #8b5cf6;
+    animation-delay: -0.15s;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    margin-bottom: var(--spacing-md);
+}
+
+.loading-message {
+    font-size: var(--font-size-base);
+    color: var(--color-text-muted);
+    margin-bottom: var(--spacing-xl);
+}
+
+.loading-progress {
+    margin-top: var(--spacing-lg);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: var(--spacing-sm);
+}
+
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-info) 0%, var(--color-success) 50%, #8b5cf6 100%);
+    background-size: 200% 100%;
+    border-radius: 99px;
+    transition: width 0.3s ease;
+    animation: progressGradient 2s ease infinite;
+}
+
+@keyframes progressGradient {
+    0% {
+        background-position: 0% 0%;
+    }
+    50% {
+        background-position: 100% 0%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
+}
+
+.progress-text {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--color-info);
+}
+
+/* ==========================================================================
+   ANIMACIONES
+   ========================================================================== */
+
 @keyframes modalSlideIn {
     from {
         transform: scale(0.95) translateY(-20px);
@@ -548,7 +673,6 @@ input[type="number"]:focus {
     }
 }
 
-/* Animación de carga para video */
 @keyframes pulse {
     0%,
     100% {
@@ -573,10 +697,9 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     CLASES DE UTILIDAD
-     ========================================================================== */
+   CLASES DE UTILIDAD
+   ========================================================================== */
 
-/* Ocultar elementos visualmente pero mantenerlos accesibles */
 .sr-only {
     position: absolute;
     width: 1px;
@@ -589,16 +712,18 @@ input[type="number"]:focus {
     border: 0;
 }
 
-/* Texto muted */
 .text-muted {
     color: var(--color-text-muted);
 }
 
-/* ==========================================================================
-     RESPONSIVE DESIGN
-     ========================================================================== */
+.hidden {
+    display: none !important;
+}
 
-/* Tablet y pantallas medianas */
+/* ==========================================================================
+   RESPONSIVE DESIGN
+   ========================================================================== */
+
 @media (max-width: 1024px) {
     .grid {
         grid-template-columns: 1fr 320px;
@@ -606,7 +731,6 @@ input[type="number"]:focus {
     }
 }
 
-/* Móviles y pantallas pequeñas */
 @media (max-width: 768px) {
     body {
         padding: var(--spacing-md);
@@ -616,13 +740,11 @@ input[type="number"]:focus {
         padding: var(--spacing-sm);
     }
 
-    /* Layout de una columna en móviles */
     .grid {
         grid-template-columns: 1fr;
         gap: var(--spacing-md);
     }
 
-    /* Reorganización de controles */
     .controls,
     .row,
     .form-actions {
@@ -631,25 +753,21 @@ input[type="number"]:focus {
         gap: var(--spacing-sm);
     }
 
-    /* Botones de ancho completo */
     button {
         width: 100%;
         justify-content: center;
     }
 
-    /* Campos de entrada de ancho completo */
     input[type="text"],
     input[type="email"],
     input[type="number"] {
         width: 100%;
     }
 
-    /* Ajustes de tarjetas */
     .card {
         padding: var(--spacing-md);
     }
 
-    /* Ajustes del modal */
     .modal-content {
         width: 95%;
         margin: var(--spacing-md);
@@ -662,13 +780,11 @@ input[type="number"]:focus {
         padding-right: var(--spacing-lg);
     }
 
-    /* Video más compacto en móviles */
     .video-wrap {
         aspect-ratio: 4/3;
     }
 }
 
-/* Pantallas muy pequeñas */
 @media (max-width: 480px) {
     header h1 {
         font-size: 1.5rem;
@@ -684,12 +800,12 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     MODO DE ALTO CONTRASTE (Accesibilidad)
-     ========================================================================== */
+   MODO DE ALTO CONTRASTE (Accesibilidad)
+   ========================================================================== */
 @media (prefers-contrast: high) {
     :root {
-        --color-border: #ffffff;
-        --color-text-muted: #ffffff;
+        --color-border: currentColor;
+        --color-text-muted: currentColor;
     }
 
     .card {
@@ -702,8 +818,8 @@ input[type="number"]:focus {
 }
 
 /* ==========================================================================
-     PREFERENCIAS DE MOVIMIENTO REDUCIDO (Accesibilidad)
-     ========================================================================== */
+   PREFERENCIAS DE MOVIMIENTO REDUCIDO (Accesibilidad)
+   ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -712,11 +828,19 @@ input[type="number"]:focus {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
     }
+
+    .spinner-ring {
+        animation: none;
+    }
+
+    .progress-fill {
+        animation: none;
+    }
 }
 
 /* ==========================================================================
-     IMPRESIÓN
-     ========================================================================== */
+   IMPRESIÓN
+   ========================================================================== */
 @media print {
     body {
         background: white;
@@ -724,6 +848,7 @@ input[type="number"]:focus {
     }
 
     .modal,
+    .loading-overlay,
     video,
     canvas,
     button {

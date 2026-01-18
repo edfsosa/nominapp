@@ -21,6 +21,8 @@
 </head>
 
 <body>
+    <x-employee.capture-loading />
+
     <!-- Contenedor principal de la aplicación -->
     <div class="container">
         <!-- Encabezado principal de la página -->
@@ -189,7 +191,7 @@
     <!-- Scripts externos y de la aplicación -->
     <!-- Carga diferida de la biblioteca de reconocimiento facial -->
     <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js" crossorigin="anonymous"
-        onerror="handleScriptError('face-api')"></script>
+        referrerpolicy="no-referrer" onerror="handleScriptError('face-api')"></script>
 
     <!-- Script de funcionalidad específica -->
     @vite('resources/js/employees/capture-face.js')

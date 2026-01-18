@@ -558,6 +558,14 @@ canvas {
     .modal.show .modal-content {
         transform: none;
     }
+
+    .spinner-ring {
+        animation: none;
+    }
+
+    .progress-fill {
+        animation: none;
+    }
 }
 
 /* CORRECCIÓN 28: Mejorar contraste para usuarios con baja visión */
@@ -682,6 +690,130 @@ canvas {
     text-align: center;
     font-weight: 500;
     border-bottom: 2px solid var(--btn-red);
+}
+
+/* ============================================================================
+   PANTALLA DE CARGA
+   ============================================================================ */
+
+.loading-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    background: var(--color-bg);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 1;
+    visibility: visible;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.loading-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.loading-content {
+    text-align: center;
+    max-width: 400px;
+    width: 90%;
+    padding: var(--space-6);
+}
+
+.loading-spinner {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    margin: 0 auto var(--space-6);
+}
+
+.spinner-ring {
+    position: absolute;
+    width: 100%;
+    height: 100%;
+    border: 6px solid transparent;
+    border-radius: 50%;
+    animation: spin 2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+.spinner-ring:nth-child(1) {
+    border-top-color: var(--btn-blue);
+    animation-delay: -0.45s;
+}
+
+.spinner-ring:nth-child(2) {
+    border-top-color: var(--btn-green);
+    animation-delay: -0.3s;
+}
+
+.spinner-ring:nth-child(3) {
+    border-top-color: #8b5cf6;
+    animation-delay: -0.15s;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.loading-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: var(--space-3);
+}
+
+.loading-message {
+    font-size: var(--font-size-base);
+    color: var(--color-muted);
+    margin-bottom: var(--space-6);
+}
+
+.loading-progress {
+    margin-top: var(--space-4);
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--color-border);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: var(--space-2);
+}
+
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, var(--btn-blue) 0%, var(--btn-green) 50%, #8b5cf6 100%);
+    background-size: 200% 100%;
+    border-radius: 99px;
+    transition: width 0.3s ease;
+    animation: progressGradient 2s ease infinite;
+}
+
+@keyframes progressGradient {
+    0% {
+        background-position: 0% 0%;
+    }
+    50% {
+        background-position: 100% 0%;
+    }
+    100% {
+        background-position: 0% 0%;
+    }
+}
+
+.progress-text {
+    font-size: var(--font-size-sm);
+    font-weight: 600;
+    color: var(--btn-blue);
 }
 
 /* Modal variants - Success y Error */

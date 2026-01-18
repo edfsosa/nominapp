@@ -1,4 +1,4 @@
-<section id="typeSelectionScreen" class="terminal-screen" role="region" aria-label="Selección de tipo de marcación">
+<section id="typeSelectionScreen" class="terminal-screen hidden" role="region" aria-label="Selección de tipo de marcación">
     <div class="terminal-content">
         <h1 class="terminal-title">MARCACIÓN DE ASISTENCIA</h1>
         <p class="terminal-subtitle">Seleccione el tipo de marcación</p>

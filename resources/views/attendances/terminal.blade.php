@@ -17,6 +17,7 @@
     </noscript>
 
     <main class="terminal-container">
+        <x-attendance.terminal-loading />
         <x-attendance.terminal-type-selector />
         <x-attendance.terminal-video-section />
         <x-attendance.terminal-success />
