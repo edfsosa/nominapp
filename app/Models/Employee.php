@@ -108,6 +108,14 @@ class Employee extends Model
         return $this->hasMany(AttendanceDay::class);
     }
 
+    /**
+     * Relación con el modelo Absent, un empleado puede tener muchas ausencias
+     */
+    public function absents(): HasMany
+    {
+        return $this->hasMany(Absent::class);
+    }
+
     // Obtener todos los eventos de asistencia a través de los días
     public function attendanceEvents(): HasManyThrough
     {
@@ -223,6 +231,37 @@ class Employee extends Model
     }
 
     /**
+     * Obtiene el nombre completo del empleado con CI
+     */
+    public function getFullNameWithCiAttribute(): string
+    {
+        return "{$this->first_name} {$this->last_name} (CI: {$this->ci})";
+    }
+
+    /**
+     * Obtiene el nombre completo del empleado
+     */
+    public function getFullNameAttribute(): string
+    {
+        return "{$this->first_name} {$this->last_name}";
+    }
+
+    /**
+     * Calcula el monto de deducción por un día de ausencia
+     * - Tiempo completo: salario_base / 30
+     * - Jornalero: tarifa_diaria (daily_rate)
+     */
+    public function getAbsenceDeductionAmount(): float
+    {
+        if ($this->employment_type === 'day_laborer') {
+            return (float) $this->daily_rate;
+        }
+
+        // Tiempo completo: dividir salario base entre 30 días
+        return (float) ($this->base_salary / 30);
+    }
+
+    /**
      * Scope para filtrar empleados con rostro registrado
      */
     public function scopeWithFace($query)
@@ -286,14 +325,6 @@ class Employee extends Model
         }
 
         return number_format((int) $this->daily_rate, 0, '', '.');
-    }
-
-    /**
-     * Obtiene el nombre completo del empleado
-     */
-    public function getFullNameAttribute()
-    {
-        return "{$this->first_name} {$this->last_name}";
     }
 
     /**

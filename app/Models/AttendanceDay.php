@@ -70,9 +70,25 @@ class AttendanceDay extends Model
         return $this->hasMany(AttendanceEvent::class);
     }
 
+    /**
+     * Relación con el modelo Absent, un día de asistencia puede tener una ausencia
+     */
+    public function absent()
+    {
+        return $this->hasOne(Absent::class);
+    }
+
     public function getDateFormattedAttribute(): string
     {
         return Carbon::parse($this->date)->format('d/m/Y');
+    }
+
+    /**
+     * Obtiene una descripción completa del día de asistencia
+     */
+    public function getDescriptionAttribute(): string
+    {
+        return "{$this->date_formatted} - {$this->employee->full_name}";
     }
 
     public function getStatusInSpanishAttribute(): string
