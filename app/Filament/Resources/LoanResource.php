@@ -26,8 +26,10 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
+use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
+use Illuminate\Database\Eloquent\Collection;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\LoanResource\Pages;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
@@ -325,7 +327,7 @@ class LoanResource extends Resource
                 Action::make('cancel')
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
-                    ->color('gray')
+                    ->color('danger')
                     ->visible(fn(Loan $record) => $record->isPending() || ($record->isActive() && $record->paid_installments_count === 0))
                     ->requiresConfirmation()
                     ->modalHeading('Cancelar Préstamo')
@@ -399,6 +401,88 @@ class LoanResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('activateBulk')
+                        ->label('Activar')
+                        ->icon('heroicon-o-play')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Activar Préstamos')
+                        ->modalDescription('Se activarán los préstamos seleccionados que estén en estado pendiente.')
+                        ->form([
+                            DatePicker::make('start_date')
+                                ->label('Fecha de primera cuota')
+                                ->default(now()->addMonth()->startOfMonth())
+                                ->native(false)
+                                ->displayFormat('d/m/Y')
+                                ->required()
+                                ->helperText('Las cuotas siguientes serán el mismo día de cada mes'),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $startDate = Carbon::parse($data['start_date']);
+                            $activated = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending()) {
+                                    $record->activate(Auth::id(), $startDate);
+                                    $activated++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            $message = "Se activaron {$activated} préstamos.";
+                            if ($skipped > 0) {
+                                $message .= " Se omitieron {$skipped} que no estaban pendientes.";
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Préstamos Activados')
+                                ->body($message)
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('cancelBulk')
+                        ->label('Cancelar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Cancelar Préstamos')
+                        ->modalDescription('Se cancelarán los préstamos seleccionados que estén pendientes o activos sin cuotas pagadas.')
+                        ->form([
+                            Textarea::make('reason')
+                                ->label('Motivo de cancelación')
+                                ->placeholder('Ingrese el motivo...')
+                                ->rows(3),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $cancelled = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending() || ($record->isActive() && $record->paid_installments_count === 0)) {
+                                    $record->cancel($data['reason'] ?? null);
+                                    $cancelled++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            $message = "Se cancelaron {$cancelled} préstamos.";
+                            if ($skipped > 0) {
+                                $message .= " Se omitieron {$skipped} que no podían cancelarse.";
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Préstamos Cancelados')
+                                ->body($message)
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     ExportBulkAction::make()
                         ->exports([
                             ExcelExport::make()
