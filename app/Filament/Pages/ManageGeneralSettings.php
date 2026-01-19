@@ -117,6 +117,19 @@ class ManageGeneralSettings extends SettingsPage
                                     ->helperText('Cantidad de horas laborales en una semana'),
                             ]),
                     ]),
+
+                Section::make('Configuración de Préstamos')
+                    ->description('Parámetros para préstamos y adelantos')
+                    ->icon('heroicon-o-banknotes')
+                    ->schema([
+                        TextInput::make('max_loan_amount')
+                            ->label('Monto máximo de préstamo')
+                            ->numeric()
+                            ->minValue(0)
+                            ->default(5000000)
+                            ->prefix('Gs.')
+                            ->helperText('Monto máximo que se puede prestar a un empleado'),
+                    ]),
             ]);
     }
 }

@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recibo de Salario #{{ $payroll->id }}</title>
     <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,10 +19,10 @@
 
         body {
             font-family: Arial, sans-serif;
-            padding: 20px 30px;
             font-size: 10px;
             line-height: 1.3;
             color: #000;
+            padding: 20mm 25mm;
         }
 
         .header {

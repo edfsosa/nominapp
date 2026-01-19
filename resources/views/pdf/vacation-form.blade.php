@@ -6,6 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Solicitud de Vacaciones</title>
     <style>
+        @page {
+            size: A4;
+            margin: 0;
+        }
+
         * {
             margin: 0;
             padding: 0;
@@ -14,9 +19,9 @@
 
         body {
             font-family: Arial, sans-serif;
-            padding: 40px;
             font-size: 11px;
             line-height: 1.4;
+            padding: 20mm 25mm;
         }
 
         .header {
@@ -224,7 +229,7 @@
                 <div class="info-label">Estado:</div>
                 <div class="info-value">
                     <span
-                        class="badge 
+                        class="badge
                         @if ($vacation->status === 'approved') badge-success
                         @elseif($vacation->status === 'rejected') badge-danger
                         @else badge-warning @endif">

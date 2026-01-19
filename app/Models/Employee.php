@@ -116,6 +116,14 @@ class Employee extends Model
         return $this->hasMany(Absent::class);
     }
 
+    /**
+     * Relación con el modelo Loan, un empleado puede tener muchos préstamos
+     */
+    public function loans(): HasMany
+    {
+        return $this->hasMany(Loan::class);
+    }
+
     // Obtener todos los eventos de asistencia a través de los días
     public function attendanceEvents(): HasManyThrough
     {
