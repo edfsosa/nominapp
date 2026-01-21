@@ -13,21 +13,58 @@ class Vacation extends Model
 
     protected $fillable = [
         'employee_id',
+        'vacation_balance_id',
         'start_date',
         'end_date',
+        'return_date',
         'type',
         'reason',
         'status',
+        'business_days',
     ];
 
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'return_date' => 'date',
+        'business_days' => 'integer',
     ];
 
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Relación con el balance de vacaciones
+     */
+    public function vacationBalance(): BelongsTo
+    {
+        return $this->belongsTo(VacationBalance::class);
+    }
+
+    /**
+     * Verifica si está pendiente
+     */
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    /**
+     * Verifica si está aprobada
+     */
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    /**
+     * Verifica si está rechazada
+     */
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
     }
 
     /**
@@ -51,6 +88,60 @@ class Vacation extends Model
             'approved' => 'Aprobado',
             'rejected' => 'Rechazado',
         ];
+    }
+
+    /**
+     * Obtiene la etiqueta del tipo de vacación
+     */
+    public static function getTypeLabel(string $type): string
+    {
+        return self::getTypeOptions()[$type] ?? $type;
+    }
+
+    /**
+     * Obtiene el color del tipo de vacación
+     */
+    public static function getTypeColor(string $type): string
+    {
+        return match ($type) {
+            'paid' => 'success',
+            'unpaid' => 'gray',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Obtiene la etiqueta del estado
+     */
+    public static function getStatusLabel(string $status): string
+    {
+        return self::getStatusOptions()[$status] ?? $status;
+    }
+
+    /**
+     * Obtiene el color del estado
+     */
+    public static function getStatusColor(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'warning',
+            'approved' => 'success',
+            'rejected' => 'danger',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Obtiene el ícono del estado
+     */
+    public static function getStatusIcon(string $status): string
+    {
+        return match ($status) {
+            'pending' => 'heroicon-o-clock',
+            'approved' => 'heroicon-o-check-circle',
+            'rejected' => 'heroicon-o-x-circle',
+            default => 'heroicon-o-question-mark-circle',
+        };
     }
 
     /**
@@ -174,5 +265,54 @@ class Vacation extends Model
     public function getUpdatedAtSinceAttribute(): string
     {
         return $this->updated_at->diffForHumans();
+    }
+
+    /**
+     * Obtiene la descripción de días hábiles
+     */
+    public function getBusinessDaysDescriptionAttribute(): string
+    {
+        $days = $this->business_days ?? $this->total_days;
+        return $days . ' ' . ($days === 1 ? 'día hábil' : 'días hábiles');
+    }
+
+    /**
+     * Obtiene la fecha de reintegro formateada
+     */
+    public function getReturnDateFormattedAttribute(): ?string
+    {
+        return $this->return_date?->format('d/m/Y');
+    }
+
+    /**
+     * Scope para vacaciones pendientes
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    /**
+     * Scope para vacaciones aprobadas
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('status', 'approved');
+    }
+
+    /**
+     * Scope para vacaciones de un año específico
+     */
+    public function scopeForYear($query, int $year)
+    {
+        return $query->whereYear('start_date', $year);
+    }
+
+    /**
+     * Scope para vacaciones de un empleado
+     */
+    public function scopeForEmployee($query, int $employeeId)
+    {
+        return $query->where('employee_id', $employeeId);
     }
 }

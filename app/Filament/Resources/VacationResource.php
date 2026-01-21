@@ -2,26 +2,37 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Resources\VacationResource\Pages;
+use Carbon\Carbon;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use App\Models\Employee;
 use App\Models\Vacation;
-use Barryvdh\DomPDF\Facade\Pdf;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
-use Filament\Notifications\Notification;
+use Filament\Tables\Table;
+use App\Models\VacationBalance;
 use Filament\Resources\Resource;
+use App\Services\VacationService;
+use Illuminate\Support\HtmlString;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
+use Filament\Notifications\Notification;
+use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Table;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use Filament\Forms\Components\Placeholder;
+use Filament\Tables\Actions\BulkActionGroup;
+use Illuminate\Database\Eloquent\Collection;
+use Filament\Tables\Actions\DeleteBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use App\Filament\Resources\VacationResource\Pages;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
 class VacationResource extends Resource
 {
@@ -33,6 +44,12 @@ class VacationResource extends Resource
     protected static ?string $slug = 'vacaciones';
     protected static ?string $navigationIcon = 'heroicon-o-sun';
 
+    /**
+     * Define el formulario para crear/editar solicitudes de vacaciones.
+     *
+     * @param Form $form
+     * @return Form
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -48,11 +65,48 @@ class VacationResource extends Resource
                             ->preload()
                             ->native(false)
                             ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set) {
+                                $set('start_date', null);
+                                $set('end_date', null);
+                                $set('business_days', null);
+                                $set('return_date', null);
+                            })
                             ->getOptionLabelFromRecordUsing(function ($record) {
                                 return "{$record->first_name} {$record->last_name} - CI: {$record->ci}";
                             })
-                            ->columnSpanFull(),
-                    ]),
+                            ->columnSpan(2),
+
+                        Placeholder::make('employee_info')
+                            ->label('Información de Antigüedad')
+                            ->content(function (Get $get) {
+                                $employeeId = $get('employee_id');
+                                if (!$employeeId) {
+                                    return 'Seleccione un empleado';
+                                }
+
+                                $employee = Employee::find($employeeId);
+                                if (!$employee) {
+                                    return 'Empleado no encontrado';
+                                }
+
+                                $yearsOfService = VacationService::getYearsOfService($employee);
+                                $balance = VacationService::getOrCreateBalance($employee, now()->year);
+
+                                $antiquityColor = $yearsOfService < 1 ? 'text-danger-600' : 'text-success-600';
+                                $entitledLabel = VacationBalance::getEntitledDaysLabel($yearsOfService);
+
+                                return new HtmlString("
+                                    <div class='space-y-1 text-sm'>
+                                        <p><strong>Antigüedad:</strong> <span class='{$antiquityColor}'>{$employee->antiquity_description}</span></p>
+                                        <p><strong>Derecho {$balance->year}:</strong> {$entitledLabel}</p>
+                                        <p><strong>Disponibles:</strong> {$balance->available_days} días | <strong>Usados:</strong> {$balance->used_days} días | <strong>Pendientes:</strong> {$balance->pending_days} días</p>
+                                    </div>
+                                ");
+                            })
+                            ->columnSpan(2),
+                    ])
+                    ->columns(2),
 
                 Section::make('Período de Vacaciones')
                     ->schema([
@@ -62,8 +116,12 @@ class VacationResource extends Resource
                             ->native(false)
                             ->closeOnDateSelection()
                             ->required()
-                            ->reactive()
-                            ->afterStateUpdated(fn($state, callable $set) => $set('end_date', null))
+                            ->live()
+                            ->afterStateUpdated(function (Set $set) {
+                                $set('end_date', null);
+                                $set('business_days', null);
+                                $set('return_date', null);
+                            })
                             ->columnSpan(1),
 
                         DatePicker::make('end_date')
@@ -72,10 +130,69 @@ class VacationResource extends Resource
                             ->native(false)
                             ->closeOnDateSelection()
                             ->required()
-                            ->minDate(fn($get) => $get('start_date'))
-                            ->disabled(fn($get) => !$get('start_date'))
-                            ->helperText('La fecha de fin debe ser posterior o igual a la fecha de inicio')
+                            ->minDate(fn(Get $get) => $get('start_date'))
+                            ->disabled(fn(Get $get) => !$get('start_date'))
+                            ->live()
+                            ->afterStateUpdated(function ($state, Get $get, Set $set) {
+                                $employeeId = $get('employee_id');
+                                $startDate = $get('start_date');
+
+                                if (!$employeeId || !$startDate || !$state) {
+                                    return;
+                                }
+
+                                $employee = Employee::find($employeeId);
+                                if (!$employee) {
+                                    return;
+                                }
+
+                                $startDate = Carbon::parse($startDate);
+                                $endDate = Carbon::parse($state);
+
+                                $businessDays = VacationService::calculateBusinessDays($employee, $startDate, $endDate);
+                                $returnDate = VacationService::calculateReturnDate($employee, $endDate);
+
+                                $set('business_days', $businessDays);
+                                $set('return_date', $returnDate->format('Y-m-d'));
+                            })
                             ->columnSpan(1),
+
+                        Placeholder::make('calculation_info')
+                            ->label('Cálculo de Días')
+                            ->content(function (Get $get) {
+                                $businessDays = $get('business_days');
+                                $returnDate = $get('return_date');
+                                $employeeId = $get('employee_id');
+
+                                if (!$businessDays) {
+                                    return 'Seleccione las fechas para calcular';
+                                }
+
+                                $employee = Employee::find($employeeId);
+                                $balance = $employee ? VacationService::getOrCreateBalance($employee, now()->year) : null;
+                                $available = $balance ? $balance->available_days : 0;
+
+                                $daysColor = $businessDays > $available ? 'text-danger-600' : 'text-success-600';
+                                $returnFormatted = $returnDate ? \Carbon\Carbon::parse($returnDate)->format('d/m/Y') : '-';
+
+                                $warning = '';
+                                if ($businessDays > 0 && $businessDays < 6) {
+                                    $warning = "<p class='text-warning-600 text-xs mt-1'>⚠️ El fraccionamiento mínimo legal es de 6 días hábiles</p>";
+                                }
+
+                                return new HtmlString("
+                                    <div class='space-y-1 text-sm'>
+                                        <p><strong>Días hábiles:</strong> <span class='{$daysColor}'>{$businessDays} días</span> (Disponibles: {$available})</p>
+                                        <p><strong>Fecha de reintegro:</strong> {$returnFormatted}</p>
+                                        {$warning}
+                                    </div>
+                                ");
+                            })
+                            ->columnSpan(2),
+
+                        Hidden::make('business_days'),
+                        Hidden::make('return_date'),
+                        Hidden::make('vacation_balance_id'),
                     ])
                     ->columns(2),
 
@@ -83,10 +200,7 @@ class VacationResource extends Resource
                     ->schema([
                         Select::make('type')
                             ->label('Tipo de Vacaciones')
-                            ->options([
-                                'paid'   => 'Remuneradas',
-                                'unpaid' => 'No Remuneradas',
-                            ])
+                            ->options(Vacation::getTypeOptions())
                             ->default('paid')
                             ->native(false)
                             ->required()
@@ -94,37 +208,50 @@ class VacationResource extends Resource
 
                         Select::make('status')
                             ->label('Estado')
-                            ->options([
-                                'pending'  => 'Pendiente',
-                                'approved' => 'Aprobado',
-                                'rejected' => 'Rechazado',
-                            ])
+                            ->options(Vacation::getStatusOptions())
                             ->default('pending')
                             ->native(false)
                             ->required()
+                            ->disabled()
+                            ->dehydrated()
                             ->columnSpan(1),
+
+                        Textarea::make('reason')
+                            ->label('Motivo')
+                            ->placeholder('Motivo de la solicitud (opcional)...')
+                            ->rows(2)
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
     }
 
+    /**
+     * Define la tabla para listar las solicitudes de vacaciones.
+     *
+     * @param Table $table
+     * @return Table
+     */
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
-                TextColumn::make('employee.ci')
-                    ->label('CI')
-                    ->sortable()
-                    ->searchable()
-                    ->copyable()
-                    ->copyMessage('CI copiado')
-                    ->weight('bold'),
-
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
                     ->sortable(['first_name', 'last_name'])
                     ->searchable(['first_name', 'last_name'])
                     ->wrap(),
+
+                TextColumn::make('employee.ci')
+                    ->label('CI')
+                    ->icon('heroicon-o-identification')
+                    ->sortable()
+                    ->searchable()
+                    ->badge()
+                    ->color('gray')
+                    ->copyable()
+                    ->tooltip('Haz clic para copiar')
+                    ->copyMessage('Cédula copiada'),
 
                 TextColumn::make('start_date')
                     ->label('Inicio')
@@ -136,36 +263,35 @@ class VacationResource extends Resource
                     ->date('d/m/Y')
                     ->sortable(),
 
-                TextColumn::make('days_requested')
-                    ->label('Días')
+                TextColumn::make('business_days')
+                    ->label('Días Háb.')
                     ->alignCenter()
                     ->badge()
                     ->color('info')
-                    ->sortable(),
+                    ->sortable()
+                    ->tooltip('Días hábiles (excluye domingos y feriados)'),
+
+                TextColumn::make('return_date')
+                    ->label('Reintegro')
+                    ->date('d/m/Y')
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->color(fn($state) => $state === 'paid' ? 'success' : 'gray')
-                    ->formatStateUsing(fn($state) => $state === 'paid' ? 'Remuneradas' : 'No Remuneradas')
-                    ->sortable(),
+                    ->color(fn(string $state): string => Vacation::getTypeColor($state))
+                    ->formatStateUsing(fn(string $state): string => Vacation::getTypeLabel($state))
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->sortable()
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'pending'  => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                        default    => 'gray',
-                    })
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'pending'  => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                        default    => $state,
-                    }),
+                    ->color(fn(string $state): string => Vacation::getStatusColor($state))
+                    ->icon(fn(string $state): string => Vacation::getStatusIcon($state))
+                    ->formatStateUsing(fn(string $state): string => Vacation::getStatusLabel($state)),
 
                 TextColumn::make('created_at')
                     ->label('Creado')
@@ -184,25 +310,27 @@ class VacationResource extends Resource
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->placeholder('Todos')
-                    ->options([
-                        'pending'  => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(Vacation::getStatusOptions())
                     ->native(false),
 
                 SelectFilter::make('type')
                     ->label('Tipo')
                     ->placeholder('Todos')
-                    ->options([
-                        'paid'   => 'Remuneradas',
-                        'unpaid' => 'No Remuneradas',
-                    ])
+                    ->options(Vacation::getTypeOptions())
+                    ->native(false),
+
+                SelectFilter::make('employee_id')
+                    ->label('Empleado')
+                    ->relationship('employee', 'first_name')
+                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->searchable()
+                    ->preload()
                     ->native(false),
 
                 Filter::make('current_year')
                     ->label('Año Actual')
-                    ->query(fn($query) => $query->whereYear('start_date', now()->year)),
+                    ->query(fn($query) => $query->whereYear('start_date', now()->year))
+                    ->default(),
             ])
             ->actions([
                 Action::make('approve')
@@ -212,9 +340,19 @@ class VacationResource extends Resource
                     ->visible(fn($record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Solicitud de Vacaciones')
-                    ->modalDescription(fn($record) => "¿Está seguro de aprobar las vacaciones de {$record->employee->full_name} del {$record->start_date->format('d/m/Y')} al {$record->end_date->format('d/m/Y')}?")
+                    ->modalDescription(function ($record) {
+                        $days = $record->business_days ?? $record->total_days;
+                        $returnDate = $record->return_date?->format('d/m/Y') ?? 'No calculada';
+                        return "¿Aprobar vacaciones de {$record->employee->full_name}?\n\nPeríodo: {$record->start_date->format('d/m/Y')} al {$record->end_date->format('d/m/Y')}\nDías hábiles: {$days}\nFecha de reintegro: {$returnDate}";
+                    })
                     ->action(function ($record) {
+                        // Actualizar balance
+                        if ($record->vacation_balance_id && $record->vacationBalance) {
+                            $record->vacationBalance->confirmDays($record->business_days ?? 0);
+                        }
+
                         $record->update(['status' => 'approved']);
+
                         Notification::make()
                             ->title('Vacaciones aprobadas')
                             ->body("Las vacaciones de {$record->employee->full_name} fueron aprobadas exitosamente.")
@@ -231,7 +369,13 @@ class VacationResource extends Resource
                     ->modalHeading('Rechazar Solicitud de Vacaciones')
                     ->modalDescription(fn($record) => "¿Está seguro de rechazar las vacaciones de {$record->employee->full_name}?")
                     ->action(function ($record) {
+                        // Liberar días pendientes del balance
+                        if ($record->vacation_balance_id && $record->vacationBalance) {
+                            $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
+                        }
+
                         $record->update(['status' => 'rejected']);
+
                         Notification::make()
                             ->title('Vacaciones rechazadas')
                             ->body("Las vacaciones de {$record->employee->full_name} fueron rechazadas.")
@@ -239,27 +383,72 @@ class VacationResource extends Resource
                             ->send();
                     }),
 
-                Action::make('generate_pdf')
-                    ->label('Generar PDF')
-                    ->icon('heroicon-o-document-text')
-                    ->color('info')
-                    ->action(function ($record) {
-                        $pdf = Pdf::loadView('pdf.vacation-form', ['vacation' => $record])
-                            ->setPaper('a4', 'portrait');
-
-                        return response()->streamDownload(function () use ($pdf) {
-                            echo $pdf->output();
-                        }, "vacaciones-{$record->employee->ci}-{$record->id}.pdf");
-                    })
-                    ->visible(fn($record) => in_array($record->status, ['approved', 'pending'])),
-
-
                 EditAction::make(),
-                DeleteAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    BulkAction::make('approveBulk')
+                        ->label('Aprobar')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar Vacaciones')
+                        ->modalDescription('Se aprobarán las vacaciones seleccionadas que estén en estado pendiente.')
+                        ->action(function (Collection $records) {
+                            $approved = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending()) {
+                                    if ($record->vacation_balance_id && $record->vacationBalance) {
+                                        $record->vacationBalance->confirmDays($record->business_days ?? 0);
+                                    }
+                                    $record->update(['status' => 'approved']);
+                                    $approved++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Vacaciones Aprobadas')
+                                ->body("Se aprobaron {$approved} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('rejectBulk')
+                        ->label('Rechazar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Rechazar Vacaciones')
+                        ->modalDescription('Se rechazarán las vacaciones seleccionadas que estén en estado pendiente.')
+                        ->action(function (Collection $records) {
+                            $rejected = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending()) {
+                                    if ($record->vacation_balance_id && $record->vacationBalance) {
+                                        $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
+                                    }
+                                    $record->update(['status' => 'rejected']);
+                                    $rejected++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Vacaciones Rechazadas')
+                                ->body("Se rechazaron {$rejected} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     ExportBulkAction::make()
                         ->exports([
                             ExcelExport::make()
@@ -271,7 +460,7 @@ class VacationResource extends Resource
                                 ])
                                 ->withFilename('vacaciones_' . now()->format('d_m_Y_H_i_s')),
                         ])
-                        ->label('Exportar seleccionados')
+                        ->label('Exportar a Excel')
                         ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
                 ]),
@@ -282,10 +471,37 @@ class VacationResource extends Resource
             ->emptyStateIcon('heroicon-o-sun');
     }
 
+    /**
+     * Define las páginas para el recurso de vacaciones.
+     *
+     * @return array
+     */
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ManageVacations::route('/'),
+            'index' => Pages\ListVacations::route('/'),
+            'create' => Pages\CreateVacation::route('/create'),
+            'edit' => Pages\EditVacation::route('/{record}/edit'),
         ];
+    }
+
+    /**
+     * Define la insignia de navegación para el recurso de vacaciones.
+     *
+     * @return string|null
+     */
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getModel()::where('status', 'pending')->count() ?: null;
+    }
+
+    /**
+     * Define el color de la insignia de navegación para el recurso de vacaciones.
+     *
+     * @return string|null
+     */
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
     }
 }

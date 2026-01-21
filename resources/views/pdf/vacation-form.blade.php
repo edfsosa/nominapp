@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Solicitud de Vacaciones</title>
+    <title>Comunicacion de Vacaciones</title>
     <style>
         @page {
             size: A4;
@@ -20,38 +20,53 @@
         body {
             font-family: Arial, sans-serif;
             font-size: 11px;
-            line-height: 1.4;
-            padding: 20mm 25mm;
+            line-height: 1.5;
+            padding: 15mm 20mm;
         }
 
-        .header {
+        .company-header {
             text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #333;
+            margin-bottom: 20px;
             padding-bottom: 15px;
+            border-bottom: 1px solid #000;
         }
 
-        .header h1 {
-            font-size: 18px;
-            margin-bottom: 5px;
+        .company-name {
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 3px;
         }
 
-        .header p {
+        .company-info {
+            font-size: 9px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 20px 0 5px 0;
+        }
+
+        .subtitle {
+            text-align: center;
             font-size: 10px;
-            color: #666;
+            margin-bottom: 20px;
         }
 
         .section {
-            margin-bottom: 20px;
+            margin-bottom: 15px;
         }
 
         .section-title {
             font-weight: bold;
-            font-size: 12px;
-            background-color: #f0f0f0;
-            padding: 8px;
-            margin-bottom: 10px;
-            border-left: 3px solid #333;
+            font-size: 10px;
+            text-transform: uppercase;
+            padding: 5px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #000;
         }
 
         .info-grid {
@@ -67,67 +82,98 @@
         .info-label {
             display: table-cell;
             font-weight: bold;
-            width: 30%;
-            padding: 8px;
-            border: 1px solid #ddd;
-            background-color: #f9f9f9;
+            width: 180px;
+            padding: 5px 8px;
+            border: 1px solid #000;
         }
 
         .info-value {
             display: table-cell;
-            padding: 8px;
-            border: 1px solid #ddd;
+            padding: 5px 8px;
+            border: 1px solid #000;
         }
 
-        .badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 4px;
-            font-size: 10px;
+        .content {
+            text-align: justify;
+            line-height: 1.8;
+            margin: 15px 0;
+        }
+
+        .content p {
+            text-indent: 40px;
+        }
+
+        .period-section {
+            margin: 15px 0;
+            padding: 12px;
+            border: 1px solid #000;
+        }
+
+        .period-title {
             font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-size: 10px;
         }
 
-        .badge-success {
-            background-color: #d4edda;
-            color: #155724;
+        .period-grid {
+            display: table;
+            width: 100%;
         }
 
-        .badge-warning {
-            background-color: #fff3cd;
-            color: #856404;
+        .period-row {
+            display: table-row;
         }
 
-        .badge-danger {
-            background-color: #f8d7da;
-            color: #721c24;
+        .period-item {
+            display: table-cell;
+            padding: 3px 0;
         }
 
-        .badge-info {
-            background-color: #d1ecf1;
-            color: #0c5460;
+        .period-label {
+            font-weight: bold;
+            width: 140px;
+            display: inline-block;
+        }
+
+        .reason-section {
+            margin: 15px 0;
+        }
+
+        .reason-box {
+            border: 1px solid #000;
+            padding: 10px;
+            min-height: 50px;
+        }
+
+        .note-section {
+            margin: 20px 0;
+            padding: 12px;
+            border: 1px solid #000;
+        }
+
+        .note-title {
+            font-weight: bold;
+            margin-bottom: 5px;
         }
 
         .signature-section {
-            margin-top: 60px;
-            page-break-inside: avoid;
-        }
-
-        .signature-box {
+            margin-top: 50px;
             display: table;
             width: 100%;
-            margin-top: 40px;
         }
 
         .signature-item {
             display: table-cell;
+            width: 33.33%;
             text-align: center;
-            padding: 0 20px;
+            padding: 0 15px;
         }
 
         .signature-line {
-            border-top: 1px solid #333;
-            margin-bottom: 8px;
-            padding-top: 2px;
+            border-top: 1px solid #000;
+            margin-bottom: 5px;
+            padding-top: 5px;
         }
 
         .signature-label {
@@ -137,53 +183,66 @@
 
         .signature-sublabel {
             font-size: 9px;
-            color: #666;
         }
 
         .footer {
             margin-top: 40px;
             text-align: center;
-            font-size: 9px;
-            color: #999;
-            border-top: 1px solid #ddd;
+            font-size: 8px;
+            border-top: 1px solid #ccc;
             padding-top: 10px;
-        }
-
-        .reason-box {
-            border: 1px solid #ddd;
-            padding: 12px;
-            background-color: #f9f9f9;
-            min-height: 60px;
-            border-radius: 4px;
-        }
-
-        .important-note {
-            background-color: #fff3cd;
-            border-left: 3px solid #ffc107;
-            padding: 12px;
-            margin: 20px 0;
-            font-size: 10px;
         }
     </style>
 </head>
 
 <body>
-    {{-- Header --}}
-    <div class="header">
-        <h1>SOLICITUD DE VACACIONES</h1>
-        <p>Documento de Autorización y Registro</p>
+    @php
+        $returnDate = $vacation->return_date ?? $vacation->end_date->addDay();
+    @endphp
+
+    {{-- Encabezado de la Empresa --}}
+    <div class="company-header">
+        <div class="company-name">{{ $companyName }}</div>
+        <div class="company-info">
+            @if ($companyRuc)
+                RUC: {{ $companyRuc }}
+            @endif
+            @if ($employerNumber)
+                | Nro. Patronal: {{ $employerNumber }}
+            @endif
+        </div>
+        @if ($companyAddress)
+            <div class="company-info">{{ $companyAddress }}</div>
+        @endif
+        @if ($companyPhone || $companyEmail)
+            <div class="company-info">
+                @if ($companyPhone)
+                    Tel: {{ $companyPhone }}
+                @endif
+                @if ($companyPhone && $companyEmail)
+                    |
+                @endif
+                @if ($companyEmail)
+                    {{ $companyEmail }}
+                @endif
+            </div>
+        @endif
     </div>
 
-    {{-- Información del Empleado --}}
+    {{-- Titulo --}}
+    <div class="title">Comunicacion de Vacaciones</div>
+    <div class="subtitle">Art. 218 del Codigo Laboral</div>
+
+    {{-- Informacion del Empleado --}}
     <div class="section">
-        <div class="section-title">INFORMACIÓN DEL EMPLEADO</div>
+        <div class="section-title">Informacion del Empleado</div>
         <div class="info-grid">
             <div class="info-row">
                 <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $vacation->employee->first_name }} {{ $vacation->employee->last_name }}</div>
+                <div class="info-value">{{ $vacation->employee->full_name }}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">Cédula de Identidad:</div>
+                <div class="info-label">Cedula de Identidad:</div>
                 <div class="info-value">{{ $vacation->employee->ci }}</div>
             </div>
             <div class="info-row">
@@ -194,47 +253,53 @@
                 <div class="info-label">Departamento:</div>
                 <div class="info-value">{{ $vacation->employee->position->department->name ?? 'N/A' }}</div>
             </div>
+            <div class="info-row">
+                <div class="info-label">Antiguedad:</div>
+                <div class="info-value">{{ $vacation->employee->antiquity_description ?? 'N/A' }}</div>
+            </div>
         </div>
     </div>
 
-    {{-- Período de Vacaciones --}}
-    <div class="section">
-        <div class="section-title">PERÍODO DE VACACIONES</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Fecha de Inicio:</div>
-                <div class="info-value">{{ $vacation->start_date->format('d/m/Y') }}
-                    ({{ ucfirst($vacation->start_date->locale('es')->dayName) }})</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Fecha de Fin:</div>
-                <div class="info-value">{{ $vacation->end_date->format('d/m/Y') }}
-                    ({{ ucfirst($vacation->end_date->locale('es')->dayName) }})</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Total de Días:</div>
-                <div class="info-value">
-                    <span class="badge badge-info">{{ $vacation->days_requested }} días</span>
+    {{-- Comunicacion Legal --}}
+    <div class="content">
+        <p>
+            En cumplimiento a lo dispuesto en el Articulo 218 del Codigo Laboral vigente, se le comunica
+            que debera hacer uso de sus vacaciones anuales remuneradas correspondientes al periodo
+            <strong>{{ $vacation->vacationBalance?->year - 1 ?? now()->year - 1 }} -
+                {{ $vacation->vacationBalance?->year ?? now()->year }}</strong>,
+            por un total de <strong>{{ $vacation->business_days ?? $vacation->total_days }} dias habiles</strong>,
+            conforme al siguiente detalle:
+        </p>
+    </div>
+
+    {{-- Periodo de Vacaciones --}}
+    <div class="period-section">
+        <div class="period-title">Periodo de Vacaciones</div>
+        <div class="period-grid">
+            <div class="period-row">
+                <div class="period-item">
+                    <span class="period-label">Fecha de Inicio:</span>
+                    {{ $vacation->start_date->format('d/m/Y') }}
+                    ({{ ucfirst($vacation->start_date->locale('es')->dayName) }})
                 </div>
             </div>
-            <div class="info-row">
-                <div class="info-label">Tipo de Vacaciones:</div>
-                <div class="info-value">
-                    <span class="badge {{ $vacation->type === 'paid' ? 'badge-success' : 'badge-warning' }}">
-                        {{ $vacation->type === 'paid' ? 'Remuneradas' : 'No Remuneradas' }}
-                    </span>
+            <div class="period-row">
+                <div class="period-item">
+                    <span class="period-label">Fecha de Fin:</span>
+                    {{ $vacation->end_date->format('d/m/Y') }}
+                    ({{ ucfirst($vacation->end_date->locale('es')->dayName) }})
                 </div>
             </div>
-            <div class="info-row">
-                <div class="info-label">Estado:</div>
-                <div class="info-value">
-                    <span
-                        class="badge
-                        @if ($vacation->status === 'approved') badge-success
-                        @elseif($vacation->status === 'rejected') badge-danger
-                        @else badge-warning @endif">
-                        {{ $vacation->status === 'approved' ? 'Aprobado' : ($vacation->status === 'rejected' ? 'Rechazado' : 'Pendiente') }}
-                    </span>
+            <div class="period-row">
+                <div class="period-item">
+                    <span class="period-label">Dias Habiles:</span>
+                    {{ $vacation->business_days ?? $vacation->total_days }} dias
+                </div>
+            </div>
+            <div class="period-row">
+                <div class="period-item">
+                    <span class="period-label">Fecha de Reintegro:</span>
+                    {{ $returnDate->format('d/m/Y') }} ({{ ucfirst($returnDate->locale('es')->dayName) }})
                 </div>
             </div>
         </div>
@@ -242,8 +307,8 @@
 
     {{-- Motivo --}}
     @if ($vacation->reason)
-        <div class="section">
-            <div class="section-title">MOTIVO DE LA SOLICITUD</div>
+        <div class="reason-section">
+            <div class="section-title">Motivo de la Solicitud</div>
             <div class="reason-box">
                 {{ $vacation->reason }}
             </div>
@@ -251,41 +316,48 @@
     @endif
 
     {{-- Nota Importante --}}
-    <div class="important-note">
-        <strong>NOTA IMPORTANTE:</strong> El empleado deberá reintegrarse a sus labores el día
-        <strong>{{ $vacation->end_date->addDay()->format('d/m/Y') }}</strong>.
-        En caso de no presentarse sin justificación, se considerará como ausencia injustificada.
+    <div class="note-section">
+        <div class="note-title">Nota Importante:</div>
+        <p>
+            El empleado debera reintegrarse a sus labores el dia <strong>{{ $returnDate->format('d/m/Y') }}</strong>.
+            En caso de no presentarse sin justificacion, se considerara como ausencia injustificada conforme
+            a lo establecido en el Codigo Laboral vigente.
+        </p>
+    </div>
+
+    {{-- Texto de conformidad --}}
+    <div class="content">
+        <p>
+            En prueba de conformidad y como constancia de haber sido notificado de lo anterior,
+            firmo el presente documento.
+        </p>
     </div>
 
     {{-- Firmas --}}
     <div class="signature-section">
-        <div class="section-title">FIRMAS Y AUTORIZACIONES</div>
-        <div class="signature-box">
-            <div class="signature-item">
-                <div class="signature-line"></div>
-                <div class="signature-label">Empleado</div>
-                <div class="signature-sublabel">{{ $vacation->employee->first_name }}
-                    {{ $vacation->employee->last_name }}</div>
-                <div class="signature-sublabel">CI: {{ $vacation->employee->ci }}</div>
-            </div>
-            <div class="signature-item">
-                <div class="signature-line"></div>
-                <div class="signature-label">Supervisor/Jefe Inmediato</div>
-                <div class="signature-sublabel">Nombre y Firma</div>
-            </div>
-            <div class="signature-item">
-                <div class="signature-line"></div>
-                <div class="signature-label">Recursos Humanos</div>
-                <div class="signature-sublabel">Nombre y Firma</div>
-            </div>
+        <div class="signature-item">
+            <div class="signature-line"></div>
+            <div class="signature-label">Empleado</div>
+            <div class="signature-sublabel">{{ $vacation->employee->full_name }}</div>
+            <div class="signature-sublabel">CI: {{ $vacation->employee->ci }}</div>
+        </div>
+        <div class="signature-item">
+            <div class="signature-line"></div>
+            <div class="signature-label">Superior Inmediato</div>
+            <div class="signature-sublabel">Firma</div>
+        </div>
+        <div class="signature-item">
+            <div class="signature-line"></div>
+            <div class="signature-label">Recursos Humanos</div>
+            <div class="signature-sublabel">Firma y Sello</div>
         </div>
     </div>
 
     {{-- Footer --}}
     <div class="footer">
         Documento generado el {{ now()->format('d/m/Y H:i') }} | Solicitud #{{ $vacation->id }}
-        @if ($vacation->status === 'approved')
-            | Aprobado el {{ $vacation->updated_at->format('d/m/Y H:i') }}
+        @if ($city)
+            | {{ $city }}, Paraguay
         @endif
     </div>
 </body>

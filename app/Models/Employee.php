@@ -154,11 +154,19 @@ class Employee extends Model
     }
 
     /**
-     * Relación con el modelo Vacationm, un empleado puede tener muchas vacaciones
+     * Relación con el modelo Vacation, un empleado puede tener muchas vacaciones
      */
     public function vacations(): HasMany
     {
         return $this->hasMany(Vacation::class);
+    }
+
+    /**
+     * Relación con el modelo VacationBalance, un empleado puede tener balances por año
+     */
+    public function vacationBalances(): HasMany
+    {
+        return $this->hasMany(VacationBalance::class);
     }
 
     /**

@@ -5,6 +5,7 @@ use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
+use App\Http\Controllers\VacationDocumentController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -83,4 +84,8 @@ Route::middleware(['auth'])->group(function () {
     // Administración de horarios
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])
         ->name('schedules.remove-employee');
+
+    // Descarga de documentos de vacaciones
+    Route::get('/vacaciones/documentos/{filename}', [VacationDocumentController::class, 'download'])
+        ->name('vacation.documents.download');
 });

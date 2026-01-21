@@ -58,7 +58,7 @@ class ManageGeneralSettings extends SettingsPage
                             ->previewable()
                             ->helperText('Tamaño máximo 2 MB (JPEG, PNG, SVG)'),
 
-                        Grid::make(3)
+                        Grid::make(2)
                             ->schema([
                                 TextInput::make('company_ruc')
                                     ->label('RUC')
@@ -66,6 +66,15 @@ class ManageGeneralSettings extends SettingsPage
                                     ->regex('/^\d{8}-\d{1}$/')
                                     ->maxLength(50),
 
+                                TextInput::make('company_employer_number')
+                                    ->label('Nro. Patronal')
+                                    ->placeholder('137678')
+                                    ->maxLength(20)
+                                    ->helperText('Número patronal del Ministerio de Trabajo'),
+                            ]),
+
+                        Grid::make(3)
+                            ->schema([
                                 TextInput::make('company_phone')
                                     ->label('Teléfono')
                                     ->tel()
@@ -79,6 +88,12 @@ class ManageGeneralSettings extends SettingsPage
                                     ->placeholder('correo@empresa.com')
                                     ->email()
                                     ->maxLength(100),
+
+                                TextInput::make('company_city')
+                                    ->label('Ciudad')
+                                    ->placeholder('Asunción')
+                                    ->maxLength(100)
+                                    ->helperText('Ciudad para documentos oficiales'),
                             ]),
 
                         Textarea::make('company_address')
