@@ -230,7 +230,8 @@
     <div class="info-section">
         <div class="info-row">
             <span class="info-label">Empleado:</span>
-            <span class="info-value">{{ strtoupper($vacation->employee->last_name) }}, {{ strtoupper($vacation->employee->first_name) }}</span>
+            <span class="info-value">{{ strtoupper($vacation->employee->last_name) }},
+                {{ strtoupper($vacation->employee->first_name) }}</span>
         </div>
         <div class="info-row">
             <span class="info-label">Cedula de Identidad:</span>
@@ -242,7 +243,8 @@
         </div>
         <div class="info-row">
             <span class="info-label">Periodo correspondiente:</span>
-            <span class="info-value">{{ $vacation->vacationBalance?->year - 1 ?? now()->year - 1 }} - {{ $vacation->vacationBalance?->year ?? now()->year }}</span>
+            <span class="info-value">{{ $vacation->vacationBalance?->year - 1 ?? now()->year - 1 }} -
+                {{ $vacation->vacationBalance?->year ?? now()->year }}</span>
         </div>
     </div>
 
@@ -257,7 +259,7 @@
                 <strong>Fin:</strong> {{ $vacation->end_date->format('d/m/Y') }}
             </div>
             <div class="period-item">
-                <strong>Dias habiles:</strong> {{ $days }}
+                <strong>Dias habiles:</strong> {{ $vacation->business_days }} dias
             </div>
         </div>
     </div>
@@ -274,7 +276,8 @@
         </thead>
         <tbody>
             <tr>
-                <td class="text-left">Salario diario (Base: Gs. {{ number_format($vacation->employee->base_salary ?? 0, 0, ',', '.') }} / 30)</td>
+                <td class="text-left">Salario diario (Base: Gs.
+                    {{ number_format($vacation->employee->base_salary ?? 0, 0, ',', '.') }} / 30)</td>
                 <td>{{ $days }} dias</td>
                 <td class="amount">Gs. {{ number_format($dailySalary, 0, ',', '.') }}</td>
                 <td class="amount">Gs. {{ number_format($subTotal, 0, ',', '.') }}</td>
