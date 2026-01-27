@@ -23,7 +23,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // AttendanceDay::observe(AttendanceDayObserver::class); // Desactivado para evitar cálculos automáticos
+        AttendanceDay::observe(AttendanceDayObserver::class);
         AttendanceEvent::observe(AttendanceEventObserver::class);
     }
 }

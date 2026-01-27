@@ -9,8 +9,11 @@ class AbsencePenaltyCalculator
 {
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
-        $hourlyRate = $employee->base_salary / 240;
-        $dailyRate = $hourlyRate * 8;
+        $monthlyHours = config('payroll.hours.monthly');
+        $dailyHours = config('payroll.hours.daily');
+
+        $hourlyRate = $employee->base_salary / $monthlyHours;
+        $dailyRate = $hourlyRate * $dailyHours;
 
         $absentDays = $employee->attendanceDays()
             ->whereBetween('date', [$period->start_date, $period->end_date])

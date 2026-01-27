@@ -13,21 +13,31 @@ class VacationService
 {
     /**
      * Días de vacaciones según antigüedad (Ley Paraguaya)
-     * - Hasta 5 años: 12 días hábiles
-     * - Más de 5 a 10 años: 18 días hábiles
-     * - Más de 10 años: 30 días hábiles
+     * Configurado en config/payroll.php -> vacation.tiers
      */
     public static function getEntitledDays(int $yearsOfService): int
     {
-        if ($yearsOfService < 1) {
+        $minYearsService = config('payroll.vacation.minimum_years_service', 1);
+
+        if ($yearsOfService < $minYearsService) {
             return 0;
-        } elseif ($yearsOfService <= 5) {
-            return 12;
-        } elseif ($yearsOfService <= 10) {
-            return 18;
-        } else {
-            return 30;
         }
+
+        $tiers = config('payroll.vacation.tiers', [
+            ['min_years' => 1, 'max_years' => 5, 'days' => 12],
+            ['min_years' => 5, 'max_years' => 10, 'days' => 18],
+            ['min_years' => 10, 'max_years' => null, 'days' => 30],
+        ]);
+
+        foreach ($tiers as $tier) {
+            $maxYears = $tier['max_years'] ?? PHP_INT_MAX;
+            if ($yearsOfService >= $tier['min_years'] && $yearsOfService <= $maxYears) {
+                return $tier['days'];
+            }
+        }
+
+        // Si no encaja en ningún tier, devolver el último (máximo)
+        return $tiers[count($tiers) - 1]['days'] ?? 0;
     }
 
     /**
@@ -156,10 +166,11 @@ class VacationService
         $errors = [];
         $warnings = [];
 
-        // 1. Verificar antigüedad mínima (1 año)
+        // 1. Verificar antigüedad mínima
+        $minYearsService = config('payroll.vacation.minimum_years_service', 1);
         $yearsOfService = self::getYearsOfService($employee);
-        if ($yearsOfService < 1) {
-            $errors[] = "El empleado debe tener al menos 1 año de antigüedad para solicitar vacaciones. Antigüedad actual: {$employee->antiquity_description}";
+        if ($yearsOfService < $minYearsService) {
+            $errors[] = "El empleado debe tener al menos {$minYearsService} año(s) de antigüedad para solicitar vacaciones. Antigüedad actual: {$employee->antiquity_description}";
         }
 
         // 2. Calcular días hábiles
@@ -169,10 +180,11 @@ class VacationService
             $errors[] = "El período seleccionado no contiene días hábiles.";
         }
 
-        // 3. Verificar mínimo de 6 días consecutivos (fraccionamiento)
+        // 3. Verificar mínimo de días consecutivos (fraccionamiento)
         // Solo advertencia, no error
-        if ($businessDays > 0 && $businessDays < 6) {
-            $warnings[] = "Según la ley, el fraccionamiento mínimo es de 6 días hábiles consecutivos. Se solicitaron {$businessDays} días.";
+        $minConsecutiveDays = config('payroll.vacation.minimum_consecutive_days', 6);
+        if ($businessDays > 0 && $businessDays < $minConsecutiveDays) {
+            $warnings[] = "Según la ley, el fraccionamiento mínimo es de {$minConsecutiveDays} días hábiles consecutivos. Se solicitaron {$businessDays} días.";
         }
 
         // 4. Verificar días disponibles

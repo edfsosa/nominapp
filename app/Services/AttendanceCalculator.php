@@ -96,10 +96,12 @@ class AttendanceCalculator
      */
     public static function applyForDateRange(Carbon $startDate, Carbon $endDate): void
     {
-        DB::transaction(function () use ($startDate, $endDate) {
+        $chunkSize = config('payroll.processing.chunk_size', 100);
+
+        DB::transaction(function () use ($startDate, $endDate, $chunkSize) {
             // Calcular/recalcular todos los registros existentes en el rango
             AttendanceDay::whereBetween('date', [$startDate->toDateString(), $endDate->toDateString()])
-                ->chunk(100, function ($days) {
+                ->chunk($chunkSize, function ($days) {
                     foreach ($days as $day) {
                         try {
                             self::apply($day);

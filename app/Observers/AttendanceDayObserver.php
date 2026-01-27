@@ -4,17 +4,10 @@ namespace App\Observers;
 
 use App\Models\Absent;
 use App\Models\AttendanceDay;
-use App\Services\AttendanceCalculator;
 use Illuminate\Support\Facades\Log;
 
 class AttendanceDayObserver
 {
-    public function saved(AttendanceDay $day)
-    {
-        AttendanceCalculator::apply($day);
-        $day->saveQuietly();
-    }
-
     /**
      * Handle the AttendanceDay "created" event.
      */
