@@ -43,6 +43,7 @@ class VacationResource extends Resource
     protected static ?string $pluralLabel = 'Vacaciones';
     protected static ?string $slug = 'vacaciones';
     protected static ?string $navigationIcon = 'heroicon-o-sun';
+    protected static ?int $navigationSort = 2;
 
     /**
      * Define el formulario para crear/editar solicitudes de vacaciones.

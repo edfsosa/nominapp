@@ -25,8 +25,8 @@ class DepartmentResource extends Resource
     protected static ?string $navigationLabel = 'Departamentos';
     protected static ?string $label = 'Departamento';
     protected static ?string $pluralLabel = 'Departamentos';
-    protected static ?string $navigationGroup = 'Empresa';
-    protected static ?int $navigationSort = 2;
+    protected static ?string $navigationGroup = 'Organización';
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

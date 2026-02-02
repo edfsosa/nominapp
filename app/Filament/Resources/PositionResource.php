@@ -10,7 +10,6 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
-use Filament\Tables;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
@@ -23,14 +22,14 @@ use Filament\Tables\Table;
 class PositionResource extends Resource
 {
     protected static ?string $model = Position::class;
-    protected static ?string $navigationGroup = 'Empresa';
+    protected static ?string $navigationGroup = 'Organización';
     protected static ?string $navigationLabel = 'Cargos';
     protected static ?string $label = 'Cargo';
     protected static ?string $pluralLabel = 'Cargos';
     protected static ?string $slug = 'cargos';
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
     protected static ?string $recordTitleAttribute = 'name';
-    protected static ?int $navigationSort = 3;
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {

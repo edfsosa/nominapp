@@ -42,6 +42,7 @@ class EmployeeResource extends Resource
     protected static ?string $pluralLabel = 'empleados';
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
     protected static ?string $navigationGroup = 'Empleados';
+    protected static ?int $navigationSort = 1;
 
     /**
      * Define el formulario para crear y editar empleados.

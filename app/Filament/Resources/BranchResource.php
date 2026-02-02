@@ -5,8 +5,10 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\BranchResource\Pages;
 use App\Filament\Resources\BranchResource\RelationManagers\EmployeesRelationManager;
 use App\Models\Branch;
+use App\Models\Company;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Form;
@@ -30,8 +32,8 @@ class BranchResource extends Resource
     protected static ?string $pluralLabel = 'Sucursales';
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?string $slug = 'sucursales';
-    protected static ?string $navigationGroup = 'Empresa';
-    protected static ?int $navigationSort = 1;
+    protected static ?string $navigationGroup = 'Organización';
+    protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
     {
@@ -44,6 +46,16 @@ class BranchResource extends Resource
                     ->schema([
                         Grid::make(2)
                             ->schema([
+                                Select::make('company_id')
+                                    ->label('Empresa')
+                                    ->relationship('company', 'name')
+                                    ->options(Company::active()->pluck('name', 'id'))
+                                    ->searchable()
+                                    ->preload()
+                                    ->required()
+                                    ->columnSpanFull()
+                                    ->helperText('Selecciona la empresa a la que pertenece esta sucursal'),
+
                                 TextInput::make('name')
                                     ->label('Nombre de la sucursal')
                                     ->placeholder('Ej: Sucursal Central, Sucursal Este...')
@@ -136,6 +148,12 @@ class BranchResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('company.name')
+                    ->label('Empresa')
+                    ->sortable()
+                    ->searchable()
+                    ->toggleable(),
+
                 TextColumn::make('name')
                     ->label('Sucursal')
                     ->description(fn($record) => $record->address)
@@ -173,6 +191,13 @@ class BranchResource extends Resource
             ])
             ->defaultSort('name', 'asc')
             ->filters([
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->relationship('company', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->placeholder('Todas las empresas'),
+
                 SelectFilter::make('city')
                     ->label('Ciudad')
                     ->options(function () {

@@ -35,7 +35,7 @@ class EmployeeLeaveResource extends Resource
     protected static ?string $pluralModelLabel = 'permisos';
     protected static ?string $navigationGroup = 'Empleados';
     protected static ?string $slug = 'permisos';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {

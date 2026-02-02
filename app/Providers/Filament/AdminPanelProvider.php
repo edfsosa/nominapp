@@ -6,6 +6,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
 use Filament\Pages;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -38,6 +39,19 @@ class AdminPanelProvider extends PanelProvider
                 'info' => Color::Blue,
                 'light' => Color::Gray,
                 'dark' => Color::Slate,
+            ])
+            ->navigationGroups([
+                NavigationGroup::make('Empleados')
+                    ->icon('heroicon-o-user-group'),
+                NavigationGroup::make('Asistencias')
+                    ->icon('heroicon-o-clock'),
+                NavigationGroup::make('Nóminas')
+                    ->icon('heroicon-o-banknotes'),
+                NavigationGroup::make('Organización')
+                    ->icon('heroicon-o-building-office'),
+                NavigationGroup::make('Configuración')
+                    ->icon('heroicon-o-cog-6-tooth')
+                    ->collapsed(),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')

@@ -216,9 +216,17 @@ class EditVacation extends EditRecord
     protected function getPdfData($record, string $type): array
     {
         $settings = app(GeneralSettings::class);
-        $companyName = $settings->company_name;
-        $employerNumber = $settings->company_employer_number ?? '';
-        $city = $settings->company_city ?? '';
+
+        // Obtener datos de la empresa del empleado, si no usar GeneralSettings
+        $company = $record->employee->company;
+
+        $companyName = $company?->name ?? $settings->company_name;
+        $companyRuc = $company?->ruc ?? $settings->company_ruc ?? '';
+        $companyAddress = $company?->address ?? $settings->company_address ?? '';
+        $companyPhone = $company?->phone ?? $settings->company_phone ?? '';
+        $companyEmail = $company?->email ?? $settings->company_email ?? '';
+        $employerNumber = $company?->employer_number ?? $settings->company_employer_number ?? '';
+        $city = $company?->city ?? $settings->company_city ?? '';
 
         switch ($type) {
             case 'communication':
@@ -228,10 +236,10 @@ class EditVacation extends EditRecord
                     'data' => [
                         'vacation' => $record,
                         'companyName' => $companyName,
-                        'companyRuc' => $settings->company_ruc ?? '',
-                        'companyAddress' => $settings->company_address ?? '',
-                        'companyPhone' => $settings->company_phone ?? '',
-                        'companyEmail' => $settings->company_email ?? '',
+                        'companyRuc' => $companyRuc,
+                        'companyAddress' => $companyAddress,
+                        'companyPhone' => $companyPhone,
+                        'companyEmail' => $companyEmail,
                         'employerNumber' => $employerNumber,
                         'city' => $city,
                     ],
@@ -244,10 +252,10 @@ class EditVacation extends EditRecord
                     'data' => [
                         'vacation' => $record,
                         'companyName' => $companyName,
-                        'companyRuc' => $settings->company_ruc ?? '',
-                        'companyAddress' => $settings->company_address ?? '',
-                        'companyPhone' => $settings->company_phone ?? '',
-                        'companyEmail' => $settings->company_email ?? '',
+                        'companyRuc' => $companyRuc,
+                        'companyAddress' => $companyAddress,
+                        'companyPhone' => $companyPhone,
+                        'companyEmail' => $companyEmail,
                         'employerNumber' => $employerNumber,
                         'city' => $city,
                     ],
@@ -271,10 +279,10 @@ class EditVacation extends EditRecord
                     'data' => [
                         'vacation' => $record,
                         'companyName' => $companyName,
-                        'companyRuc' => $settings->company_ruc ?? '',
-                        'companyAddress' => $settings->company_address ?? '',
-                        'companyPhone' => $settings->company_phone ?? '',
-                        'companyEmail' => $settings->company_email ?? '',
+                        'companyRuc' => $companyRuc,
+                        'companyAddress' => $companyAddress,
+                        'companyPhone' => $companyPhone,
+                        'companyEmail' => $companyEmail,
                         'employerNumber' => $employerNumber,
                         'city' => $city,
                         'days' => $days,

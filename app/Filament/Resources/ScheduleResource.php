@@ -27,13 +27,13 @@ use App\Filament\Resources\ScheduleResource\Pages;
 class ScheduleResource extends Resource
 {
     protected static ?string $model = Schedule::class;
-    protected static ?string $navigationGroup = 'Empresa';
+    protected static ?string $navigationGroup = 'Organización';
     protected static ?string $navigationLabel = 'Horarios';
     protected static ?string $label = 'Horario';
     protected static ?string $pluralLabel = 'Horarios';
     protected static ?string $slug = 'horarios';
     protected static ?string $navigationIcon = 'heroicon-o-clock';
-    protected static ?int $navigationSort = 4;
+    protected static ?int $navigationSort = 5;
 
     public static function form(Form $form): Form
     {

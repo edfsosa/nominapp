@@ -60,6 +60,14 @@ class Employee extends Model
     }
 
     /**
+     * Obtiene la empresa del empleado (a través de la sucursal)
+     */
+    public function getCompanyAttribute(): ?Company
+    {
+        return $this->branch?->company;
+    }
+
+    /**
      * Deducciones aplicadas al empleado
      */
     public function deductions(): BelongsToMany

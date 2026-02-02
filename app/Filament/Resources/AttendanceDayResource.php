@@ -50,6 +50,7 @@ class AttendanceDayResource extends Resource
     protected static ?string $slug = 'asistencias';
     protected static ?string $navigationIcon = 'heroicon-o-check-circle';
     protected static ?string $navigationGroup = 'Asistencias';
+    protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
     {

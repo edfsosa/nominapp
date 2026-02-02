@@ -13,15 +13,18 @@ class PayrollPDFGenerator
     {
         $settings = app(GeneralSettings::class);
 
+        // Intentar obtener datos de la empresa del empleado, si no usar GeneralSettings
+        $company = $payroll->employee->company;
+
         $pdf = Pdf::loadView('pdf.payroll', [
             'payroll' => $payroll,
-            'companyName' => $settings->company_name,
-            'companyRuc' => $settings->company_ruc ?? '',
-            'companyAddress' => $settings->company_address ?? '',
-            'companyPhone' => $settings->company_phone ?? '',
-            'companyEmail' => $settings->company_email ?? '',
-            'employerNumber' => $settings->company_employer_number ?? '',
-            'city' => $settings->company_city ?? '',
+            'companyName' => $company?->name ?? $settings->company_name,
+            'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
+            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
+            'companyPhone' => $company?->phone ?? $settings->company_phone ?? '',
+            'companyEmail' => $company?->email ?? $settings->company_email ?? '',
+            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
+            'city' => $company?->city ?? $settings->company_city ?? '',
         ])->setPaper('A4');
 
         $fileName = 'payrolls/recibo_' . $payroll->id . '-' . $payroll->employee->first_name . '_' . $payroll->employee->last_name . '.pdf';

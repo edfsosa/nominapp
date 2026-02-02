@@ -13,19 +13,22 @@ class LoanController extends Controller
      */
     public function show(Loan $loan)
     {
-        $loan->load(['employee.position.department', 'grantedBy', 'installments']);
+        $loan->load(['employee.position.department', 'employee.branch.company', 'grantedBy', 'installments']);
 
         $settings = app(GeneralSettings::class);
 
+        // Obtener datos de la empresa del empleado, si no usar GeneralSettings
+        $company = $loan->employee->company;
+
         $pdf = Pdf::loadView('pdf.loan', [
             'loan' => $loan,
-            'companyName' => $settings->company_name,
-            'companyRuc' => $settings->company_ruc ?? '',
-            'companyAddress' => $settings->company_address ?? '',
-            'companyPhone' => $settings->company_phone ?? '',
-            'companyEmail' => $settings->company_email ?? '',
-            'employerNumber' => $settings->company_employer_number ?? '',
-            'city' => $settings->company_city ?? '',
+            'companyName' => $company?->name ?? $settings->company_name,
+            'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
+            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
+            'companyPhone' => $company?->phone ?? $settings->company_phone ?? '',
+            'companyEmail' => $company?->email ?? $settings->company_email ?? '',
+            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
+            'city' => $company?->city ?? $settings->company_city ?? '',
         ])->setPaper('a4', 'portrait');
 
         $type = $loan->isLoan() ? 'prestamo' : 'adelanto';
