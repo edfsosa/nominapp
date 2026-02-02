@@ -7,11 +7,18 @@ use App\Filament\Resources\LoanResource;
 use App\Settings\GeneralSettings;
 use Filament\Notifications\Notification;
 use App\Models\Loan;
+use App\Models\Employee;
 
 class CreateLoan extends CreateRecord
 {
     protected static string $resource = LoanResource::class;
 
+    /**
+     * Función para mutar y validar los datos del formulario antes de crear el préstamo
+     *
+     * @param array $data
+     * @return array
+     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         // Calcular el monto de la cuota si no está calculado
@@ -31,6 +38,45 @@ class CreateLoan extends CreateRecord
                 ->send();
 
             $this->halt();
+        }
+
+        // Validación específica para adelantos: máximo 50% del salario base
+        if ($data['type'] === 'advance') {
+            $employee = Employee::find($data['employee_id']);
+
+            if (!$employee) {
+                Notification::make()
+                    ->danger()
+                    ->title('Error')
+                    ->body('No se encontró el empleado seleccionado.')
+                    ->send();
+                $this->halt();
+            }
+
+            if (!$employee->base_salary || $employee->base_salary <= 0) {
+                Notification::make()
+                    ->danger()
+                    ->title('Empleado sin salario base')
+                    ->body('Los adelantos solo están disponibles para empleados con salario base definido.')
+                    ->send();
+                $this->halt();
+            }
+
+            $maxAdvance = (float) ($employee->base_salary / 2);
+
+            if ($data['amount'] > $maxAdvance) {
+                Notification::make()
+                    ->danger()
+                    ->title('Monto de adelanto excedido')
+                    ->body(
+                        "El máximo para este empleado es " .
+                            number_format($maxAdvance, 0, ',', '.') .
+                            " Gs. (50% de " . number_format($employee->base_salary, 0, ',', '.') . " Gs.)"
+                    )
+                    ->persistent()
+                    ->send();
+                $this->halt();
+            }
         }
 
         // Validar que no tenga un préstamo/adelanto del mismo tipo pendiente o activo
@@ -71,11 +117,11 @@ class CreateLoan extends CreateRecord
         return $data;
     }
 
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('index');
-    }
-
+    /**
+     * Título de la notificación al crear el préstamo
+     *
+     * @return string|null
+     */
     protected function getCreatedNotificationTitle(): ?string
     {
         return 'Préstamo creado exitosamente';

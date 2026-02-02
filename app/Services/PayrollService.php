@@ -15,6 +15,7 @@ class PayrollService
     protected DeductionCalculator $deductionCalculator;
     protected ExtraHourCalculator $extraHourCalculator;
     protected AbsencePenaltyCalculator $absencePenaltyCalculator;
+    protected LoanInstallmentCalculator $loanInstallmentCalculator;
     protected PayrollPDFGenerator $payrollPDFGenerator;
 
     public function __construct(
@@ -22,12 +23,14 @@ class PayrollService
         DeductionCalculator $deductionCalculator,
         ExtraHourCalculator $extraHourCalculator,
         AbsencePenaltyCalculator $absencePenaltyCalculator,
+        LoanInstallmentCalculator $loanInstallmentCalculator,
         PayrollPDFGenerator $payrollPDFGenerator
     ) {
         $this->perceptionCalculator = $perceptionCalculator;
         $this->deductionCalculator = $deductionCalculator;
         $this->extraHourCalculator = $extraHourCalculator;
         $this->absencePenaltyCalculator = $absencePenaltyCalculator;
+        $this->loanInstallmentCalculator = $loanInstallmentCalculator;
         $this->payrollPDFGenerator = $payrollPDFGenerator;
     }
 
@@ -60,9 +63,10 @@ class PayrollService
                 $deductions = $this->deductionCalculator->calculate($employee, $period);
                 $extras = $this->extraHourCalculator->calculate($employee, $period);
                 $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+                $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
 
                 $totalPerceptions = $perceptions['total'] + $extras['total'];
-                $totalDeductions = $deductions['total'] + $absences['total'];
+                $totalDeductions = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
                 $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
                 $payroll = Payroll::create([
@@ -86,14 +90,20 @@ class PayrollService
                     ]);
                 }
 
-                // Ítems: deducciones
-                foreach (array_merge($deductions['items'], $absences['items']) as $item) {
+                // Ítems: deducciones (incluye cuotas de préstamos/adelantos)
+                foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
                     PayrollItem::create([
                         'payroll_id' => $payroll->id,
                         'type' => 'deduction',
                         'description' => $item['description'],
                         'amount' => $item['amount'],
                     ]);
+                }
+
+                // Marcar cuotas de préstamos como pagadas
+                if ($loanInstallments['installments']->isNotEmpty()) {
+                    $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
+                    $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
                 }
 
                 // Generar PDF

@@ -576,6 +576,36 @@ class Employee extends Model
     }
 
     /**
+     * Calcula el monto máximo de adelanto (50% del salario base)
+     */
+    public function getMaxAdvanceAmount(): ?float
+    {
+        if ($this->base_salary && $this->base_salary > 0) {
+            return (float) ($this->base_salary / 2);
+        }
+        return null;
+    }
+
+    /**
+     * Verifica si el empleado puede solicitar un adelanto
+     */
+    public function canRequestAdvance(): bool
+    {
+        // Debe tener salario base definido
+        if (!$this->base_salary || $this->base_salary <= 0) {
+            return false;
+        }
+
+        // Debe estar activo
+        if ($this->status !== 'active') {
+            return false;
+        }
+
+        // No debe tener un adelanto activo o pendiente
+        return Loan::getActiveLoanForEmployee($this->id, 'advance') === null;
+    }
+
+    /**
      * Obtiene el color del badge para el método de pago
      */
     public function getPaymentMethodColorAttribute(): string

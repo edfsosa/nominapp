@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -28,33 +29,29 @@ class Loan extends Model
         'granted_at' => 'date',
     ];
 
-    /**
-     * Relación con el empleado
-     */
+    // =========================================================================
+    // RELACIONES
+    // =========================================================================
+
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
-    /**
-     * Usuario que otorgó el préstamo
-     */
     public function grantedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'granted_by_id');
     }
 
-    /**
-     * Cuotas del préstamo
-     */
     public function installments(): HasMany
     {
         return $this->hasMany(LoanInstallment::class);
     }
 
-    /**
-     * Obtiene el label traducido del tipo
-     */
+    // =========================================================================
+    // HELPERS ESTÁTICOS PARA TIPOS
+    // =========================================================================
+
     public static function getTypeLabel(string $type): string
     {
         return match ($type) {
@@ -64,9 +61,6 @@ class Loan extends Model
         };
     }
 
-    /**
-     * Obtiene el color del badge según el tipo
-     */
     public static function getTypeColor(string $type): string
     {
         return match ($type) {
@@ -76,9 +70,6 @@ class Loan extends Model
         };
     }
 
-    /**
-     * Obtiene el icono según el tipo
-     */
     public static function getTypeIcon(string $type): string
     {
         return match ($type) {
@@ -88,9 +79,6 @@ class Loan extends Model
         };
     }
 
-    /**
-     * Obtiene todas las opciones de tipo para selects
-     */
     public static function getTypeOptions(): array
     {
         return [
@@ -99,9 +87,10 @@ class Loan extends Model
         ];
     }
 
-    /**
-     * Obtiene el label traducido del estado
-     */
+    // =========================================================================
+    // HELPERS ESTÁTICOS PARA ESTADOS
+    // =========================================================================
+
     public static function getStatusLabel(string $status): string
     {
         return match ($status) {
@@ -109,14 +98,10 @@ class Loan extends Model
             'active' => 'Activo',
             'paid' => 'Pagado',
             'cancelled' => 'Cancelado',
-            'defaulted' => 'Incobrable',
             default => 'Desconocido',
         };
     }
 
-    /**
-     * Obtiene el color del badge según el estado
-     */
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
@@ -124,14 +109,10 @@ class Loan extends Model
             'active' => 'info',
             'paid' => 'success',
             'cancelled' => 'gray',
-            'defaulted' => 'danger',
             default => 'gray',
         };
     }
 
-    /**
-     * Obtiene el icono según el estado
-     */
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
@@ -139,14 +120,10 @@ class Loan extends Model
             'active' => 'heroicon-o-play',
             'paid' => 'heroicon-o-check-circle',
             'cancelled' => 'heroicon-o-x-circle',
-            'defaulted' => 'heroicon-o-exclamation-triangle',
             default => 'heroicon-o-question-mark-circle',
         };
     }
 
-    /**
-     * Obtiene todas las opciones de estado para selects
-     */
     public static function getStatusOptions(): array
     {
         return [
@@ -154,109 +131,72 @@ class Loan extends Model
             'active' => 'Activo',
             'paid' => 'Pagado',
             'cancelled' => 'Cancelado',
-            'defaulted' => 'Incobrable',
         ];
     }
 
-    /**
-     * Verifica si el préstamo está pendiente
-     */
+    // =========================================================================
+    // VERIFICADORES DE ESTADO
+    // =========================================================================
+
     public function isPending(): bool
     {
         return $this->status === 'pending';
     }
 
-    /**
-     * Verifica si el préstamo está activo
-     */
     public function isActive(): bool
     {
         return $this->status === 'active';
     }
 
-    /**
-     * Verifica si el préstamo está pagado
-     */
     public function isPaid(): bool
     {
         return $this->status === 'paid';
     }
 
-    /**
-     * Verifica si el préstamo fue cancelado
-     */
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
     }
 
-    /**
-     * Verifica si el préstamo es incobrable
-     */
-    public function isDefaulted(): bool
-    {
-        return $this->status === 'defaulted';
-    }
-
-    /**
-     * Verifica si es un préstamo
-     */
     public function isLoan(): bool
     {
         return $this->type === 'loan';
     }
 
-    /**
-     * Verifica si es un adelanto
-     */
     public function isAdvance(): bool
     {
         return $this->type === 'advance';
     }
 
-    /**
-     * Obtiene el monto total pagado
-     */
+    // =========================================================================
+    // ATRIBUTOS COMPUTADOS
+    // =========================================================================
+
     public function getPaidAmountAttribute(): float
     {
         return (float) $this->installments()->where('status', 'paid')->sum('amount');
     }
 
-    /**
-     * Obtiene el monto pendiente
-     */
     public function getPendingAmountAttribute(): float
     {
         return (float) $this->installments()->where('status', 'pending')->sum('amount');
     }
 
-    /**
-     * Obtiene el número de cuotas pagadas
-     */
     public function getPaidInstallmentsCountAttribute(): int
     {
         return $this->installments()->where('status', 'paid')->count();
     }
 
-    /**
-     * Obtiene el número de cuotas pendientes
-     */
     public function getPendingInstallmentsCountAttribute(): int
     {
         return $this->installments()->where('status', 'pending')->count();
     }
 
-    /**
-     * Obtiene una descripción del progreso
-     */
     public function getProgressDescriptionAttribute(): string
     {
         return "{$this->paid_installments_count}/{$this->installments_count} cuotas";
     }
 
-    /**
-     * Obtiene el porcentaje de progreso
-     */
     public function getProgressPercentageAttribute(): int
     {
         if ($this->installments_count === 0) {
@@ -266,137 +206,111 @@ class Loan extends Model
         return (int) round(($this->paid_installments_count / $this->installments_count) * 100);
     }
 
+    public function getTypeLabelAttribute(): string
+    {
+        return self::getTypeLabel($this->type);
+    }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return self::getStatusLabel($this->status);
+    }
+
+    // =========================================================================
+    // ACCIONES PRINCIPALES
+    // =========================================================================
+
     /**
-     * Activa el préstamo y genera las cuotas
-     *
-     * @param int $grantedById ID del usuario que otorga
-     * @param \Carbon\Carbon|null $startDate Fecha de inicio para las cuotas (por defecto próximo mes)
-     * @return array Resultado con 'success' y 'message'
+     * Activa el préstamo/adelanto y genera las cuotas
      */
-    public function activate(int $grantedById, ?\Carbon\Carbon $startDate = null): array
+    public function activate(int $grantedById): array
     {
         if (!$this->isPending()) {
             return [
                 'success' => false,
-                'message' => 'Solo se pueden activar préstamos pendientes.',
+                'message' => 'Solo se pueden activar préstamos/adelantos pendientes.',
             ];
         }
 
-        $startDate = $startDate ?? now()->addMonth()->startOfMonth();
+        // Para adelantos: verificar que no exista nómina del período actual
+        if ($this->isAdvance()) {
+            $currentPeriod = $this->getCurrentPeriod();
+
+            if ($currentPeriod && $this->payrollExistsForPeriod($currentPeriod)) {
+                return [
+                    'success' => false,
+                    'message' => 'No se puede activar el adelanto porque la nómina del período actual ya fue generada para este empleado.',
+                ];
+            }
+        }
+
+        // Calcular fecha de cuota
+        $startDate = $this->isAdvance()
+            ? $this->getCurrentPeriodEndDate()
+            : $this->calculateNextPayrollDate();
 
         DB::transaction(function () use ($grantedById, $startDate) {
-            // Actualizar el préstamo
             $this->update([
                 'status' => 'active',
                 'granted_at' => now(),
                 'granted_by_id' => $grantedById,
             ]);
 
-            // Generar las cuotas
             $this->generateInstallments($startDate);
         });
 
+        $formattedDate = $startDate->format('d/m/Y');
+        $type = $this->type_label;
+
+        if ($this->isAdvance()) {
+            return [
+                'success' => true,
+                'message' => "{$type} activado. Vence el {$formattedDate} y se descontará en la nómina del período actual.",
+            ];
+        }
+
         return [
             'success' => true,
-            'message' => "Préstamo activado. Se generaron {$this->installments_count} cuotas.",
+            'message' => "{$type} activado. Primera cuota programada para {$formattedDate}.",
         ];
     }
 
     /**
-     * Genera las cuotas del préstamo
-     *
-     * @param \Carbon\Carbon $startDate Fecha de la primera cuota
-     */
-    protected function generateInstallments(\Carbon\Carbon $startDate): void
-    {
-        // Eliminar cuotas existentes si las hay
-        $this->installments()->delete();
-
-        $dueDate = $startDate->copy();
-
-        for ($i = 1; $i <= $this->installments_count; $i++) {
-            LoanInstallment::create([
-                'loan_id' => $this->id,
-                'installment_number' => $i,
-                'amount' => $this->installment_amount,
-                'due_date' => $dueDate->copy(),
-                'status' => 'pending',
-            ]);
-
-            // Siguiente mes
-            $dueDate->addMonth();
-        }
-    }
-
-    /**
-     * Cancela el préstamo
-     *
-     * @param string|null $reason Motivo de la cancelación
-     * @return array Resultado con 'success' y 'message'
+     * Cancela el préstamo/adelanto
      */
     public function cancel(?string $reason = null): array
     {
-        if ($this->isPaid() || $this->isCancelled() || $this->isDefaulted()) {
+        if ($this->isPaid() || $this->isCancelled()) {
             return [
                 'success' => false,
-                'message' => 'No se puede cancelar un préstamo en este estado.',
+                'message' => 'No se puede cancelar un préstamo/adelanto en este estado.',
             ];
         }
 
-        // Verificar si tiene cuotas pagadas
         if ($this->paid_installments_count > 0) {
             return [
                 'success' => false,
-                'message' => 'No se puede cancelar un préstamo con cuotas ya pagadas.',
+                'message' => 'No se puede cancelar un préstamo/adelanto con cuotas ya pagadas.',
             ];
         }
 
         DB::transaction(function () use ($reason) {
-            // Cancelar cuotas pendientes
             $this->installments()->where('status', 'pending')->update(['status' => 'cancelled']);
 
-            // Actualizar el préstamo
+            $notes = $this->notes;
+            if ($reason) {
+                $notes = $notes ? "{$notes}\n\nCancelación: {$reason}" : "Cancelación: {$reason}";
+            }
+
             $this->update([
                 'status' => 'cancelled',
-                'notes' => $reason ? ($this->notes ? "{$this->notes}\n\nCancelación: {$reason}" : "Cancelación: {$reason}") : $this->notes,
+                'notes' => $notes,
             ]);
         });
 
         return [
             'success' => true,
-            'message' => 'El préstamo ha sido cancelado.',
-        ];
-    }
-
-    /**
-     * Marca el préstamo como incobrable
-     *
-     * @param string $reason Motivo
-     * @return array Resultado con 'success' y 'message'
-     */
-    public function markAsDefaulted(string $reason): array
-    {
-        if (!$this->isActive()) {
-            return [
-                'success' => false,
-                'message' => 'Solo se pueden marcar como incobrables los préstamos activos.',
-            ];
-        }
-
-        DB::transaction(function () use ($reason) {
-            // Cancelar cuotas pendientes
-            $this->installments()->where('status', 'pending')->update(['status' => 'cancelled']);
-
-            // Actualizar el préstamo
-            $this->update([
-                'status' => 'defaulted',
-                'notes' => $this->notes ? "{$this->notes}\n\nIncobrable: {$reason}" : "Incobrable: {$reason}",
-            ]);
-        });
-
-        return [
-            'success' => true,
-            'message' => 'El préstamo ha sido marcado como incobrable.',
+            'message' => "El {$this->type_label} ha sido cancelado.",
         ];
     }
 
@@ -410,80 +324,179 @@ class Loan extends Model
         }
     }
 
+    // =========================================================================
+    // MÉTODOS DE PERÍODO Y FECHAS
+    // =========================================================================
+
     /**
-     * Scope para filtrar por estado
+     * Obtiene el período de nómina actual del empleado
      */
+    protected function getCurrentPeriod(): ?PayrollPeriod
+    {
+        $now = Carbon::now();
+
+        return PayrollPeriod::where('frequency', $this->employee->payroll_type)
+            ->where('start_date', '<=', $now)
+            ->where('end_date', '>=', $now)
+            ->first();
+    }
+
+    /**
+     * Verifica si existe nómina para un período específico
+     */
+    protected function payrollExistsForPeriod(PayrollPeriod $period): bool
+    {
+        return Payroll::where('employee_id', $this->employee_id)
+            ->where('payroll_period_id', $period->id)
+            ->exists();
+    }
+
+    /**
+     * Obtiene la fecha de fin del período actual
+     */
+    protected function getCurrentPeriodEndDate(): Carbon
+    {
+        $currentPeriod = $this->getCurrentPeriod();
+
+        if ($currentPeriod) {
+            return Carbon::parse($currentPeriod->end_date);
+        }
+
+        // Fallback: calcular fecha de fin según tipo de nómina
+        $now = Carbon::now();
+        $payrollType = $this->employee->payroll_type;
+
+        return match ($payrollType) {
+            'weekly' => $now->copy()->endOfWeek(Carbon::SUNDAY),
+            'biweekly' => $now->day <= 15
+                ? $now->copy()->day(15)->endOfDay()
+                : $now->copy()->endOfMonth(),
+            default => $now->copy()->endOfMonth(),
+        };
+    }
+
+    /**
+     * Calcula la fecha del próximo período de nómina
+     */
+    protected function calculateNextPayrollDate(): Carbon
+    {
+        $now = Carbon::now();
+        $payrollType = $this->employee->payroll_type;
+
+        return match ($payrollType) {
+            'weekly' => $this->getNextMonday($now),
+            'biweekly' => $this->getNextBiweeklyDate($now),
+            default => $now->copy()->addMonth()->startOfMonth(),
+        };
+    }
+
+    protected function getNextMonday(Carbon $from): Carbon
+    {
+        $next = $from->copy();
+
+        if ($next->isMonday()) {
+            $next->addWeek();
+        } else {
+            $next->next(Carbon::MONDAY);
+        }
+
+        return $next->startOfDay();
+    }
+
+    protected function getNextBiweeklyDate(Carbon $from): Carbon
+    {
+        $next = $from->copy();
+
+        if ($next->day < 16) {
+            return $next->day(16)->startOfDay();
+        }
+
+        return $next->addMonth()->startOfMonth();
+    }
+
+    /**
+     * Genera las cuotas del préstamo
+     */
+    protected function generateInstallments(Carbon $startDate): void
+    {
+        $this->installments()->delete();
+
+        $dueDate = $startDate->copy();
+
+        for ($i = 1; $i <= $this->installments_count; $i++) {
+            LoanInstallment::create([
+                'loan_id' => $this->id,
+                'installment_number' => $i,
+                'amount' => $this->installment_amount,
+                'due_date' => $dueDate->copy(),
+                'status' => 'pending',
+            ]);
+
+            $dueDate->addMonth();
+        }
+    }
+
+    // =========================================================================
+    // SCOPES
+    // =========================================================================
+
     public function scopeByStatus($query, string $status)
     {
         return $query->where('status', $status);
     }
 
-    /**
-     * Scope para filtrar por tipo
-     */
     public function scopeByType($query, string $type)
     {
         return $query->where('type', $type);
     }
 
-    /**
-     * Scope para obtener solo préstamos
-     */
     public function scopeLoans($query)
     {
         return $query->where('type', 'loan');
     }
 
-    /**
-     * Scope para obtener solo adelantos
-     */
     public function scopeAdvances($query)
     {
         return $query->where('type', 'advance');
     }
 
-    /**
-     * Scope para obtener préstamos activos
-     */
     public function scopeActive($query)
     {
         return $query->where('status', 'active');
     }
 
-    /**
-     * Scope para obtener préstamos pendientes
-     */
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
     }
 
-    /**
-     * Scope para filtrar por empleado
-     */
     public function scopeForEmployee($query, int $employeeId)
     {
         return $query->where('employee_id', $employeeId);
     }
+
+    // =========================================================================
+    // MÉTODOS ESTÁTICOS DE CONSULTA
+    // =========================================================================
 
     /**
      * Obtiene el total de deuda activa de un empleado
      */
     public static function getTotalActiveDebtForEmployee(int $employeeId): float
     {
-        return (float) static::where('employee_id', $employeeId)
+        $totalLoaned = (float) static::where('employee_id', $employeeId)
             ->where('status', 'active')
-            ->sum('amount') - (float) LoanInstallment::whereHas('loan', function ($query) use ($employeeId) {
-                $query->where('employee_id', $employeeId)->where('status', 'active');
-            })->where('status', 'paid')->sum('amount');
+            ->sum('amount');
+
+        $totalPaid = (float) LoanInstallment::whereHas('loan', function ($query) use ($employeeId) {
+            $query->where('employee_id', $employeeId)->where('status', 'active');
+        })->where('status', 'paid')->sum('amount');
+
+        return $totalLoaned - $totalPaid;
     }
 
     /**
-     * Verifica si un empleado tiene un préstamo/adelanto pendiente o activo del tipo especificado
-     *
-     * @param int $employeeId
-     * @param string $type 'loan' o 'advance'
-     * @return Loan|null El préstamo existente o null
+     * Obtiene préstamo/adelanto activo o pendiente de un empleado
      */
     public static function getActiveLoanForEmployee(int $employeeId, string $type): ?Loan
     {
@@ -494,10 +507,7 @@ class Loan extends Model
     }
 
     /**
-     * Obtiene un resumen de préstamos activos de un empleado
-     *
-     * @param int $employeeId
-     * @return array
+     * Obtiene resumen de préstamos activos de un empleado
      */
     public static function getActiveLoansSummaryForEmployee(int $employeeId): array
     {
@@ -511,5 +521,29 @@ class Loan extends Model
             'active_advance' => $activeAdvance,
             'total_debt' => static::getTotalActiveDebtForEmployee($employeeId),
         ];
+    }
+
+    /**
+     * Obtiene conteos agrupados por estado y tipo para optimizar badges
+     */
+    public static function getCounts(): array
+    {
+        $counts = static::selectRaw('status, type, COUNT(*) as count')
+            ->groupBy('status', 'type')
+            ->get();
+
+        $result = [
+            'total' => 0,
+            'by_status' => ['pending' => 0, 'active' => 0, 'paid' => 0, 'cancelled' => 0],
+            'by_type' => ['loan' => 0, 'advance' => 0],
+        ];
+
+        foreach ($counts as $count) {
+            $result['total'] += $count->count;
+            $result['by_status'][$count->status] = ($result['by_status'][$count->status] ?? 0) + $count->count;
+            $result['by_type'][$count->type] = ($result['by_type'][$count->type] ?? 0) + $count->count;
+        }
+
+        return $result;
     }
 }

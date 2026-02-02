@@ -2,17 +2,14 @@
 
 namespace App\Filament\Resources\LoanResource\RelationManagers;
 
-use Filament\Tables;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use App\Models\LoanInstallment;
-use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -29,6 +26,12 @@ class InstallmentsRelationManager extends RelationManager
 
     protected static ?string $recordTitleAttribute = 'installment_number';
 
+    /**
+     * Función para definir el formulario de visualización de una cuota de préstamo.
+     *
+     * @param Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
@@ -66,6 +69,12 @@ class InstallmentsRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * Función para definir la tabla de cuotas de préstamo.
+     *
+     * @param Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
@@ -100,12 +109,6 @@ class InstallmentsRelationManager extends RelationManager
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->placeholder('-'),
-
-                TextColumn::make('employeeDeduction.id')
-                    ->label('Deducción')
-                    ->formatStateUsing(fn($state) => $state ? "#{$state}" : '-')
-                    ->badge()
-                    ->color(fn($state) => $state ? 'success' : 'gray'),
             ])
             ->defaultSort('installment_number', 'asc')
             ->filters([
@@ -114,63 +117,8 @@ class InstallmentsRelationManager extends RelationManager
                     ->options(LoanInstallment::getStatusOptions())
                     ->native(false),
             ])
-            ->headerActions([
-                // No permitimos crear cuotas manualmente
-            ])
             ->actions([
                 ViewAction::make(),
-
-                Action::make('mark_paid')
-                    ->label('Marcar Pagada')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->visible(fn(LoanInstallment $record) => $record->isPending() && $record->loan->isActive())
-                    ->requiresConfirmation()
-                    ->modalHeading('Marcar Cuota como Pagada')
-                    ->modalDescription(fn(LoanInstallment $record) => "Se creará una deducción de " . number_format($record->amount, 0, ',', '.') . " Gs. para el empleado.")
-                    ->action(function (LoanInstallment $record) {
-                        $result = $record->markAsPaid();
-
-                        if ($result['success']) {
-                            Notification::make()
-                                ->success()
-                                ->title('Cuota Pagada')
-                                ->body($result['message'])
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error')
-                                ->body($result['message'])
-                                ->send();
-                        }
-                    }),
-
-                Action::make('revert_payment')
-                    ->label('Revertir Pago')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(fn(LoanInstallment $record) => $record->isPaid())
-                    ->requiresConfirmation()
-                    ->modalHeading('Revertir Pago de Cuota')
-                    ->modalDescription('Se eliminará la deducción asociada y la cuota volverá a estado pendiente.')
-                    ->action(function (LoanInstallment $record) {
-                        $result = $record->revertPayment();
-
-                        if ($result['success']) {
-                            Notification::make()
-                                ->success()
-                                ->title('Pago Revertido')
-                                ->body($result['message'])
-                                ->send();
-                        } else {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error')
-                                ->body($result['message'])
-                                ->send();
-                        }
-                    }),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
