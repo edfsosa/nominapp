@@ -32,6 +32,12 @@
             border-bottom: 1px solid #000;
         }
 
+        .company-logo {
+            max-height: 40px;
+            max-width: 120px;
+            margin-bottom: 8px;
+        }
+
         .company-name {
             font-size: 14px;
             font-weight: bold;
@@ -245,6 +251,9 @@
 
     {{-- Encabezado de la Empresa --}}
     <div class="company-header">
+        @if ($companyLogo)
+            <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
+        @endif
         <div class="company-name">{{ $companyName }}</div>
         <div class="company-info">
             @if ($companyRuc)

@@ -220,6 +220,11 @@ class EditVacation extends EditRecord
         // Obtener datos de la empresa del empleado, si no usar GeneralSettings
         $company = $record->employee->company;
 
+        // Obtener ruta del logo (empresa o general)
+        $logoPath = $company?->logo ?? $settings->company_logo;
+        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+        $companyLogo = $companyLogo && file_exists($companyLogo) ? $companyLogo : null;
+
         $companyName = $company?->name ?? $settings->company_name;
         $companyRuc = $company?->ruc ?? $settings->company_ruc ?? '';
         $companyAddress = $company?->address ?? $settings->company_address ?? '';
@@ -235,6 +240,7 @@ class EditVacation extends EditRecord
                     'filename' => "comunicacion-vacaciones-{$record->employee->ci}-{$record->id}.pdf",
                     'data' => [
                         'vacation' => $record,
+                        'companyLogo' => $companyLogo,
                         'companyName' => $companyName,
                         'companyRuc' => $companyRuc,
                         'companyAddress' => $companyAddress,
@@ -251,6 +257,7 @@ class EditVacation extends EditRecord
                     'filename' => "notificacion-usufructo-{$record->employee->ci}-{$record->id}.pdf",
                     'data' => [
                         'vacation' => $record,
+                        'companyLogo' => $companyLogo,
                         'companyName' => $companyName,
                         'companyRuc' => $companyRuc,
                         'companyAddress' => $companyAddress,
@@ -278,6 +285,7 @@ class EditVacation extends EditRecord
                     'filename' => "recibo-liquidacion-{$record->employee->ci}-{$record->id}.pdf",
                     'data' => [
                         'vacation' => $record,
+                        'companyLogo' => $companyLogo,
                         'companyName' => $companyName,
                         'companyRuc' => $companyRuc,
                         'companyAddress' => $companyAddress,

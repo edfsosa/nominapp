@@ -16,8 +16,13 @@ class PayrollPDFGenerator
         // Intentar obtener datos de la empresa del empleado, si no usar GeneralSettings
         $company = $payroll->employee->company;
 
+        // Obtener ruta del logo (empresa o general)
+        $logoPath = $company?->logo ?? $settings->company_logo;
+        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+
         $pdf = Pdf::loadView('pdf.payroll', [
             'payroll' => $payroll,
+            'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
             'companyName' => $company?->name ?? $settings->company_name,
             'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
             'companyAddress' => $company?->address ?? $settings->company_address ?? '',
