@@ -19,220 +19,305 @@
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 10px;
-            line-height: 1.3;
-            color: #000;
-            padding: 20mm 25mm;
+            font-size: 11px;
+            line-height: 1.5;
+            padding: 15mm 20mm;
         }
 
-        .header {
+        .company-header {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
             border-bottom: 1px solid #000;
-            padding-bottom: 8px;
         }
 
-        .header h1 {
+        .company-name {
             font-size: 14px;
-            margin-bottom: 3px;
             font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 3px;
         }
 
-        .header p {
+        .company-info {
             font-size: 9px;
-            margin-top: 2px;
+        }
+
+        .title {
+            text-align: center;
+            font-size: 13px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin: 20px 0 5px 0;
+        }
+
+        .subtitle {
+            text-align: center;
+            font-size: 10px;
+            margin-bottom: 20px;
         }
 
         .section {
-            margin-bottom: 12px;
+            margin-bottom: 15px;
         }
 
         .section-title {
             font-weight: bold;
             font-size: 10px;
-            padding: 4px 0;
-            margin-bottom: 6px;
-            border-bottom: 1px solid #000;
             text-transform: uppercase;
+            padding: 5px 0;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #000;
+        }
+
+        .info-grid {
+            display: table;
+            width: 100%;
+            border-collapse: collapse;
         }
 
         .info-row {
-            display: flex;
-            padding: 3px 0;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .info-row:last-child {
-            border-bottom: none;
+            display: table-row;
         }
 
         .info-label {
+            display: table-cell;
             font-weight: bold;
-            width: 40%;
-            padding-right: 8px;
+            width: 180px;
+            padding: 5px 8px;
+            border: 1px solid #000;
         }
 
         .info-value {
-            width: 60%;
+            display: table-cell;
+            padding: 5px 8px;
+            border: 1px solid #000;
         }
 
-        .table {
+        table {
             width: 100%;
             border-collapse: collapse;
-            border: 1px solid #000;
+            margin: 15px 0;
         }
 
-        .table th {
-            background-color: #f5f5f5;
-            padding: 4px 6px;
+        th,
+        td {
             border: 1px solid #000;
-            text-align: left;
+            padding: 6px;
             font-size: 9px;
+        }
+
+        th {
             font-weight: bold;
-        }
-
-        .table td {
-            padding: 3px 6px;
-            border: 1px solid #ddd;
-            font-size: 9px;
+            background-color: #f5f5f5;
+            text-align: left;
         }
 
         .text-right {
             text-align: right;
         }
 
+        .text-center {
+            text-align: center;
+        }
+
         .text-bold {
             font-weight: bold;
         }
 
-        .totals-box {
-            border: 1px solid #000;
-            padding: 8px;
-            margin-top: 8px;
-        }
-
-        .totals-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 3px 0;
-            border-bottom: 1px solid #ddd;
-        }
-
-        .totals-row:last-child {
-            border-bottom: none;
-            padding-top: 6px;
-            margin-top: 3px;
-            border-top: 1px solid #000;
-        }
-
-        .totals-label {
-            font-weight: bold;
-        }
-
-        .totals-value {
+        .amount {
+            font-family: 'Courier New', monospace;
             text-align: right;
         }
 
-        .total-final {
-            font-size: 11px;
+        .summary-section {
+            margin: 15px 0;
+            padding: 12px;
+            border: 1px solid #000;
+        }
+
+        .summary-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+
+        .summary-grid {
+            display: table;
+            width: 100%;
+        }
+
+        .summary-row {
+            display: table-row;
+        }
+
+        .summary-item {
+            display: table-cell;
+            padding: 4px 0;
+        }
+
+        .summary-label {
+            font-weight: bold;
+            width: 200px;
+            display: inline-block;
+        }
+
+        .summary-value {
+            text-align: right;
+        }
+
+        .total-row {
+            border-top: 1px solid #000;
+            padding-top: 8px;
+            margin-top: 8px;
+        }
+
+        .total-label {
+            font-size: 12px;
             font-weight: bold;
         }
 
-        .signature-section {
-            margin-top: 30px;
-            page-break-inside: avoid;
+        .total-value {
+            font-size: 12px;
+            font-weight: bold;
         }
 
-        .signature-box {
+        .note-section {
+            margin: 15px 0;
+            padding: 12px;
+            border: 1px solid #000;
+        }
+
+        .note-title {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .legal-note {
+            margin-top: 15px;
+            font-size: 9px;
+            text-align: justify;
+            padding: 10px;
+            border: 1px solid #ccc;
+        }
+
+        .signature-section {
+            margin-top: 50px;
             display: table;
             width: 100%;
-            margin-top: 20px;
         }
 
         .signature-item {
             display: table-cell;
+            width: 50%;
             text-align: center;
-            padding: 0 15px;
+            padding: 0 30px;
         }
 
         .signature-line {
             border-top: 1px solid #000;
-            margin-bottom: 6px;
-            padding-top: 2px;
+            margin-bottom: 5px;
+            padding-top: 5px;
         }
 
         .signature-label {
-            font-size: 9px;
+            font-size: 10px;
             font-weight: bold;
         }
 
         .signature-sublabel {
-            font-size: 8px;
-            color: #666;
+            font-size: 9px;
         }
 
         .footer {
-            margin-top: 20px;
+            margin-top: 40px;
             text-align: center;
             font-size: 8px;
-            color: #666;
-            border-top: 1px solid #ddd;
-            padding-top: 6px;
-        }
-
-        .note-box {
-            border: 1px solid #000;
-            padding: 6px;
-            margin: 12px 0;
-            font-size: 8px;
+            border-top: 1px solid #ccc;
+            padding-top: 10px;
         }
     </style>
 </head>
 
 <body>
-    {{-- Header --}}
-    <div class="header">
-        <h1>RECIBO DE SALARIO #{{ $payroll->id }}</h1>
-        <p>{{ $payroll->period->name }}</p>
-    </div>
-
-    {{-- Información del Empleado y Período --}}
-    <div class="section">
-        <div class="section-title">Información General</div>
-        <div class="info-row">
-            <div class="info-label">Empleado:</div>
-            <div class="info-value">{{ $payroll->employee->full_name }} (CI: {{ $payroll->employee->ci }})</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Cargo/Dpto:</div>
-            <div class="info-value">{{ $payroll->employee->position->name ?? 'N/A' }} -
-                {{ $payroll->employee->position->department->name ?? 'N/A' }}</div>
-        </div>
-        <div class="info-row">
-            <div class="info-label">Período:</div>
-            <div class="info-value">{{ \Carbon\Carbon::parse($payroll->period->start_date)->format('d/m/Y') }} al
-                {{ \Carbon\Carbon::parse($payroll->period->end_date)->format('d/m/Y') }}
-                @php
-                    $freqLabels = ['monthly' => 'Mensual', 'biweekly' => 'Quincenal', 'weekly' => 'Semanal'];
-                @endphp
-                ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
-            </div>
-        </div>
-    </div>
-
     @php
+        $freqLabels = ['monthly' => 'Mensual', 'biweekly' => 'Quincenal', 'weekly' => 'Semanal'];
         $perceptions = $payroll->items->where('type', 'perception');
         $deductions = $payroll->items->where('type', 'deduction');
     @endphp
+
+    {{-- Encabezado de la Empresa --}}
+    <div class="company-header">
+        <div class="company-name">{{ $companyName }}</div>
+        <div class="company-info">
+            @if ($companyRuc)
+                RUC: {{ $companyRuc }}
+            @endif
+            @if ($employerNumber)
+                | Nro. Patronal: {{ $employerNumber }}
+            @endif
+        </div>
+        @if ($companyAddress)
+            <div class="company-info">{{ $companyAddress }}</div>
+        @endif
+        @if ($companyPhone || $companyEmail)
+            <div class="company-info">
+                @if ($companyPhone)
+                    Tel: {{ $companyPhone }}
+                @endif
+                @if ($companyPhone && $companyEmail)
+                    |
+                @endif
+                @if ($companyEmail)
+                    {{ $companyEmail }}
+                @endif
+            </div>
+        @endif
+    </div>
+
+    {{-- Titulo --}}
+    <div class="title">Recibo de Salario</div>
+    <div class="subtitle">{{ $payroll->period->name }}</div>
+
+    {{-- Informacion del Empleado --}}
+    <div class="section">
+        <div class="section-title">Informacion del Empleado</div>
+        <div class="info-grid">
+            <div class="info-row">
+                <div class="info-label">Nombre Completo:</div>
+                <div class="info-value">{{ $payroll->employee->full_name }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Cedula de Identidad:</div>
+                <div class="info-value">{{ $payroll->employee->ci }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Cargo:</div>
+                <div class="info-value">{{ $payroll->employee->position->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Departamento:</div>
+                <div class="info-value">{{ $payroll->employee->position->department->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Periodo:</div>
+                <div class="info-value">
+                    {{ \Carbon\Carbon::parse($payroll->period->start_date)->format('d/m/Y') }} al
+                    {{ \Carbon\Carbon::parse($payroll->period->end_date)->format('d/m/Y') }}
+                    ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
+                </div>
+            </div>
+        </div>
+    </div>
 
     {{-- Percepciones --}}
     @if ($perceptions->count() > 0)
         <div class="section">
             <div class="section-title">Percepciones</div>
-            <table class="table">
+            <table>
                 <thead>
                     <tr>
-                        <th style="width: 70%;">Descripción</th>
+                        <th style="width: 70%;">Descripcion</th>
                         <th style="width: 30%;" class="text-right">Monto</th>
                     </tr>
                 </thead>
@@ -240,7 +325,7 @@
                     @foreach ($perceptions as $item)
                         <tr>
                             <td>{{ $item->description }}</td>
-                            <td class="text-right">{{ $item->formatted_amount }}</td>
+                            <td class="amount">{{ $item->formatted_amount }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -252,10 +337,10 @@
     @if ($deductions->count() > 0)
         <div class="section">
             <div class="section-title">Deducciones</div>
-            <table class="table">
+            <table>
                 <thead>
                     <tr>
-                        <th style="width: 70%;">Descripción</th>
+                        <th style="width: 70%;">Descripcion</th>
                         <th style="width: 30%;" class="text-right">Monto</th>
                     </tr>
                 </thead>
@@ -263,7 +348,7 @@
                     @foreach ($deductions as $item)
                         <tr>
                             <td>{{ $item->description }}</td>
-                            <td class="text-right">{{ $item->formatted_deduction }}</td>
+                            <td class="amount">{{ $item->formatted_deduction }}</td>
                         </tr>
                     @endforeach
                 </tbody>
@@ -271,59 +356,70 @@
         </div>
     @endif
 
-    {{-- Resumen de Totales --}}
-    <div class="section">
-        <div class="section-title">Resumen de Liquidación</div>
-        <div class="totals-box">
-            <div class="totals-row">
-                <div class="totals-label">Salario Base:</div>
-                <div class="totals-value">{{ $payroll->formatted_base_salary }}</div>
+    {{-- Resumen de Liquidacion --}}
+    <div class="summary-section">
+        <div class="summary-title">Resumen de Liquidacion</div>
+        <div class="summary-grid">
+            <div class="summary-row">
+                <div class="summary-item">
+                    <span class="summary-label">Salario Base:</span>
+                    {{ $payroll->formatted_base_salary }}
+                </div>
             </div>
-            <div class="totals-row">
-                <div class="totals-label">Total Percepciones:</div>
-                <div class="totals-value">{{ $payroll->formatted_total_perceptions }}</div>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <span class="summary-label">Total Percepciones:</span>
+                    {{ $payroll->formatted_total_perceptions }}
+                </div>
             </div>
-            <div class="totals-row">
-                <div class="totals-label">Salario Bruto:</div>
-                <div class="totals-value">{{ $payroll->formatted_gross_salary }}</div>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <span class="summary-label">Salario Bruto:</span>
+                    {{ $payroll->formatted_gross_salary }}
+                </div>
             </div>
-            <div class="totals-row">
-                <div class="totals-label">Total Deducciones:</div>
-                <div class="totals-value">{{ $payroll->formatted_total_deductions }}</div>
+            <div class="summary-row">
+                <div class="summary-item">
+                    <span class="summary-label">Total Deducciones:</span>
+                    {{ $payroll->formatted_total_deductions }}
+                </div>
             </div>
-            <div class="totals-row">
-                <div class="totals-label total-final">SALARIO NETO A PAGAR:</div>
-                <div class="totals-value total-final">{{ $payroll->formatted_net_salary }}</div>
+            <div class="summary-row total-row">
+                <div class="summary-item">
+                    <span class="summary-label total-label">SALARIO NETO A PAGAR:</span>
+                    <strong class="total-value">{{ $payroll->formatted_net_salary }}</strong>
+                </div>
             </div>
         </div>
     </div>
 
-    {{-- Nota --}}
-    <div class="note-box">
-        <strong>NOTA:</strong> Este recibo constituye comprobante de pago válido. Conserve para sus registros.
-        En caso de discrepancia, comunicarse con RRHH dentro de 48 horas.
+    {{-- Nota Legal --}}
+    <div class="legal-note">
+        <strong>Nota:</strong> Este recibo constituye comprobante de pago valido. Conserve para sus registros.
+        En caso de discrepancia, comunicarse con Recursos Humanos dentro de las 48 horas siguientes.
     </div>
 
     {{-- Firmas --}}
     <div class="signature-section">
-        <div class="section-title">Firmas</div>
-        <div class="signature-box">
-            <div class="signature-item">
-                <div class="signature-line"></div>
-                <div class="signature-label">Empleado</div>
-                <div class="signature-sublabel">{{ $payroll->employee->full_name }}</div>
-            </div>
-            <div class="signature-item">
-                <div class="signature-line"></div>
-                <div class="signature-label">Recursos Humanos</div>
-                <div class="signature-sublabel">Nombre y Firma</div>
-            </div>
+        <div class="signature-item">
+            <div class="signature-line"></div>
+            <div class="signature-label">Empleado</div>
+            <div class="signature-sublabel">{{ $payroll->employee->full_name }}</div>
+            <div class="signature-sublabel">CI: {{ $payroll->employee->ci }}</div>
+        </div>
+        <div class="signature-item">
+            <div class="signature-line"></div>
+            <div class="signature-label">Recursos Humanos</div>
+            <div class="signature-sublabel">Firma y Sello</div>
         </div>
     </div>
 
     {{-- Footer --}}
     <div class="footer">
-        Generado: {{ now()->format('d/m/Y H:i') }} | Recibo #{{ $payroll->id }}
+        Documento generado el {{ now()->format('d/m/Y H:i') }} | Recibo #{{ $payroll->id }}
+        @if ($city)
+            | {{ $city }}, Paraguay
+        @endif
     </div>
 </body>
 

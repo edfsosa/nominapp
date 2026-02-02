@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\LoanResource\Pages;
 
 use Filament\Actions\Action;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Actions\DeleteAction;
 use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Textarea;
@@ -118,18 +117,8 @@ class EditLoan extends EditRecord
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-arrow-down')
                 ->color('info')
-                ->action(function () {
-                    $this->record->load(['employee.position.department', 'grantedBy', 'installments']);
-
-                    $pdf = Pdf::loadView('pdf.loan', ['loan' => $this->record])
-                        ->setPaper('a4', 'portrait');
-
-                    $type = $this->record->isLoan() ? 'prestamo' : 'adelanto';
-
-                    return response()->streamDownload(function () use ($pdf) {
-                        echo $pdf->output();
-                    }, "{$type}_{$this->record->id}_{$this->record->employee->ci}.pdf");
-                }),
+                ->url(fn() => route('loans.pdf', $this->record))
+                ->openUrlInNewTab(),
 
             /**
              * Acción para eliminar el préstamo o adelanto

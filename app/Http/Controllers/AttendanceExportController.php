@@ -3,8 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AttendanceDay;
+use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Http\Request;
 
 class AttendanceExportController extends Controller
 {
@@ -13,13 +13,24 @@ class AttendanceExportController extends Controller
         // Cargar relaciones necesarias
         $attendanceDay->load([
             'employee.branch',
-            'employee.position',
+            'employee.position.department',
             'events'
         ]);
 
-        // Generar PDF con vista y datos cargados
-        $pdf = Pdf::loadView('pdf.attendance-day', compact('attendanceDay'));
+        $settings = app(GeneralSettings::class);
 
-        return $pdf->stream('attendance_day_' . $attendanceDay->date . '.pdf');
+        // Generar PDF con vista y datos cargados
+        $pdf = Pdf::loadView('pdf.attendance-day', [
+            'attendanceDay' => $attendanceDay,
+            'companyName' => $settings->company_name,
+            'companyRuc' => $settings->company_ruc ?? '',
+            'companyAddress' => $settings->company_address ?? '',
+            'companyPhone' => $settings->company_phone ?? '',
+            'companyEmail' => $settings->company_email ?? '',
+            'employerNumber' => $settings->company_employer_number ?? '',
+            'city' => $settings->company_city ?? '',
+        ]);
+
+        return $pdf->stream('asistencia_' . $attendanceDay->date->format('Y-m-d') . '_' . $attendanceDay->employee->ci . '.pdf');
     }
 }

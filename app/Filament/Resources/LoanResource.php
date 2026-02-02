@@ -8,7 +8,6 @@ use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Filament\Resources\Resource;
 use App\Settings\GeneralSettings;
 use Filament\Tables\Actions\Action;
@@ -388,19 +387,8 @@ class LoanResource extends Resource
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('info')
                     ->visible(fn(Loan $record) => $record->isActive() || $record->isPaid())
-                    ->action(function (Loan $record) {
-                        $record->load(['employee.position.department', 'grantedBy', 'installments']);
-
-                        $pdf = Pdf::loadView('pdf.loan', ['loan' => $record])
-                            ->setPaper('a4', 'portrait');
-
-                        $type = $record->isLoan() ? 'prestamo' : 'adelanto';
-
-                        return response()->streamDownload(
-                            fn() => print($pdf->output()),
-                            "{$type}_{$record->id}_{$record->employee->ci}.pdf"
-                        );
-                    }),
+                    ->url(fn(Loan $record) => route('loans.pdf', $record))
+                    ->openUrlInNewTab(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

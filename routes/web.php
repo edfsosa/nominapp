@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
+use App\Http\Controllers\LoanController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\VacationDocumentController;
@@ -80,6 +81,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/download', [PayrollController::class, 'download'])->name('download');
         Route::get('/view', [PayrollController::class, 'view'])->name('view');
     });
+
+    // Préstamos y adelantos
+    Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
 
     // Administración de horarios
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])

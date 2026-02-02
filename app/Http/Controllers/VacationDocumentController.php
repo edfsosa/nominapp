@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class VacationDocumentController extends Controller
 {
     /**
-     * Descarga un documento de vacaciones.
+     * Muestra o descarga un documento de vacaciones.
+     * PDFs se muestran inline, ZIPs se descargan.
      */
     public function download(string $filename): BinaryFileResponse
     {
@@ -21,6 +21,15 @@ class VacationDocumentController extends Controller
         // Obtener nombre limpio (sin UUID)
         $cleanFilename = preg_replace('/^[a-f0-9-]+_/', '', $filename);
 
-        return response()->download($path, $cleanFilename)->deleteFileAfterSend(true);
+        // Si es ZIP, forzar descarga; si es PDF, mostrar inline
+        if (str_ends_with($filename, '.zip')) {
+            return response()->download($path, $cleanFilename)->deleteFileAfterSend(true);
+        }
+
+        // Para PDFs, mostrar inline en el navegador
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanFilename . '"',
+        ])->deleteFileAfterSend(true);
     }
 }
