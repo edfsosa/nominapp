@@ -11,6 +11,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
@@ -168,6 +169,12 @@ class CompanyResource extends Resource
                     ->falseLabel('Inactivas'),
             ])
             ->actions([
+                Action::make('orgChart')
+                    ->label('Organigrama')
+                    ->icon('heroicon-o-rectangle-group')
+                    ->color('info')
+                    ->url(fn(Company $record) => route('org-chart.show', $record))
+                    ->openUrlInNewTab(),
                 EditAction::make(),
             ])
             ->bulkActions([

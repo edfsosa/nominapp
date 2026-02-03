@@ -9,6 +9,7 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
@@ -60,6 +61,27 @@ class PositionResource extends Resource
                                     ->maxLength(60),
                             ])
                             ->columnSpan(1),
+
+                        Select::make('parent_id')
+                            ->label('Reporta a')
+                            ->placeholder('Ninguno (cargo de nivel superior)')
+                            ->relationship('parent', 'name')
+                            ->options(function (?Position $record) {
+                                $query = Position::query();
+
+                                if ($record) {
+                                    // Excluir el cargo actual y todos sus descendientes
+                                    $excludeIds = array_merge([$record->id], $record->getAllDescendantIds());
+                                    $query->whereNotIn('id', $excludeIds);
+                                }
+
+                                return $query->pluck('name', 'id');
+                            })
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->helperText('Seleccione el cargo al que este puesto reporta directamente')
+                            ->columnSpan(1),
                     ])
                     ->columns(2),
             ]);
@@ -83,6 +105,14 @@ class PositionResource extends Resource
                     ->searchable()
                     ->badge()
                     ->color('info'),
+
+                TextColumn::make('parent.name')
+                    ->label('Reporta a')
+                    ->sortable()
+                    ->searchable()
+                    ->placeholder('—')
+                    ->icon('heroicon-o-arrow-up-circle')
+                    ->iconColor('warning'),
 
                 TextColumn::make('employees_count')
                     ->label('Empleados')

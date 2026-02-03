@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\VacationDocumentController;
@@ -92,4 +93,10 @@ Route::middleware(['auth'])->group(function () {
     // Descarga de documentos de vacaciones
     Route::get('/vacaciones/documentos/{filename}', [VacationDocumentController::class, 'download'])
         ->name('vacation.documents.download');
+
+    // Organigrama de empresas
+    Route::prefix('empresas/{company}')->name('org-chart.')->group(function () {
+        Route::get('/organigrama', [OrgChartController::class, 'show'])->name('show');
+        Route::get('/organigrama/pdf', [OrgChartController::class, 'exportPdf'])->name('pdf');
+    });
 });
