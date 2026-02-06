@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
+use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
@@ -81,6 +82,12 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('recibos/{payroll}')->name('payrolls.')->group(function () {
         Route::get('/download', [PayrollController::class, 'download'])->name('download');
         Route::get('/view', [PayrollController::class, 'view'])->name('view');
+    });
+
+    // Recibos de aguinaldo (13° salario)
+    Route::prefix('aguinaldos/{aguinaldo}')->name('aguinaldos.')->group(function () {
+        Route::get('/download', [AguinaldoController::class, 'download'])->name('download');
+        Route::get('/view', [AguinaldoController::class, 'view'])->name('view');
     });
 
     // Préstamos y adelantos
