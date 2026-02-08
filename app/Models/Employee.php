@@ -132,6 +132,14 @@ class Employee extends Model
         return $this->hasMany(Loan::class);
     }
 
+    /**
+     * Relación con el modelo Liquidacion, un empleado puede tener varias liquidaciones
+     */
+    public function liquidaciones(): HasMany
+    {
+        return $this->hasMany(Liquidacion::class);
+    }
+
     // Obtener todos los eventos de asistencia a través de los días
     public function attendanceEvents(): HasManyThrough
     {

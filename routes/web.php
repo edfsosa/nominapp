@@ -4,6 +4,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\AguinaldoController;
+use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
@@ -88,6 +89,12 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('aguinaldos/{aguinaldo}')->name('aguinaldos.')->group(function () {
         Route::get('/download', [AguinaldoController::class, 'download'])->name('download');
         Route::get('/view', [AguinaldoController::class, 'view'])->name('view');
+    });
+
+    // Liquidaciones (finiquitos)
+    Route::prefix('liquidaciones/{liquidacion}')->name('liquidaciones.')->group(function () {
+        Route::get('/download', [LiquidacionController::class, 'download'])->name('download');
+        Route::get('/view', [LiquidacionController::class, 'view'])->name('view');
     });
 
     // Préstamos y adelantos

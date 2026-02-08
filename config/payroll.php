@@ -74,4 +74,28 @@ return [
     'processing' => [
         'chunk_size' => env('PAYROLL_CHUNK_SIZE', 100),
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Configuracion de Liquidacion / Finiquito
+    |--------------------------------------------------------------------------
+    |
+    | Parametros para el calculo de liquidaciones segun el Codigo
+    | Laboral de Paraguay (Art. 78-100).
+    |
+    | preaviso_tiers: Dias de preaviso segun antiguedad
+    | indemnizacion_days_per_year: 15 dias por ano de servicio
+    | ips_employee_rate: Porcentaje de aporte IPS obrero (9%)
+    |
+    */
+    'liquidacion' => [
+        'ips_employee_rate' => env('LIQUIDACION_IPS_RATE', 9),
+        'preaviso_tiers' => [
+            ['min_years' => 0, 'max_years' => 1, 'days' => 30],
+            ['min_years' => 1, 'max_years' => 5, 'days' => 45],
+            ['min_years' => 5, 'max_years' => 10, 'days' => 60],
+            ['min_years' => 10, 'max_years' => null, 'days' => 90],
+        ],
+        'indemnizacion_days_per_year' => 15,
+    ],
 ];
