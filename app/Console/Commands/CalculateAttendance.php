@@ -10,10 +10,15 @@ use Illuminate\Support\Facades\Log;
 
 class CalculateAttendance extends Command
 {
+    // La firma del comando y su descripción.
     protected $signature = 'app:calculate-attendance {date? : La fecha para calcular la asistencia (formato: YYYY-MM-DD)}';
-
     protected $description = 'Calcular horas trabajadas, descansos y registros de asistencia del día';
 
+    /**
+     * Ejecución del comando.
+     *
+     * @return void
+     */
     public function handle()
     {
         // Obtener la fecha del argumento o usar la fecha actual
@@ -50,7 +55,6 @@ class CalculateAttendance extends Command
                         // Actualizar estadísticas
                         $wasCalculated ? $stats['recalculated']++ : $stats['calculated']++;
                         $stats[$day->status] = ($stats[$day->status] ?? 0) + 1;
-
                     } catch (\Exception $e) {
                         $stats['failed']++;
                         Log::error("Error calculando AttendanceDay {$day->id}: {$e->getMessage()}");
@@ -74,6 +78,7 @@ class CalculateAttendance extends Command
         $this->info("📊 Resumen del cálculo - {$dateFormatted}:");
         $this->newLine();
 
+        // Tabla de estadísticas
         $this->table(
             ['Estado', 'Cantidad'],
             [
@@ -91,13 +96,16 @@ class CalculateAttendance extends Command
             ]
         );
 
+        // Mensaje final
         $this->newLine();
 
+        // Manejo de errores
         if ($stats['failed'] > 0) {
             $this->warn("⚠️  Completado con {$stats['failed']} error(es). Revisa los logs para más detalles.");
             return Command::FAILURE;
         }
 
+        // Mensaje de éxito
         $this->info("✅ Cálculo de asistencia finalizado exitosamente.");
         return Command::SUCCESS;
     }

@@ -14,8 +14,14 @@ class StatsOverview extends BaseWidget
 {
     protected static ?int $sort = 1;
 
+    /**
+     * Obtiene las estadísticas para el widget de resumen, incluyendo empleados activos, presentes y ausentes hoy, inactivos/suspendidos, nómina del período actual y cumpleaños del mes. También incluye tendencias de empleados y asistencia.
+     *
+     * @return array
+     */
     protected function getStats(): array
     {
+        // Obtener la fecha actual para las consultas de asistencia y cumpleaños
         $today = Carbon::today();
 
         // Estadísticas de Empleados
@@ -32,8 +38,10 @@ class StatsOverview extends BaseWidget
             })
             ->count();
 
+        // Cálculo de ausentes y porcentaje de asistencia
         $ausentesHoy = $empleadosActivos - $presentesHoy;
 
+        // Evitar división por cero y calcular porcentaje de asistencia
         $porcentajeAsistencia = $empleadosActivos > 0
             ? round(($presentesHoy / $empleadosActivos) * 100, 1)
             : 0;
@@ -52,10 +60,12 @@ class StatsOverview extends BaseWidget
             ->latest('start_date')
             ->first();
 
+        // Cálculo de la nómina total del período actual, con manejo de caso sin período activo
         $totalNominaActual = $periodoActual
             ? Payroll::where('payroll_period_id', $periodoActual->id)->sum('net_salary')
             : 0;
 
+        // Retornar las estadísticas como un array de objetos Stat, con configuraciones personalizadas para cada estadística, incluyendo descripciones, íconos, colores y gráficos de tendencia
         return [
             Stat::make('Empleados Activos', $empleadosActivos)
                 ->description('Total de ' . $totalEmpleados . ' empleados')

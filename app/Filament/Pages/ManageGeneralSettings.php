@@ -14,16 +14,12 @@ use Filament\Forms\Components\FileUpload;
 
 class ManageGeneralSettings extends SettingsPage
 {
+    // Configuraciones de la página
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
-
     protected static ?string $navigationLabel = 'Configuración General';
-
     protected static ?string $title = 'Configuración General';
-
     protected static ?string $navigationGroup = 'Configuración';
-
     protected static ?int $navigationSort = 3;
-
     protected static string $settings = GeneralSettings::class;
 
     /**
@@ -36,16 +32,19 @@ class ManageGeneralSettings extends SettingsPage
     {
         return $form
             ->schema([
+                // Sección de información de la empresa
                 Section::make('Información de la Empresa')
                     ->description('Datos generales de la empresa')
                     ->icon('heroicon-o-building-office-2')
                     ->schema([
+                        // Nombre de la empresa, con validación y longitud máxima
                         TextInput::make('company_name')
                             ->label('Nombre')
                             ->placeholder('Mi Empresa S.A.')
                             ->maxLength(255)
                             ->required(),
 
+                        // Logo de la empresa, con opciones de edición y validación
                         FileUpload::make('company_logo')
                             ->label('Logo')
                             ->image()
@@ -58,14 +57,17 @@ class ManageGeneralSettings extends SettingsPage
                             ->previewable()
                             ->helperText('Tamaño máximo 2 MB (JPEG, PNG, SVG)'),
 
+                        // RUC y Nro. Patronal en una cuadrícula de 2 columnas
                         Grid::make(2)
                             ->schema([
+                                // RUC con formato específico
                                 TextInput::make('company_ruc')
                                     ->label('RUC')
                                     ->placeholder('80000000-0')
                                     ->regex('/^\d{8}-\d{1}$/')
                                     ->maxLength(50),
 
+                                // Nro. Patronal con longitud máxima
                                 TextInput::make('company_employer_number')
                                     ->label('Nro. Patronal')
                                     ->placeholder('137678')
@@ -73,8 +75,10 @@ class ManageGeneralSettings extends SettingsPage
                                     ->helperText('Número patronal del Ministerio de Trabajo'),
                             ]),
 
+                        // Teléfono, correo electrónico y ciudad en una cuadrícula de 3 columnas
                         Grid::make(3)
                             ->schema([
+                                // Teléfono con prefijo y validación de longitud
                                 TextInput::make('company_phone')
                                     ->label('Teléfono')
                                     ->tel()
@@ -83,12 +87,14 @@ class ManageGeneralSettings extends SettingsPage
                                     ->minLength(7)
                                     ->maxLength(15),
 
+                                // Correo electrónico con validación
                                 TextInput::make('company_email')
                                     ->label('Correo Electrónico')
                                     ->placeholder('correo@empresa.com')
                                     ->email()
                                     ->maxLength(100),
 
+                                // Ciudad con longitud máxima
                                 TextInput::make('company_city')
                                     ->label('Ciudad')
                                     ->placeholder('Asunción')
@@ -96,19 +102,24 @@ class ManageGeneralSettings extends SettingsPage
                                     ->helperText('Ciudad para documentos oficiales'),
                             ]),
 
+                        // Dirección en un área de texto
                         Textarea::make('company_address')
                             ->label('Dirección')
                             ->placeholder('Av. Principal 123, Ciudad, País')
                             ->rows(1)
-                            ->maxLength(500),
+                            ->maxLength(500)
+                            ->helperText('Dirección para documentos oficiales'),
                     ]),
 
+                // Nueva sección para configuración laboral
                 Section::make('Configuración Laboral')
                     ->description('Parámetros de trabajo y horarios')
                     ->icon('heroicon-o-clock')
                     ->schema([
+                        // Zona horaria y horas de trabajo por semana en una cuadrícula de 2 columnas
                         Grid::make(2)
                             ->schema([
+                                // Selección de zona horaria con opciones predefinidas
                                 Select::make('timezone')
                                     ->label('Zona horaria')
                                     ->options([
@@ -123,6 +134,7 @@ class ManageGeneralSettings extends SettingsPage
                                     ->searchable()
                                     ->helperText('Zona horaria para el cálculo de fechas y horas'),
 
+                                // Horas de trabajo por semana con validación numérica
                                 TextInput::make('working_hours_per_week')
                                     ->label('Horas de trabajo por semana')
                                     ->numeric()
@@ -133,10 +145,12 @@ class ManageGeneralSettings extends SettingsPage
                             ]),
                     ]),
 
+                // Nueva sección para configuración de préstamos
                 Section::make('Configuración de Préstamos')
                     ->description('Parámetros para préstamos y adelantos')
                     ->icon('heroicon-o-banknotes')
                     ->schema([
+                        // Monto máximo de préstamo con formato monetario
                         TextInput::make('max_loan_amount')
                             ->label('Monto máximo de préstamo')
                             ->numeric()

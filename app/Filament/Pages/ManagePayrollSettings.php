@@ -11,28 +11,32 @@ use Filament\Forms\Components\TextInput;
 
 class ManagePayrollSettings extends SettingsPage
 {
+    // Configuraciones de la página
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
-
     protected static ?string $navigationLabel = 'Configuración de Nómina';
-
     protected static ?string $title = 'Configuración de Nómina';
-
     protected static ?string $navigationGroup = 'Configuración';
-
     protected static ?int $navigationSort = 4;
-
     protected static string $settings = PayrollSettings::class;
 
+    /**
+     * Define el formulario de configuración de nómina.
+     *
+     * @param Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
             ->schema([
+                // Sección para configuración de horas de trabajo y cálculos relacionados
                 Section::make('Horas de Trabajo - Jornada Diurna')
                     ->description('Parámetros para jornada diurna (06:00 - 20:00)')
                     ->icon('heroicon-o-sun')
                     ->schema([
                         Grid::make(3)
                             ->schema([
+                                // Horas de trabajo mensuales con validación numérica
                                 TextInput::make('monthly_hours')
                                     ->label('Horas mensuales')
                                     ->numeric()
@@ -42,6 +46,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('hrs')
                                     ->helperText('Default: 240 (30 días × 8 hrs)'),
 
+                                // Horas de trabajo por jornada con validación numérica
                                 TextInput::make('daily_hours')
                                     ->label('Horas por jornada')
                                     ->numeric()
@@ -51,6 +56,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('hrs')
                                     ->helperText('Default: 8 hrs (Art. 194)'),
 
+                                // Días laborales por mes con validación numérica
                                 TextInput::make('days_per_month')
                                     ->label('Días laborales/mes')
                                     ->numeric()
@@ -62,12 +68,14 @@ class ManagePayrollSettings extends SettingsPage
                             ]),
                     ]),
 
+                // Sección para configuración de horas de trabajo nocturno y mixto
                 Section::make('Horas de Trabajo - Jornada Nocturna y Mixta')
                     ->description('Parámetros para jornadas nocturna (20:00 - 06:00) y mixta')
                     ->icon('heroicon-o-moon')
                     ->schema([
                         Grid::make(2)
                             ->schema([
+                                // Horas de trabajo mensuales nocturno con validación numérica
                                 TextInput::make('monthly_hours_nocturno')
                                     ->label('Horas mensuales nocturno')
                                     ->numeric()
@@ -77,6 +85,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('hrs')
                                     ->helperText('Default: 210 (30 días × 7 hrs)'),
 
+                                // Horas de trabajo por jornada nocturna con validación numérica
                                 TextInput::make('daily_hours_nocturno')
                                     ->label('Horas por jornada nocturna')
                                     ->numeric()
@@ -89,6 +98,7 @@ class ManagePayrollSettings extends SettingsPage
 
                         Grid::make(2)
                             ->schema([
+                                // Horas de trabajo mensuales mixto con validación numérica
                                 TextInput::make('monthly_hours_mixto')
                                     ->label('Horas mensuales mixto')
                                     ->numeric()
@@ -98,6 +108,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('hrs')
                                     ->helperText('Default: 225 (30 días × 7.5 hrs)'),
 
+                                // Horas de trabajo por jornada mixta con validación numérica
                                 TextInput::make('daily_hours_mixto')
                                     ->label('Horas por jornada mixta')
                                     ->numeric()
@@ -110,12 +121,14 @@ class ManagePayrollSettings extends SettingsPage
                     ])
                     ->collapsed(),
 
+                // Sección para configuración de horas de trabajo en días feriados
                 Section::make('Multiplicadores de Horas Extra')
                     ->description('Factores de cálculo según Código del Trabajo (Art. 234)')
                     ->icon('heroicon-o-clock')
                     ->schema([
                         Grid::make(3)
                             ->schema([
+                                // Multiplicador para horas extra diurnas con validación numérica
                                 TextInput::make('overtime_multiplier_diurno')
                                     ->label('HE Diurnas')
                                     ->numeric()
@@ -126,6 +139,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('x')
                                     ->helperText('50% recargo → 1.5x'),
 
+                                // Multiplicador para horas extra nocturnas con validación numérica
                                 TextInput::make('overtime_multiplier_nocturno')
                                     ->label('HE Nocturnas')
                                     ->numeric()
@@ -136,6 +150,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('x')
                                     ->helperText('1.3 × 2.0 = 2.6x'),
 
+                                // Multiplicador para horas extra en días feriados con validación numérica
                                 TextInput::make('overtime_multiplier_holiday')
                                     ->label('HE Feriado/Domingo')
                                     ->numeric()
@@ -148,10 +163,12 @@ class ManagePayrollSettings extends SettingsPage
                             ]),
                     ]),
 
+                // Sección para configuración de límites de horas extra
                 Section::make('Límites de Horas Extra')
                     ->description('Límites legales de horas extraordinarias (Art. 202)')
                     ->icon('heroicon-o-exclamation-triangle')
                     ->schema([
+                        // Máximo horas extra por día con validación numérica
                         TextInput::make('overtime_max_daily_hours')
                             ->label('Máximo horas extra por día')
                             ->numeric()
@@ -162,12 +179,14 @@ class ManagePayrollSettings extends SettingsPage
                             ->helperText('Límite legal: 3 hrs/día'),
                     ]),
 
+                // Sección para configuración de liquidación y finiquito
                 Section::make('Liquidación / Finiquito')
                     ->description('Parámetros para cálculo de liquidaciones (Art. 78-100)')
                     ->icon('heroicon-o-document-text')
                     ->schema([
                         Grid::make(2)
                             ->schema([
+                                // Aporte IPS obrero con validación numérica y formato porcentual
                                 TextInput::make('ips_employee_rate')
                                     ->label('Aporte IPS Obrero')
                                     ->numeric()
@@ -178,6 +197,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('%')
                                     ->helperText('Default: 9%'),
 
+                                // Días de indemnización por año con validación numérica
                                 TextInput::make('indemnizacion_days_per_year')
                                     ->label('Días indemnización por año')
                                     ->numeric()
@@ -190,12 +210,14 @@ class ManagePayrollSettings extends SettingsPage
                     ])
                     ->collapsed(),
 
+                // Nueva sección para configuración de vacaciones
                 Section::make('Vacaciones')
                     ->description('Parámetros generales de vacaciones')
                     ->icon('heroicon-o-calendar-days')
                     ->schema([
                         Grid::make(2)
                             ->schema([
+                                // Mínimo días consecutivos para fraccionar vacaciones con validación numérica
                                 TextInput::make('vacation_min_consecutive_days')
                                     ->label('Mínimo días consecutivos')
                                     ->numeric()
@@ -205,6 +227,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('días')
                                     ->helperText('Fraccionamiento mínimo (Default: 6)'),
 
+                                // Años mínimos de servicio para tener derecho a vacaciones con validación numérica
                                 TextInput::make('vacation_min_years_service')
                                     ->label('Años mínimos de servicio')
                                     ->numeric()

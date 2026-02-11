@@ -4,8 +4,6 @@ namespace App\Console\Commands;
 
 use App\Models\AttendanceDay;
 use App\Models\Employee;
-use App\Models\Schedule;
-use App\Models\ScheduleDay;
 use App\Services\AttendanceCalculator;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
@@ -13,35 +11,31 @@ use Illuminate\Support\Facades\Log;
 
 class CheckMissingAttendance extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
+    // La firma del comando y su descripción.
     protected $signature = 'attendance:check-missing
                             {--date= : Fecha específica a procesar (formato Y-m-d). Si no se especifica, usa hoy}
                             {--dry-run : Ejecutar en modo prueba sin crear registros}';
-
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
     protected $description = 'Verifica empleados sin marcación y crea registros de ausencia si pasó el tiempo límite';
 
     /**
-     * Execute the console command.
+     * Ejecución del comando.
+     *
+     * @return void
      */
     public function handle()
     {
+        // Obtener la fecha a procesar
         $date = $this->option('date')
             ? Carbon::parse($this->option('date'))
             : now();
 
+        // Obtener la opción dry-run
         $dryRun = $this->option('dry-run');
 
+        // Mensaje inicial
         $this->info("🔍 Verificando ausencias para: " . $date->format('d/m/Y H:i'));
 
+        // Indicar modo dry-run
         if ($dryRun) {
             $this->warn("⚠️  Modo DRY-RUN activado - No se crearán registros");
         }
@@ -52,6 +46,7 @@ class CheckMissingAttendance extends Command
             return Command::SUCCESS;
         }
 
+        // Obtener el umbral de tiempo para considerar ausencia
         $thresholdMinutes = config('attendance.absence_threshold_minutes', 30);
         $this->info("⏱️  Umbral configurado: {$thresholdMinutes} minutos después de la hora de entrada");
 
@@ -61,17 +56,21 @@ class CheckMissingAttendance extends Command
             ->with(['schedule.days'])
             ->get();
 
+        // Mostrar cantidad de empleados encontrados
         $this->info("👥 Empleados activos con horario: " . $employees->count());
 
+        // Contadores para estadísticas
         $processed = 0;
         $created = 0;
         $skipped = 0;
 
+        // Procesar cada empleado
         foreach ($employees as $employee) {
             $result = $this->processEmployee($employee, $date, $thresholdMinutes, $dryRun);
 
             $processed++;
 
+            // Actualizar contadores según el resultado
             if ($result === 'created') {
                 $created++;
             } elseif ($result === 'skipped') {
@@ -79,6 +78,7 @@ class CheckMissingAttendance extends Command
             }
         }
 
+        // Mostrar resumen de resultados
         $this->newLine();
         $this->info("✅ Proceso completado:");
         $this->table(
@@ -89,7 +89,6 @@ class CheckMissingAttendance extends Command
                 ['Omitidos (ya tienen registro o no aplica)', $skipped],
             ]
         );
-
         return Command::SUCCESS;
     }
 
@@ -98,32 +97,34 @@ class CheckMissingAttendance extends Command
      */
     protected function processEmployee(Employee $employee, Carbon $date, int $thresholdMinutes, bool $dryRun): string
     {
-        // Verificar si ya tiene registro para hoy
+        // Verificar si ya existe un registro de asistencia para la fecha
         $existingRecord = AttendanceDay::where('employee_id', $employee->id)
             ->where('date', $date->toDateString())
             ->first();
 
+        // Si ya existe un registro, omitir
         if ($existingRecord) {
-            return 'skipped'; // Ya tiene registro
+            return 'skipped';
         }
 
         // Obtener el horario del empleado para el día de la semana actual
         $dayOfWeek = $date->dayOfWeekIso; // 1=Lunes, 7=Domingo
         $scheduleDay = $employee->schedule?->days->firstWhere('day_of_week', $dayOfWeek);
 
+        // Verificar si es día libre o no tiene horario
         if (!$scheduleDay) {
-            // No tiene horario definido para este día (día libre)
             return 'skipped';
         }
 
+        // Verificar si es día libre
         if ($scheduleDay->is_day_off) {
-            // Es día libre del empleado
             return 'skipped';
         }
 
         // Obtener hora de entrada esperada
         $expectedCheckIn = $scheduleDay->start_time;
 
+        // Si no hay hora de entrada esperada, omitir
         if (!$expectedCheckIn) {
             return 'skipped';
         }
@@ -155,6 +156,7 @@ class CheckMissingAttendance extends Command
                 AttendanceCalculator::apply($attendanceDay);
                 $attendanceDay->save();
 
+                // Log de creación
                 Log::info("Ausencia creada automáticamente", [
                     'employee_id' => $employee->id,
                     'employee_name' => $employee->first_name . ' ' . $employee->last_name,
@@ -163,20 +165,25 @@ class CheckMissingAttendance extends Command
                     'threshold_time' => $thresholdTime->format('H:i'),
                 ]);
 
+                // Mostrar confirmación en consola
                 $this->line("  ✓ Ausencia creada: {$employee->first_name} {$employee->last_name} (Esperado: {$expectedCheckIn})");
             } catch (\Exception $e) {
+                // Log de error si falla la creación
                 Log::error("Error creando ausencia automática", [
                     'employee_id' => $employee->id,
                     'error' => $e->getMessage(),
                 ]);
 
+                // Mostrar error en consola
                 $this->error("  ✗ Error creando ausencia para: {$employee->first_name} {$employee->last_name}");
                 return 'skipped';
             }
         } else {
+            // Modo dry-run: solo mostrar lo que se haría
             $this->line("  [DRY-RUN] Se crearía ausencia: {$employee->first_name} {$employee->last_name} (Esperado: {$expectedCheckIn})");
         }
 
+        // Retornar que se creó la ausencia
         return 'created';
     }
 }

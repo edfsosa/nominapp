@@ -9,26 +9,18 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget as BaseWidget;
-use Illuminate\Database\Eloquent\Builder;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 /**
  * Widget de tabla que muestra las últimas marcaciones de asistencia del día actual
- *
  */
 class LatestAttendances extends BaseWidget
 {
-    /** Indica que el widget ocupará el ancho completo del contenedor */
+    // Configuraciones del widget
     protected int | string | array $columnSpan = 'full';
-
-    /** Título del widget mostrado en la interfaz */
     protected static ?string $heading = 'Últimas Marcaciones de Hoy';
-
-    /** Descripción breve del widget */
     protected static ?string $description = 'Marcaciones del día actual en tiempo real';
-
-    /** Orden de visualización del widget en el dashboard (menor número = mayor prioridad) */
     protected static ?int $sort = 3;
 
     /**
@@ -41,17 +33,15 @@ class LatestAttendances extends BaseWidget
     {
         return $table
             ->query(
+                // Consulta optimizada para obtener las marcaciones del día actual, con relaciones cargadas y ordenadas por fecha de grabación
                 AttendanceEvent::query()
-                    // Solo marcaciones de hoy (mucho más rápido que 7 días)
                     ->whereDate('recorded_at', today())
-                    // Filtrar solo empleados activos usando campo desnormalizado
                     ->whereNotNull('employee_id')
-                    // Ordenar por más reciente primero
                     ->latest('recorded_at')
             )
             // Definición de columnas optimizadas
             ->columns([
-                // Columna: Fecha y hora de la marcación
+                // Fecha y hora de la marcación, con formato personalizado, descripción relativa, ícono y opciones de ordenamiento y búsqueda
                 TextColumn::make('recorded_at')
                     ->label('Fecha y Hora')
                     ->dateTime('d/m/Y H:i:s')
@@ -60,7 +50,7 @@ class LatestAttendances extends BaseWidget
                     ->sortable()
                     ->searchable(),
 
-                // Columna: Tipo de evento (entrada, salida, descanso)
+                // Tipo de evento de asistencia, con formato personalizado, badges y colores
                 TextColumn::make('event_type')
                     ->label('Tipo de Evento')
                     ->formatStateUsing(fn($state) => match ($state) {
@@ -88,7 +78,7 @@ class LatestAttendances extends BaseWidget
                     ->sortable()
                     ->searchable(),
 
-                // OPTIMIZACIÓN: Usa campo desnormalizado employee_name
+                // Nombre del empleado, con descripción de CI y optimización para búsqueda y ordenamiento
                 TextColumn::make('employee_name')
                     ->label('Empleado')
                     ->description(fn($record) => $record->employee_ci ? 'CI: ' . $record->employee_ci : '')
@@ -98,7 +88,7 @@ class LatestAttendances extends BaseWidget
                     ->wrap()
                     ->placeholder('N/A'),
 
-                // OPTIMIZACIÓN: Usa campo desnormalizado branch_name
+                // Nombre de la sucursal, con ícono y optimización para búsqueda y ordenamiento
                 TextColumn::make('branch_name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-office-2')
@@ -109,9 +99,8 @@ class LatestAttendances extends BaseWidget
                     ->toggleable()
                     ->placeholder('N/A'),
             ])
-            // Filtros optimizados
             ->filters([
-                // OPTIMIZACIÓN: Usa relación directa employee en lugar de day.employee
+                // Filtro de empleado con relación optimizada, etiquetas personalizadas y búsqueda
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->placeholder('Todos los empleados')
@@ -125,7 +114,7 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
 
-                // OPTIMIZACIÓN: Usa relación directa branch
+                // Filtro de sucursal con relación optimizada, etiquetas personalizadas y búsqueda
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->placeholder('Todas las sucursales')
@@ -135,7 +124,7 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
 
-                // Filtro: Tipo de evento
+                // Filtro de tipo de evento con opciones personalizadas y búsqueda
                 SelectFilter::make('event_type')
                     ->label('Tipo de Evento')
                     ->placeholder('Todos los tipos')
@@ -148,8 +137,8 @@ class LatestAttendances extends BaseWidget
                     ->native(false)
                     ->multiple(),
             ])
-            // Acciones individuales por fila
             ->actions([
+                // Acción para ver el detalle de la marcación en un modal, con contenido personalizado y sin acción de submit
                 ViewAction::make()
                     ->label('Ver')
                     ->modalHeading('Detalle de Marcación')
@@ -159,8 +148,8 @@ class LatestAttendances extends BaseWidget
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
             ])
-            // Acciones masivas (bulk actions)
             ->bulkActions([
+                // Grupo de acciones masivas para exportar las marcaciones seleccionadas a Excel, con configuración personalizada del exportador y opciones de archivo
                 BulkActionGroup::make([
                     ExportBulkAction::make()
                         ->exports([
