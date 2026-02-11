@@ -283,13 +283,11 @@ class LeavesRelationManager extends RelationManager
                     }),
 
                 EditAction::make()
-                    ->label('Editar')
                     ->modalHeading('Editar permiso')
                     ->modalSubmitActionLabel('Guardar cambios')
                     ->modalWidth('2xl'),
 
                 DeleteAction::make()
-                    ->label('Eliminar')
                     ->modalHeading('Eliminar permiso')
                     ->modalDescription('¿Estás seguro de que deseas eliminar este permiso? Esta acción no se puede deshacer.')
                     ->before(function ($record) {
@@ -302,21 +300,24 @@ class LeavesRelationManager extends RelationManager
             ->bulkActions([
                 BulkActionGroup::make([
                     BulkAction::make('approve_selected')
-                        ->label('Aprobar seleccionados')
+                        ->label('Aprobar')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
+                        ->modalHeading('Aprobar permisos')
+                        ->modalDescription('Se aprobarán los permisos seleccionados que estén en estado pendiente.')
                         ->action(fn($records) => $records->each->update(['status' => 'approved'])),
 
                     BulkAction::make('reject_selected')
-                        ->label('Rechazar seleccionados')
+                        ->label('Rechazar')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->requiresConfirmation()
+                        ->modalHeading('Rechazar permisos')
+                        ->modalDescription('Se rechazarán los permisos seleccionados que estén en estado pendiente.')
                         ->action(fn($records) => $records->each->update(['status' => 'rejected'])),
 
                     DeleteBulkAction::make()
-                        ->label('Eliminar seleccionados')
                         ->modalHeading('Eliminar permisos')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estos permisos? Esta acción no se puede deshacer.')
                         ->before(function ($records) {

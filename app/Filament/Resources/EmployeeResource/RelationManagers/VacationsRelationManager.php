@@ -177,38 +177,35 @@ class VacationsRelationManager extends RelationManager
                     ->action(fn(Vacation $record) => $record->update(['status' => 'rejected'])),
 
                 EditAction::make()
-                    ->label('Editar')
                     ->modalHeading('Editar vacaciones')
                     ->modalSubmitActionLabel('Guardar cambios')
                     ->modalWidth('2xl'),
 
                 DeleteAction::make()
-                    ->label('Eliminar')
                     ->modalHeading('Eliminar vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
                     BulkAction::make('approve_selected')
-                        ->label('Aprobar seleccionadas')
+                        ->label('Aprobar')
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->modalHeading('Aprobar vacaciones seleccionadas')
-                        ->modalDescription('¿Estás seguro de que deseas aprobar todas las solicitudes seleccionadas?')
+                        ->modalHeading('Aprobar vacaciones')
+                        ->modalDescription('Se aprobarán las vacaciones seleccionadas que estén en estado pendiente.')
                         ->action(fn($records) => $records->each->update(['status' => 'approved'])),
 
                     BulkAction::make('reject_selected')
-                        ->label('Rechazar seleccionadas')
+                        ->label('Rechazar')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->modalHeading('Rechazar vacaciones seleccionadas')
-                        ->modalDescription('¿Estás seguro de que deseas rechazar todas las solicitudes seleccionadas?')
+                        ->modalHeading('Rechazar vacaciones')
+                        ->modalDescription('Se rechazarán las vacaciones seleccionadas que estén en estado pendiente.')
                         ->action(fn($records) => $records->each->update(['status' => 'rejected'])),
 
                     DeleteBulkAction::make()
-                        ->label('Eliminar seleccionadas')
                         ->modalHeading('Eliminar vacaciones')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estas solicitudes? Esta acción no se puede deshacer.'),
                 ]),
