@@ -98,7 +98,6 @@ class EventsRelationManager extends RelationManager
                     ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation()), */
 
                 DeleteAction::make()
-                    ->icon('heroicon-o-trash')
                     ->modalHeading('Eliminar Marcación')
                     ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
                     ->successNotificationTitle('Marcación eliminada exitosamente'),

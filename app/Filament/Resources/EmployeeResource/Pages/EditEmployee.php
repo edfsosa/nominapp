@@ -30,7 +30,6 @@ class EditEmployee extends EditRecord
                 ->visible(fn() => $this->record->status === 'active'),
 
             DeleteAction::make()
-                ->icon('heroicon-o-trash')
                 ->before(function () {
                     // Eliminar la foto si existe
                     if ($this->record->photo && Storage::disk('public')->exists($this->record->photo)) {

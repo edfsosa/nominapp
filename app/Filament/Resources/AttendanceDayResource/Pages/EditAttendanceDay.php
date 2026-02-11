@@ -20,8 +20,7 @@ class EditAttendanceDay extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()
-                ->icon('heroicon-o-eye'),
+            ViewAction::make(),
 
             AttendanceDayResource::getApproveOvertimeAction(),
 
@@ -29,8 +28,7 @@ class EditAttendanceDay extends EditRecord
 
             AttendanceDayResource::getCalculateAction(),
 
-            DeleteAction::make()
-                ->icon('heroicon-o-trash'),
+            DeleteAction::make(),
         ];
     }
 

@@ -100,8 +100,7 @@ class DepartmentResource extends Resource
                     ->toggle(),
             ])
             ->actions([
-                EditAction::make()
-                    ->label('Editar'),
+                EditAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

@@ -135,7 +135,6 @@ class EditVacation extends EditRecord
                 ->visible(fn() => $this->record->status === 'approved'),
 
             DeleteAction::make()
-                ->icon('heroicon-o-trash')
                 ->before(function () {
                     // Liberar días pendientes del balance si se elimina
                     $record = $this->record;

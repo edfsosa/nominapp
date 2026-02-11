@@ -124,7 +124,6 @@ class EditLoan extends EditRecord
              * Acción para eliminar el préstamo o adelanto
              */
             DeleteAction::make()
-                ->icon('heroicon-o-trash')
                 ->visible(fn() => $this->record->isPending() || $this->record->isCancelled()),
         ];
     }

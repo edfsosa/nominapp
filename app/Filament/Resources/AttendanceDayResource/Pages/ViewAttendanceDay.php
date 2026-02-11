@@ -18,8 +18,7 @@ class ViewAttendanceDay extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            EditAction::make()
-                ->icon('heroicon-o-pencil-square'),
+            EditAction::make(),
 
             AttendanceDayResource::getApproveOvertimeAction(),
 

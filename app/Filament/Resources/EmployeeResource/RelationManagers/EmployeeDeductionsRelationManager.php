@@ -204,10 +204,8 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->icon('heroicon-o-plus'),
             ])
             ->actions([
-                EditAction::make()
-                    ->label('Editar'),
-                DeleteAction::make()
-                    ->label('Eliminar'),
+                EditAction::make(),
+                DeleteAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

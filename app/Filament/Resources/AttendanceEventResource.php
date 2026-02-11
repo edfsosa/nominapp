@@ -215,7 +215,6 @@ class AttendanceEventResource extends Resource
                     ->successNotificationTitle('Marcación actualizada exitosamente'),
 
                 DeleteAction::make()
-                    ->icon('heroicon-o-trash')
                     ->modalHeading('Eliminar Marcación')
                     ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
                     ->successNotificationTitle('Marcación eliminada exitosamente'),

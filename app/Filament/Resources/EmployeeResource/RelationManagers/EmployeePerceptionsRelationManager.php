@@ -175,10 +175,8 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->icon('heroicon-o-plus'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
-                    ->label('Editar'),
-                Tables\Actions\DeleteAction::make()
-                    ->label('Eliminar'),
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([

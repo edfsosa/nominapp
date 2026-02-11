@@ -79,7 +79,6 @@ class EditAbsent extends EditRecord
                 }),
 
             DeleteAction::make()
-                ->icon('heroicon-o-trash')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];
     }

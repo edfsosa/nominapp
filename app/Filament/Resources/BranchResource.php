@@ -232,8 +232,7 @@ class BranchResource extends Resource
                     ->openUrlInNewTab()
                     ->visible(fn($record) => $record->coordinates !== null),
 
-                EditAction::make()
-                    ->label('Editar'),
+                EditAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
