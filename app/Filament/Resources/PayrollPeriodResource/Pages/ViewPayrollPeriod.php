@@ -55,7 +55,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->status === 'draft'),
+                ->visible(fn() => in_array($this->record->status, ['draft', 'processing'])),
 
             Action::make('close_period')
                 ->label('Cerrar Período')

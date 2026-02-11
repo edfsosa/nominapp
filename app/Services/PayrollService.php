@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 
 class PayrollService
 {
@@ -41,7 +42,7 @@ class PayrollService
         $employees = Employee::query()
             ->where('payroll_type', $period->frequency)
             ->whereNotNull('base_salary')
-            ->whereIn('status', ['active', 'suspended'])
+            ->where('status', 'active')
             ->get();
 
         foreach ($employees as $employee) {
@@ -118,5 +119,87 @@ class PayrollService
             }
         }
         return $count;
+    }
+
+    public function regenerateForEmployee(Payroll $payroll): Payroll
+    {
+        $employee = $payroll->employee;
+        $period = $payroll->period;
+
+        DB::beginTransaction();
+
+        try {
+            // Eliminar ítems existentes
+            $payroll->items()->delete();
+
+            // Eliminar PDF anterior
+            if ($payroll->pdf_path && Storage::disk('public')->exists($payroll->pdf_path)) {
+                Storage::disk('public')->delete($payroll->pdf_path);
+            }
+
+            $baseSalary = $employee->base_salary;
+
+            // Recalcular con los 5 calculadores
+            $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+            $deductions = $this->deductionCalculator->calculate($employee, $period);
+            $extras = $this->extraHourCalculator->calculate($employee, $period);
+            $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
+
+            $totalPerceptions = $perceptions['total'] + $extras['total'];
+            $totalDeductions = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+            $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
+
+            // Actualizar el registro existente
+            $payroll->update([
+                'base_salary' => $baseSalary,
+                'total_perceptions' => $totalPerceptions,
+                'total_deductions' => $totalDeductions,
+                'gross_salary' => $baseSalary + $totalPerceptions,
+                'net_salary' => $netSalary,
+                'generated_at' => now(),
+            ]);
+
+            // Recrear ítems: percepciones
+            foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'perception',
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
+                ]);
+            }
+
+            // Recrear ítems: deducciones
+            foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
+                ]);
+            }
+
+            // Marcar cuotas de préstamos como pagadas
+            if ($loanInstallments['installments']->isNotEmpty()) {
+                $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
+                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
+            }
+
+            // Regenerar PDF
+            $pdfPath = $this->payrollPDFGenerator->generate($payroll);
+            $payroll->update(['pdf_path' => $pdfPath]);
+
+            DB::commit();
+
+            return $payroll->refresh();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error al regenerar recibo: ' . $e->getMessage(), [
+                'payroll_id' => $payroll->id,
+                'employee_id' => $employee->id,
+            ]);
+            throw $e;
+        }
     }
 }

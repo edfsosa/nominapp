@@ -4,6 +4,8 @@ namespace App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 
 use App\Models\Payroll;
 use App\Models\Position;
+use App\Services\PayrollService;
+use Filament\Notifications\Notification;
 use Filament\Tables\Table;
 use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Infolist;
@@ -208,6 +210,32 @@ class PayrollsRelationManager extends RelationManager
                     ->icon('heroicon-o-eye')
                     ->color('primary')
                     ->url(fn(Payroll $record) => route('filament.admin.resources.recibos.view', ['record' => $record])),
+
+                Action::make('regenerate')
+                    ->label('Regenerar')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Regenerar Recibo')
+                    ->modalDescription(fn(Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->action(function (Payroll $record, PayrollService $payrollService) {
+                        try {
+                            $payrollService->regenerateForEmployee($record);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo regenerado')
+                                ->body("El recibo de {$record->employee->full_name} ha sido recalculado exitosamente.")
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Error al regenerar')
+                                ->body('Ocurrió un error al regenerar el recibo: ' . $e->getMessage())
+                                ->send();
+                        }
+                    })
+                    ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'),
 
                 DeleteAction::make()
                     ->visible(fn() => $this->getOwnerRecord()->status === 'draft')

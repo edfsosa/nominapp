@@ -286,7 +286,7 @@
 
     {{-- Titulo --}}
     <div class="title">Recibo de Salario</div>
-    <div class="subtitle">{{ $payroll->period->name }}</div>
+    <div class="subtitle">{{ $payroll->period?->name ?? 'Sin período' }}</div>
 
     {{-- Informacion del Empleado --}}
     <div class="section">
@@ -311,9 +311,13 @@
             <div class="info-row">
                 <div class="info-label">Periodo:</div>
                 <div class="info-value">
-                    {{ \Carbon\Carbon::parse($payroll->period->start_date)->format('d/m/Y') }} al
-                    {{ \Carbon\Carbon::parse($payroll->period->end_date)->format('d/m/Y') }}
-                    ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
+                    @if ($payroll->period)
+                        {{ \Carbon\Carbon::parse($payroll->period->start_date)->format('d/m/Y') }} al
+                        {{ \Carbon\Carbon::parse($payroll->period->end_date)->format('d/m/Y') }}
+                        ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
+                    @else
+                        N/A
+                    @endif
                 </div>
             </div>
         </div>

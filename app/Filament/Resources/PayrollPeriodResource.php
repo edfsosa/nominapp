@@ -280,7 +280,7 @@ class PayrollPeriodResource extends Resource
                                 ->send();
                         }
                     })
-                    ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
+                    ->visible(fn(PayrollPeriod $record) => in_array($record->status, ['draft', 'processing'])),
 
                 Action::make('close_period')
                     ->label('Cerrar Período')

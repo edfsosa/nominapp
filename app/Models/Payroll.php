@@ -60,7 +60,7 @@ class Payroll extends Model
     // Accesor para mostrar nombre
     public function getTitleAttribute(): string
     {
-        return 'Nómina de ' . $this->employee->first_name . ' ' . $this->employee->last_name . ' - ' . $this->period->name;
+        return 'Nómina de ' . ($this->employee?->first_name ?? '') . ' ' . ($this->employee?->last_name ?? '') . ' - ' . ($this->period?->name ?? 'Sin período');
     }
 
     /**

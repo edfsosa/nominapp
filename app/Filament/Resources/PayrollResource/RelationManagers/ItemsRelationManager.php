@@ -102,22 +102,22 @@ class ItemsRelationManager extends RelationManager
                     ->label('Agregar Ítem')
                     ->icon('heroicon-o-plus')
                     ->successNotificationTitle('Ítem agregado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->successNotificationTitle('Ítem actualizado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
 
                 Tables\Actions\DeleteAction::make()
                     ->successNotificationTitle('Ítem eliminado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
                         ->action(function ($records) {
-                            if ($this->getOwnerRecord()->period->status === 'closed') {
+                            if ($this->getOwnerRecord()->period?->status === 'closed') {
                                 \Filament\Notifications\Notification::make()
                                     ->warning()
                                     ->title('Período cerrado')
