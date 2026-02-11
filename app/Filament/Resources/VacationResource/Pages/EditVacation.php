@@ -90,7 +90,7 @@ class EditVacation extends EditRecord
 
             Action::make('generateDocuments')
                 ->label('Generar Documentos')
-                ->icon('heroicon-o-document-arrow-down')
+                ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->modalHeading('Generar Documentos de Vacaciones')
                 ->modalDescription('Seleccione los documentos que desea generar.')

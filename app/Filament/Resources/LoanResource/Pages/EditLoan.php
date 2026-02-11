@@ -114,8 +114,8 @@ class EditLoan extends EditRecord
              * Acción para exportar el préstamo o adelanto a PDF
              */
             Action::make('export_pdf')
-                ->label('Exportar PDF')
-                ->icon('heroicon-o-document-arrow-down')
+                ->label('Descargar PDF')
+                ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->url(fn() => route('loans.pdf', $this->record))
                 ->openUrlInNewTab(),

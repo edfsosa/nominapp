@@ -384,7 +384,7 @@ class LoanResource extends Resource
 
                 Action::make('export_pdf')
                     ->label('PDF')
-                    ->icon('heroicon-o-document-arrow-down')
+                    ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
                     ->visible(fn(Loan $record) => $record->isActive() || $record->isPaid())
                     ->url(fn(Loan $record) => route('loans.pdf', $record))

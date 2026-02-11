@@ -179,7 +179,7 @@ class ListLoans extends ListRecords
                     Action::make('exportOverdue')
                         ->label('Exportar a Excel')
                         ->icon('heroicon-o-arrow-down-tray')
-                        ->color('success')
+                        ->color('info')
                         ->action(function () {
                             return Excel::download(
                                 new OverdueInstallmentsExport(),

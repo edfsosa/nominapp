@@ -458,7 +458,7 @@ class AttendanceDayResource extends Resource
                                 ->withFilename('asistencias_' . now()->format('d_m_Y_H_i_s')),
                         ])
                         ->label('Exportar a Excel')
-                        ->color('primary')
+                        ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
 
                     BulkAction::make('approve_overtime')
@@ -701,7 +701,7 @@ class AttendanceDayResource extends Resource
     {
         return TableAction::make('export')
             ->label('PDF')
-            ->icon('heroicon-o-printer')
+            ->icon('heroicon-o-arrow-down-tray')
             ->color('info')
             ->tooltip('Exportar registro como PDF')
             ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))
@@ -715,7 +715,7 @@ class AttendanceDayResource extends Resource
     {
         return Action::make('export')
             ->label('PDF')
-            ->icon('heroicon-o-printer')
+            ->icon('heroicon-o-arrow-down-tray')
             ->color('info')
             ->tooltip('Exportar registro como PDF')
             ->url(fn(AttendanceDay $record) => route('attendance-days.export', ['attendance_day' => $record->id]))

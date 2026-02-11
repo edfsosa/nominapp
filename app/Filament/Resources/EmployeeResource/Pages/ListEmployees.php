@@ -37,8 +37,8 @@ class ListEmployees extends ListRecords
                         ->withWriterType(Excel::XLSX)
                 ])
                 ->label('Exportar a Excel')
-                ->color('success')
-                ->icon('heroicon-o-share')
+                ->color('info')
+                ->icon('heroicon-o-arrow-down-tray')
                 ->tooltip('Exportar listado de empleados'),
         ];
     }

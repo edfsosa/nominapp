@@ -232,8 +232,8 @@ class AttendanceEventResource extends Resource
                                 ])
                                 ->withFilename('marcaciones_' . now()->format('d_m_Y_H_i_s')),
                         ])
-                        ->label('Exportar seleccionados')
-                        ->color('success')
+                        ->label('Exportar a Excel')
+                        ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
                 ]),
             ])

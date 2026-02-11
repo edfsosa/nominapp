@@ -100,8 +100,8 @@ class EmployeesRelationManager extends RelationManager
                             ->withFilename('empleados_cargo_' . now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
-                    ->label('Exportar')
-                    ->color('success')
+                    ->label('Exportar a Excel')
+                    ->color('info')
                     ->icon('heroicon-o-arrow-down-tray'),
             ])
             ->actions([
@@ -113,11 +113,11 @@ class EmployeesRelationManager extends RelationManager
                         ExcelExport::make()
                             ->fromTable()
                             ->except(['photo', 'face_descriptor'])
-                            ->withFilename('empleados_sucursal_' . now()->format('d_m_Y_H_i_s'))
+                            ->withFilename('empleados_cargo_' . now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
-                    ->label('Exportar seleccionados')
-                    ->color('success')
+                    ->label('Exportar a Excel')
+                    ->color('info')
                     ->icon('heroicon-o-arrow-down-tray'),
             ])
             ->emptyStateHeading('No hay empleados asignados')

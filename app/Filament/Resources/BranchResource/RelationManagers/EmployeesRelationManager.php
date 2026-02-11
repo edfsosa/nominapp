@@ -87,8 +87,8 @@ class EmployeesRelationManager extends RelationManager
                             ->withFilename('empleados_sucursal_' . now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
-                    ->label('Exportar')
-                    ->color('success')
+                    ->label('Exportar a Excel')
+                    ->color('info')
                     ->icon('heroicon-o-arrow-down-tray'),
             ])
             ->actions([])
@@ -101,8 +101,8 @@ class EmployeesRelationManager extends RelationManager
                             ->withFilename('empleados_sucursal_' . now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
-                    ->label('Exportar seleccionados')
-                    ->color('success')
+                    ->label('Exportar a Excel')
+                    ->color('info')
                     ->icon('heroicon-o-arrow-down-tray'),
             ])
             ->emptyStateHeading('No hay empleados en esta sucursal')

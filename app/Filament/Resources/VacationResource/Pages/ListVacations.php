@@ -97,8 +97,8 @@ class ListVacations extends ListRecords
                         ->withFilename(fn() => 'vacaciones_' . now()->format('d_m_Y_H_i_s'))
                         ->withWriterType(Excel::XLSX)
                 ])
-                ->label('Exportar')
-                ->color('success')
+                ->label('Exportar a Excel')
+                ->color('info')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->tooltip('Exportar listado de vacaciones'),
         ];

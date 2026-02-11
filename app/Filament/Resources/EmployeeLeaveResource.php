@@ -291,8 +291,8 @@ class EmployeeLeaveResource extends Resource
                                 ])
                                 ->withFilename('employee_leaves_export.xlsx'),
                         ])
-                        ->label('Exportar seleccionados')
-                        ->color('success')
+                        ->label('Exportar a Excel')
+                        ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
                 ]),
             ])
