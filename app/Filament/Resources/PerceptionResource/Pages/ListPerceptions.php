@@ -14,8 +14,8 @@ class ListPerceptions extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Crear Percepción')
-                ->icon('heroicon-o-plus-circle')
+                ->label('Nueva Percepción')
+                ->icon('heroicon-o-plus')
                 ->successNotificationTitle('Percepción creada exitosamente'),
         ];
     }

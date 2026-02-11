@@ -14,7 +14,7 @@ class ManageUsers extends ManageRecords
     {
         return [
             CreateAction::make()
-                ->label('Crear Usuario')
+                ->label('Nuevo Usuario')
                 ->icon('heroicon-o-user-plus')
                 ->successNotificationTitle('Usuario creado exitosamente'),
         ];

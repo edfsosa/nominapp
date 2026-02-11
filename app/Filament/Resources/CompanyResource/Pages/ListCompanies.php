@@ -13,7 +13,9 @@ class ListCompanies extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->label('Nueva Empresa')
+                ->icon('heroicon-o-plus'),
         ];
     }
 }

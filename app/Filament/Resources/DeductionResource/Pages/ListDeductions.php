@@ -14,8 +14,8 @@ class ListDeductions extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Crear Deducción')
-                ->icon('heroicon-o-plus-circle')
+                ->label('Nueva Deducción')
+                ->icon('heroicon-o-plus')
                 ->successNotificationTitle('Deducción creada exitosamente'),
         ];
     }

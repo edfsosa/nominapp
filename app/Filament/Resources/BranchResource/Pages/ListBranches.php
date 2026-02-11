@@ -17,8 +17,8 @@ class ListBranches extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Agregar sucursal')
-                ->icon('heroicon-o-plus-circle'),
+                ->label('Nueva Sucursal')
+                ->icon('heroicon-o-plus'),
         ];
     }
 

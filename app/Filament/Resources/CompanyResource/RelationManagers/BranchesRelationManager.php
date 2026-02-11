@@ -118,7 +118,8 @@ class BranchesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->label('Nueva Sucursal'),
+                    ->label('Nueva Sucursal')
+                    ->icon('heroicon-o-plus'),
             ])
             ->actions([
                 EditAction::make(),

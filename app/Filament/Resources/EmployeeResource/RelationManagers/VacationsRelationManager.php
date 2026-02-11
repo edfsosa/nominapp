@@ -146,7 +146,7 @@ class VacationsRelationManager extends RelationManager
             ->headerActions([
                 CreateAction::make()
                     ->label('Solicitar vacaciones')
-                    ->icon('heroicon-o-plus-circle')
+                    ->icon('heroicon-o-plus')
                     ->modalHeading('Solicitar nuevas vacaciones')
                     ->modalSubmitActionLabel('Solicitar')
                     ->modalWidth('2xl'),

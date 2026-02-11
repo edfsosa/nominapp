@@ -14,7 +14,7 @@ class ListAbsents extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Registrar ausencia')
+                ->label('Nueva Ausencia')
                 ->icon('heroicon-o-plus'),
         ];
     }

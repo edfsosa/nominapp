@@ -243,8 +243,8 @@ class LeavesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->label('Registrar permiso')
-                    ->icon('heroicon-o-plus-circle')
+                    ->label('Nuevo Permiso')
+                    ->icon('heroicon-o-plus')
                     ->modalHeading('Registrar nuevo permiso')
                     ->modalSubmitActionLabel('Registrar')
                     ->modalWidth('2xl'),
@@ -335,8 +335,8 @@ class LeavesRelationManager extends RelationManager
             ->emptyStateIcon('heroicon-o-calendar-days')
             ->emptyStateActions([
                 CreateAction::make()
-                    ->label('Registrar primer permiso')
-                    ->icon('heroicon-o-plus-circle'),
+                    ->label('Nuevo Permiso')
+                    ->icon('heroicon-o-plus'),
             ]);
     }
 }

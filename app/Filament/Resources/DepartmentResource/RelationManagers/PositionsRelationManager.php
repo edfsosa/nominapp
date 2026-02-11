@@ -75,6 +75,8 @@ class PositionsRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
+                    ->label('Nuevo Cargo')
+                    ->icon('heroicon-o-plus')
                     ->successNotificationTitle('Cargo creado exitosamente'),
             ])
             ->actions([

@@ -16,8 +16,8 @@ class ListEmployeeLeaves extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Agregar permiso')
-                ->icon('heroicon-o-plus-circle'),
+                ->label('Nuevo Permiso')
+                ->icon('heroicon-o-plus'),
         ];
     }
 

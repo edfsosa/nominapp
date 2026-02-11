@@ -116,7 +116,7 @@ class ManageHolidays extends ManageRecords
                 }),
 
             CreateAction::make()
-                ->label('Agregar Feriado')
+                ->label('Nuevo Feriado')
                 ->icon('heroicon-o-plus')
                 ->successNotificationTitle('Feriado agregado exitosamente'),
         ];

@@ -26,7 +26,7 @@ class ListEmployees extends ListRecords
         return [
             CreateAction::make()
                 ->label('Nuevo Empleado')
-                ->icon('heroicon-o-plus-circle'),
+                ->icon('heroicon-o-plus'),
 
             ExportAction::make()
                 ->exports([

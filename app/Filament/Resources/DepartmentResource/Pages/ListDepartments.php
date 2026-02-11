@@ -14,8 +14,8 @@ class ListDepartments extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Agregar departamento')
-                ->icon('heroicon-o-plus-circle'),
+                ->label('Nuevo Departamento')
+                ->icon('heroicon-o-plus'),
         ];
     }
 }
