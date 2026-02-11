@@ -6,6 +6,7 @@ use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Vacation;
 use App\Models\VacationBalance;
+use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 
@@ -17,7 +18,7 @@ class VacationService
      */
     public static function getEntitledDays(int $yearsOfService): int
     {
-        $minYearsService = config('payroll.vacation.minimum_years_service', 1);
+        $minYearsService = app(PayrollSettings::class)->vacation_min_years_service;
 
         if ($yearsOfService < $minYearsService) {
             return 0;
@@ -167,7 +168,7 @@ class VacationService
         $warnings = [];
 
         // 1. Verificar antigüedad mínima
-        $minYearsService = config('payroll.vacation.minimum_years_service', 1);
+        $minYearsService = app(PayrollSettings::class)->vacation_min_years_service;
         $yearsOfService = self::getYearsOfService($employee);
         if ($yearsOfService < $minYearsService) {
             $errors[] = "El empleado debe tener al menos {$minYearsService} año(s) de antigüedad para solicitar vacaciones. Antigüedad actual: {$employee->antiquity_description}";
@@ -182,7 +183,7 @@ class VacationService
 
         // 3. Verificar mínimo de días consecutivos (fraccionamiento)
         // Solo advertencia, no error
-        $minConsecutiveDays = config('payroll.vacation.minimum_consecutive_days', 6);
+        $minConsecutiveDays = app(PayrollSettings::class)->vacation_min_consecutive_days;
         if ($businessDays > 0 && $businessDays < $minConsecutiveDays) {
             $warnings[] = "Según la ley, el fraccionamiento mínimo es de {$minConsecutiveDays} días hábiles consecutivos. Se solicitaron {$businessDays} días.";
         }

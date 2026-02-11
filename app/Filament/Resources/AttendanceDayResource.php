@@ -302,6 +302,38 @@ class AttendanceDayResource extends Resource
                     ->default(0)
                     ->numeric(2)
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('extra_hours')
+                    ->label('Hrs Extra')
+                    ->suffix(' hrs')
+                    ->default(0)
+                    ->numeric(2)
+                    ->color(fn($state) => $state > 0 ? 'warning' : 'gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('extra_hours_diurnas')
+                    ->label('HE Diurnas')
+                    ->suffix(' hrs')
+                    ->default(0)
+                    ->numeric(2)
+                    ->color('success')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('extra_hours_nocturnas')
+                    ->label('HE Nocturnas')
+                    ->suffix(' hrs')
+                    ->default(0)
+                    ->numeric(2)
+                    ->color('info')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('overtime_limit_exceeded')
+                    ->label('Limite HE')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => $state ? 'Excedido' : '')
+                    ->color('danger')
+                    ->icon(fn($state) => $state ? 'heroicon-o-exclamation-triangle' : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('date', 'desc')
             ->filters([
@@ -397,6 +429,11 @@ class AttendanceDayResource extends Resource
                 Filter::make('extra_hours')
                     ->label('Con horas extra')
                     ->query(fn(Builder $query): Builder => $query->where('extra_hours', '>', 0))
+                    ->toggle(),
+
+                Filter::make('overtime_limit_exceeded')
+                    ->label('Limite HE excedido')
+                    ->query(fn(Builder $query): Builder => $query->where('overtime_limit_exceeded', true))
                     ->toggle(),
             ])
             ->actions([
@@ -572,9 +609,9 @@ class AttendanceDayResource extends Resource
                     : 'Aprobar horas extra'
             )
             ->modalDescription(
-                fn(AttendanceDay $record) => $record->overtime_approved
-                    ? "Se revocará la aprobación de {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
-                    : "Se aprobarán {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+                function (AttendanceDay $record) {
+                    return self::buildOvertimeModalDescription($record);
+                }
             )
             ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->overtime_approved ? 'Sí, revocar' : 'Sí, aprobar')
             ->action(function (AttendanceDay $record) {
@@ -614,9 +651,9 @@ class AttendanceDayResource extends Resource
                     : 'Aprobar horas extra'
             )
             ->modalDescription(
-                fn(AttendanceDay $record) => $record->overtime_approved
-                    ? "Se revocará la aprobación de {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
-                    : "Se aprobarán {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}."
+                function (AttendanceDay $record) {
+                    return self::buildOvertimeModalDescription($record);
+                }
             )
             ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->overtime_approved ? 'Sí, revocar' : 'Sí, aprobar')
             ->action(function (AttendanceDay $record) {
@@ -632,6 +669,29 @@ class AttendanceDayResource extends Resource
                     ->success()
                     ->send();
             });
+    }
+
+    private static function buildOvertimeModalDescription(AttendanceDay $record): string
+    {
+        $action = $record->overtime_approved ? 'Se revocara la aprobacion de' : 'Se aprobaran';
+        $desc = "{$action} {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}.";
+
+        if ($record->extra_hours_diurnas > 0 || $record->extra_hours_nocturnas > 0) {
+            $parts = [];
+            if ($record->extra_hours_diurnas > 0) {
+                $parts[] = "{$record->extra_hours_diurnas}h diurnas (50%)";
+            }
+            if ($record->extra_hours_nocturnas > 0) {
+                $parts[] = "{$record->extra_hours_nocturnas}h nocturnas (160%)";
+            }
+            $desc .= ' Desglose: ' . implode(' + ', $parts) . '.';
+        }
+
+        if ($record->overtime_limit_exceeded) {
+            $desc .= ' ATENCION: Excede el limite legal de 3h/dia.';
+        }
+
+        return $desc;
     }
 
     /**
@@ -1154,12 +1214,36 @@ class AttendanceDayResource extends Resource
                             ->placeholder('0')
                             ->hidden(fn($record) => $record->extra_hours <= 0 && !$record->overtime_approved),
 
+                        TextEntry::make('extra_hours_diurnas')
+                            ->label('HE Diurnas')
+                            ->badge()
+                            ->color('success')
+                            ->suffix(' hrs')
+                            ->placeholder('0')
+                            ->hidden(fn($record) => !$record->extra_hours_diurnas || $record->extra_hours_diurnas <= 0),
+
+                        TextEntry::make('extra_hours_nocturnas')
+                            ->label('HE Nocturnas')
+                            ->badge()
+                            ->color('info')
+                            ->suffix(' hrs')
+                            ->placeholder('0')
+                            ->hidden(fn($record) => !$record->extra_hours_nocturnas || $record->extra_hours_nocturnas <= 0),
+
                         TextEntry::make('overtime_approved')
                             ->label('Aprobación Horas Extra')
                             ->badge()
                             ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'success', 'danger'))
                             ->formatStateUsing(fn($state) => $state ? 'Aprobadas' : 'Pendientes')
                             ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                            ->hidden(fn($record) => $record->extra_hours <= 0),
+
+                        TextEntry::make('overtime_limit_exceeded')
+                            ->label('Limite Legal')
+                            ->badge()
+                            ->color(fn($state) => $state ? 'danger' : 'success')
+                            ->formatStateUsing(fn($state) => $state ? 'Excede 3 hrs/dia' : 'Dentro del limite')
+                            ->icon(fn($state) => $state ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle')
                             ->hidden(fn($record) => $record->extra_hours <= 0),
                     ])->columns(3)
                     ->hidden(fn($record) => $record->status !== 'present'),

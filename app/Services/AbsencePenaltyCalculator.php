@@ -4,13 +4,15 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
+use App\Settings\PayrollSettings;
 
 class AbsencePenaltyCalculator
 {
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
-        $monthlyHours = config('payroll.hours.monthly');
-        $dailyHours = config('payroll.hours.daily');
+        $settings = app(PayrollSettings::class);
+        $monthlyHours = $settings->monthly_hours;
+        $dailyHours = $settings->daily_hours;
 
         $hourlyRate = $employee->base_salary / $monthlyHours;
         $dailyRate = $hourlyRate * $dailyHours;

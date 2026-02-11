@@ -54,6 +54,15 @@ class ScheduleResource extends Resource
                             ->rows(2)
                             ->maxLength(100)
                             ->columnSpan(1),
+
+                        Select::make('shift_type')
+                            ->label('Tipo de Jornada')
+                            ->options(Schedule::getShiftTypeOptions())
+                            ->default('diurno')
+                            ->required()
+                            ->native(false)
+                            ->helperText('Diurno: 8h/día, Nocturno: 7h/día, Mixto: 7.5h/día')
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 
@@ -91,7 +100,6 @@ class ScheduleResource extends Resource
                                     ->native(false)
                                     ->seconds(false)
                                     ->required()
-                                    ->after('start_time')
                                     ->columnSpan(1),
 
                                 Repeater::make('breaks')
@@ -169,6 +177,23 @@ class ScheduleResource extends Resource
                     ->weight('bold')
                     ->icon('heroicon-o-clock')
                     ->iconColor('primary'),
+
+                TextColumn::make('shift_type')
+                    ->label('Jornada')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'diurno' => 'Diurno',
+                        'nocturno' => 'Nocturno',
+                        'mixto' => 'Mixto',
+                        default => $state ?? 'Diurno',
+                    })
+                    ->color(fn($state) => match ($state) {
+                        'diurno' => 'success',
+                        'nocturno' => 'info',
+                        'mixto' => 'warning',
+                        default => 'success',
+                    })
+                    ->sortable(),
 
                 TextColumn::make('days_count')
                     ->label('Días')

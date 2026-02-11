@@ -248,10 +248,10 @@ class PayrollResource extends Resource
                     ->openUrlInNewTab(),
 
                 EditAction::make()
-                    ->visible(fn(Payroll $record) => $record->period->status === 'draft'),
+                    ->visible(fn(Payroll $record) => $record->period?->status === 'draft'),
 
                 DeleteAction::make()
-                    ->visible(fn(Payroll $record) => $record->period->status === 'draft'),
+                    ->visible(fn(Payroll $record) => $record->period?->status === 'draft'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -266,7 +266,7 @@ class PayrollResource extends Resource
                     DeleteBulkAction::make()
                         ->action(function ($records) {
                             foreach ($records as $record) {
-                                if ($record->period->status === 'draft') {
+                                if ($record->period?->status === 'draft') {
                                     $record->delete();
                                 }
                             }

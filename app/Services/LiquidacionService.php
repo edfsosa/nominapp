@@ -9,6 +9,7 @@ use App\Models\LiquidacionItem;
 use App\Models\Loan;
 use App\Models\Payroll;
 use App\Models\VacationBalance;
+use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -70,7 +71,7 @@ class LiquidacionService
                 $indemnizacionAmount = $this->calculateIndemnizacion($yearsOfService, $monthsOfService, $averageSalary6m);
                 $totalHaberes += $indemnizacionAmount;
 
-                $daysPerYear = config('payroll.liquidacion.indemnizacion_days_per_year', 15);
+                $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
                 $items[] = [
                     'type' => 'haber',
                     'category' => 'indemnizacion',
@@ -132,7 +133,7 @@ class LiquidacionService
             // ===== DEDUCCIONES =====
 
             // IPS 9% sobre salario pendiente + vacaciones (preaviso/indemnización/aguinaldo exentos)
-            $ipsRate = config('payroll.liquidacion.ips_employee_rate', 9);
+            $ipsRate = app(PayrollSettings::class)->ips_employee_rate;
             $ipsBase = $salarioPendienteAmount + $vacacionesAmount;
             $ipsDeduction = round($ipsBase * ($ipsRate / 100), 0);
             if ($ipsDeduction > 0) {
@@ -244,7 +245,7 @@ class LiquidacionService
 
     protected function calculateIndemnizacion(int $years, int $totalMonths, float $avgSalary6m): float
     {
-        $daysPerYear = config('payroll.liquidacion.indemnizacion_days_per_year', 15);
+        $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
         $dailyAvg = $avgSalary6m / 30;
 
         // Años completos

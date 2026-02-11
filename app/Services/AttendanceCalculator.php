@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\AttendanceDay;
 use App\Models\Holiday;
 use Illuminate\Support\Carbon;
+use App\Settings\PayrollSettings;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -126,8 +127,11 @@ class AttendanceCalculator
         $day->total_hours = null;
         $day->net_hours = null;
         $day->extra_hours = null;
+        $day->extra_hours_diurnas = null;
+        $day->extra_hours_nocturnas = null;
         $day->late_minutes = null;
         $day->early_leave_minutes = null;
+        $day->overtime_limit_exceeded = false;
     }
 
     /**
@@ -182,6 +186,22 @@ class AttendanceCalculator
 
         // Calcular horas extra (basado en expected_hours guardadas)
         $day->extra_hours = self::calculateExtraHours($totalHours, $day->expected_hours);
+
+        // Desglosar horas extra en diurnas/nocturnas y verificar límite legal
+        if ($day->extra_hours > 0) {
+            [$diurnas, $nocturnas] = self::splitOvertimeHours(
+                $day->check_out_time,
+                $scheduledCheckOut,
+                $day->extra_hours
+            );
+            $day->extra_hours_diurnas = $diurnas;
+            $day->extra_hours_nocturnas = $nocturnas;
+            $day->overtime_limit_exceeded = $day->extra_hours > app(PayrollSettings::class)->overtime_max_daily_hours;
+        } else {
+            $day->extra_hours_diurnas = 0;
+            $day->extra_hours_nocturnas = 0;
+            $day->overtime_limit_exceeded = false;
+        }
 
         // Calcular minutos de llegada tarde (basado en expected_check_in guardada)
         $day->late_minutes = self::calculateLateMinutes($scheduledCheckIn, $day->check_in_time);
@@ -296,6 +316,52 @@ class AttendanceCalculator
             return $actual->lessThan($expected) ? $expected->diffInMinutes($actual) : 0;
         }
         return null;
+    }
+
+    /**
+     * Desglosa las horas extra en diurnas (06:00-20:00) y nocturnas (20:00-06:00).
+     * El período de overtime va desde la hora de salida esperada hasta la hora de salida real.
+     */
+    private static function splitOvertimeHours(?string $checkOutTime, ?string $scheduledCheckOut, float $extraHours): array
+    {
+        if (!$checkOutTime || !$scheduledCheckOut || $extraHours <= 0) {
+            return [$extraHours, 0];
+        }
+
+        $dayEnd = Carbon::parse(config('payroll.shift_boundaries.day_end', '20:00'));
+        $overtimeStart = Carbon::parse($scheduledCheckOut);
+        $overtimeEnd = Carbon::parse($checkOutTime);
+
+        // Si el checkout es antes del scheduled (no debería pasar con extra_hours > 0), todo diurno
+        if ($overtimeEnd->lte($overtimeStart)) {
+            return [$extraHours, 0];
+        }
+
+        // Calcular cuánto del período de overtime cae en horario diurno vs nocturno
+        // Si todo el overtime es antes de las 20:00 → todo diurno
+        if ($overtimeStart->gte($dayEnd)) {
+            // Todo el overtime está después de las 20:00 → todo nocturno
+            return [0, $extraHours];
+        }
+
+        if ($overtimeEnd->lte($dayEnd)) {
+            // Todo el overtime está antes de las 20:00 → todo diurno
+            return [$extraHours, 0];
+        }
+
+        // El overtime cruza la frontera de las 20:00 → dividir
+        $diurnoMinutes = $overtimeStart->diffInMinutes($dayEnd);
+        $totalOvertimeMinutes = $overtimeStart->diffInMinutes($overtimeEnd);
+
+        if ($totalOvertimeMinutes <= 0) {
+            return [$extraHours, 0];
+        }
+
+        $diurnoRatio = $diurnoMinutes / $totalOvertimeMinutes;
+        $diurnas = round($extraHours * $diurnoRatio, 2);
+        $nocturnas = round($extraHours - $diurnas, 2);
+
+        return [$diurnas, $nocturnas];
     }
 
     /**
