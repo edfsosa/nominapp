@@ -24,10 +24,10 @@ class ViewPayroll extends ViewRecord
                 ->openUrlInNewTab(),
 
             EditAction::make()
-                ->visible(fn() => $this->record->period->status !== 'closed'),
+                ->visible(fn() => $this->record->period?->status !== 'closed'),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->period->status === 'draft')
+                ->visible(fn() => $this->record->period?->status === 'draft')
                 ->successNotification(
                     Notification::make()
                         ->success()

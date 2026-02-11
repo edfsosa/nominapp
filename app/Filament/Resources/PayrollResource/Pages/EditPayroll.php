@@ -18,7 +18,7 @@ class EditPayroll extends EditRecord
         parent::mount($record);
 
         // Verificar si el período está cerrado
-        if ($this->record->period->status === 'closed') {
+        if ($this->record->period?->status === 'closed') {
             Notification::make()
                 ->warning()
                 ->title('Período cerrado')
@@ -43,7 +43,7 @@ class EditPayroll extends EditRecord
                 ->openUrlInNewTab(),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->period->status === 'draft')
+                ->visible(fn() => $this->record->period?->status === 'draft')
                 ->successNotification(
                     Notification::make()
                         ->success()
