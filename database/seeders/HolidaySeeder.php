@@ -2,32 +2,32 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
 class HolidaySeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
         $now = now();
+        $year = (int) date('Y');
 
-        // Feriados Paraguay 2025 (varios se trasladan al lunes)
+        $easter = $this->getEasterDate($year);
+
         $holidays = [
-            ['date' => '2025-01-01', 'name' => 'Año Nuevo'],
-            ['date' => '2025-03-03', 'name' => 'Día de los Héroes'], // trasladado
-            ['date' => '2025-04-17', 'name' => 'Jueves Santo'],
-            ['date' => '2025-04-18', 'name' => 'Viernes Santo'],
-            ['date' => '2025-05-01', 'name' => 'Día del Trabajador'],
-            ['date' => '2025-05-14', 'name' => 'Independencia Nacional'],
-            ['date' => '2025-06-12', 'name' => 'Paz del Chaco'],
-            ['date' => '2025-08-15', 'name' => 'Fundación de Asunción'],
-            ['date' => '2025-09-29', 'name' => 'Victoria de Boquerón'],
-            ['date' => '2025-12-08', 'name' => 'Virgen de Caacupé'],
-            ['date' => '2025-12-25', 'name' => 'Navidad'],
+            ['date' => "$year-01-01", 'name' => 'Año Nuevo'],
+            ['date' => "$year-03-01", 'name' => 'Día de los Héroes'],
+            ['date' => $easter->copy()->subDays(3)->toDateString(), 'name' => 'Jueves Santo'],
+            ['date' => $easter->copy()->subDays(2)->toDateString(), 'name' => 'Viernes Santo'],
+            ['date' => "$year-05-01", 'name' => 'Día del Trabajador'],
+            ['date' => "$year-05-14", 'name' => 'Independencia Nacional (día 1)'],
+            ['date' => "$year-05-15", 'name' => 'Independencia Nacional (día 2)'],
+            ['date' => "$year-06-12", 'name' => 'Paz del Chaco'],
+            ['date' => "$year-08-15", 'name' => 'Fundación de Asunción'],
+            ['date' => "$year-09-29", 'name' => 'Victoria de Boquerón'],
+            ['date' => "$year-12-08", 'name' => 'Virgen de Caacupé'],
+            ['date' => "$year-12-25", 'name' => 'Navidad'],
         ];
 
         DB::table('holidays')->insert(
@@ -36,5 +36,15 @@ class HolidaySeeder extends Seeder
                 'updated_at' => $now,
             ]))->toArray()
         );
+    }
+
+    /**
+     * Calcula la fecha de Domingo de Pascua usando easter_days() de PHP.
+     */
+    private function getEasterDate(int $year): Carbon
+    {
+        $base = Carbon::createFromDate($year, 3, 21);
+
+        return $base->addDays(easter_days($year));
     }
 }

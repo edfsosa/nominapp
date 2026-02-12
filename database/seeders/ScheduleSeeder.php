@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
@@ -25,7 +24,7 @@ class ScheduleSeeder extends Seeder
                 ['name' => 'Medio Tiempo', 'description' => 'Lun-Vie 08:00-12:00'],
             ];
 
-            DB::table('schedules')->insertOrIgnore(
+            DB::table('schedules')->insert(
                 collect($schedules)->map(fn($s) => array_merge($s, [
                     'created_at' => $now,
                     'updated_at' => $now,

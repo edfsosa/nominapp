@@ -2,24 +2,29 @@
 
 namespace Database\Seeders;
 
-use App\Models\PayrollPeriod;
 use Carbon\Carbon;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class PayrollPeriodSeeder extends Seeder
 {
-    /**
-     * Run the database seeds.
-     */
     public function run(): void
     {
-        $this->generateMonthlyPeriods();
-        $this->generateBiweeklyPeriods();
-        $this->generateWeeklyPeriods();
+        $now = now();
+        $rows = [];
+
+        $this->addMonthlyPeriods($rows, $now);
+        $this->addBiweeklyPeriods($rows, $now);
+        $this->addWeeklyPeriods($rows, $now);
+
+        DB::transaction(function () use ($rows) {
+            foreach (array_chunk($rows, 500) as $chunk) {
+                DB::table('payroll_periods')->insert($chunk);
+            }
+        });
     }
 
-    protected function generateMonthlyPeriods()
+    private function addMonthlyPeriods(array &$rows, $now): void
     {
         $start = Carbon::create(date('Y'), 1, 1);
 
@@ -27,68 +32,72 @@ class PayrollPeriodSeeder extends Seeder
             $periodStart = $start->copy()->addMonths($i)->startOfMonth();
             $periodEnd = $periodStart->copy()->endOfMonth();
 
-            PayrollPeriod::updateOrCreate([
-                'frequency' => 'monthly',
+            $rows[] = [
+                'frequency'  => 'monthly',
                 'start_date' => $periodStart->toDateString(),
-                'end_date' => $periodEnd->toDateString(),
-            ], [
-                'name' => $periodStart->format('F Y'), // Ej: Enero 2025
-                'status' => 'draft',
-            ]);
+                'end_date'   => $periodEnd->toDateString(),
+                'name'       => $periodStart->format('F Y'),
+                'status'     => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
     }
 
-    protected function generateBiweeklyPeriods()
+    private function addBiweeklyPeriods(array &$rows, $now): void
     {
         $start = Carbon::create(date('Y'), 1, 1);
 
         for ($i = 0; $i < 24; $i++) {
             $month = $start->copy()->addMonths($i);
 
-            // Primer quincena
+            // Primera quincena: 1-15
             $firstStart = $month->copy()->startOfMonth();
             $firstEnd = $firstStart->copy()->addDays(14);
 
-            PayrollPeriod::updateOrCreate([
-                'frequency' => 'biweekly',
+            $rows[] = [
+                'frequency'  => 'biweekly',
                 'start_date' => $firstStart->toDateString(),
-                'end_date' => $firstEnd->toDateString(),
-            ], [
-                'name' => '1ra Quincena ' . $month->format('F Y'),
-                'status' => 'draft',
-            ]);
+                'end_date'   => $firstEnd->toDateString(),
+                'name'       => '1ra Quincena ' . $month->format('F Y'),
+                'status'     => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
 
-            // Segunda quincena
+            // Segunda quincena: 16-fin de mes
             $secondStart = $firstEnd->copy()->addDay();
-            $secondEnd = $secondStart->copy()->endOfMonth();
+            $secondEnd = $month->copy()->endOfMonth();
 
-            PayrollPeriod::updateOrCreate([
-                'frequency' => 'biweekly',
+            $rows[] = [
+                'frequency'  => 'biweekly',
                 'start_date' => $secondStart->toDateString(),
-                'end_date' => $secondEnd->toDateString(),
-            ], [
-                'name' => '2da Quincena ' . $month->format('F Y'),
-                'status' => 'draft',
-            ]);
+                'end_date'   => $secondEnd->toDateString(),
+                'name'       => '2da Quincena ' . $month->format('F Y'),
+                'status'     => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
     }
 
-    protected function generateWeeklyPeriods()
+    private function addWeeklyPeriods(array &$rows, $now): void
     {
-        $start = Carbon::create(date('Y'), 1, 1)->startOfWeek(); // Lunes
+        $start = Carbon::create(date('Y'), 1, 1)->startOfWeek();
 
         for ($i = 0; $i < 104; $i++) {
             $weekStart = $start->copy()->addWeeks($i);
             $weekEnd = $weekStart->copy()->endOfWeek();
 
-            PayrollPeriod::updateOrCreate([
-                'frequency' => 'weekly',
+            $rows[] = [
+                'frequency'  => 'weekly',
                 'start_date' => $weekStart->toDateString(),
-                'end_date' => $weekEnd->toDateString(),
-            ], [
-                'name' => 'Semana ' . $weekStart->format('W/Y'),
-                'status' => 'draft',
-            ]);
+                'end_date'   => $weekEnd->toDateString(),
+                'name'       => 'Semana ' . $weekStart->format('W/Y'),
+                'status'     => 'draft',
+                'created_at' => $now,
+                'updated_at' => $now,
+            ];
         }
     }
 }

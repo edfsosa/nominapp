@@ -12,44 +12,50 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class EmployeeFactory extends Factory
 {
-    /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
-     */
-    public function definition()
-    {
-        $payrollTypes = ['monthly', 'biweekly', 'weekly'];
-        $employmentTypes = ['full_time', 'day_laborer'];
-        $paymentMethods = ['debit', 'cash', 'check'];
-        $statuses = ['active', 'inactive', 'suspended'];
-        $positions = Position::pluck('id')->toArray();
-        $branches = Branch::pluck('id')->toArray();
-        $schedules = Schedule::pluck('id')->toArray();
+    /** Cache de IDs para evitar queries repetidas por cada instancia */
+    protected static ?array $positionIds = null;
+    protected static ?array $branchIds = null;
+    protected static ?array $scheduleIds = null;
 
-        $employmentType = $this->faker->randomElement($employmentTypes);
+    public function definition(): array
+    {
+        static::$positionIds ??= Position::pluck('id')->toArray();
+        static::$branchIds ??= Branch::pluck('id')->toArray();
+        static::$scheduleIds ??= Schedule::pluck('id')->toArray();
+
+        $employmentType = $this->faker->randomElement(['full_time', 'day_laborer']);
+
+        // Edad laboral realista: 18-60 años
+        $birthDate = $this->faker->dateTimeBetween('-60 years', '-18 years');
+
+        // Contratación: después de cumplir 18, hasta hoy
+        $minHireDate = (clone $birthDate)->modify('+18 years');
+        $hireDate = $this->faker->dateTimeBetween($minHireDate, 'now');
+
+        // Salario mínimo vigente Paraguay
+        $salarioMinimo = 2899048;
 
         return [
-            'first_name' => $this->faker->firstName,
-            'last_name' => $this->faker->lastName,
-            'ci' => $this->faker->unique()->numerify('########'),
-            'birth_date' => $this->faker->date(),
-            'phone' => $this->faker->phoneNumber,
-            'email' => $this->faker->unique()->safeEmail,
-            'hire_date' => $this->faker->date(),
-            'payroll_type' => $this->faker->randomElement($payrollTypes),
+            'first_name'      => $this->faker->firstName,
+            'last_name'       => $this->faker->lastName,
+            'ci'              => (string) $this->faker->unique()->numberBetween(1000000, 12000000),
+            'birth_date'      => $birthDate->format('Y-m-d'),
+            'phone'           => $this->faker->numerify('(09##) ###-###'),
+            'email'           => $this->faker->unique()->safeEmail,
+            'hire_date'       => $hireDate->format('Y-m-d'),
+            'payroll_type'    => $this->faker->randomElement(['monthly', 'biweekly', 'weekly']),
             'employment_type' => $employmentType,
-            'base_salary' => $employmentType === 'full_time'
-                ? $this->faker->randomFloat(2, 1000000, 5000000)
+            'base_salary'     => $employmentType === 'full_time'
+                ? $this->faker->numberBetween($salarioMinimo, $salarioMinimo * 3)
                 : null,
-            'daily_rate' => $employmentType === 'day_laborer'
-                ? $this->faker->randomFloat(2, 100000, 200000)
+            'daily_rate'      => $employmentType === 'day_laborer'
+                ? round($salarioMinimo / 30 * $this->faker->randomFloat(2, 1.0, 1.5))
                 : null,
-            'payment_method' => $this->faker->randomElement($paymentMethods),
-            'position_id' => $this->faker->randomElement($positions) ?: null,
-            'branch_id' => $this->faker->randomElement($branches) ?: null,
-            'schedule_id' => $this->faker->randomElement($schedules) ?: null,
-            'status' => $this->faker->randomElement($statuses),
+            'payment_method'  => $this->faker->randomElement(['debit', 'cash', 'check']),
+            'position_id'     => !empty(static::$positionIds) ? $this->faker->randomElement(static::$positionIds) : null,
+            'branch_id'       => !empty(static::$branchIds) ? $this->faker->randomElement(static::$branchIds) : null,
+            'schedule_id'     => !empty(static::$scheduleIds) ? $this->faker->randomElement(static::$scheduleIds) : null,
+            'status'          => $this->faker->randomElement(['active', 'inactive', 'suspended']),
             'face_descriptor' => null,
         ];
     }
