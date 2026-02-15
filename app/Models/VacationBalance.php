@@ -92,7 +92,7 @@ class VacationBalance extends Model
      */
     public function confirmDays(int $days): void
     {
-        $this->decrement('pending_days', $days);
+        $this->decrement('pending_days', min($days, $this->pending_days));
         $this->increment('used_days', $days);
     }
 

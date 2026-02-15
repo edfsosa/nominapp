@@ -9,6 +9,7 @@ use App\Http\Controllers\LoanController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
+use App\Http\Controllers\ContractController;
 use App\Http\Controllers\VacationDocumentController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -99,6 +100,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Préstamos y adelantos
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
+
+    // Contratos laborales
+    Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');
 
     // Administración de horarios
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])

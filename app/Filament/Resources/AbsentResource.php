@@ -369,6 +369,11 @@ class AbsentResource extends Resource
         ];
     }
 
+    /**
+     * Define las páginas del recurso de ausencias, incluyendo las rutas para listar, crear y editar registros de ausencias.
+     *
+     * @return array
+     */
     public static function getPages(): array
     {
         return [
@@ -378,13 +383,33 @@ class AbsentResource extends Resource
         ];
     }
 
+    /**
+     * Define la insignia de navegación para el recurso de ausencias, mostrando el número de ausencias pendientes de revisión.
+     *
+     * @return string|null
+     */
     public static function getNavigationBadge(): ?string
     {
-        return static::getModel()::where('status', 'pending')->count();
+        return static::getModel()::where('status', 'pending')->count() ?: null;
     }
 
+    /**
+     * Define el color de la insignia de navegación para el recurso de ausencias.
+     *
+     * @return string|null
+     */
     public static function getNavigationBadgeColor(): ?string
     {
         return 'warning';
+    }
+
+    /**
+     * Define el tooltip de la insignia de navegación para el recurso de ausencias, indicando que el número representa las "Ausencias pendientes de revisión".
+     *
+     * @return string|null
+     */
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Ausencias pendientes de revisión';
     }
 }

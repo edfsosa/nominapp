@@ -1,0 +1,321 @@
+<?php
+
+namespace App\Filament\Resources\EmployeeResource\RelationManagers;
+
+use App\Models\Contract;
+use App\Models\Position;
+use App\Settings\GeneralSettings;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Forms\Form;
+use Filament\Tables\Table;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\CreateAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Notifications\Notification;
+use Filament\Resources\RelationManagers\RelationManager;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+
+class ContractsRelationManager extends RelationManager
+{
+    protected static string $relationship = 'contracts';
+    protected static ?string $title = 'Contratos';
+    protected static ?string $recordTitleAttribute = 'type';
+    protected static ?string $modelLabel = 'Contrato';
+    protected static ?string $pluralModelLabel = 'Contratos';
+
+    public function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                Select::make('type')
+                    ->label('Tipo de Contrato')
+                    ->options(Contract::getTypeOptions())
+                    ->required()
+                    ->native(false)
+                    ->live()
+                    ->afterStateUpdated(function (?string $state, Set $set) {
+                        if ($state === 'indefinido') {
+                            $set('end_date', null);
+                        }
+                        $set('trial_days', 30);
+                    })
+                    ->columnSpan(2),
+
+                DatePicker::make('start_date')
+                    ->label('Fecha de Inicio')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->required()
+                    ->default(now())
+                    ->closeOnDateSelection(),
+
+                DatePicker::make('end_date')
+                    ->label('Fecha de Finalización')
+                    ->native(false)
+                    ->displayFormat('d/m/Y')
+                    ->closeOnDateSelection()
+                    ->visible(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                    ->required(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                    ->after('start_date'),
+
+                TextInput::make('trial_days')
+                    ->label('Días de Prueba')
+                    ->numeric()
+                    ->minValue(0)
+                    ->maxValue(30)
+                    ->default(30)
+                    ->suffix('días')
+                    ->helperText('Art. 58 CLT: Máximo 30 días'),
+
+                Select::make('salary_type')
+                    ->label('Tipo de Remuneración')
+                    ->options(Contract::getSalaryTypeOptions())
+                    ->native(false)
+                    ->default('mensual')
+                    ->required()
+                    ->live()
+                    ->helperText('Art. 231 CLT'),
+
+                TextInput::make('salary')
+                    ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                    ->numeric()
+                    ->required()
+                    ->minValue(1)
+                    ->prefix('Gs.')
+                    ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes'),
+
+                Select::make('position_id')
+                    ->label('Cargo')
+                    ->options(Position::getOptionsWithDepartment())
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->required()
+                    ->live()
+                    ->afterStateUpdated(function ($state, Set $set) {
+                        if ($state) {
+                            $position = Position::find($state);
+                            if ($position) {
+                                $set('department_id', $position->department_id);
+                            }
+                        }
+                    }),
+
+                Select::make('department_id')
+                    ->label('Departamento')
+                    ->relationship('department', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->required(),
+
+                Select::make('work_modality')
+                    ->label('Modalidad')
+                    ->options(Contract::getWorkModalityOptions())
+                    ->native(false)
+                    ->default('presencial')
+                    ->required(),
+
+                Textarea::make('notes')
+                    ->label('Observaciones')
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ])
+            ->columns(2);
+    }
+
+    public function table(Table $table): Table
+    {
+        $settings = app(GeneralSettings::class);
+        $alertDays = $settings->contract_alert_days;
+
+        return $table
+            ->recordTitleAttribute('type')
+            ->modifyQueryUsing(fn($query) => $query->with(['position', 'department'])->latest('start_date'))
+            ->columns([
+                TextColumn::make('type')
+                    ->label('Tipo')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state) => Contract::getTypeLabel($state))
+                    ->color(fn(string $state): string => Contract::getTypeColor($state))
+                    ->icon(fn(string $state): string => Contract::getTypeIcon($state)),
+
+                TextColumn::make('start_date')
+                    ->label('Inicio')
+                    ->date('d/m/Y')
+                    ->sortable(),
+
+                TextColumn::make('end_date')
+                    ->label('Fin')
+                    ->date('d/m/Y')
+                    ->placeholder('Indefinido')
+                    ->description(fn(Contract $record) => $record->expiration_description)
+                    ->color(function (Contract $record) use ($alertDays) {
+                        if (!$record->end_date || $record->status !== 'active') {
+                            return null;
+                        }
+                        if ($record->isExpired()) {
+                            return 'danger';
+                        }
+                        if ($record->isExpiringSoon($alertDays)) {
+                            return 'warning';
+                        }
+                        return null;
+                    }),
+
+                TextColumn::make('salary')
+                    ->label('Salario')
+                    ->formatStateUsing(fn(Contract $record) => $record->formatted_salary)
+                    ->sortable(),
+
+                TextColumn::make('position.name')
+                    ->label('Cargo')
+                    ->wrap(),
+
+                TextColumn::make('work_modality')
+                    ->label('Modalidad')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state) => Contract::getWorkModalityLabel($state))
+                    ->color(fn(string $state): string => Contract::getWorkModalityColor($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state) => Contract::getStatusLabel($state))
+                    ->color(fn(string $state): string => Contract::getStatusColor($state))
+                    ->icon(fn(string $state): string => Contract::getStatusIcon($state)),
+            ])
+            ->headerActions([
+                CreateAction::make()
+                    ->label('Nuevo Contrato')
+                    ->icon('heroicon-o-plus')
+                    ->modalHeading('Crear Nuevo Contrato')
+                    ->mutateFormDataUsing(function (array $data): array {
+                        $data['created_by_id'] = Auth::id();
+                        if ($data['type'] === 'indefinido') {
+                            $data['end_date'] = null;
+                        }
+                        return $data;
+                    })
+                    ->before(function (CreateAction $action, array $data) {
+                        // Validar que no tenga contrato activo
+                        $employeeId = $this->getOwnerRecord()->id;
+                        $hasActive = Contract::where('employee_id', $employeeId)
+                            ->where('status', 'active')
+                            ->exists();
+
+                        if ($hasActive) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Contrato activo existente')
+                                ->body('El empleado ya tiene un contrato vigente. Debe terminarlo antes de crear uno nuevo.')
+                                ->persistent()
+                                ->send();
+
+                            $action->halt();
+                        }
+                    })
+                    ->after(function (Contract $record) {
+                        $record->syncToEmployee();
+                    }),
+            ])
+            ->actions([
+                // Generar PDF para imprimir
+                Action::make('generate_pdf')
+                    ->label('Generar PDF')
+                    ->icon('heroicon-o-printer')
+                    ->color('info')
+                    ->url(fn(Contract $record) => route('contracts.pdf', $record))
+                    ->openUrlInNewTab(),
+
+                // Subir documento firmado (solo contratos activos)
+                Action::make('upload_signed')
+                    ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar' : 'Subir Firmado')
+                    ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                    ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
+                    ->visible(fn(Contract $record) => $record->status === 'active')
+                    ->form([
+                        \Filament\Forms\Components\FileUpload::make('document_path')
+                            ->label('Contrato Firmado (PDF)')
+                            ->disk('public')
+                            ->directory('contracts')
+                            ->acceptedFileTypes(['application/pdf'])
+                            ->maxSize(10240)
+                            ->required()
+                            ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
+                    ])
+                    ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                    ->action(function (Contract $record, array $data) {
+                        if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
+                            Storage::disk('public')->delete($record->document_path);
+                        }
+
+                        $record->update(['document_path' => $data['document_path']]);
+
+                        Notification::make()
+                            ->title('Documento subido')
+                            ->body('El contrato firmado se ha guardado correctamente.')
+                            ->success()
+                            ->send();
+                    }),
+
+                // Descargar documento firmado
+                Action::make('download_signed')
+                    ->label('Firmado')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->visible(fn(Contract $record) => (bool) $record->document_path)
+                    ->action(function (Contract $record) {
+                        $path = Storage::disk('public')->path($record->document_path);
+
+                        return response()->download(
+                            $path,
+                            "contrato_firmado_{$record->start_date->format('Y_m_d')}.pdf"
+                        );
+                    }),
+
+                // Menú dropdown (acciones de gestión)
+                \Filament\Tables\Actions\ActionGroup::make([
+                    EditAction::make()
+                        ->visible(fn(Contract $record) => $record->status === 'active'),
+
+                    DeleteAction::make()
+                        ->before(function (Contract $record) {
+                            if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
+                                Storage::disk('public')->delete($record->document_path);
+                            }
+                        }),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->tooltip('Más acciones'),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make()
+                        ->before(function ($records) {
+                            foreach ($records as $record) {
+                                if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
+                                    Storage::disk('public')->delete($record->document_path);
+                                }
+                            }
+                        }),
+                ]),
+            ])
+            ->defaultSort('start_date', 'desc')
+            ->emptyStateHeading('No hay contratos')
+            ->emptyStateDescription('Comienza registrando el primer contrato del empleado')
+            ->emptyStateIcon('heroicon-o-document-text');
+    }
+}

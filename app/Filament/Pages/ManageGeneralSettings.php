@@ -150,7 +150,6 @@ class ManageGeneralSettings extends SettingsPage
                     ->description('Parámetros para préstamos y adelantos')
                     ->icon('heroicon-o-banknotes')
                     ->schema([
-                        // Monto máximo de préstamo con formato monetario
                         TextInput::make('max_loan_amount')
                             ->label('Monto máximo de préstamo')
                             ->numeric()
@@ -158,6 +157,20 @@ class ManageGeneralSettings extends SettingsPage
                             ->default(5000000)
                             ->prefix('Gs.')
                             ->helperText('Monto máximo que se puede prestar a un empleado'),
+                    ]),
+
+                Section::make('Configuración de Contratos')
+                    ->description('Parámetros para alertas de vencimiento de contratos')
+                    ->icon('heroicon-o-document-text')
+                    ->schema([
+                        TextInput::make('contract_alert_days')
+                            ->label('Días de anticipación para alertas')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(180)
+                            ->default(30)
+                            ->suffix('días')
+                            ->helperText('Cantidad de días antes del vencimiento para mostrar alertas de contratos'),
                     ]),
             ]);
     }

@@ -583,6 +583,7 @@ class EmployeeResource extends Resource
     public static function getRelations(): array
     {
         return [
+            RelationManagers\ContractsRelationManager::class,
             RelationManagers\DocumentsRelationManager::class,
             RelationManagers\VacationsRelationManager::class,
             RelationManagers\LeavesRelationManager::class,

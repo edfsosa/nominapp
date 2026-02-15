@@ -24,12 +24,10 @@ use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Notifications\Notification;
 use Filament\Forms\Components\DatePicker;
-use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Forms\Components\Placeholder;
 use Filament\Tables\Actions\BulkActionGroup;
 use Illuminate\Database\Eloquent\Collection;
-use Filament\Tables\Actions\DeleteBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\VacationResource\Pages;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
@@ -504,5 +502,15 @@ class VacationResource extends Resource
     public static function getNavigationBadgeColor(): ?string
     {
         return 'warning';
+    }
+
+    /**
+     * Define el tooltip de la insignia de navegación para el recurso de vacaciones, indicando que el número representa las "Solicitudes de vacaciones pendientes".
+     *
+     * @return string|null
+     */
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Solicitudes de vacaciones pendientes';
     }
 }

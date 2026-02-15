@@ -193,6 +193,24 @@ class Employee extends Model
         return $this->hasMany(EmployeeLeave::class);
     }
 
+    /**
+     * Relación con el modelo Contract, un empleado puede tener muchos contratos (historial)
+     */
+    public function contracts(): HasMany
+    {
+        return $this->hasMany(Contract::class);
+    }
+
+    /**
+     * Obtiene el contrato activo vigente del empleado
+     */
+    public function activeContract()
+    {
+        return $this->hasOne(Contract::class)
+            ->where('status', 'active')
+            ->latest('start_date');
+    }
+
     public function getTodayScheduledCheckInAttribute()
     {
         $today = Carbon::now()->dayOfWeekIso;
