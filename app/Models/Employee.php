@@ -202,6 +202,14 @@ class Employee extends Model
     }
 
     /**
+     * Relación con registros de enrolamiento facial
+     */
+    public function faceEnrollments(): HasMany
+    {
+        return $this->hasMany(FaceEnrollment::class);
+    }
+
+    /**
      * Obtiene el contrato activo vigente del empleado
      */
     public function activeContract()

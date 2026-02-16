@@ -172,6 +172,20 @@ class ManageGeneralSettings extends SettingsPage
                             ->suffix('días')
                             ->helperText('Cantidad de días antes del vencimiento para mostrar alertas de contratos'),
                     ]),
+
+                Section::make('Registro Facial de Empleados')
+                    ->description('Configuración para el auto-registro facial')
+                    ->icon('heroicon-o-finger-print')
+                    ->schema([
+                        TextInput::make('face_enrollment_expiry_hours')
+                            ->label('Horas de validez del enlace')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(720)
+                            ->default(48)
+                            ->suffix('horas')
+                            ->helperText('Tiempo de validez del enlace de registro facial enviado al empleado'),
+                    ]),
             ]);
     }
 }

@@ -5,7 +5,9 @@ namespace App\Filament\Resources;
 use Filament\Forms;
 use Filament\Forms\Get;
 use App\Models\Employee;
+use App\Models\FaceEnrollment;
 use App\Models\Position;
+use App\Settings\GeneralSettings;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
@@ -13,6 +15,7 @@ use Illuminate\Support\Collection;
 use Filament\Forms\Components\Grid;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Filters\Filter;
+use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
@@ -504,6 +507,45 @@ class EmployeeResource extends Resource
                     ->color(fn(Employee $record): string => $record->has_face ? 'warning' : 'success')
                     ->tooltip(fn(Employee $record): string => $record->has_face ? 'Actualizar el rostro registrado' : 'Ir a captura facial')
                     ->visible(fn(Employee $record): bool => $record->status === 'active'),
+
+                Action::make('generate_enrollment')
+                    ->label('Enlace de Registro')
+                    ->icon('heroicon-o-link')
+                    ->color('info')
+                    ->tooltip('Generar enlace para que el empleado registre su rostro')
+                    ->visible(fn(Employee $record): bool => $record->status === 'active')
+                    ->requiresConfirmation()
+                    ->modalHeading('Generar Enlace de Registro Facial')
+                    ->modalDescription(fn(Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en " . app(GeneralSettings::class)->face_enrollment_expiry_hours . " horas.")
+                    ->modalSubmitActionLabel('Generar Enlace')
+                    ->action(function (Employee $record) {
+                        $settings = app(GeneralSettings::class);
+                        $enrollment = FaceEnrollment::createForEmployee(
+                            $record,
+                            Auth::id(),
+                            $settings->face_enrollment_expiry_hours
+                        );
+
+                        $url = route('face-enrollment.show', $enrollment->token);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Enlace Generado')
+                            ->body($url)
+                            ->persistent()
+                            ->actions([
+                                \Filament\Notifications\Actions\Action::make('open')
+                                    ->label('Abrir Enlace')
+                                    ->url($url)
+                                    ->openUrlInNewTab(),
+                                \Filament\Notifications\Actions\Action::make('whatsapp')
+                                    ->label('Enviar por WhatsApp')
+                                    ->url("https://api.whatsapp.com/send?phone=595" . preg_replace('/\D/', '', $record->phone ?? '') . "&text=" . urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
+                                    ->openUrlInNewTab()
+                                    ->visible(fn() => filled($record->phone)),
+                            ])
+                            ->send();
+                    }),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

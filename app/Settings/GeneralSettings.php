@@ -18,6 +18,7 @@ class GeneralSettings extends Settings
     public int $working_hours_per_week;
     public int $max_loan_amount;
     public int $contract_alert_days;
+    public int $face_enrollment_expiry_hours;
 
     public static function group(): string
     {

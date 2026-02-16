@@ -3,6 +3,7 @@
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
+use App\Http\Controllers\FaceEnrollmentController;
 use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
@@ -33,6 +34,21 @@ Route::prefix('marcar')->name('mark.')->group(function () {
 
 // Terminal/Kiosco mode (interfaz alternativa para marcación)
 Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.show');
+
+/*
+|--------------------------------------------------------------------------
+| Rutas Públicas - Auto-registro Facial
+|--------------------------------------------------------------------------
+|
+| Rutas para que empleados registren su rostro sin autenticación.
+| El acceso se controla mediante token único y temporal.
+|
+*/
+
+Route::prefix('registro-facial')->name('face-enrollment.')->middleware('throttle:10,1')->group(function () {
+    Route::get('/{token}', [FaceEnrollmentController::class, 'show'])->name('show');
+    Route::post('/{token}', [FaceEnrollmentController::class, 'store'])->name('store');
+});
 
 /*
 |--------------------------------------------------------------------------

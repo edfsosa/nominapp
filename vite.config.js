@@ -14,6 +14,8 @@ export default defineConfig({
                 'resources/css/attendances/terminal.css',
                 'resources/js/employees/capture-face.js',
                 'resources/css/employees/capture-face.css',
+                'resources/js/enrollments/capture-face.js',
+                'resources/css/enrollments/capture-face.css',
             ],
             refresh: true,
         }),
