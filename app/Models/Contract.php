@@ -9,6 +9,16 @@ use Illuminate\Database\Eloquent\Builder;
 
 class Contract extends Model
 {
+    protected static function booted(): void
+    {
+        // Sincronizar automáticamente al empleado cuando se guarda un contrato activo
+        static::saved(function (Contract $contract) {
+            if ($contract->status === 'active') {
+                $contract->syncToEmployee();
+            }
+        });
+    }
+
     protected $fillable = [
         'employee_id',
         'type',

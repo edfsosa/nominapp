@@ -102,26 +102,26 @@ class ItemsRelationManager extends RelationManager
                     ->label('Agregar Ítem')
                     ->icon('heroicon-o-plus')
                     ->successNotificationTitle('Ítem agregado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
             ])
             ->actions([
                 Tables\Actions\EditAction::make()
                     ->successNotificationTitle('Ítem actualizado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
 
                 Tables\Actions\DeleteAction::make()
                     ->successNotificationTitle('Ítem eliminado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->period?->status !== 'closed'),
+                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
             ])
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
                         ->action(function ($records) {
-                            if ($this->getOwnerRecord()->period?->status === 'closed') {
+                            if ($this->getOwnerRecord()->status !== 'draft') {
                                 \Filament\Notifications\Notification::make()
                                     ->warning()
-                                    ->title('Período cerrado')
-                                    ->body('No se pueden eliminar ítems de un período cerrado.')
+                                    ->title('Recibo no editable')
+                                    ->body('Solo se pueden modificar ítems de recibos en estado borrador.')
                                     ->send();
                                 return;
                             }

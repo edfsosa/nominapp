@@ -226,9 +226,6 @@ class ContractsRelationManager extends RelationManager
 
                             $action->halt();
                         }
-                    })
-                    ->after(function (Contract $record) {
-                        $record->syncToEmployee();
                     }),
             ])
             ->actions([

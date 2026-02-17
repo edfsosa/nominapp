@@ -482,8 +482,6 @@ class ContractResource extends Resource
                         $newContract = $record->renew($data);
                         $newContract->update(['created_by_id' => Auth::id()]);
 
-                        $newContract->syncToEmployee();
-
                         $typeMsg = $newContract->type === 'indefinido' && $record->type !== 'indefinido'
                             ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
                             : '';

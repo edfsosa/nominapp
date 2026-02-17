@@ -17,12 +17,12 @@ class EditPayroll extends EditRecord
     {
         parent::mount($record);
 
-        // Verificar si el período está cerrado
-        if ($this->record->period?->status === 'closed') {
+        // Redirigir si el recibo no está en borrador
+        if ($this->record->status !== 'draft') {
             Notification::make()
                 ->warning()
-                ->title('Período cerrado')
-                ->body('Este recibo pertenece a un período cerrado y no puede ser modificado.')
+                ->title('Recibo no editable')
+                ->body('Solo se pueden editar recibos en estado borrador.')
                 ->persistent()
                 ->send();
 
@@ -40,10 +40,11 @@ class EditPayroll extends EditRecord
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
                 ->url(fn() => route('payrolls.download', $this->record))
-                ->openUrlInNewTab(),
+                ->openUrlInNewTab()
+                ->visible(fn() => $this->record->pdf_path),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->period?->status === 'draft')
+                ->visible(fn() => $this->record->status === 'draft')
                 ->successNotification(
                     Notification::make()
                         ->success()

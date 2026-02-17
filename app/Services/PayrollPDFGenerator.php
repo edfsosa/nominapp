@@ -6,6 +6,7 @@ use App\Models\Payroll;
 use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class PayrollPDFGenerator
 {
@@ -21,7 +22,7 @@ class PayrollPDFGenerator
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
         $pdf = Pdf::loadView('pdf.payroll', [
-            'payroll' => $payroll,
+            'payroll' => $payroll->load(['employee.position.department', 'items']),
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
             'companyName' => $company?->name ?? $settings->company_name,
             'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
@@ -32,7 +33,9 @@ class PayrollPDFGenerator
             'city' => $company?->city ?? $settings->company_city ?? '',
         ])->setPaper('A4');
 
-        $fileName = 'payrolls/recibo_' . $payroll->id . '-' . $payroll->employee->first_name . '_' . $payroll->employee->last_name . '.pdf';
+        // Sanitizar nombre del archivo para evitar problemas con caracteres especiales
+        $employeeName = Str::slug($payroll->employee->first_name . ' ' . $payroll->employee->last_name, '_');
+        $fileName = 'payrolls/recibo_' . $payroll->id . '-' . $employeeName . '.pdf';
 
         // Guardar en disco 'public'
         Storage::disk('public')->put($fileName, $pdf->output());

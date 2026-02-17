@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PayrollResource\Pages;
 use App\Filament\Resources\PayrollResource\RelationManagers;
 use App\Models\Payroll;
+use App\Services\PayrollService;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -14,8 +15,8 @@ use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
-use Filament\Tables;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -27,6 +28,12 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Storage;
+use Maatwebsite\Excel\Excel;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class PayrollResource extends Resource
 {
@@ -71,13 +78,17 @@ class PayrollResource extends Resource
                 Section::make('Salarios')
                     ->schema([
                         TextInput::make('base_salary')
-                            ->label('Salario Base')
+                            ->label(fn(?Payroll $record): string => $record?->employee?->employment_type === 'day_laborer'
+                                ? 'Jornal del Período'
+                                : 'Salario Base')
                             ->numeric()
                             ->prefix('₲')
                             ->required()
                             ->disabled()
                             ->dehydrated()
-                            ->helperText('Salario base del empleado')
+                            ->helperText(fn(?Payroll $record): string => $record?->employee?->employment_type === 'day_laborer'
+                                ? 'Tarifa diaria × días trabajados'
+                                : 'Salario base del empleado')
                             ->columnSpan(1),
 
                         TextInput::make('gross_salary')
@@ -161,25 +172,45 @@ class PayrollResource extends Resource
                     ->badge()
                     ->color('info'),
 
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->badge()
+                    ->color(fn(string $state): string => match ($state) {
+                        'draft'    => 'gray',
+                        'approved' => 'success',
+                        'paid'     => 'info',
+                        default    => 'gray',
+                    })
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'draft'    => 'Borrador',
+                        'approved' => 'Aprobado',
+                        'paid'     => 'Pagado',
+                        default    => $state,
+                    })
+                    ->sortable(),
+
                 TextColumn::make('base_salary')
-                    ->label('Salario Base')
+                    ->label('Salario Base / Jornal')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->toggleable(),
+                    ->description(fn(Payroll $record): ?string => $record->employee->employment_type === 'day_laborer'
+                        ? 'Jornal'
+                        : null)
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('total_perceptions')
                     ->label('Percepciones')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
                     ->color('success')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('total_deductions')
                     ->label('Deducciones')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
                     ->color('danger')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('gross_salary')
                     ->label('Salario Bruto')
@@ -193,6 +224,17 @@ class PayrollResource extends Resource
                     ->sortable()
                     ->weight('bold')
                     ->color('success'),
+
+                TextColumn::make('approvedBy.name')
+                    ->label('Aprobado por')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('approved_at')
+                    ->label('Fecha Aprobación')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('generated_at')
                     ->label('Generado')
@@ -230,6 +272,15 @@ class PayrollResource extends Resource
                         return "{$record->first_name} {$record->last_name}";
                     }),
 
+                SelectFilter::make('status')
+                    ->label('Estado')
+                    ->options([
+                        'draft'    => 'Borrador',
+                        'approved' => 'Aprobado',
+                        'paid'     => 'Pagado',
+                    ])
+                    ->native(false),
+
                 Filter::make('current_year')
                     ->label('Año Actual')
                     ->query(fn($query) => $query->whereHas('period', function ($q) {
@@ -247,28 +298,300 @@ class PayrollResource extends Resource
                     ->url(fn(Payroll $record) => route('payrolls.download', $record))
                     ->openUrlInNewTab(),
 
+                Action::make('approve')
+                    ->label('Aprobar')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Aprobar Recibo')
+                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de aprobar el recibo de {$record->employee->full_name} por " . Payroll::formatCurrency($record->net_salary) . "?")
+                    ->action(function (Payroll $record) {
+                        $record->update([
+                            'status' => 'approved',
+                            'approved_by_id' => Auth::id(),
+                            'approved_at' => now(),
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Recibo aprobado')
+                            ->body("El recibo de {$record->employee->full_name} ha sido aprobado.")
+                            ->send();
+                    })
+                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
+
+                Action::make('mark_paid')
+                    ->label('Marcar Pagado')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->modalHeading('Marcar como Pagado')
+                    ->modalDescription(fn(Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->action(function (Payroll $record) {
+                        $record->update(['status' => 'paid']);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Recibo marcado como pagado')
+                            ->send();
+                    })
+                    ->visible(fn(Payroll $record) => $record->status === 'approved'),
+
+                Action::make('revert_paid')
+                    ->label('Revertir Pago')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Revertir Pago')
+                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->action(function (Payroll $record) {
+                        $record->update(['status' => 'approved']);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Pago revertido')
+                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
+                            ->send();
+                    })
+                    ->visible(fn(Payroll $record) => $record->status === 'paid'),
+
+                Action::make('unapprove')
+                    ->label('Desaprobar')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Desaprobar Recibo')
+                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                    ->action(function (Payroll $record) {
+                        $record->update([
+                            'status' => 'draft',
+                            'approved_by_id' => null,
+                            'approved_at' => null,
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Recibo desaprobado')
+                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Borrador.")
+                            ->send();
+                    })
+                    ->visible(fn(Payroll $record) => $record->status === 'approved'),
+
+                Action::make('regenerate')
+                    ->label('Regenerar')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Regenerar Recibo')
+                    ->modalDescription(fn(Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->action(function (Payroll $record, PayrollService $payrollService) {
+                        try {
+                            $payrollService->regenerateForEmployee($record);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo regenerado')
+                                ->body("El recibo de {$record->employee->full_name} ha sido recalculado exitosamente.")
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Error al regenerar')
+                                ->body('Ocurrió un error al regenerar el recibo: ' . $e->getMessage())
+                                ->send();
+                        }
+                    })
+                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
+
                 EditAction::make()
-                    ->visible(fn(Payroll $record) => $record->period?->status === 'draft'),
+                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
 
                 DeleteAction::make()
-                    ->visible(fn(Payroll $record) => $record->period?->status === 'draft'),
+                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('approve_selected')
+                        ->label('Aprobar Seleccionados')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar Recibos Seleccionados')
+                        ->modalDescription('¿Está seguro de aprobar todos los recibos seleccionados? Solo se aprobarán los que estén en estado "Borrador".')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'draft') {
+                                    $record->update([
+                                        'status' => 'approved',
+                                        'approved_by_id' => Auth::id(),
+                                        'approved_at' => now(),
+                                    ]);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} recibos aprobados")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('mark_paid_selected')
+                        ->label('Marcar Pagados')
+                        ->icon('heroicon-o-banknotes')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Marcar como Pagados')
+                        ->modalDescription('¿Confirma que los recibos seleccionados han sido pagados? Solo se marcarán los que estén en estado "Aprobado".')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'approved') {
+                                    $record->update(['status' => 'paid']);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} recibos marcados como pagados")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('revert_paid_selected')
+                        ->label('Revertir Pagos')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Revertir Pagos Seleccionados')
+                        ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Aprobado.')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'paid') {
+                                    $record->update(['status' => 'approved']);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} pagos revertidos")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('unapprove_selected')
+                        ->label('Desaprobar Seleccionados')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Desaprobar Recibos Seleccionados')
+                        ->modalDescription('¿Está seguro? Solo se desaprobarán los recibos en estado "Aprobado". Volverán a estado Borrador.')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'approved') {
+                                    $record->update([
+                                        'status' => 'draft',
+                                        'approved_by_id' => null,
+                                        'approved_at' => null,
+                                    ]);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} recibos desaprobados")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     BulkAction::make('download_pdfs')
                         ->label('Descargar PDFs')
-                        ->icon('heroicon-o-arrow-down-tray')
+                        ->icon('heroicon-o-document-arrow-down')
                         ->color('info')
-                        ->action(function ($records) {
-                            // Lógica para descargar múltiples PDFs (ZIP)
-                        }),
+                        ->action(function (Collection $records) {
+                            $records->load('employee');
+                            $validRecords = $records->filter(
+                                fn(Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
+                            );
+
+                            if ($validRecords->isEmpty()) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Sin PDFs disponibles')
+                                    ->body('Ninguno de los recibos seleccionados tiene PDF generado.')
+                                    ->send();
+                                return;
+                            }
+
+                            if ($validRecords->count() === 1) {
+                                $record = $validRecords->first();
+                                return response()->streamDownload(function () use ($record) {
+                                    echo Storage::disk('public')->get($record->pdf_path);
+                                }, 'recibo_' . $record->employee->ci . '.pdf', ['Content-Type' => 'application/pdf']);
+                            }
+
+                            $zipFileName = 'recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
+                            $zipPath = storage_path('app/temp/' . $zipFileName);
+
+                            if (!is_dir(storage_path('app/temp'))) {
+                                mkdir(storage_path('app/temp'), 0755, true);
+                            }
+
+                            $zip = new \ZipArchive();
+                            $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+
+                            foreach ($validRecords as $record) {
+                                $pdfContent = Storage::disk('public')->get($record->pdf_path);
+                                $zip->addFromString(
+                                    'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
+                                    $pdfContent
+                                );
+                            }
+
+                            $zip->close();
+
+                            return response()->streamDownload(function () use ($zipPath) {
+                                echo file_get_contents($zipPath);
+                                @unlink($zipPath);
+                            }, $zipFileName, ['Content-Type' => 'application/zip']);
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    ExportBulkAction::make()
+                        ->exports([
+                            ExcelExport::make()
+                                ->fromTable()
+                                ->withFilename(fn() => 'recibos_seleccionados_' . now()->format('d_m_Y_H_i_s'))
+                                ->withWriterType(Excel::XLSX),
+                        ]),
 
                     DeleteBulkAction::make()
-                        ->action(function ($records) {
+                        ->action(function (Collection $records) {
+                            $deleted = 0;
                             foreach ($records as $record) {
-                                if ($record->period?->status === 'draft') {
+                                if ($record->status === 'draft') {
                                     $record->delete();
+                                    $deleted++;
                                 }
+                            }
+
+                            if ($deleted > 0) {
+                                Notification::make()
+                                    ->success()
+                                    ->title("{$deleted} recibos eliminados")
+                                    ->send();
+                            } else {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Solo se pueden eliminar recibos en borrador')
+                                    ->send();
                             }
                         }),
                 ]),
@@ -307,7 +630,23 @@ class PayrollResource extends Resource
                                 ->icon('heroicon-o-building-office-2')
                                 ->badge()
                                 ->color('primary'),
-                        ])->columns(2),
+
+                            TextEntry::make('employee.employment_type')
+                                ->label('Tipo de Remuneración')
+                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                    'day_laborer' => 'Jornalero (Jornal Diario)',
+                                    default       => 'Mensualizado (Sueldo)',
+                                })
+                                ->icon(fn(string $state): string => match ($state) {
+                                    'day_laborer' => 'heroicon-o-calendar-days',
+                                    default       => 'heroicon-o-banknotes',
+                                })
+                                ->badge()
+                                ->color(fn(string $state): string => match ($state) {
+                                    'day_laborer' => 'warning',
+                                    default       => 'info',
+                                }),
+                        ])->columns(3),
                     ]),
 
                 InfolistSection::make('Información del Período')
@@ -347,7 +686,9 @@ class PayrollResource extends Resource
                     ->schema([
                         Group::make([
                             TextEntry::make('base_salary')
-                                ->label('Salario Base')
+                                ->label(fn(Payroll $record): string => $record->employee->employment_type === 'day_laborer'
+                                    ? 'Jornal del Período'
+                                    : 'Salario Base')
                                 ->money('PYG', locale: 'es_PY')
                                 ->icon('heroicon-o-banknotes'),
 
@@ -378,6 +719,38 @@ class PayrollResource extends Resource
                             ->weight('bold')
                             ->color('success')
                             ->icon('heroicon-o-currency-dollar'),
+                    ]),
+
+                InfolistSection::make('Estado y Aprobación')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('status')
+                                ->label('Estado')
+                                ->badge()
+                                ->color(fn(string $state): string => match ($state) {
+                                    'draft'    => 'gray',
+                                    'approved' => 'success',
+                                    'paid'     => 'info',
+                                    default    => 'gray',
+                                })
+                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                    'draft'    => 'Borrador',
+                                    'approved' => 'Aprobado',
+                                    'paid'     => 'Pagado',
+                                    default    => $state,
+                                }),
+
+                            TextEntry::make('approvedBy.name')
+                                ->label('Aprobado por')
+                                ->placeholder('Sin aprobar')
+                                ->icon('heroicon-o-user'),
+                        ])->columns(2),
+
+                        TextEntry::make('approved_at')
+                            ->label('Fecha de Aprobación')
+                            ->dateTime('d/m/Y H:i')
+                            ->placeholder('Sin aprobar')
+                            ->icon('heroicon-o-clock'),
                     ]),
 
                 InfolistSection::make('Información del Sistema')

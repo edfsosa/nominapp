@@ -129,8 +129,6 @@ class EditContract extends EditRecord
                 ->action(function (Contract $record, array $data) {
                     $newContract = $record->renew($data);
                     $newContract->update(['created_by_id' => Auth::id()]);
-                    $newContract->syncToEmployee();
-
                     $typeMsg = $newContract->type === 'indefinido' && $record->type !== 'indefinido'
                         ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
                         : '';
@@ -184,18 +182,6 @@ class EditContract extends EditRecord
 
             DeleteAction::make(),
         ];
-    }
-
-    /**
-     * Después de guardar el contrato, sincroniza los cambios al empleado si el contrato está activo.
-     *
-     * @return void
-     */
-    protected function afterSave(): void
-    {
-        if ($this->record->status === 'active') {
-            $this->record->syncToEmployee();
-        }
     }
 
     /**

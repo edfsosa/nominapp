@@ -64,17 +64,6 @@ class CreateContract extends CreateRecord
     }
 
     /**
-     * Después de crear el contrato, sincroniza el salario y cargo al empleado para reflejar el nuevo contrato activo.
-     *
-     * @return void
-     */
-    protected function afterCreate(): void
-    {
-        // Fase 1: Sincronizar salario y cargo al empleado
-        $this->record->syncToEmployee();
-    }
-
-    /**
      * Personaliza el mensaje de notificación después de crear el contrato.
      *
      * @return string|null

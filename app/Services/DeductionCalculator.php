@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
+use Illuminate\Support\Facades\Log;
 
 class DeductionCalculator
 {
@@ -23,7 +24,22 @@ class DeductionCalculator
             if (!is_null($deduction->pivot->custom_amount)) {
                 $amount = $deduction->pivot->custom_amount;
             } elseif ($deduction->calculation === 'percentage') {
-                $amount = round($employee->base_salary * ($deduction->percent / 100), 2);
+                // Para jornaleros usar daily_rate como base, para tiempo completo usar base_salary
+                $salaryBase = $employee->employment_type === 'day_laborer'
+                    ? $employee->daily_rate
+                    : $employee->base_salary;
+
+                if (!$salaryBase || $salaryBase <= 0) {
+                    Log::warning('DeductionCalculator: porcentaje sobre salario base inválido', [
+                        'employee_id' => $employee->id,
+                        'deduction' => $deduction->name,
+                        'salary_base' => $salaryBase,
+                        'employment_type' => $employee->employment_type,
+                    ]);
+                    $amount = 0;
+                } else {
+                    $amount = round($salaryBase * ($deduction->percent / 100), 2);
+                }
             } else {
                 $amount = $deduction->amount ?? 0;
             }

@@ -11,15 +11,19 @@ class PayrollController extends Controller
     // Mostrar PDF existente en el navegador (desde storage)
     public function download(Payroll $payroll)
     {
-        if (Storage::disk('public')->exists($payroll->pdf_path)) {
-            $path = Storage::disk('public')->path($payroll->pdf_path);
-
-            return response()->file($path, [
-                'Content-Type' => 'application/pdf',
-            ]);
-        } else {
-            return redirect()->back()->with('error', 'El archivo PDF no existe.');
+        if (!$payroll->pdf_path) {
+            return redirect()->back()->with('error', 'El recibo aún no ha sido generado. Por favor, regenere la nómina.');
         }
+
+        if (!Storage::disk('public')->exists($payroll->pdf_path)) {
+            return redirect()->back()->with('error', 'El archivo PDF no se encuentra. Por favor, regenere el recibo.');
+        }
+
+        $path = Storage::disk('public')->path($payroll->pdf_path);
+
+        return response()->file($path, [
+            'Content-Type' => 'application/pdf',
+        ]);
     }
 
     // Montar vista para mostrar el PDF en el navegador
@@ -32,7 +36,7 @@ class PayrollController extends Controller
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
         return view('pdf.payroll', [
-            'payroll' => $payroll,
+            'payroll' => $payroll->load(['employee.position.department', 'items']),
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
             'companyName' => $company?->name ?? $settings->company_name,
             'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',

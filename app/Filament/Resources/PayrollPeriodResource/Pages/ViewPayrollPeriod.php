@@ -4,7 +4,6 @@ namespace App\Filament\Resources\PayrollPeriodResource\Pages;
 
 use App\Filament\Resources\PayrollPeriodResource;
 use App\Services\PayrollService;
-use Filament\Actions;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -55,7 +54,59 @@ class ViewPayrollPeriod extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => in_array($this->record->status, ['draft', 'processing'])),
+                ->visible(fn() => in_array($this->record->status, ['draft', 'processing']) && !$this->record->payrolls()->exists()),
+
+            Action::make('regenerate_payrolls')
+                ->label('Regenerar Recibos')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalHeading('Regenerar Todos los Recibos')
+                ->modalDescription(
+                    fn() =>
+                    "¿Está seguro de regenerar TODOS los recibos del período {$this->record->name}? " .
+                        "Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador."
+                )
+                ->action(function (PayrollService $payrollService) {
+                    $payrolls = $this->record->payrolls()->where('status', 'draft')->with('employee')->get();
+
+                    if ($payrolls->isEmpty()) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Sin recibos para regenerar')
+                            ->body('No hay recibos en estado borrador para regenerar.')
+                            ->send();
+                        return;
+                    }
+
+                    $count = 0;
+                    $errors = 0;
+
+                    foreach ($payrolls as $payroll) {
+                        try {
+                            $payrollService->regenerateForEmployee($payroll);
+                            $count++;
+                        } catch (\Throwable $e) {
+                            $errors++;
+                        }
+                    }
+
+                    if ($errors > 0) {
+                        Notification::make()
+                            ->warning()
+                            ->title("Regeneración parcial")
+                            ->body("Se regeneraron {$count} recibos. {$errors} recibos tuvieron errores. Revise el log para más detalles.")
+                            ->duration(10000)
+                            ->send();
+                    } else {
+                        Notification::make()
+                            ->success()
+                            ->title('Recibos regenerados')
+                            ->body("Se regeneraron exitosamente {$count} recibos de nómina.")
+                            ->send();
+                    }
+                })
+                ->visible(fn() => in_array($this->record->status, ['draft', 'processing']) && $this->record->payrolls()->where('status', 'draft')->exists()),
 
             Action::make('close_period')
                 ->label('Cerrar Período')
@@ -68,6 +119,20 @@ class ViewPayrollPeriod extends ViewRecord
                     "¿Está seguro de cerrar el período {$this->record->name}? " .
                         "Una vez cerrado, no se podrán generar más recibos ni realizar modificaciones."
                 )
+                ->before(function (Action $action) {
+                    $draftPayrolls = $this->record->payrolls()->where('status', 'draft')->count();
+
+                    if ($draftPayrolls > 0) {
+                        Notification::make()
+                            ->danger()
+                            ->title('No se puede cerrar el período')
+                            ->body("Hay {$draftPayrolls} recibos en estado borrador. Apruebe todos los recibos antes de cerrar el período.")
+                            ->duration(10000)
+                            ->send();
+
+                        $action->cancel();
+                    }
+                })
                 ->action(function () {
                     $this->record->update([
                         'status' => 'closed',

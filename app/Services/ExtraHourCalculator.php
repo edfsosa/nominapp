@@ -5,15 +5,59 @@ namespace App\Services;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Settings\PayrollSettings;
+use Illuminate\Support\Facades\Log;
 
 class ExtraHourCalculator
 {
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
+        $emptyResult = ['total' => 0, 'hours' => 0, 'items' => []];
+
         $settings = app(PayrollSettings::class);
-        $monthlyHours = $employee->schedule?->getMonthlyHours()
-            ?? $settings->monthly_hours;
-        $hourlyRate = $employee->base_salary / $monthlyHours;
+
+        if ($employee->employment_type === 'day_laborer') {
+            // Jornaleros: tarifa horaria = daily_rate / horas por jornada
+            if (!$employee->daily_rate || $employee->daily_rate <= 0) {
+                Log::warning('ExtraHourCalculator: jornalero sin tarifa diaria válida', [
+                    'employee_id' => $employee->id,
+                    'daily_rate' => $employee->daily_rate,
+                ]);
+                return $emptyResult;
+            }
+
+            $dailyHours = $settings->daily_hours;
+            if ($dailyHours <= 0) {
+                Log::warning('ExtraHourCalculator: horas diarias inválidas', [
+                    'employee_id' => $employee->id,
+                    'daily_hours' => $dailyHours,
+                ]);
+                return $emptyResult;
+            }
+
+            $hourlyRate = $employee->daily_rate / $dailyHours;
+        } else {
+            // Tiempo completo: tarifa horaria = base_salary / horas mensuales
+            if (!$employee->base_salary || $employee->base_salary <= 0) {
+                Log::warning('ExtraHourCalculator: empleado sin salario base válido', [
+                    'employee_id' => $employee->id,
+                    'base_salary' => $employee->base_salary,
+                ]);
+                return $emptyResult;
+            }
+
+            $monthlyHours = $employee->schedule?->getMonthlyHours()
+                ?? $settings->monthly_hours;
+
+            if ($monthlyHours <= 0) {
+                Log::warning('ExtraHourCalculator: horas mensuales inválidas', [
+                    'employee_id' => $employee->id,
+                    'monthly_hours' => $monthlyHours,
+                ]);
+                return $emptyResult;
+            }
+
+            $hourlyRate = $employee->base_salary / $monthlyHours;
+        }
 
         $days = $employee->attendanceDays()
             ->whereBetween('date', [$period->start_date, $period->end_date])

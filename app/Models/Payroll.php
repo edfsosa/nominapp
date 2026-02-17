@@ -6,11 +6,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Log;
 
 class Payroll extends Model
 {
     /** @use HasFactory<\Database\Factories\PayrollFactory> */
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'employee_id',
@@ -22,6 +24,9 @@ class Payroll extends Model
         'net_salary',
         'pdf_path',
         'generated_at',
+        'status',
+        'approved_by_id',
+        'approved_at',
     ];
 
     protected $casts = [
@@ -31,7 +36,34 @@ class Payroll extends Model
         'total_deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',
         'generated_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
+
+    protected static function booted(): void
+    {
+        static::deleting(function (Payroll $payroll) {
+            if (in_array($payroll->status, ['approved', 'paid'])) {
+                throw new \Exception("No se puede eliminar una nómina con estado '{$payroll->status}'.");
+            }
+
+            // Revertir cuotas de préstamo pagadas asociadas a este período/empleado
+            $period = $payroll->period;
+            if ($period) {
+                LoanInstallment::whereHas('loan', fn($q) => $q
+                    ->where('employee_id', $payroll->employee_id)
+                    ->where('status', 'active'))
+                    ->where('status', 'paid')
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->update(['status' => 'pending', 'paid_at' => null]);
+
+                Log::warning('Cuotas de préstamo revertidas al eliminar nómina', [
+                    'payroll_id' => $payroll->id,
+                    'employee_id' => $payroll->employee_id,
+                    'period_id' => $period->id,
+                ]);
+            }
+        });
+    }
 
     /**
      * Relación con el modelo Employee, una nómina pertenece a un empleado
@@ -55,6 +87,14 @@ class Payroll extends Model
     public function items(): HasMany
     {
         return $this->hasMany(PayrollItem::class);
+    }
+
+    /**
+     * Usuario que aprobó la nómina
+     */
+    public function approvedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'approved_by_id');
     }
 
     // Accesor para mostrar nombre

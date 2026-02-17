@@ -250,6 +250,7 @@
         $freqLabels = ['monthly' => 'Mensual', 'biweekly' => 'Quincenal', 'weekly' => 'Semanal'];
         $perceptions = $payroll->items->where('type', 'perception');
         $deductions = $payroll->items->where('type', 'deduction');
+        $isDayLaborer = $payroll->employee->employment_type === 'day_laborer';
     @endphp
 
     {{-- Encabezado de la Empresa --}}
@@ -285,7 +286,7 @@
     </div>
 
     {{-- Titulo --}}
-    <div class="title">Recibo de Salario</div>
+    <div class="title">{{ $isDayLaborer ? 'Recibo de Jornal' : 'Recibo de Salario' }}</div>
     <div class="subtitle">{{ $payroll->period?->name ?? 'Sin período' }}</div>
 
     {{-- Informacion del Empleado --}}
@@ -307,6 +308,10 @@
             <div class="info-row">
                 <div class="info-label">Departamento:</div>
                 <div class="info-value">{{ $payroll->employee->position->department->name ?? 'N/A' }}</div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Tipo de Remuneracion:</div>
+                <div class="info-value">{{ $isDayLaborer ? 'Jornalero (Jornal Diario)' : 'Mensualizado (Sueldo)' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Periodo:</div>
@@ -375,7 +380,7 @@
         <div class="summary-grid">
             <div class="summary-row">
                 <div class="summary-item">
-                    <span class="summary-label">Salario Base:</span>
+                    <span class="summary-label">{{ $isDayLaborer ? 'Jornal del Periodo:' : 'Salario Base:' }}</span>
                     {{ $payroll->formatted_base_salary }}
                 </div>
             </div>

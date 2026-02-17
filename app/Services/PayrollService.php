@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\Employee;
+use App\Models\LoanInstallment;
 use App\Models\PayrollPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -37,12 +38,22 @@ class PayrollService
 
     public function generateForPeriod(PayrollPeriod $period): int
     {
+        // Validar estado del período
+        if (!in_array($period->status, ['draft', 'processing'])) {
+            throw new \InvalidArgumentException(
+                "No se pueden generar recibos para un período con estado '{$period->status}'. Solo se permiten períodos en 'borrador' o 'en proceso'."
+            );
+        }
+
         $count = 0;
 
         $employees = Employee::query()
             ->where('payroll_type', $period->frequency)
-            ->whereNotNull('base_salary')
             ->where('status', 'active')
+            ->where(function ($query) {
+                $query->whereNotNull('base_salary')
+                    ->orWhereNotNull('daily_rate');
+            })
             ->get();
 
         foreach ($employees as $employee) {
@@ -57,7 +68,32 @@ class PayrollService
             DB::beginTransaction();
 
             try {
-                $baseSalary = $employee->base_salary;
+                // Calcular salario base según tipo de empleo
+                if ($employee->employment_type === 'day_laborer') {
+                    $workedDays = $employee->attendanceDays()
+                        ->whereBetween('date', [$period->start_date, $period->end_date])
+                        ->where('status', 'present')
+                        ->count();
+
+                    if ($workedDays === 0) {
+                        Log::info('Jornalero sin días trabajados, omitiendo recibo', [
+                            'employee_id' => $employee->id,
+                            'period_id' => $period->id,
+                        ]);
+                        continue;
+                    }
+
+                    $baseSalary = round($employee->daily_rate * $workedDays, 2);
+
+                    Log::info('Jornalero: cálculo de salario base', [
+                        'employee_id' => $employee->id,
+                        'daily_rate' => $employee->daily_rate,
+                        'worked_days' => $workedDays,
+                        'base_salary' => $baseSalary,
+                    ]);
+                } else {
+                    $baseSalary = $employee->base_salary;
+                }
 
                 // Cálculo modular
                 $perceptions = $this->perceptionCalculator->calculate($employee, $period);
@@ -79,6 +115,7 @@ class PayrollService
                     'net_salary' => $netSalary,
                     'gross_salary' => $baseSalary + $totalPerceptions,
                     'generated_at' => now(),
+                    'status' => 'draft',
                 ]);
 
                 // Ítems: percepciones
@@ -112,10 +149,23 @@ class PayrollService
                 $payroll->update(['pdf_path' => $pdfPath]);
 
                 DB::commit();
+
+                Log::info('Recibo de nómina generado', [
+                    'payroll_id' => $payroll->id,
+                    'employee_id' => $employee->id,
+                    'period_id' => $period->id,
+                    'base_salary' => $baseSalary,
+                    'net_salary' => $netSalary,
+                ]);
+
                 $count++;
             } catch (\Throwable $e) {
                 DB::rollBack();
-                Log::error('Error al generar recibo: ' . $e->getMessage(), ['employee_id' => $employee->id]);
+                Log::error('Error al generar recibo: ' . $e->getMessage(), [
+                    'employee_id' => $employee->id,
+                    'period_id' => $period->id,
+                    'trace' => $e->getTraceAsString(),
+                ]);
             }
         }
         return $count;
@@ -123,12 +173,27 @@ class PayrollService
 
     public function regenerateForEmployee(Payroll $payroll): Payroll
     {
+        // Validar que la nómina no esté aprobada o pagada
+        if (in_array($payroll->status, ['approved', 'paid'])) {
+            throw new \InvalidArgumentException(
+                "No se puede regenerar una nómina con estado '{$payroll->status}'."
+            );
+        }
+
         $employee = $payroll->employee;
         $period = $payroll->period;
 
         DB::beginTransaction();
 
         try {
+            // Revertir cuotas de préstamo pagadas del período anterior
+            LoanInstallment::whereHas('loan', fn($q) => $q
+                ->where('employee_id', $employee->id)
+                ->where('status', 'active'))
+                ->where('status', 'paid')
+                ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                ->update(['status' => 'pending', 'paid_at' => null]);
+
             // Eliminar ítems existentes
             $payroll->items()->delete();
 
@@ -137,7 +202,17 @@ class PayrollService
                 Storage::disk('public')->delete($payroll->pdf_path);
             }
 
-            $baseSalary = $employee->base_salary;
+            // Calcular salario base según tipo de empleo
+            if ($employee->employment_type === 'day_laborer') {
+                $workedDays = $employee->attendanceDays()
+                    ->whereBetween('date', [$period->start_date, $period->end_date])
+                    ->where('status', 'present')
+                    ->count();
+
+                $baseSalary = round($employee->daily_rate * $workedDays, 2);
+            } else {
+                $baseSalary = $employee->base_salary;
+            }
 
             // Recalcular con los 5 calculadores
             $perceptions = $this->perceptionCalculator->calculate($employee, $period);
@@ -192,12 +267,20 @@ class PayrollService
 
             DB::commit();
 
+            Log::info('Recibo de nómina regenerado', [
+                'payroll_id' => $payroll->id,
+                'employee_id' => $employee->id,
+                'period_id' => $period->id,
+                'net_salary' => $netSalary,
+            ]);
+
             return $payroll->refresh();
         } catch (\Throwable $e) {
             DB::rollBack();
             Log::error('Error al regenerar recibo: ' . $e->getMessage(), [
                 'payroll_id' => $payroll->id,
                 'employee_id' => $employee->id,
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
