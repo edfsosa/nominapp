@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class FaceEnrollment extends Model
@@ -174,6 +175,13 @@ class FaceEnrollment extends Model
             ->whereIn('status', ['pending_capture', 'pending_approval'])
             ->update(['status' => 'expired']);
 
+        Log::info('Registro facial aprobado', [
+            'enrollment_id' => $this->id,
+            'employee_id' => $this->employee_id,
+            'employee_name' => "{$this->employee->first_name} {$this->employee->last_name}",
+            'reviewed_by_id' => $reviewedById,
+        ]);
+
         return [
             'success' => true,
             'message' => "Registro facial de {$this->employee->first_name} {$this->employee->last_name} aprobado. El empleado ya puede marcar asistencia.",
@@ -190,6 +198,14 @@ class FaceEnrollment extends Model
             'reviewed_at' => now(),
             'reviewed_by_id' => $reviewedById,
             'review_notes' => $notes,
+        ]);
+
+        Log::info('Registro facial rechazado', [
+            'enrollment_id' => $this->id,
+            'employee_id' => $this->employee_id,
+            'employee_name' => "{$this->employee->first_name} {$this->employee->last_name}",
+            'reviewed_by_id' => $reviewedById,
+            'reason' => $notes,
         ]);
 
         return [

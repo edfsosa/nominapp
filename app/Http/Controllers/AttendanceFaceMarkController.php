@@ -179,6 +179,11 @@ class AttendanceFaceMarkController extends Controller
                 ->where('status', 'active')
                 ->firstOrFail();
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            Log::warning('Marcación fallida: empleado no encontrado o inactivo', [
+                'employee_id' => $data['employee_id'],
+                'ip' => $request->ip(),
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Empleado no encontrado o inactivo.',
@@ -189,6 +194,12 @@ class AttendanceFaceMarkController extends Controller
         if (empty($data['location'])) {
             // Verificar que el empleado tenga sucursal asignada
             if (!$employee->branch) {
+                Log::warning('Marcación fallida: empleado sin sucursal asignada', [
+                    'employee_id' => $employee->id,
+                    'employee_name' => "{$employee->first_name} {$employee->last_name}",
+                    'employee_ci' => $employee->ci,
+                ]);
+
                 return response()->json([
                     'ok' => false,
                     'message' => 'El empleado no tiene una sucursal asignada. No se puede determinar la ubicación.',
@@ -199,6 +210,13 @@ class AttendanceFaceMarkController extends Controller
 
             // Verificar que la sucursal tenga coordenadas configuradas
             if (!$branchCoords || !isset($branchCoords['lat'], $branchCoords['lng'])) {
+                Log::warning('Marcación fallida: sucursal sin coordenadas configuradas', [
+                    'employee_id' => $employee->id,
+                    'employee_name' => "{$employee->first_name} {$employee->last_name}",
+                    'branch_id' => $employee->branch->id,
+                    'branch_name' => $employee->branch->name,
+                ]);
+
                 return response()->json([
                     'ok' => false,
                     'message' => 'La sucursal del empleado no tiene coordenadas configuradas. Por favor, contacte al administrador.',
@@ -247,6 +265,14 @@ class AttendanceFaceMarkController extends Controller
                 $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (!in_array($data['event_type'], $allowed, true)) {
+                    Log::warning('Marcación fallida: secuencia de evento no permitida', [
+                        'employee_id' => $employee->id,
+                        'employee_name' => "{$employee->first_name} {$employee->last_name}",
+                        'event_type_attempted' => $data['event_type'],
+                        'last_event' => $last?->event_type,
+                        'allowed_events' => $allowed,
+                    ]);
+
                     // CORRECCIÓN 9: Mensaje más descriptivo del error con traducciones en español
                     $eventTypeNames = $this->getEventTypeNames();
                     $employeeName = $employee->full_name ?? $employee->name ?? "Empleado #{$employee->id}";
@@ -274,6 +300,12 @@ class AttendanceFaceMarkController extends Controller
                 $lng = (float) $location['lng'];
 
                 if ($lat === 0.0 && $lng === 0.0) {
+                    Log::warning('Marcación fallida: ubicación 0,0 detectada', [
+                        'employee_id' => $employee->id,
+                        'employee_name' => "{$employee->first_name} {$employee->last_name}",
+                        'event_type' => $data['event_type'],
+                    ]);
+
                     throw ValidationException::withMessages([
                         'location' => 'La ubicación proporcionada no es válida.',
                     ]);
@@ -304,6 +336,14 @@ class AttendanceFaceMarkController extends Controller
                     'recorded_at' => $recordedAt->format('Y-m-d H:i:s'),
                 ];
             });
+
+            Log::info('Marcación registrada exitosamente', [
+                'employee_id' => $result['employee']->id,
+                'employee_name' => "{$result['employee']->first_name} {$result['employee']->last_name}",
+                'event_type' => $result['event_type'],
+                'event_id' => $result['event_id'],
+                'recorded_at' => $result['recorded_at'],
+            ]);
 
             // CORRECCIÓN 13: Respuesta más informativa
             $eventTypes = [

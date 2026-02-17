@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Models\Schedule;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ScheduleEmployeeController extends Controller
 {
@@ -31,9 +32,15 @@ class ScheduleEmployeeController extends Controller
                 'message' => "El horario fue removido de {$employee->full_name} exitosamente."
             ]);
         } catch (\Exception $e) {
+            Log::error('Error al remover horario de empleado', [
+                'schedule_id' => $schedule->id,
+                'employee_id' => $employee->id,
+                'error' => $e->getMessage(),
+            ]);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Ocurrió un error al remover el horario: ' . $e->getMessage()
+                'message' => 'Ocurrió un error al remover el horario. Intente nuevamente.',
             ], 500);
         }
     }

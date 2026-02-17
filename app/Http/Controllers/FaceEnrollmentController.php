@@ -47,6 +47,14 @@ class FaceEnrollmentController extends Controller
 
             // Verificar si el registro existe, no ha expirado y está pendiente de captura
             if (!$enrollment || $enrollment->isExpired() || !$enrollment->isPendingCapture()) {
+                Log::warning('Intento de captura facial con token inválido o expirado', [
+                    'token' => substr($token, 0, 8) . '...',
+                    'exists' => (bool) $enrollment,
+                    'expired' => $enrollment?->isExpired(),
+                    'status' => $enrollment?->status,
+                    'ip' => $request->ip(),
+                ]);
+
                 return response()->json([
                     'success' => false,
                     'message' => 'Enlace inválido o expirado.',

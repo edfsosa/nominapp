@@ -219,7 +219,16 @@ class LiquidacionService
 
             $liquidacion->employee->update(['status' => 'inactive']);
 
+            $cancelledLoans = $this->getPendingLoanIds($liquidacion->employee);
             $this->cancelPendingLoans($liquidacion->employee);
+
+            Log::info('Liquidación cerrada: empleado desactivado', [
+                'liquidacion_id' => $liquidacion->id,
+                'employee_id' => $liquidacion->employee_id,
+                'employee_name' => "{$liquidacion->employee->first_name} {$liquidacion->employee->last_name}",
+                'net_amount' => $liquidacion->net_amount,
+                'cancelled_loan_ids' => $cancelledLoans,
+            ]);
         });
     }
 
