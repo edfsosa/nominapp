@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -164,10 +165,11 @@ class FaceEnrollment extends Model
             'review_notes' => $notes,
         ]);
 
-        // Copiar descriptor al empleado
+        // Copiar descriptor al empleado e invalidar caché de descriptores
         $this->employee->update([
             'face_descriptor' => $this->face_descriptor,
         ]);
+        Cache::forget('employees_face_descriptors');
 
         // Expirar otros enrollments pendientes del mismo empleado
         static::where('employee_id', $this->employee_id)

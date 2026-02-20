@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Employee;
 use App\Rules\FaceDescriptor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
@@ -56,8 +57,9 @@ class EmployeeFaceController extends Controller
                 ]);
             }
 
-            // Actualizar el empleado
+            // Actualizar el empleado e invalidar caché de descriptores
             $updated = $employee->update(['face_descriptor' => $descriptor]);
+            Cache::forget('employees_face_descriptors');
 
             if (!$updated) {
                 Log::error('Failed to update face descriptor', [

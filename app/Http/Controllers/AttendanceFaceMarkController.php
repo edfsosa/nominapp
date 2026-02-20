@@ -10,6 +10,7 @@ use Carbon\Carbon;
 use Illuminate\Contracts\View\View as ViewContract;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
@@ -392,12 +393,13 @@ class AttendanceFaceMarkController extends Controller
     protected function identifyEmployeeByDescriptor(array $live, float $threshold = 0.45): array
     {
         try {
-            // CORRECCIÓN 14: Agregar filtro de empleados activos y mejorar la consulta
-            $candidates = Employee::query()
-                ->whereNotNull('face_descriptor')
-                ->where('status', 'active')
-                ->select('id', 'first_name', 'last_name', 'ci', 'face_descriptor')
-                ->get();
+            $candidates = Cache::remember('employees_face_descriptors', 300, fn () =>
+                Employee::query()
+                    ->whereNotNull('face_descriptor')
+                    ->where('status', 'active')
+                    ->select('id', 'first_name', 'last_name', 'ci', 'face_descriptor')
+                    ->get()
+            );
 
             if ($candidates->isEmpty()) {
                 Log::warning('No hay empleados con descriptores faciales activos.');
