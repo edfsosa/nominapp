@@ -212,27 +212,27 @@
 
     {{-- Parrafo introductorio --}}
     <p class="intro">
-        En la ciudad de <strong>{{ strtoupper($city ?: 'ASUNCION') }}</strong>
+        En la ciudad de <strong>....................................</strong>
         a los <strong>{{ $contract->start_date->format('d') }}</strong>
         dia del mes de <strong>{{ strtoupper($contract->start_date->translatedFormat('F')) }}</strong>
-        del ano <strong>{{ strtoupper($yearInWords) }}</strong>
-        por una parte el senor ................................................................................,
-        con C.I.N.: ..............................., de .......... anos de edad;
+        del año <strong>{{ strtoupper($yearInWords) }}</strong>
+        por una parte el señor/a ................................................................................,
+        con C.I.N.: ..............................., de .......... años de edad;
         sexo ......................... estado civil ...............................,
         de profesion ..............................., de nacionalidad ...............................
         y con domicilio para todos sus efectos legales en la casa de las calles
         ......................................................................................................
         del Barrio ....................................... de la ciudad de ...............................,
-        en nombre y representacion de la firma <strong>{{ strtoupper($companyName) }}</strong>
+        en nombre y representacion de la firma <strong>............................</strong>
         en su calidad de ............................... de la misma,
         denominado en adelante <strong>"EMPLEADOR"</strong>,
-        y por la otra el senor/a
+        y por la otra el señor/a
         <strong>{{ strtoupper($contract->employee?->full_name) }}</strong>
         con C.I.N. <strong>{{ $contract->employee?->ci }}</strong>,
-        de <strong>{{ $employeeAge ?? '......' }}</strong> anos de edad;
+        de <strong>{{ $employeeAge ?? '......' }}</strong> años de edad;
         sexo ......................... de estado civil ...............................,
         profesion u otro oficio
-        <strong>{{ strtoupper($contract->position?->name ?? '..............................') }}</strong>
+        <strong>.......................................</strong>
         nacionalidad ............................... y con domicilio en la casa de las calles
         ......................................................................................................
         de la ciudad de ...............................
@@ -249,11 +249,11 @@
     <div class="clause">
         <span class="clause-num">PRIMERA:</span>&nbsp;&nbsp;&nbsp;
         a- Clase de trabajo o servicio a ejecutar:
-        <strong>{{ strtoupper($contract->position?->name ?? '..............................') }}</strong><br>
+        <strong>............................................</strong><br>
         <div class="sub-item">
             b- Lugar o lugares de presentacion: En el local de la empresa sito en
-            {{ $companyAddress ?: 'Ruta ......................................................' }}
-            de la ciudad de <strong>{{ strtoupper($city ?: 'ASUNCION') }}</strong>
+            ......................................................
+            de la ciudad de <strong>..............................</strong>
             y/o en los lugares designados por la empresa para la ejecucion de sus labores,
             dentro y fuera del Radio Urbano establecido dentro del area central del pais,
             conforme a la naturaleza del trabajo. -
@@ -336,41 +336,20 @@
         <div class="sub-item">
             b) <span class="clause-label">DIVISION DE LA JORNADA</span><br>
             <div class="sub-sub-item">
-                Por la maniana: de ..........hs. a ..........hs.<br>
+                Por la mañana: de ..........hs. a ..........hs.<br>
                 Por la tarde: de ..........hs. a ..........hs.<br>
-                Sabados de:
-                @if ($saturdayDay)
-                    <strong>{{ substr($saturdayDay->start_time, 0, 5) }} hs.</strong>
-                    a
-                    <strong>{{ substr($saturdayDay->end_time, 0, 5) }} hs.</strong>
-                @else
-                    ..........hs. a ..........hs.
-                @endif
-                <br>
+                Sabados de: ..........hs. a ..........hs.<br>
                 Por la noche: de ..........hs. a ..........hs.<br>
-                Horario continuado: de
-                @if ($weekdayDay)
-                    <strong>{{ substr($weekdayDay->start_time, 0, 5) }} hs.</strong>
-                    a
-                    <strong>{{ substr($weekdayDay->end_time, 0, 5) }} hs.</strong>
-                @else
-                    ..........hs. a ..........hs.
-                @endif
-                <br>
-                Periodo intermedio de descanso:
-                @if ($breakMinutes > 0)
-                    <strong>{{ $breakMinutes }} minutos</strong> para el almuerzo
-                @else
-                    ......... minutos para el almuerzo
-                @endif
+                Horario continuado: de ..........hs. a ..........hs.<br>
+                Periodo intermedio de descanso: ......... minutos para el almuerzo
                 <br>
                 Descanso semanal: Domingos y Feriados.
                 Por el sistema de trabajo el empleador goza de un dia libre a la semana
                 siendo esta los dias: ..............................<br>
-                <em>Observacion: El Empleador podra hacer ajustes o cambios de horario cuando lo estime
+                <strong><em>Observacion: El Empleador podra hacer ajustes o cambios de horario cuando lo estime
                 conveniente, no pudiendo considerarse esta modificacion como alteracion de los terminos
                 del presente contrato, aceptando el trabajador la variacion del horario de trabajo,
-                que hace a su cargo.</em>
+                que hace a su cargo.</em></strong>
             </div>
         </div>
     </div>
@@ -409,22 +388,8 @@
     <div class="clause">
         <span class="clause-num">OCTAVA:</span><br>
         <div class="sub-item">
-            a)&nbsp;FECHA DE INGRESO DEL TRABAJADOR:&nbsp;
-            <strong>
-                {{ strtoupper(
-                    $contract->start_date->format('d') . ' DE ' .
-                    $contract->start_date->translatedFormat('F') . ' DE ' .
-                    $contract->start_date->format('Y')
-                ) }}
-            </strong><br>
-            b)&nbsp;FECHA DE INICIO DE LABOR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:&nbsp;
-            <strong>
-                {{ strtoupper(
-                    $contract->start_date->format('d') . ' DE ' .
-                    $contract->start_date->translatedFormat('F') . ' DE ' .
-                    $contract->start_date->format('Y')
-                ) }}
-            </strong>
+            a)&nbsp;FECHA DE INGRESO DEL TRABAJADOR:&nbsp; ........ DE ........................ DE ........<br>
+            b)&nbsp;FECHA DE INICIO DE LABOR&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;:&nbsp; ........ DE ........................ DE ........
         </div>
     </div>
 
@@ -542,7 +507,7 @@
         <strong>JURISDICCION:</strong> Para los efectos de este contrato las partes se someten
         a las disposiciones del C.T., a las autoridades administrativas y jueces competentes
         de esta jurisdiccion y constituyen su domicilio en la ciudad de
-        <strong>{{ strtoupper($city ?: 'ASUNCION') }}</strong>.
+        <strong>........................</strong>.
     </p>
 
     <br>

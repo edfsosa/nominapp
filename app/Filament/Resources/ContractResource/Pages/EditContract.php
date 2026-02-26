@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ContractResource\Pages;
 
 use App\Models\Contract;
+use App\Services\ContractService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\DatePicker;
@@ -12,7 +13,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\ContractResource;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 class EditContract extends EditRecord
@@ -127,9 +127,10 @@ class EditContract extends EditRecord
                         ->rows(2),
                 ])
                 ->action(function (Contract $record, array $data) {
-                    $newContract = $record->renew($data);
-                    $newContract->update(['created_by_id' => Auth::id()]);
-                    $typeMsg = $newContract->type === 'indefinido' && $record->type !== 'indefinido'
+                    $oldType = $record->type;
+                    $newContract = ContractService::renew($record, $data);
+
+                    $typeMsg = $newContract->type === 'indefinido' && $oldType !== 'indefinido'
                         ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
                         : '';
 
@@ -157,12 +158,7 @@ class EditContract extends EditRecord
                         ->rows(3),
                 ])
                 ->action(function (Contract $record, array $data) {
-                    $record->update([
-                        'status' => 'terminated',
-                        'notes'  => $record->notes
-                            ? $record->notes . "\n\nTerminación: " . ($data['termination_notes'] ?? 'Sin motivo especificado')
-                            : "Terminación: " . ($data['termination_notes'] ?? 'Sin motivo especificado'),
-                    ]);
+                    ContractService::terminate($record, $data['termination_notes'] ?? null);
 
                     Notification::make()
                         ->title('Contrato Terminado')

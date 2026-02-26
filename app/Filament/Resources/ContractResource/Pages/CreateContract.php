@@ -43,7 +43,7 @@ class CreateContract extends CreateRecord
             $start = \Carbon\Carbon::parse($data['start_date']);
             $end = \Carbon\Carbon::parse($data['end_date']);
 
-            if ($start->diffInDays($end) > 365) {
+            if ($end->gt($start->copy()->addYear())) {
                 Notification::make()
                     ->danger()
                     ->title('Duración excedida')

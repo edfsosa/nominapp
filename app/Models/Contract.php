@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class Contract extends Model
 {
@@ -358,35 +359,37 @@ class Contract extends Model
      */
     public function renew(array $newContractData): Contract
     {
-        // Marcar este contrato como renovado
-        $this->update(['status' => 'renewed']);
+        return DB::transaction(function () use ($newContractData) {
+            // Marcar este contrato como renovado
+            $this->update(['status' => 'renewed']);
 
-        // Art. 53 CLT: Verificar si ya fue renovado antes (segunda renovación = indefinido)
-        $previousRenewals = static::where('employee_id', $this->employee_id)
-            ->where('status', 'renewed')
-            ->where('type', 'plazo_fijo')
-            ->count();
+            // Art. 53 CLT: Verificar si ya fue renovado antes (segunda renovación = indefinido)
+            $previousRenewals = static::where('employee_id', $this->employee_id)
+                ->where('status', 'renewed')
+                ->where('type', 'plazo_fijo')
+                ->count();
 
-        // Si es la segunda renovación de un plazo fijo, forzar tipo indefinido
-        $forceIndefinido = $this->type === 'plazo_fijo' && $previousRenewals >= 2;
+            // Si es la segunda renovación de un plazo fijo, forzar tipo indefinido
+            $forceIndefinido = $this->type === 'plazo_fijo' && $previousRenewals >= 2;
 
-        $data = array_merge([
-            'employee_id'   => $this->employee_id,
-            'type'          => $forceIndefinido ? 'indefinido' : $this->type,
-            'salary_type'   => $this->salary_type,
-            'salary'        => $this->salary,
-            'position_id'   => $this->position_id,
-            'department_id' => $this->department_id,
-            'work_modality' => $this->work_modality,
-            'status'        => 'active',
-        ], $newContractData);
+            $data = array_merge([
+                'employee_id'   => $this->employee_id,
+                'type'          => $forceIndefinido ? 'indefinido' : $this->type,
+                'salary_type'   => $this->salary_type,
+                'salary'        => $this->salary,
+                'position_id'   => $this->position_id,
+                'department_id' => $this->department_id,
+                'work_modality' => $this->work_modality,
+                'status'        => 'active',
+            ], $newContractData);
 
-        // Si se forzó indefinido, quitar fecha de fin
-        if ($forceIndefinido) {
-            $data['end_date'] = null;
-        }
+            // Si se forzó indefinido, quitar fecha de fin
+            if ($forceIndefinido) {
+                $data['end_date'] = null;
+            }
 
-        return static::create($data);
+            return static::create($data);
+        });
     }
 
     /**

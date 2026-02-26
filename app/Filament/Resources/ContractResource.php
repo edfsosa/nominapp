@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Models\Contract;
 use App\Models\Position;
+use App\Services\ContractService;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Forms\Form;
@@ -12,7 +13,6 @@ use Filament\Resources\Resource;
 use App\Settings\GeneralSettings;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Auth;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
@@ -479,10 +479,10 @@ class ContractResource extends Resource
                             ->rows(2),
                     ])
                     ->action(function (Contract $record, array $data) {
-                        $newContract = $record->renew($data);
-                        $newContract->update(['created_by_id' => Auth::id()]);
+                        $oldType = $record->type;
+                        $newContract = ContractService::renew($record, $data);
 
-                        $typeMsg = $newContract->type === 'indefinido' && $record->type !== 'indefinido'
+                        $typeMsg = $newContract->type === 'indefinido' && $oldType !== 'indefinido'
                             ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
                             : '';
 
@@ -566,12 +566,7 @@ class ContractResource extends Resource
                                 ->rows(3),
                         ])
                         ->action(function (Contract $record, array $data) {
-                            $record->update([
-                                'status' => 'terminated',
-                                'notes'  => $record->notes
-                                    ? $record->notes . "\n\nTerminación: " . ($data['termination_notes'] ?? 'Sin motivo especificado')
-                                    : "Terminación: " . ($data['termination_notes'] ?? 'Sin motivo especificado'),
-                            ]);
+                            ContractService::terminate($record, $data['termination_notes'] ?? null);
 
                             Notification::make()
                                 ->title('Contrato Terminado')
