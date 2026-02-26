@@ -248,7 +248,7 @@
         </div>
         <div class="info-row">
             <span class="info-label">Cargo:</span>
-            <span class="info-value">{{ $vacation->employee->position->name ?? 'N/A' }}</span>
+            <span class="info-value">{{ $vacation->employee->position?->name ?? 'N/A' }}</span>
         </div>
         <div class="info-row">
             <span class="info-label">Periodo correspondiente:</span>
@@ -310,7 +310,7 @@
         <tbody>
             <tr>
                 <td class="text-left">Aporte IPS (Obrero)</td>
-                <td>9%</td>
+                <td>{{ number_format($ipsRate * 100, 0) }}%</td>
                 <td class="amount">Gs. {{ number_format($ipsDeduction, 0, ',', '.') }}</td>
             </tr>
             <tr class="total-row">

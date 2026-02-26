@@ -229,7 +229,7 @@
             </div>
             <div class="info-row">
                 <span class="info-label">Cargo:</span>
-                <span class="info-value">{{ $vacation->employee->position->name ?? 'N/A' }}</span>
+                <span class="info-value">{{ $vacation->employee->position?->name ?? 'N/A' }}</span>
             </div>
             <div class="info-row">
                 <span class="info-label">Fecha de Inicio:</span>

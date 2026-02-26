@@ -44,13 +44,7 @@ class EditVacation extends EditRecord
                 })
                 ->action(function () {
                     $record = $this->record;
-
-                    // Actualizar balance
-                    if ($record->vacation_balance_id && $record->vacationBalance) {
-                        $record->vacationBalance->confirmDays($record->business_days ?? 0);
-                    }
-
-                    $record->update(['status' => 'approved']);
+                    VacationService::approve($record);
 
                     Notification::make()
                         ->title('Vacaciones aprobadas')
@@ -71,13 +65,7 @@ class EditVacation extends EditRecord
                 ->modalDescription(fn() => "¿Está seguro de rechazar las vacaciones de {$this->record->employee->full_name}?")
                 ->action(function () {
                     $record = $this->record;
-
-                    // Liberar días pendientes del balance
-                    if ($record->vacation_balance_id && $record->vacationBalance) {
-                        $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
-                    }
-
-                    $record->update(['status' => 'rejected']);
+                    VacationService::reject($record);
 
                     Notification::make()
                         ->title('Vacaciones rechazadas')
@@ -136,11 +124,7 @@ class EditVacation extends EditRecord
 
             DeleteAction::make()
                 ->before(function () {
-                    // Liberar días pendientes del balance si se elimina
-                    $record = $this->record;
-                    if ($record->isPending() && $record->vacation_balance_id && $record->vacationBalance) {
-                        $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
-                    }
+                    VacationService::releaseOnDelete($this->record);
                 }),
         ];
     }
@@ -173,7 +157,8 @@ class EditVacation extends EditRecord
         }
 
         // Múltiples documentos - generar ZIP
-        $zipFilename = $uniqueId . '_vacaciones-' . $record->employee->ci . '-' . $record->id . '.zip';
+        $employeeNameSlug = Str::slug($record->employee->first_name . ' ' . $record->employee->last_name);
+        $zipFilename = $uniqueId . '_vacaciones-' . $employeeNameSlug . '-' . $record->employee->ci . '.zip';
         $zipPath = $tempDir . '/' . $zipFilename;
         $zip = new ZipArchive();
 
@@ -232,11 +217,13 @@ class EditVacation extends EditRecord
         $employerNumber = $company?->employer_number ?? $settings->company_employer_number ?? '';
         $city = $company?->city ?? $settings->company_city ?? '';
 
+        $employeeNameSlug = Str::slug($record->employee->first_name . ' ' . $record->employee->last_name);
+
         switch ($type) {
             case 'communication':
                 return [
                     'view' => 'pdf.vacation-form',
-                    'filename' => "comunicacion-vacaciones-{$record->employee->ci}-{$record->id}.pdf",
+                    'filename' => "comunicacion-vacaciones-{$employeeNameSlug}-{$record->employee->ci}.pdf",
                     'data' => [
                         'vacation' => $record,
                         'companyLogo' => $companyLogo,
@@ -253,7 +240,7 @@ class EditVacation extends EditRecord
             case 'usufruct':
                 return [
                     'view' => 'pdf.vacation-usufruct-notice',
-                    'filename' => "notificacion-usufructo-{$record->employee->ci}-{$record->id}.pdf",
+                    'filename' => "notificacion-usufructo-{$employeeNameSlug}-{$record->employee->ci}.pdf",
                     'data' => [
                         'vacation' => $record,
                         'companyLogo' => $companyLogo,
@@ -275,13 +262,14 @@ class EditVacation extends EditRecord
                 $dailySalary = $baseSalary / 30;
                 $subTotal = $dailySalary * $days;
                 $totalSalary = $subTotal;
-                $ipsDeduction = round($totalSalary * 0.09);
+                $ipsRate = app(\App\Settings\PayrollSettings::class)->ips_employee_rate;
+                $ipsDeduction = round($totalSalary * $ipsRate);
                 $totalDeductions = $ipsDeduction;
                 $netAmount = $totalSalary - $totalDeductions;
 
                 return [
                     'view' => 'pdf.vacation-settlement-receipt',
-                    'filename' => "recibo-liquidacion-{$record->employee->ci}-{$record->id}.pdf",
+                    'filename' => "recibo-liquidacion-{$employeeNameSlug}-{$record->employee->ci}.pdf",
                     'data' => [
                         'vacation' => $record,
                         'companyLogo' => $companyLogo,
@@ -296,6 +284,7 @@ class EditVacation extends EditRecord
                         'dailySalary' => $dailySalary,
                         'subTotal' => $subTotal,
                         'totalSalary' => $totalSalary,
+                        'ipsRate' => $ipsRate,
                         'ipsDeduction' => $ipsDeduction,
                         'totalDeductions' => $totalDeductions,
                         'netAmount' => $netAmount,
@@ -328,6 +317,9 @@ class EditVacation extends EditRecord
         // Recalcular balance si cambian las fechas o empleado
         if (!empty($data['employee_id']) && !empty($data['start_date'])) {
             $employee = Employee::find($data['employee_id']);
+            if (!$employee instanceof Employee) {
+                return $data;
+            }
             $year = Carbon::parse($data['start_date'])->year;
             $balance = VacationService::getOrCreateBalance($employee, $year);
             $data['vacation_balance_id'] = $balance->id;

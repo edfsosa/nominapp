@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\Vacation;
+use App\Services\VacationService;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
@@ -164,7 +166,15 @@ class VacationsRelationManager extends RelationManager
                         'Se aprobarán ' . $record->days_description .
                             ' de vacaciones del ' . $record->period_formatted
                     )
-                    ->action(fn(Vacation $record) => $record->update(['status' => 'approved'])),
+                    ->action(function (Vacation $record) {
+                        VacationService::approve($record);
+
+                        Notification::make()
+                            ->title('Vacaciones aprobadas')
+                            ->body("Las vacaciones de {$record->employee->full_name} fueron aprobadas.")
+                            ->success()
+                            ->send();
+                    }),
 
                 Action::make('reject')
                     ->label('Rechazar')
@@ -174,7 +184,15 @@ class VacationsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar solicitud de vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas rechazar esta solicitud de vacaciones?')
-                    ->action(fn(Vacation $record) => $record->update(['status' => 'rejected'])),
+                    ->action(function (Vacation $record) {
+                        VacationService::reject($record);
+
+                        Notification::make()
+                            ->title('Vacaciones rechazadas')
+                            ->body("Las vacaciones de {$record->employee->full_name} fueron rechazadas.")
+                            ->warning()
+                            ->send();
+                    }),
 
                 EditAction::make()
                     ->modalHeading('Editar vacaciones')
@@ -183,7 +201,9 @@ class VacationsRelationManager extends RelationManager
 
                 DeleteAction::make()
                     ->modalHeading('Eliminar vacaciones')
-                    ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.'),
+                    ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.')
+                    ->before(fn(Vacation $record) => VacationService::releaseOnDelete($record))
+                    ->successNotificationTitle('Vacaciones eliminadas'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -194,7 +214,26 @@ class VacationsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar vacaciones')
                         ->modalDescription('Se aprobarán las vacaciones seleccionadas que estén en estado pendiente.')
-                        ->action(fn($records) => $records->each->update(['status' => 'approved'])),
+                        ->action(function ($records) {
+                            $approved = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending()) {
+                                    VacationService::approve($record);
+                                    $approved++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Vacaciones aprobadas')
+                                ->body("Se aprobaron {$approved} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
 
                     BulkAction::make('reject_selected')
                         ->label('Rechazar')
@@ -203,11 +242,31 @@ class VacationsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Rechazar vacaciones')
                         ->modalDescription('Se rechazarán las vacaciones seleccionadas que estén en estado pendiente.')
-                        ->action(fn($records) => $records->each->update(['status' => 'rejected'])),
+                        ->action(function ($records) {
+                            $rejected = 0;
+                            $skipped = 0;
+
+                            foreach ($records as $record) {
+                                if ($record->isPending()) {
+                                    VacationService::reject($record);
+                                    $rejected++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Vacaciones rechazadas')
+                                ->body("Se rechazaron {$rejected} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
 
                     DeleteBulkAction::make()
                         ->modalHeading('Eliminar vacaciones')
-                        ->modalDescription('¿Estás seguro de que deseas eliminar estas solicitudes? Esta acción no se puede deshacer.'),
+                        ->modalDescription('¿Estás seguro de que deseas eliminar estas solicitudes? Esta acción no se puede deshacer.')
+                        ->before(fn($records) => $records->each(fn($record) => VacationService::releaseOnDelete($record))),
                 ]),
             ])
             ->defaultSort('start_date', 'desc')

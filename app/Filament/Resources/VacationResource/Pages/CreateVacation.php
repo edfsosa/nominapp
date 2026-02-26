@@ -23,6 +23,9 @@ class CreateVacation extends CreateRecord
         // Asignar el balance correspondiente
         if (!empty($data['employee_id']) && !empty($data['start_date'])) {
             $employee = Employee::find($data['employee_id']);
+            if (!$employee instanceof Employee) {
+                return $data;
+            }
             $year = Carbon::parse($data['start_date'])->year;
             $balance = VacationService::getOrCreateBalance($employee, $year);
             $data['vacation_balance_id'] = $balance->id;

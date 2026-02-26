@@ -58,7 +58,7 @@ class VacationResource extends Resource
                         Select::make('employee_id')
                             ->label('Empleado')
                             ->relationship('employee', 'id', function ($query) {
-                                $query->where('status', 'active');
+                                $query->where('status', 'active')->orderBy('first_name');
                             })
                             ->searchable()
                             ->preload()
@@ -85,21 +85,27 @@ class VacationResource extends Resource
                                 }
 
                                 $employee = Employee::find($employeeId);
-                                if (!$employee) {
+                                if (!$employee instanceof Employee) {
                                     return 'Empleado no encontrado';
                                 }
 
                                 $yearsOfService = VacationService::getYearsOfService($employee);
-                                $balance = VacationService::getOrCreateBalance($employee, now()->year);
+                                $balance = VacationBalance::where('employee_id', $employee->id)
+                                    ->where('year', now()->year)
+                                    ->first();
 
                                 $antiquityColor = $yearsOfService < 1 ? 'text-danger-600' : 'text-success-600';
                                 $entitledLabel = VacationBalance::getEntitledDaysLabel($yearsOfService);
+                                $year = now()->year;
+                                $availableDays = $balance?->available_days ?? 0;
+                                $usedDays = $balance?->used_days ?? 0;
+                                $pendingDays = $balance?->pending_days ?? 0;
 
                                 return new HtmlString("
                                     <div class='space-y-1 text-sm'>
                                         <p><strong>Antigüedad:</strong> <span class='{$antiquityColor}'>{$employee->antiquity_description}</span></p>
-                                        <p><strong>Derecho {$balance->year}:</strong> {$entitledLabel}</p>
-                                        <p><strong>Disponibles:</strong> {$balance->available_days} días | <strong>Usados:</strong> {$balance->used_days} días | <strong>Pendientes:</strong> {$balance->pending_days} días</p>
+                                        <p><strong>Derecho {$year}:</strong> {$entitledLabel}</p>
+                                        <p><strong>Disponibles:</strong> {$availableDays} días | <strong>Usados:</strong> {$usedDays} días | <strong>Pendientes:</strong> {$pendingDays} días</p>
                                     </div>
                                 ");
                             })
@@ -141,7 +147,7 @@ class VacationResource extends Resource
                                 }
 
                                 $employee = Employee::find($employeeId);
-                                if (!$employee) {
+                                if (!$employee instanceof Employee) {
                                     return;
                                 }
 
@@ -167,9 +173,12 @@ class VacationResource extends Resource
                                     return 'Seleccione las fechas para calcular';
                                 }
 
-                                $employee = Employee::find($employeeId);
-                                $balance = $employee ? VacationService::getOrCreateBalance($employee, now()->year) : null;
-                                $available = $balance ? $balance->available_days : 0;
+                                $balance = $employeeId
+                                    ? VacationBalance::where('employee_id', $employeeId)
+                                        ->where('year', now()->year)
+                                        ->first()
+                                    : null;
+                                $available = $balance?->available_days ?? 0;
 
                                 $daysColor = $businessDays > $available ? 'text-danger-600' : 'text-success-600';
                                 $returnFormatted = $returnDate ? \Carbon\Carbon::parse($returnDate)->format('d/m/Y') : '-';
@@ -345,12 +354,7 @@ class VacationResource extends Resource
                         return "¿Aprobar vacaciones de {$record->employee->full_name}?\n\nPeríodo: {$record->start_date->format('d/m/Y')} al {$record->end_date->format('d/m/Y')}\nDías hábiles: {$days}\nFecha de reintegro: {$returnDate}";
                     })
                     ->action(function ($record) {
-                        // Actualizar balance
-                        if ($record->vacation_balance_id && $record->vacationBalance) {
-                            $record->vacationBalance->confirmDays($record->business_days ?? 0);
-                        }
-
-                        $record->update(['status' => 'approved']);
+                        VacationService::approve($record);
 
                         Notification::make()
                             ->title('Vacaciones aprobadas')
@@ -368,12 +372,7 @@ class VacationResource extends Resource
                     ->modalHeading('Rechazar Solicitud de Vacaciones')
                     ->modalDescription(fn($record) => "¿Está seguro de rechazar las vacaciones de {$record->employee->full_name}?")
                     ->action(function ($record) {
-                        // Liberar días pendientes del balance
-                        if ($record->vacation_balance_id && $record->vacationBalance) {
-                            $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
-                        }
-
-                        $record->update(['status' => 'rejected']);
+                        VacationService::reject($record);
 
                         Notification::make()
                             ->title('Vacaciones rechazadas')
@@ -399,10 +398,7 @@ class VacationResource extends Resource
 
                             foreach ($records as $record) {
                                 if ($record->isPending()) {
-                                    if ($record->vacation_balance_id && $record->vacationBalance) {
-                                        $record->vacationBalance->confirmDays($record->business_days ?? 0);
-                                    }
-                                    $record->update(['status' => 'approved']);
+                                    VacationService::approve($record);
                                     $approved++;
                                 } else {
                                     $skipped++;
@@ -430,10 +426,7 @@ class VacationResource extends Resource
 
                             foreach ($records as $record) {
                                 if ($record->isPending()) {
-                                    if ($record->vacation_balance_id && $record->vacationBalance) {
-                                        $record->vacationBalance->releasePendingDays($record->business_days ?? 0);
-                                    }
-                                    $record->update(['status' => 'rejected']);
+                                    VacationService::reject($record);
                                     $rejected++;
                                 } else {
                                     $skipped++;
@@ -464,7 +457,6 @@ class VacationResource extends Resource
                         ->icon('heroicon-o-arrow-down-tray'),
                 ]),
             ])
-            ->defaultSort('start_date', 'desc')
             ->emptyStateHeading('No hay solicitudes de vacaciones')
             ->emptyStateDescription('Las solicitudes de vacaciones aparecerán aquí una vez que sean creadas.')
             ->emptyStateIcon('heroicon-o-sun');

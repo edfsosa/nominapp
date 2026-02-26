@@ -9,6 +9,7 @@ use App\Models\VacationBalance;
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
+use Illuminate\Support\Facades\DB;
 
 class VacationService
 {
@@ -52,6 +53,50 @@ class VacationService
 
         $asOfDate = $asOfDate ?? Carbon::now();
         return $employee->hire_date->diffInYears($asOfDate);
+    }
+
+    /**
+     * Aprueba una solicitud de vacaciones y actualiza el balance en una transacción.
+     */
+    public static function approve(Vacation $vacation): void
+    {
+        DB::transaction(function () use ($vacation) {
+            if ($vacation->vacation_balance_id && $vacation->vacationBalance) {
+                $vacation->vacationBalance->confirmDays($vacation->business_days ?? 0);
+            }
+            $vacation->update(['status' => 'approved']);
+        });
+    }
+
+    /**
+     * Rechaza una solicitud de vacaciones y libera los días pendientes en una transacción.
+     */
+    public static function reject(Vacation $vacation): void
+    {
+        DB::transaction(function () use ($vacation) {
+            if ($vacation->vacation_balance_id && $vacation->vacationBalance) {
+                $vacation->vacationBalance->releasePendingDays($vacation->business_days ?? 0);
+            }
+            $vacation->update(['status' => 'rejected']);
+        });
+    }
+
+    /**
+     * Libera los días del balance al eliminar una vacación (pendiente o aprobada).
+     */
+    public static function releaseOnDelete(Vacation $vacation): void
+    {
+        DB::transaction(function () use ($vacation) {
+            if (!$vacation->vacation_balance_id || !$vacation->vacationBalance) {
+                return;
+            }
+
+            if ($vacation->isPending()) {
+                $vacation->vacationBalance->releasePendingDays($vacation->business_days ?? 0);
+            } elseif ($vacation->isApproved()) {
+                $vacation->vacationBalance->returnUsedDays($vacation->business_days ?? 0);
+            }
+        });
     }
 
     /**

@@ -264,7 +264,18 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Antiguedad:</div>
-                <div class="info-value">{{ $vacation->employee->antiquity_description ?? 'N/A' }}</div>
+                <div class="info-value">
+                    @php
+                        $hireDate = $vacation->employee->hire_date;
+                        $years = $hireDate ? (int) $hireDate->diffInYears(now()) : 0;
+                        $months = $hireDate ? (int) $hireDate->copy()->addYears($years)->diffInMonths(now()) : 0;
+                        $parts = [];
+                        if ($years > 0) $parts[] = $years . ' ' . ($years === 1 ? 'año' : 'años');
+                        if ($months > 0) $parts[] = $months . ' ' . ($months === 1 ? 'mes' : 'meses');
+                        $seniority = !empty($parts) ? implode(' y ', $parts) : 'Menos de 1 mes';
+                    @endphp
+                    {{ $seniority }}
+                </div>
             </div>
         </div>
     </div>
@@ -313,16 +324,6 @@
             </div>
         </div>
     </div>
-
-    {{-- Motivo --}}
-    @if ($vacation->reason)
-        <div class="reason-section">
-            <div class="section-title">Motivo de la Solicitud</div>
-            <div class="reason-box">
-                {{ $vacation->reason }}
-            </div>
-        </div>
-    @endif
 
     {{-- Nota Importante --}}
     <div class="note-section">
