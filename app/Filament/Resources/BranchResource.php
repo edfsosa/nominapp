@@ -48,8 +48,10 @@ class BranchResource extends Resource
                             ->schema([
                                 Select::make('company_id')
                                     ->label('Empresa')
-                                    ->relationship('company', 'name')
-                                    ->options(Company::active()->pluck('name', 'id'))
+                                    ->relationship('company', 'name', fn($query) => $query->active())
+                                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                                    )
                                     ->searchable()
                                     ->preload()
                                     ->required()
@@ -61,7 +63,13 @@ class BranchResource extends Resource
                                     ->placeholder('Ej: Sucursal Central, Sucursal Este...')
                                     ->required()
                                     ->maxLength(100)
-                                    ->unique(Branch::class, 'name', ignoreRecord: true)
+                                    ->unique(
+                                        table: Branch::class,
+                                        column: 'name',
+                                        ignoreRecord: true,
+                                        modifyRuleUsing: fn(\Illuminate\Validation\Rules\Unique $rule, \Filament\Forms\Get $get) =>
+                                            $rule->where('company_id', $get('company_id'))
+                                    )
                                     ->autocapitalize('words')
                                     ->columnSpanFull(),
 
@@ -150,6 +158,7 @@ class BranchResource extends Resource
             ->columns([
                 TextColumn::make('company.name')
                     ->label('Empresa')
+                    ->description(fn($record) => $record->company?->trade_name)
                     ->sortable()
                     ->searchable()
                     ->toggleable(),
@@ -181,9 +190,9 @@ class BranchResource extends Resource
                     ->copyMessage('Contacto copiado')
                     ->tooltip('Haz clic para copiar'),
 
-                TextColumn::make('employees_count')
-                    ->label('Empleados')
-                    ->counts('employees')
+                TextColumn::make('active_employees_count')
+                    ->label('Empleados Activos')
+                    ->counts('activeEmployees')
                     ->badge()
                     ->color('success')
                     ->sortable()
@@ -193,7 +202,10 @@ class BranchResource extends Resource
             ->filters([
                 SelectFilter::make('company_id')
                     ->label('Empresa')
-                    ->relationship('company', 'name')
+                    ->relationship('company', 'name', fn($query) => $query->active())
+                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                    )
                     ->searchable()
                     ->preload()
                     ->placeholder('Todas las empresas'),

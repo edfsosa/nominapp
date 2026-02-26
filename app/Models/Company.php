@@ -11,6 +11,10 @@ class Company extends Model
     protected $fillable = [
         'name',
         'trade_name',
+        'legal_type',
+        'founded_at',
+        'legal_rep_name',
+        'legal_rep_ci',
         'ruc',
         'employer_number',
         'logo',
@@ -22,7 +26,18 @@ class Company extends Model
     ];
 
     protected $casts = [
-        'is_active' => 'boolean',
+        'is_active'  => 'boolean',
+        'founded_at' => 'date',
+    ];
+
+    public static array $legalTypes = [
+        'SA'          => 'Sociedad Anónima (SA)',
+        'SRL'         => 'Sociedad de Resp. Limitada (SRL)',
+        'SACI'        => 'Sociedad Anónima de Cap. e Industria (SACI)',
+        'SC'          => 'Sociedad Colectiva (SC)',
+        'EU'          => 'Empresa Unipersonal',
+        'Cooperativa' => 'Cooperativa',
+        'Fundacion'   => 'Fundación',
     ];
 
     /**
@@ -47,6 +62,37 @@ class Company extends Model
     public function getDisplayNameAttribute(): string
     {
         return $this->trade_name ?? $this->name;
+    }
+
+    /**
+     * Label del tipo societario
+     */
+    public function getLegalTypeLabelAttribute(): ?string
+    {
+        return $this->legal_type ? (static::$legalTypes[$this->legal_type] ?? $this->legal_type) : null;
+    }
+
+    /**
+     * Contratos activos de todos los empleados de la empresa
+     */
+    public function activeContractsCount(): int
+    {
+        return Contract::whereIn(
+            'employee_id', $this->employees()->select('employees.id')
+        )->where('status', 'active')->count();
+    }
+
+    /**
+     * Contratos activos a plazo fijo que vencen dentro de X días
+     */
+    public function expiringSoonContractsCount(int $days = 30): int
+    {
+        return Contract::whereIn(
+            'employee_id', $this->employees()->select('employees.id')
+        )->where('status', 'active')
+         ->whereNotNull('end_date')
+         ->where('end_date', '<=', now()->addDays($days))
+         ->count();
     }
 
     /**

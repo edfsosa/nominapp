@@ -166,7 +166,9 @@ class AguinaldoResource extends Resource
             ->filters([
                 SelectFilter::make('company')
                     ->label('Empresa')
-                    ->options(Company::pluck('name', 'id'))
+                    ->options(Company::active()->get()->mapWithKeys(fn($c) =>
+                        [$c->id => $c->name . ($c->trade_name ? ' (' . $c->trade_name . ')' : '')]
+                    ))
                     ->query(function ($query, array $data) {
                         if (filled($data['value'])) {
                             return $query->whereHas('period', fn($q) => $q->where('company_id', $data['value']));

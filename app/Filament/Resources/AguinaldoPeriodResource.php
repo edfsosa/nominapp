@@ -48,7 +48,10 @@ class AguinaldoPeriodResource extends Resource
                     ->schema([
                         Select::make('company_id')
                             ->label('Empresa')
-                            ->options(Company::pluck('name', 'id'))
+                            ->relationship('company', 'name', fn($query) => $query->active())
+                            ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                                $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                            )
                             ->searchable()
                             ->preload()
                             ->required()
@@ -163,7 +166,10 @@ class AguinaldoPeriodResource extends Resource
             ->filters([
                 SelectFilter::make('company_id')
                     ->label('Empresa')
-                    ->options(Company::pluck('name', 'id'))
+                    ->relationship('company', 'name', fn($query) => $query->active())
+                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                    )
                     ->searchable()
                     ->preload()
                     ->native(false),

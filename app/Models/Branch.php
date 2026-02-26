@@ -37,4 +37,12 @@ class Branch extends Model
     {
         return $this->hasMany(Employee::class);
     }
+
+    /**
+     * Empleados activos de la sucursal
+     */
+    public function activeEmployees(): HasMany
+    {
+        return $this->hasMany(Employee::class)->where('status', 'active');
+    }
 }
