@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use Carbon\Carbon;
 use App\Models\Contract;
 use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -13,31 +14,96 @@ class ContractController extends Controller
      */
     public function show(Contract $contract)
     {
-        $contract->load(['employee.branch.company', 'position', 'department']);
+        $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
 
         $settings = app(GeneralSettings::class);
-        $company = $contract->employee?->company;
+        $company  = $contract->employee?->company;
 
-        $logoPath = $company?->logo ?? $settings->company_logo;
+        $logoPath    = $company?->logo ?? $settings->company_logo;
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
+        // Datos del horario del empleado
+        $schedule    = $contract->employee?->schedule;
+        $scheduleDays = $schedule ? $schedule->days : collect();
+
+        $weekdayDay  = $scheduleDays->filter(fn($d) => $d->day_of_week >= 1 && $d->day_of_week <= 5)->first();
+        $saturdayDay = $scheduleDays->firstWhere('day_of_week', 6);
+        $breakMinutes = $weekdayDay ? $weekdayDay->total_break_minutes : 0;
+
+        $shiftTypeLabel = match($schedule?->shift_type) {
+            'nocturno' => 'NOCTURNA',
+            'mixto'    => 'MIXTA',
+            default    => 'DIURNA',
+        };
+
+        $weeklyHours        = $settings->working_hours_per_week;
+        $weeklyHoursInWords = self::numberToWords($weeklyHours);
+
+        $employeeAge = $contract->employee?->birth_date
+            ? $contract->employee->birth_date->age
+            : null;
+
+        $yearInWords      = self::numberToWords($contract->start_date->year);
+        $trialDaysInWords = self::numberToWords((int) ($contract->trial_days ?? 0));
+
+        $durationDescription = $contract->end_date
+            ? self::getDurationDescription($contract->start_date, $contract->end_date)
+            : '';
+
         $pdf = Pdf::loadView('pdf.contract', [
-            'contract'       => $contract,
-            'companyLogo'    => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
-            'companyName'    => $company?->name ?? $settings->company_name,
-            'companyRuc'     => $company?->ruc ?? $settings->company_ruc ?? '',
-            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
-            'companyPhone'   => $company?->phone ?? $settings->company_phone ?? '',
-            'companyEmail'   => $company?->email ?? $settings->company_email ?? '',
-            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
-            'city'           => $company?->city ?? $settings->company_city ?? '',
-            'salaryInWords'  => self::numberToWords((int) $contract->salary) . ' guaranies',
-            'salaryTypeLabel' => $contract->salary_type === 'jornal' ? 'jornal diario' : 'salario mensual',
+            'contract'           => $contract,
+            'companyLogo'        => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
+            'companyName'        => $company?->name ?? $settings->company_name,
+            'companyRuc'         => $company?->ruc ?? $settings->company_ruc ?? '',
+            'companyAddress'     => $company?->address ?? $settings->company_address ?? '',
+            'companyPhone'       => $company?->phone ?? $settings->company_phone ?? '',
+            'companyEmail'       => $company?->email ?? $settings->company_email ?? '',
+            'employerNumber'     => $company?->employer_number ?? $settings->company_employer_number ?? '',
+            'city'               => $company?->city ?? $settings->company_city ?? '',
+            'salaryInWords'      => self::numberToWords((int) $contract->salary) . ' guaranies',
+            'weekdayDay'         => $weekdayDay,
+            'saturdayDay'        => $saturdayDay,
+            'breakMinutes'       => $breakMinutes,
+            'shiftTypeLabel'     => $shiftTypeLabel,
+            'weeklyHours'        => $weeklyHours,
+            'weeklyHoursInWords' => $weeklyHoursInWords,
+            'employeeAge'        => $employeeAge,
+            'yearInWords'        => $yearInWords,
+            'durationDescription' => $durationDescription,
+            'trialDaysInWords'   => $trialDaysInWords,
         ])->setPaper('a4', 'portrait');
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
 
         return $pdf->stream("contrato_{$employeeCi}_{$contract->start_date->format('Y_m_d')}.pdf");
+    }
+
+    /**
+     * Calcula la duración entre dos fechas expresada en palabras.
+     * Ejemplo: "seis (6) meses" o "un (1) año y tres (3) meses"
+     */
+    private static function getDurationDescription(Carbon $start, Carbon $end): string
+    {
+        $diff = $start->diff($end);
+
+        $parts = [];
+
+        if ($diff->y > 0) {
+            $word   = self::numberToWords($diff->y);
+            $parts[] = $word . ' (' . $diff->y . ') ' . ($diff->y === 1 ? 'año' : 'años');
+        }
+
+        if ($diff->m > 0) {
+            $word   = self::numberToWords($diff->m);
+            $parts[] = $word . ' (' . $diff->m . ') ' . ($diff->m === 1 ? 'mes' : 'meses');
+        }
+
+        if ($diff->d > 0 && $diff->y === 0) {
+            $word   = self::numberToWords($diff->d);
+            $parts[] = $word . ' (' . $diff->d . ') ' . ($diff->d === 1 ? 'día' : 'días');
+        }
+
+        return implode(' y ', $parts) ?: '......';
     }
 
     /**
@@ -49,9 +115,9 @@ class ContractController extends Controller
             return 'cero';
         }
 
-        $units = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
-        $teens = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciseis', 'diecisiete', 'dieciocho', 'diecinueve'];
-        $tens = ['', 'diez', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
+        $units    = ['', 'un', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve'];
+        $teens    = ['diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciseis', 'diecisiete', 'dieciocho', 'diecinueve'];
+        $tens     = ['', 'diez', 'veinte', 'treinta', 'cuarenta', 'cincuenta', 'sesenta', 'setenta', 'ochenta', 'noventa'];
         $hundreds = ['', 'ciento', 'doscientos', 'trescientos', 'cuatrocientos', 'quinientos', 'seiscientos', 'setecientos', 'ochocientos', 'novecientos'];
 
         $result = '';
