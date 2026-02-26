@@ -310,7 +310,7 @@
         <tbody>
             <tr>
                 <td class="text-left">Aporte IPS (Obrero)</td>
-                <td>{{ number_format($ipsRate * 100, 0) }}%</td>
+                <td>{{ number_format($ipsRate, 0) }}%</td>
                 <td class="amount">Gs. {{ number_format($ipsDeduction, 0, ',', '.') }}</td>
             </tr>
             <tr class="total-row">

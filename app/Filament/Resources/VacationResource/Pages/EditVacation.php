@@ -263,7 +263,7 @@ class EditVacation extends EditRecord
                 $subTotal = $dailySalary * $days;
                 $totalSalary = $subTotal;
                 $ipsRate = app(\App\Settings\PayrollSettings::class)->ips_employee_rate;
-                $ipsDeduction = round($totalSalary * $ipsRate);
+                $ipsDeduction = round($totalSalary * ($ipsRate / 100));
                 $totalDeductions = $ipsDeduction;
                 $netAmount = $totalSalary - $totalDeductions;
 
