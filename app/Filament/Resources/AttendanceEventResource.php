@@ -17,8 +17,10 @@ use Filament\Tables\Actions\BulkActionGroup;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\AttendanceEventResource\Pages;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
 class AttendanceEventResource extends Resource
@@ -30,12 +32,7 @@ class AttendanceEventResource extends Resource
     protected static ?string $slug = 'marcaciones';
     protected static ?string $navigationIcon = 'heroicon-o-finger-print';
     protected static ?string $navigationGroup = 'Asistencias';
-    protected static ?int $navigationSort = 2;
-
-    public static function getEloquentQuery(): Builder
-    {
-        return parent::getEloquentQuery();
-    }
+    protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
     {
@@ -45,9 +42,17 @@ class AttendanceEventResource extends Resource
                     ->label('Tipo de Evento')
                     ->options(AttendanceEvent::getEventTypeOptions())
                     ->native(false)
+                    ->required(),
+
+                DateTimePicker::make('recorded_at')
+                    ->label('Fecha y hora de marcación')
                     ->required()
-                    ->columnSpanFull(),
-            ]);
+                    ->native(false)
+                    ->seconds(false)
+                    ->displayFormat('d/m/Y H:i')
+                    ->helperText('Modificar solo para corregir errores de registro'),
+            ])
+            ->columns(2);
     }
 
     public static function table(Table $table): Table
@@ -116,7 +121,7 @@ class AttendanceEventResource extends Resource
                     ->url(fn($record) => $record->google_maps_url)
                     ->openUrlInNewTab()
                     ->placeholder('Sin ubicación')
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('recorded_at', 'desc')
             ->filters([
@@ -196,25 +201,25 @@ class AttendanceEventResource extends Resource
                         return $indicators;
                     }),
 
-                Filter::make('today')
-                    ->label('Solo hoy')
-                    ->query(fn(Builder $query) => $query->whereDate('recorded_at', now()))
-                    ->toggle(),
             ])
             ->actions([
                 ViewAction::make()
+                    ->tooltip('Ver detalle de ubicación y hora')
                     ->modalHeading('Detalle de Marcación')
+                    ->form([])
                     ->modalContent(fn($record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
                         'record' => $record,
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
-                
+
                 EditAction::make()
+                    ->tooltip('Corregir tipo de evento o fecha/hora')
                     ->modalHeading('Editar Marcación')
                     ->successNotificationTitle('Marcación actualizada exitosamente'),
 
                 DeleteAction::make()
+                    ->tooltip('Eliminar esta marcación')
                     ->modalHeading('Eliminar Marcación')
                     ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
                     ->successNotificationTitle('Marcación eliminada exitosamente'),
@@ -222,6 +227,10 @@ class AttendanceEventResource extends Resource
             ->bulkActions([
                 BulkActionGroup::make([
                     ExportBulkAction::make()
+                        ->label('Exportar a Excel')
+                        ->color('info')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->tooltip('Exportar las marcaciones seleccionadas a Excel')
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()
@@ -230,10 +239,7 @@ class AttendanceEventResource extends Resource
                                     'updated_at',
                                 ])
                                 ->withFilename('marcaciones_' . now()->format('d_m_Y_H_i_s')),
-                        ])
-                        ->label('Exportar a Excel')
-                        ->color('info')
-                        ->icon('heroicon-o-arrow-down-tray'),
+                        ]),
                 ]),
             ])
             ->emptyStateHeading('No hay marcaciones registradas')
@@ -241,6 +247,21 @@ class AttendanceEventResource extends Resource
             ->emptyStateIcon('heroicon-o-finger-print')
             ->paginated([10, 25, 50, 100])
             ->defaultPaginationPageOption(10);
+    }
+
+    public static function getExcelExportAction(): ExportAction
+    {
+        return ExportAction::make('export_excel')
+            ->label('Exportar a Excel')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('info')
+            ->tooltip('Exportar marcaciones visibles respetando filtros y tab activo')
+            ->exports([
+                ExcelExport::make()
+                    ->fromTable()
+                    ->except(['created_at', 'updated_at'])
+                    ->withFilename(fn() => 'marcaciones_' . now()->format('d_m_Y_H_i_s')),
+            ]);
     }
 
     public static function getPages(): array

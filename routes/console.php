@@ -43,3 +43,18 @@ Schedule::command('attendance:check-missing')
     ->onFailure(function () {
         Log::error('Falló la verificación de ausencias');
     });
+
+/**
+ * Expirar enrollments faciales vencidos
+ * Se ejecuta cada hora para marcar como 'expired' los registros
+ * en estado pending_capture cuyo expires_at ya pasó
+ */
+Schedule::command('face:expire-enrollments')
+    ->hourly()
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Expiración automática de enrollments faciales completada');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la expiración automática de enrollments faciales');
+    });

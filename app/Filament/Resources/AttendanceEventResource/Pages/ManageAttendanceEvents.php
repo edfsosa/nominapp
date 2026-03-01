@@ -3,12 +3,12 @@
 namespace App\Filament\Resources\AttendanceEventResource\Pages;
 
 use Filament\Actions\Action;
-use App\Models\AttendanceEvent;
 use Illuminate\Support\Facades\DB;
 use Filament\Resources\Components\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\Pages\ManageRecords;
 use App\Filament\Resources\AttendanceEventResource;
+use Filament\Actions\CreateAction;
 
 class ManageAttendanceEvents extends ManageRecords
 {
@@ -22,7 +22,14 @@ class ManageAttendanceEvents extends ManageRecords
                 ->icon('heroicon-o-arrow-path')
                 ->color('gray')
                 ->action(fn() => $this->dispatch('$refresh'))
-                ->tooltip('Actualizar marcaciones'),
+                ->tooltip('Actualizar listado de marcaciones'),
+
+            CreateAction::make()
+                ->label('Nueva Marcación')
+                ->icon('heroicon-o-plus')
+                ->tooltip('Registrar marcación manual'),
+
+            AttendanceEventResource::getExcelExportAction(),
         ];
     }
 

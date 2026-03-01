@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AttendanceDayResource\Pages;
 
+use App\Filament\Widgets\AttendanceDayStatsWidget;
 use Filament\Resources\Components\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use App\Filament\Resources\AttendanceDayResource;
@@ -11,6 +12,13 @@ use Filament\Resources\Pages\ListRecords;
 class ListAttendanceDays extends ListRecords
 {
     protected static string $resource = AttendanceDayResource::class;
+
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            AttendanceDayStatsWidget::class,
+        ];
+    }
 
     /**
      * Define las acciones del encabezado de la página
@@ -22,6 +30,8 @@ class ListAttendanceDays extends ListRecords
         return [
             AttendanceDayResource::getCalculateTodayAction(),
             AttendanceDayResource::getCalculateRangeAction(),
+            AttendanceDayResource::getApproveOvertimeRangeAction(),
+            AttendanceDayResource::getExcelExportAction(),
         ];
     }
 
