@@ -25,8 +25,19 @@ return new class extends Migration
             );
         }
 
-        Schema::table('branches', function (Blueprint $table) {
-            $table->dropForeignIfExists(['company_id']);
+        $hasFk = count(DB::select("
+            SELECT CONSTRAINT_NAME
+            FROM information_schema.TABLE_CONSTRAINTS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = 'branches'
+              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
+              AND CONSTRAINT_NAME = 'branches_company_id_foreign'
+        ")) > 0;
+
+        Schema::table('branches', function (Blueprint $table) use ($hasFk) {
+            if ($hasFk) {
+                $table->dropForeign(['company_id']);
+            }
             $table->foreignId('company_id')->nullable(false)->change();
             $table->foreign('company_id')->references('id')->on('companies')->restrictOnDelete();
         });
