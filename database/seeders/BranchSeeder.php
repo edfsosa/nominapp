@@ -13,9 +13,11 @@ class BranchSeeder extends Seeder
     public function run(): void
     {
         $now = now();
+        $companyId = DB::table('companies')->value('id');
 
         $branches = [
             [
+                'company_id' => $companyId,
                 'name' => 'Sucursal Central',
                 'phone' => '(021) 555-1000',
                 'email' => 'central@empresa.com',
@@ -26,6 +28,7 @@ class BranchSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
+                'company_id' => $companyId,
                 'name' => 'Sucursal Este',
                 'phone' => '(021) 555-2000',
                 'email' => 'este@empresa.com',
@@ -36,6 +39,7 @@ class BranchSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
+                'company_id' => $companyId,
                 'name' => 'Sucursal Norte',
                 'phone' => '(021) 555-3000',
                 'email' => 'norte@empresa.com',
@@ -46,6 +50,7 @@ class BranchSeeder extends Seeder
                 'updated_at' => $now,
             ],
             [
+                'company_id' => $companyId,
                 'name' => 'Sucursal Sur',
                 'phone' => '(021) 555-4000',
                 'email' => 'sur@empresa.com',

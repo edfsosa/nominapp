@@ -11,7 +11,7 @@ class CompanySeeder extends Seeder
     {
         $now = now();
 
-        $companyId = DB::table('companies')->insertGetId([
+        DB::table('companies')->insert([
             'name'            => 'Empresa Demo S.A.',
             'trade_name'      => 'Empresa Demo',
             'ruc'             => '80012345-6',
@@ -23,11 +23,6 @@ class CompanySeeder extends Seeder
             'is_active'       => true,
             'created_at'      => $now,
             'updated_at'      => $now,
-        ]);
-
-        // Asociar todas las sucursales a esta empresa
-        DB::table('branches')->whereNull('company_id')->update([
-            'company_id' => $companyId,
         ]);
     }
 }

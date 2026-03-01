@@ -20,10 +20,10 @@ class DatabaseSeeder extends Seeder
 
         $this->call([
             // Estructura organizacional
+            CompanySeeder::class,
             ScheduleSeeder::class,
             DepartmentSeeder::class,
             BranchSeeder::class,
-            CompanySeeder::class,
 
             // Catálogos de nómina (antes de Employee: el observer asigna deducciones obligatorias)
             DeductionSeeder::class,
