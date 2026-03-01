@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -16,7 +17,7 @@ return new class extends Migration
     public function up(): void
     {
         // Verificar que no quedan sucursales sin empresa
-        $orphans = \DB::table('branches')->whereNull('company_id')->count();
+        $orphans = DB::table('branches')->whereNull('company_id')->count();
         if ($orphans > 0) {
             throw new \RuntimeException(
                 "No se puede ejecutar esta migración: existen {$orphans} sucursal(es) sin empresa asignada. " .
@@ -25,7 +26,7 @@ return new class extends Migration
         }
 
         Schema::table('branches', function (Blueprint $table) {
-            $table->dropForeign(['company_id']);
+            $table->dropForeignIfExists(['company_id']);
             $table->foreignId('company_id')->nullable(false)->change();
             $table->foreign('company_id')->references('id')->on('companies')->restrictOnDelete();
         });
