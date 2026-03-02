@@ -22,9 +22,23 @@ return new class extends Migration
             ->whereNotNull('employees.payroll_type')
             ->update(['contracts.payroll_type' => DB::raw('employees.payroll_type')]);
 
-        // 3. Eliminar columnas que ahora viven en contracts
+        // 3. Eliminar columnas que ahora viven en contracts.
+        //    Se verifica si la FK existe antes de intentar eliminarla, ya que
+        //    el nombre puede diferir entre entornos o puede no haberse creado.
         Schema::table('employees', function (Blueprint $table) {
-            $table->dropForeign(['position_id']);
+            $foreignKeyExists = collect(DB::select("
+                SELECT CONSTRAINT_NAME
+                FROM information_schema.KEY_COLUMN_USAGE
+                WHERE TABLE_SCHEMA = DATABASE()
+                  AND TABLE_NAME = 'employees'
+                  AND COLUMN_NAME = 'position_id'
+                  AND REFERENCED_TABLE_NAME IS NOT NULL
+            "))->isNotEmpty();
+
+            if ($foreignKeyExists) {
+                $table->dropForeign(['position_id']);
+            }
+
             $table->dropColumn([
                 'position_id',
                 'base_salary',
