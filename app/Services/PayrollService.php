@@ -48,12 +48,11 @@ class PayrollService
         $count = 0;
 
         $employees = Employee::query()
-            ->where('payroll_type', $period->frequency)
             ->where('status', 'active')
-            ->where(function ($query) {
-                $query->whereNotNull('base_salary')
-                    ->orWhereNotNull('daily_rate');
-            })
+            ->whereHas('activeContract', fn ($q) =>
+                $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
+            )
+            ->with('activeContract')
             ->get();
 
         foreach ($employees as $employee) {
@@ -180,7 +179,7 @@ class PayrollService
             );
         }
 
-        $employee = $payroll->employee;
+        $employee = $payroll->employee->load('activeContract');
         $period = $payroll->period;
 
         DB::beginTransaction();

@@ -10,16 +10,6 @@ use Illuminate\Support\Facades\DB;
 
 class Contract extends Model
 {
-    protected static function booted(): void
-    {
-        // Sincronizar automáticamente al empleado cuando se guarda un contrato activo
-        static::saved(function (Contract $contract) {
-            if ($contract->status === 'active') {
-                $contract->syncToEmployee();
-            }
-        });
-    }
-
     protected $fillable = [
         'employee_id',
         'type',
@@ -28,6 +18,7 @@ class Contract extends Model
         'trial_days',
         'salary_type',
         'salary',
+        'payroll_type',
         'position_id',
         'department_id',
         'work_modality',
@@ -377,6 +368,7 @@ class Contract extends Model
                 'type'          => $forceIndefinido ? 'indefinido' : $this->type,
                 'salary_type'   => $this->salary_type,
                 'salary'        => $this->salary,
+                'payroll_type'  => $this->payroll_type,
                 'position_id'   => $this->position_id,
                 'department_id' => $this->department_id,
                 'work_modality' => $this->work_modality,
@@ -408,32 +400,6 @@ class Contract extends Model
 
         // El contrato actual también cuenta como renovación al renovarse
         return $previousRenewals >= 1;
-    }
-
-    /**
-     * Sincroniza el salario, cargo y tipo de empleo del contrato al empleado (Fase 1)
-     */
-    public function syncToEmployee(): void
-    {
-        $employmentType = match ($this->salary_type) {
-            'jornal'  => 'day_laborer',
-            default   => 'full_time',
-        };
-
-        $updateData = [
-            'position_id'     => $this->position_id,
-            'employment_type' => $employmentType,
-        ];
-
-        if ($this->salary_type === 'mensual') {
-            $updateData['base_salary'] = $this->salary;
-        } else {
-            // Jornalero: base_salary se deja null, se usa daily_rate
-            $updateData['base_salary'] = null;
-            $updateData['daily_rate'] = $this->salary;
-        }
-
-        $this->employee->update($updateData);
     }
 
     // ───────────────────────────────────────────

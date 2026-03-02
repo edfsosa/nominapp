@@ -151,6 +151,14 @@ class ContractResource extends Resource
                             ->live()
                             ->helperText('Art. 231 CLT: Forma de remuneración del trabajador'),
 
+                        Select::make('payroll_type')
+                            ->label('Tipo de Nómina')
+                            ->options(\App\Models\Employee::getPayrollTypeOptions())
+                            ->native(false)
+                            ->default('monthly')
+                            ->required()
+                            ->helperText('Define la frecuencia de pago del empleado'),
+
                         TextInput::make('salary')
                             ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                             ->numeric()

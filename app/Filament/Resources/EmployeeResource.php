@@ -146,7 +146,7 @@ class EmployeeResource extends Resource
                     ->icon('heroicon-o-briefcase')
                     ->collapsible()
                     ->schema([
-                        Grid::make(5)
+                        Grid::make(2)
                             ->schema([
                                 DatePicker::make('hire_date')
                                     ->label('Fecha de contratación')
@@ -157,77 +157,22 @@ class EmployeeResource extends Resource
                                     ->default(now())
                                     ->required(),
 
-                                Select::make('payroll_type')
-                                    ->label('Tipo de nómina')
-                                    ->options(Employee::getPayrollTypeOptions())
-                                    ->native(false)
-                                    ->default('monthly')
-                                    ->required(),
-
                                 Select::make('payment_method')
                                     ->label('Método de pago')
                                     ->options(Employee::getPaymentMethodOptions())
                                     ->native(false)
                                     ->default('debit')
                                     ->required(),
-
-                                Select::make('employment_type')
-                                    ->label('Tipo de empleo')
-                                    ->options(Employee::getEmploymentTypeOptions())
-                                    ->native(false)
-                                    ->live()
-                                    ->default('full_time')
-                                    ->required()
-                                    ->afterStateUpdated(function ($state, Forms\Set $set) {
-                                        // Limpiar campos según el tipo
-                                        if ($state === 'full_time') {
-                                            $set('daily_rate', null);
-                                        } else {
-                                            $set('base_salary', null);
-                                        }
-                                    }),
-
-                                TextInput::make('base_salary')
-                                    ->label('Salario base mensual')
-                                    ->placeholder('0')
-                                    ->integer()
-                                    ->minValue(0)
-                                    ->maxValue(999999999999)
-                                    ->step(1)
-                                    ->prefix('Gs.')
-                                    ->required(fn(Get $get) => $get('employment_type') === 'full_time')
-                                    ->visible(fn(Get $get) => $get('employment_type') === 'full_time')
-                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'full_time'),
-
-                                TextInput::make('daily_rate')
-                                    ->label('Tarifa diaria')
-                                    ->placeholder('0')
-                                    ->integer()
-                                    ->minValue(0)
-                                    ->maxValue(999999999999)
-                                    ->step(1)
-                                    ->prefix('Gs.')
-                                    ->required(fn(Get $get) => $get('employment_type') === 'day_laborer')
-                                    ->visible(fn(Get $get) => $get('employment_type') === 'day_laborer')
-                                    ->dehydrated(fn(Get $get) => $get('employment_type') === 'day_laborer'),
                             ]),
                     ]),
 
                 Section::make('Asignaciones')
-                    ->description('Cargo, sucursal y horario del empleado')
+                    ->description('Sucursal y horario del empleado')
                     ->icon('heroicon-o-building-office')
                     ->collapsible()
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(2)
                             ->schema([
-                                Select::make('position_id')
-                                    ->label('Cargo')
-                                    ->options(Position::getOptionsWithDepartment())
-                                    ->searchable()
-                                    ->preload()
-                                    ->native(false)
-                                    ->required(),
-
                                 Select::make('branch_id')
                                     ->label('Sucursal')
                                     ->relationship('branch', 'name')
@@ -427,7 +372,13 @@ class EmployeeResource extends Resource
                     ->options(Employee::getEmploymentTypeOptions())
                     ->placeholder('Todos los tipos')
                     ->native(false)
-                    ->multiple(),
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (blank($data['value'])) {
+                            return $query;
+                        }
+                        $salaryType = $data['value'] === 'day_laborer' ? 'jornal' : 'mensual';
+                        return $query->whereHas('activeContract', fn ($q) => $q->where('salary_type', $salaryType));
+                    }),
 
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
@@ -440,19 +391,28 @@ class EmployeeResource extends Resource
 
                 SelectFilter::make('position_id')
                     ->label('Cargo')
-                    ->relationship('position', 'name')
+                    ->options(fn () => \App\Models\Position::getOptionsWithDepartment())
                     ->placeholder('Todos los cargos')
                     ->searchable()
-                    ->preload()
                     ->native(false)
-                    ->multiple(),
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (blank($data['value'])) {
+                            return $query;
+                        }
+                        return $query->whereHas('activeContract', fn ($q) => $q->where('position_id', $data['value']));
+                    }),
 
                 SelectFilter::make('payroll_type')
                     ->label('Tipo de nómina')
                     ->options(Employee::getPayrollTypeOptions())
                     ->placeholder('Todos los tipos')
                     ->native(false)
-                    ->multiple(),
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (blank($data['value'])) {
+                            return $query;
+                        }
+                        return $query->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $data['value']));
+                    }),
 
                 SelectFilter::make('payment_method')
                     ->label('Método de pago')

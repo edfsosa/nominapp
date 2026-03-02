@@ -85,7 +85,7 @@ class LoanResource extends Resource
                                     ->where('status', 'active')
                                     ->when(
                                         $get('type') === 'advance',
-                                        fn($q) => $q->whereNotNull('base_salary')->where('base_salary', '>', 0)
+                                        fn($q) => $q->whereHas('activeContract', fn ($c) => $c->whereNotNull('salary')->where('salary', '>', 0))
                                     )
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),

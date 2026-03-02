@@ -23,12 +23,7 @@ class Employee extends Model
         'phone',
         'email',
         'hire_date',
-        'payroll_type',
-        'employment_type',
-        'base_salary',
-        'daily_rate',
         'payment_method',
-        'position_id',
         'branch_id',
         'schedule_id',
         'status',
@@ -36,19 +31,46 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'birth_date'   => 'date',
-        'hire_date'     => 'date',
-        'base_salary'   => 'decimal:2',
-        'daily_rate'   => 'decimal:2',
+        'birth_date'      => 'date',
+        'hire_date'       => 'date',
         'face_descriptor' => 'array',
     ];
 
-    /**
-     * Relación con el modelo Position, un empleado pertenece a una posición
-     */
-    public function position()
+    // ───────────────────────────────────────────
+    // Accessors delegados al contrato activo
+    // ───────────────────────────────────────────
+
+    public function getPositionIdAttribute(): ?int
     {
-        return $this->belongsTo(Position::class);
+        return $this->activeContract?->position_id;
+    }
+
+    public function getPositionAttribute()
+    {
+        return $this->activeContract?->position;
+    }
+
+    public function getBaseSalaryAttribute(): ?float
+    {
+        $c = $this->activeContract;
+        return ($c && $c->salary_type === 'mensual') ? (float) $c->salary : null;
+    }
+
+    public function getDailyRateAttribute(): ?float
+    {
+        $c = $this->activeContract;
+        return ($c && $c->salary_type === 'jornal') ? (float) $c->salary : null;
+    }
+
+    public function getPayrollTypeAttribute(): ?string
+    {
+        return $this->activeContract?->payroll_type;
+    }
+
+    public function getEmploymentTypeAttribute(): ?string
+    {
+        $st = $this->activeContract?->salary_type;
+        return $st ? ($st === 'jornal' ? 'day_laborer' : 'full_time') : null;
     }
 
     /**
@@ -260,8 +282,9 @@ class Employee extends Model
 
     public function scopeWithPayrollTypeAndSalary($query, string $type)
     {
-        return $query->where('payroll_type', $type)
-            ->whereNotNull('base_salary');
+        return $query->whereHas('activeContract', fn ($q) =>
+            $q->where('payroll_type', $type)->whereNotNull('salary')
+        );
     }
 
     /**
@@ -741,27 +764,6 @@ class Employee extends Model
         if (isset($data['phone'])) {
             $cleaned = str_replace([' ', '-', '+595'], '', $data['phone']);
             $data['phone'] = ltrim($cleaned, '0') ?: null;
-        }
-
-        // Asegurar que solo se guarde el campo correcto según el tipo de empleo
-        if (isset($data['employment_type'])) {
-            if ($data['employment_type'] === 'full_time') {
-                // Si es tiempo completo, asegurar que daily_rate sea null
-                $data['daily_rate'] = null;
-
-                // Limpiar y validar base_salary
-                if (isset($data['base_salary'])) {
-                    $data['base_salary'] = (float) $data['base_salary'] ?: null;
-                }
-            } else {
-                // Si es jornalero, asegurar que base_salary sea null
-                $data['base_salary'] = null;
-
-                // Limpiar y validar daily_rate
-                if (isset($data['daily_rate'])) {
-                    $data['daily_rate'] = (float) $data['daily_rate'] ?: null;
-                }
-            }
         }
 
         // Si es creación, asegurar que face_descriptor sea null
