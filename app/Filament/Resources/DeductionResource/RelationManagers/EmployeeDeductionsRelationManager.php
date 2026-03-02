@@ -92,7 +92,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('employee.first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query->with('employee.position'))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with('employee.activeContract.position'))
             ->defaultSort('start_date', 'desc')
             ->columns([
                 ImageColumn::make('employee.photo')
@@ -114,7 +114,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->badge()
                     ->color('gray'),
 
-                TextColumn::make('employee.position.name')
+                TextColumn::make('employee.activeContract.position.name')
                     ->label('Cargo')
                     ->default('-')
                     ->badge()

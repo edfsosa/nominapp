@@ -319,14 +319,14 @@ class EmployeeLeaveResource extends Resource
                             ->copyable()
                             ->columnSpan(1),
 
-                        TextEntry::make('employee.position.department.name')
+                        TextEntry::make('employee.activeContract.position.department.name')
                             ->label('Departamento')
                             ->icon('heroicon-o-building-office')
                             ->badge()
                             ->color('info')
                             ->columnSpan(1),
 
-                        TextEntry::make('employee.position.name')
+                        TextEntry::make('employee.activeContract.position.name')
                             ->label('Puesto')
                             ->icon('heroicon-o-briefcase')
                             ->badge()

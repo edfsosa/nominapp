@@ -18,7 +18,7 @@ class LiquidacionPDFGenerator
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
         $pdf = Pdf::loadView('pdf.liquidacion', [
-            'liquidacion' => $liquidacion->load(['employee.position.department', 'items']),
+            'liquidacion' => $liquidacion->load(['employee.activeContract.position.department', 'items']),
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
             'companyName' => $company?->name ?? $settings->company_name,
             'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',

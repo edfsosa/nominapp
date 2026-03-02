@@ -392,12 +392,12 @@ class LiquidacionResource extends Resource
                                 ->copyable(),
                         ])->columns(2),
                         Group::make([
-                            TextEntry::make('employee.position.name')
+                            TextEntry::make('employee.activeContract.position.name')
                                 ->label('Cargo')
                                 ->badge()
                                 ->color('info')
                                 ->default('N/A'),
-                            TextEntry::make('employee.position.department.name')
+                            TextEntry::make('employee.activeContract.position.department.name')
                                 ->label('Departamento')
                                 ->badge()
                                 ->color('primary')

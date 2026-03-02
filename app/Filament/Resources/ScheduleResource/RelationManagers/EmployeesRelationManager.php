@@ -101,7 +101,7 @@ class EmployeesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['position', 'branch']))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['activeContract.position', 'branch']))
             ->defaultSort('first_name')
             ->columns([
                 ImageColumn::make('photo')
@@ -123,7 +123,7 @@ class EmployeesRelationManager extends RelationManager
                     ->badge()
                     ->color('gray'),
 
-                TextColumn::make('position.name')
+                TextColumn::make('activeContract.position.name')
                     ->label('Cargo')
                     ->default('-')
                     ->badge()

@@ -255,13 +255,13 @@ class AguinaldoResource extends Resource
                         ])->columns(2),
 
                         Group::make([
-                            TextEntry::make('employee.position.name')
+                            TextEntry::make('employee.activeContract.position.name')
                                 ->label('Cargo')
                                 ->icon('heroicon-o-briefcase')
                                 ->badge()
                                 ->color('info'),
 
-                            TextEntry::make('employee.position.department.name')
+                            TextEntry::make('employee.activeContract.position.department.name')
                                 ->label('Departamento')
                                 ->icon('heroicon-o-building-office-2')
                                 ->badge()

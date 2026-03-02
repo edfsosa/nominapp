@@ -13,7 +13,7 @@ class LoanController extends Controller
      */
     public function show(Loan $loan)
     {
-        $loan->load(['employee.position.department', 'employee.branch.company', 'grantedBy', 'installments']);
+        $loan->load(['employee.activeContract.position.department', 'employee.branch.company', 'grantedBy', 'installments']);
 
         $settings = app(GeneralSettings::class);
 

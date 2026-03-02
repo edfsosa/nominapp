@@ -43,7 +43,7 @@ class PayrollsRelationManager extends RelationManager
     {
         return $table
             ->recordTitle(fn(Payroll $record): string => "Recibo de {$record->employee->full_name}")
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.position', 'approvedBy']))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.activeContract.position', 'approvedBy']))
             ->columns([
                 TextColumn::make('employee.ci')
                     ->label('CI')
@@ -59,12 +59,11 @@ class PayrollsRelationManager extends RelationManager
                     ->sortable()
                     ->wrap(),
 
-                TextColumn::make('employee.position.name')
+                TextColumn::make('employee.activeContract.position.name')
                     ->label('Cargo')
                     ->badge()
                     ->color('info')
-                    ->toggleable()
-                    ->sortable(),
+                    ->toggleable(),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -606,13 +605,13 @@ class PayrollsRelationManager extends RelationManager
                         ])->columns(2),
 
                         Group::make([
-                            TextEntry::make('employee.position.name')
+                            TextEntry::make('employee.activeContract.position.name')
                                 ->label('Cargo')
                                 ->icon('heroicon-o-briefcase')
                                 ->badge()
                                 ->color('info'),
 
-                            TextEntry::make('employee.position.department.name')
+                            TextEntry::make('employee.activeContract.position.department.name')
                                 ->label('Departamento')
                                 ->icon('heroicon-o-building-office-2')
                                 ->badge()

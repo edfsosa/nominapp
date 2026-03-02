@@ -13,7 +13,7 @@ class AttendanceExportController extends Controller
         // Cargar relaciones necesarias
         $attendanceDay->load([
             'employee.branch.company',
-            'employee.position.department',
+            'employee.activeContract.position.department',
             'events'
         ]);
 

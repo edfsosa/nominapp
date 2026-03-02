@@ -36,4 +36,19 @@ class CreateEmployee extends CreateRecord
             ->duration(5000)
             ->send();
     }
+
+    /**
+     * Muestra un aviso persistente si el empleado fue creado sin contrato.
+     */
+    protected function afterCreate(): void
+    {
+        if ($this->record->contracts()->doesntExist()) {
+            Notification::make()
+                ->warning()
+                ->title('Contrato pendiente')
+                ->body('El empleado fue creado sin contrato. Recordá crearlo desde la pestaña "Contratos" para que aparezca el cargo y salario.')
+                ->persistent()
+                ->send();
+        }
+    }
 }

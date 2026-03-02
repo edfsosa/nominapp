@@ -36,7 +36,7 @@ class PayrollController extends Controller
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
         return view('pdf.payroll', [
-            'payroll' => $payroll->load(['employee.position.department', 'items']),
+            'payroll' => $payroll->load(['employee.activeContract.position.department', 'items']),
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
             'companyName' => $company?->name ?? $settings->company_name,
             'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',

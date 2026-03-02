@@ -92,7 +92,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('employee.first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query->with('employee.position'))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with('employee.activeContract.position'))
             ->defaultSort('start_date', 'desc')
             ->columns([
                 ImageColumn::make('employee.photo')
@@ -120,11 +120,9 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->tooltip('Haz clic para copiar')
                     ->copyMessage('Cédula copiada'),
 
-                TextColumn::make('employee.position.name')
+                TextColumn::make('employee.activeContract.position.name')
                     ->label('Cargo')
                     ->icon('heroicon-o-briefcase')
-                    ->sortable()
-                    ->searchable()
                     ->badge()
                     ->color('primary')
                     ->default('-'),

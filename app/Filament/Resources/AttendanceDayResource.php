@@ -209,7 +209,7 @@ class AttendanceDayResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.branch', 'employee.position.department']))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.branch', 'employee.activeContract.position.department']))
             ->columns([
                 TextColumn::make('date')
                     ->label('Fecha')
@@ -244,14 +244,12 @@ class AttendanceDayResource extends Resource
                     ->sortable()
                     ->toggleable(),
 
-                TextColumn::make('employee.position.name')
+                TextColumn::make('employee.activeContract.position.name')
                     ->label('Cargo')
-                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('employee.position.department.name')
+                TextColumn::make('employee.activeContract.position.department.name')
                     ->label('Departamento')
-                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
@@ -1196,11 +1194,11 @@ class AttendanceDayResource extends Resource
                             ->badge()
                             ->color('info'),
 
-                        TextEntry::make('employee.position.name')
+                        TextEntry::make('employee.activeContract.position.name')
                             ->label('Cargo')
                             ->icon('heroicon-o-briefcase'),
 
-                        TextEntry::make('employee.position.department.name')
+                        TextEntry::make('employee.activeContract.position.department.name')
                             ->label('Departamento')
                             ->icon('heroicon-o-building-office-2')
                             ->default('N/A'),

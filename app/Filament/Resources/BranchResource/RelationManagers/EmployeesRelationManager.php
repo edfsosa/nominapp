@@ -36,11 +36,10 @@ class EmployeesRelationManager extends RelationManager
                     ->sortable()
                     ->weight('medium'),
 
-                TextColumn::make('position.name')
+                TextColumn::make('activeContract.position.name')
                     ->label('Cargo')
                     ->description(fn(Employee $record) => $record->position?->department?->name)
-                    ->sortable()
-                    ->searchable(),
+                    ->default('-'),
 
                 TextColumn::make('phone')
                     ->label('Teléfono')

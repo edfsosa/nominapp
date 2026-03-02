@@ -2,11 +2,8 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Forms;
-use Filament\Forms\Get;
 use App\Models\Employee;
 use App\Models\FaceEnrollment;
-use App\Models\Position;
 use App\Settings\GeneralSettings;
 use Filament\Forms\Form;
 use Filament\Tables\Table;
@@ -262,7 +259,7 @@ class EmployeeResource extends Resource
                     ->tooltip('Haz clic para copiar')
                     ->copyMessage('Cédula copiada'),
 
-                TextColumn::make('position.name')
+                TextColumn::make('activeContract.position.name')
                     ->label('Cargo')
                     ->icon('heroicon-o-briefcase')
                     ->sortable()
@@ -270,7 +267,8 @@ class EmployeeResource extends Resource
                     ->toggleable()
                     ->wrap()
                     ->badge()
-                    ->color('primary'),
+                    ->color('primary')
+                    ->default('Sin contrato'),
 
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
@@ -284,12 +282,31 @@ class EmployeeResource extends Resource
 
                 TextColumn::make('employment_type')
                     ->label('Tipo')
-                    ->icon(fn(Employee $record): string => $record->employment_type_icon)
-                    ->color(fn(Employee $record): string => $record->employment_type_color)
-                    ->formatStateUsing(fn(Employee $record): string => $record->employment_type_label)
+                    ->icon(fn(Employee $record): string => $record->employment_type_icon ?? 'heroicon-o-question-mark-circle')
+                    ->color(fn(Employee $record): string => $record->employment_type_color ?? 'gray')
+                    ->formatStateUsing(fn(Employee $record): string => $record->employment_type_label ?? 'Sin contrato')
                     ->badge()
-                    ->sortable()
-                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('activeContract.salary')
+                    ->label('Salario')
+                    ->icon('heroicon-o-banknotes')
+                    ->formatStateUsing(
+                        fn($state, Employee $record): string =>
+                        $state
+                            ? 'Gs. ' . number_format((int) $state, 0, ',', '.') . ($record->activeContract?->salary_type === 'jornal' ? '/día' : '/mes')
+                            : 'Sin contrato'
+                    )
+                    ->badge()
+                    ->color('success')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('activeContract.payroll_type')
+                    ->label('Nómina')
+                    ->icon('heroicon-o-calendar')
+                    ->formatStateUsing(fn($state): string => \App\Models\Employee::getPayrollTypeOptions()[$state] ?? 'Sin contrato')
+                    ->badge()
+                    ->color('info')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('contact')
@@ -377,7 +394,7 @@ class EmployeeResource extends Resource
                             return $query;
                         }
                         $salaryType = $data['value'] === 'day_laborer' ? 'jornal' : 'mensual';
-                        return $query->whereHas('activeContract', fn ($q) => $q->where('salary_type', $salaryType));
+                        return $query->whereHas('activeContract', fn($q) => $q->where('salary_type', $salaryType));
                     }),
 
                 SelectFilter::make('branch_id')
@@ -391,7 +408,7 @@ class EmployeeResource extends Resource
 
                 SelectFilter::make('position_id')
                     ->label('Cargo')
-                    ->options(fn () => \App\Models\Position::getOptionsWithDepartment())
+                    ->options(fn() => \App\Models\Position::getOptionsWithDepartment())
                     ->placeholder('Todos los cargos')
                     ->searchable()
                     ->native(false)
@@ -399,7 +416,7 @@ class EmployeeResource extends Resource
                         if (blank($data['value'])) {
                             return $query;
                         }
-                        return $query->whereHas('activeContract', fn ($q) => $q->where('position_id', $data['value']));
+                        return $query->whereHas('activeContract', fn($q) => $q->where('position_id', $data['value']));
                     }),
 
                 SelectFilter::make('payroll_type')
@@ -411,7 +428,7 @@ class EmployeeResource extends Resource
                         if (blank($data['value'])) {
                             return $query;
                         }
-                        return $query->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $data['value']));
+                        return $query->whereHas('activeContract', fn($q) => $q->where('payroll_type', $data['value']));
                     }),
 
                 SelectFilter::make('payment_method')

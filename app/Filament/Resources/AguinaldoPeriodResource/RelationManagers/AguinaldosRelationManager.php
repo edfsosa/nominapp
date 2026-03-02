@@ -33,7 +33,7 @@ class AguinaldosRelationManager extends RelationManager
     {
         return $table
             ->recordTitle(fn(Aguinaldo $record): string => "Aguinaldo de {$record->employee->full_name}")
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.position']))
+            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.activeContract.position']))
             ->columns([
                 TextColumn::make('employee.ci')
                     ->label('CI')
@@ -49,12 +49,11 @@ class AguinaldosRelationManager extends RelationManager
                     ->sortable()
                     ->wrap(),
 
-                TextColumn::make('employee.position.name')
+                TextColumn::make('employee.activeContract.position.name')
                     ->label('Cargo')
                     ->badge()
                     ->color('info')
-                    ->toggleable()
-                    ->sortable(),
+                    ->toggleable(),
 
                 TextColumn::make('months_worked')
                     ->label('Meses')
@@ -189,13 +188,13 @@ class AguinaldosRelationManager extends RelationManager
                         ])->columns(2),
 
                         Group::make([
-                            TextEntry::make('employee.position.name')
+                            TextEntry::make('employee.activeContract.position.name')
                                 ->label('Cargo')
                                 ->icon('heroicon-o-briefcase')
                                 ->badge()
                                 ->color('info'),
 
-                            TextEntry::make('employee.position.department.name')
+                            TextEntry::make('employee.activeContract.position.department.name')
                                 ->label('Departamento')
                                 ->icon('heroicon-o-building-office-2')
                                 ->badge()

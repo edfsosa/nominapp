@@ -58,27 +58,6 @@ class EditEmployee extends EditRecord
     }
 
     /**
-     * Modifica los datos del formulario antes de mostrarlos.
-     *
-     * @param array $data
-     * @return array
-     */
-    protected function mutateFormDataBeforeFill(array $data): array
-    {
-        // Al cargar el formulario, asegurar que se muestre el campo correcto
-        // según el tipo de empleo actual
-        if (isset($data['employment_type'])) {
-            if ($data['employment_type'] === 'full_time') {
-                $data['daily_rate'] = null;
-            } else {
-                $data['base_salary'] = null;
-            }
-        }
-
-        return $data;
-    }
-
-    /**
      * Personaliza la notificación que se muestra después de guardar.
      *
      * @return Notification
