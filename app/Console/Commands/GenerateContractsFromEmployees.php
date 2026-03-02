@@ -3,8 +3,8 @@
 namespace App\Console\Commands;
 
 use App\Models\Contract;
-use App\Models\Employee;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\DB;
 
 class GenerateContractsFromEmployees extends Command
 {
@@ -22,15 +22,34 @@ class GenerateContractsFromEmployees extends Command
             $this->newLine();
         }
 
-        $employees = Employee::where('status', 'active')
-            ->whereDoesntHave('contracts')
-            ->with('position.department')
+        // Leer directamente de la tabla para no depender de los accessors del modelo,
+        // ya que estos empleados aún no tienen contrato activo.
+        $employees = DB::table('employees')
+            ->where('employees.status', 'active')
+            ->whereNotExists(fn ($q) =>
+                $q->from('contracts')->whereColumn('contracts.employee_id', 'employees.id')
+            )
+            ->leftJoin('positions', 'employees.position_id', '=', 'positions.id')
+            ->select(
+                'employees.id',
+                'employees.first_name',
+                'employees.last_name',
+                'employees.hire_date',
+                'employees.employment_type',
+                'employees.base_salary',
+                'employees.daily_rate',
+                'employees.payroll_type',
+                'employees.position_id',
+                'positions.department_id',
+            )
             ->get();
 
         if ($employees->isEmpty()) {
             $this->info('Todos los empleados activos ya tienen al menos un contrato. Nada que hacer.');
             return self::SUCCESS;
         }
+
+        $fullName = fn ($e) => trim($e->first_name . ' ' . $e->last_name);
 
         $this->info("Empleados activos sin contrato encontrados: {$employees->count()}");
         $this->newLine();
@@ -40,30 +59,28 @@ class GenerateContractsFromEmployees extends Command
 
         foreach ($employees as $employee) {
             if (! $employee->position_id) {
-                $skipped[] = [$employee->full_name, 'Sin cargo asignado (position_id nulo)'];
+                $skipped[] = [$fullName($employee), 'Sin cargo asignado (position_id nulo)'];
                 continue;
             }
 
-            $departmentId = $employee->position?->department_id;
-
-            if (! $departmentId) {
-                $skipped[] = [$employee->full_name, "Cargo sin departamento (position_id: {$employee->position_id})"];
+            if (! $employee->department_id) {
+                $skipped[] = [$fullName($employee), "Cargo sin departamento (position_id: {$employee->position_id})"];
                 continue;
             }
 
             $isDayLaborer = $employee->employment_type === 'day_laborer';
-            $salary = $isDayLaborer ? $employee->daily_rate : $employee->base_salary;
+            $salary       = $isDayLaborer ? $employee->daily_rate : $employee->base_salary;
 
             if (! $salary || $salary <= 0) {
-                $skipped[] = [$employee->full_name, 'Sin salario definido (base_salary y daily_rate son nulos)'];
+                $skipped[] = [$fullName($employee), 'Sin salario definido (base_salary y daily_rate son nulos)'];
                 continue;
             }
 
-            $salaryType   = $isDayLaborer ? 'jornal' : 'mensual';
-            $payrollType  = $employee->payroll_type ?? 'monthly';
-            $salaryLabel  = number_format((int) $salary, 0, ',', '.');
+            $salaryType  = $isDayLaborer ? 'jornal' : 'mensual';
+            $payrollType = $employee->payroll_type ?? 'monthly';
+            $salaryLabel = number_format((int) $salary, 0, ',', '.');
 
-            $this->line("  → {$employee->full_name}: {$salaryType}, Gs. {$salaryLabel}/".($isDayLaborer ? 'día' : 'mes').", nómina: {$payrollType}");
+            $this->line("  → {$fullName($employee)}: {$salaryType}, Gs. {$salaryLabel}/".($isDayLaborer ? 'día' : 'mes').", nómina: {$payrollType}");
 
             if (! $dryRun) {
                 Contract::create([
@@ -74,7 +91,7 @@ class GenerateContractsFromEmployees extends Command
                     'salary'        => (int) $salary,
                     'payroll_type'  => $payrollType,
                     'position_id'   => $employee->position_id,
-                    'department_id' => $departmentId,
+                    'department_id' => $employee->department_id,
                     'work_modality' => 'presencial',
                     'status'        => 'active',
                 ]);
