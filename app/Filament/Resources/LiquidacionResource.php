@@ -44,6 +44,22 @@ class LiquidacionResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-document-minus';
     protected static ?int $navigationSort = 8;
 
+    public static function getNavigationBadge(): ?string
+    {
+        $count = Liquidacion::whereIn('status', ['draft', 'calculated'])->count();
+        return $count > 0 ? (string) $count : null;
+    }
+
+    public static function getNavigationBadgeColor(): ?string
+    {
+        return 'warning';
+    }
+
+    public static function getNavigationBadgeTooltip(): ?string
+    {
+        return 'Liquidaciones pendientes de cerrar';
+    }
+
     public static function form(Form $form): Form
     {
         return $form
@@ -214,27 +230,22 @@ class LiquidacionResource extends Resource
                     ->label('Haberes')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->toggleable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->color('success'),
 
                 TextColumn::make('total_deductions')
                     ->label('Descuentos')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->toggleable()
+                    ->toggleable(isToggledHiddenByDefault: true)
                     ->color('danger'),
 
                 TextColumn::make('net_amount')
                     ->label('Neto a Pagar')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->weight('bold')
-                    ->color('success')
-                    ->summarize([
-                        Sum::make()
-                            ->money('PYG', locale: 'es_PY')
-                            ->label('Total'),
-                    ]),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->color('success'),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -347,7 +358,7 @@ class LiquidacionResource extends Resource
                     ->visible(fn(Liquidacion $record) => $record->pdf_path !== null),
 
                 EditAction::make()
-                    ->visible(fn(Liquidacion $record) => $record->isDraft()),
+                    ->visible(fn(Liquidacion $record) => !$record->isClosed()),
 
                 DeleteAction::make()
                     ->visible(fn(Liquidacion $record) => $record->isDraft()),

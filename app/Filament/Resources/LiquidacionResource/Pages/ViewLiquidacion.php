@@ -4,6 +4,7 @@ namespace App\Filament\Resources\LiquidacionResource\Pages;
 
 use App\Filament\Resources\LiquidacionResource;
 use App\Models\Liquidacion;
+use App\Services\LiquidacionPDFGenerator;
 use App\Services\LiquidacionService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -71,6 +72,24 @@ class ViewLiquidacion extends ViewRecord
                 })
                 ->visible(fn() => $this->record->isCalculated()),
 
+            Action::make('regenerate_pdf')
+                ->label('Regenerar PDF')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->action(function (LiquidacionPDFGenerator $generator) {
+                    $pdfPath = $generator->generate($this->record);
+                    $this->record->update(['pdf_path' => $pdfPath]);
+
+                    Notification::make()
+                        ->success()
+                        ->title('PDF regenerado')
+                        ->body('El PDF fue actualizado con los datos actuales.')
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                })
+                ->visible(fn() => $this->record->pdf_path === null && !$this->record->isDraft()),
+
             Action::make('download_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -80,7 +99,7 @@ class ViewLiquidacion extends ViewRecord
                 ->visible(fn() => $this->record->pdf_path !== null),
 
             EditAction::make()
-                ->visible(fn() => $this->record->isDraft()),
+                ->visible(fn() => !$this->record->isClosed()),
         ];
     }
 }

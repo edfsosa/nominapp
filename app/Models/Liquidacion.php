@@ -153,4 +153,17 @@ class Liquidacion extends Model
     {
         return self::formatCurrency($this->total_deductions);
     }
+
+    public function recalculateTotals(): void
+    {
+        $totalHaberes = (float) $this->items()->where('type', 'haber')->sum('amount');
+        $totalDeductions = (float) $this->items()->where('type', 'deduction')->sum('amount');
+
+        $this->update([
+            'total_haberes'    => $totalHaberes,
+            'total_deductions' => $totalDeductions,
+            'net_amount'       => $totalHaberes - $totalDeductions,
+            'pdf_path'         => null,
+        ]);
+    }
 }
