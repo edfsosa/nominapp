@@ -16,11 +16,29 @@ class CreateLiquidacion extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $exists = Liquidacion::where('employee_id', $data['employee_id'])
+        $activeLiquidacion = Liquidacion::where('employee_id', $data['employee_id'])
+            ->whereIn('status', ['draft', 'calculated'])
+            ->first();
+
+        if ($activeLiquidacion) {
+            $statusLabel = $activeLiquidacion->isDraft() ? 'borrador' : 'calculada';
+
+            Notification::make()
+                ->danger()
+                ->title('Liquidación activa existente')
+                ->body("Este empleado ya tiene una liquidación en estado {$statusLabel}. Debe cerrarla o eliminarla antes de crear una nueva.")
+                ->send();
+
+            throw ValidationException::withMessages([
+                'employee_id' => "Este empleado ya tiene una liquidación en estado {$statusLabel}.",
+            ]);
+        }
+
+        $duplicateDate = Liquidacion::where('employee_id', $data['employee_id'])
             ->whereDate('termination_date', $data['termination_date'])
             ->exists();
 
-        if ($exists) {
+        if ($duplicateDate) {
             Notification::make()
                 ->danger()
                 ->title('Liquidación duplicada')
