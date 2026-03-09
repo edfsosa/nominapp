@@ -49,6 +49,38 @@ class ViewLiquidacion extends ViewRecord
                 })
                 ->visible(fn() => $this->record->isDraft()),
 
+            Action::make('recalculate')
+                ->label('Recalcular')
+                ->icon('heroicon-o-arrow-path')
+                ->color('warning')
+                ->requiresConfirmation()
+                ->modalHeading('Recalcular Liquidación')
+                ->modalDescription(
+                    fn() => "¿Recalcular la liquidación de {$this->record->employee->full_name}? " .
+                        "Se eliminarán todos los conceptos actuales y se recalculará desde cero. " .
+                        "Los cambios manuales en los items se perderán."
+                )
+                ->action(function (LiquidacionService $service) {
+                    try {
+                        $service->calculate($this->record);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Liquidación recalculada')
+                            ->body("Neto a pagar: {$this->record->fresh()->formatted_net_amount}")
+                            ->send();
+
+                        $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                    } catch (\Throwable $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error al recalcular')
+                            ->body($e->getMessage())
+                            ->send();
+                    }
+                })
+                ->visible(fn() => $this->record->isCalculated()),
+
             Action::make('close')
                 ->label('Cerrar y Desactivar Empleado')
                 ->icon('heroicon-o-lock-closed')

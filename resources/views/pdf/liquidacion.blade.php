@@ -254,40 +254,24 @@
         <div class="section-title">Datos del Empleado</div>
         <div class="info-grid">
             <div class="info-row">
-                <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $liquidacion->employee?->full_name }}</div>
+                <div class="info-label">Nombre:</div>
+                <div class="info-value" style="text-transform: uppercase;">{{ $liquidacion->employee?->full_name }}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">Cedula de Identidad:</div>
+                <div class="info-label">Cédula:</div>
                 <div class="info-value">{{ $liquidacion->employee?->ci }}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $liquidacion->employee?->position?->name ?? 'N/A' }}</div>
+                <div class="info-label">Puesto:</div>
+                <div class="info-value">{{ $liquidacion->employee?->activeContract?->position?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $liquidacion->employee?->position?->department?->name ?? 'N/A' }}</div>
+                <div class="info-label">Período trabajado:</div>
+                <div class="info-value">Del {{ $liquidacion->hire_date->format('d/m/Y') }} al {{ $liquidacion->termination_date->format('d/m/Y') }}</div>
             </div>
             <div class="info-row">
-                <div class="info-label">Fecha de Ingreso:</div>
-                <div class="info-value">{{ $liquidacion->hire_date->format('d/m/Y') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Fecha de Egreso:</div>
-                <div class="info-value">{{ $liquidacion->termination_date->format('d/m/Y') }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Antiguedad:</div>
-                <div class="info-value">{{ $liquidacion->years_of_service }} año(s), {{ $liquidacion->months_of_service % 12 }} mes(es)</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Tipo de Desvinculacion:</div>
+                <div class="info-label">Tipo de desvinculación:</div>
                 <div class="info-value">{{ \App\Models\Liquidacion::getTerminationTypeLabel($liquidacion->termination_type) }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Salario Base:</div>
-                <div class="info-value">{{ \App\Models\Liquidacion::formatCurrency($liquidacion->base_salary) }}</div>
             </div>
             @if ($liquidacion->termination_reason)
                 <div class="info-row">
@@ -295,6 +279,10 @@
                     <div class="info-value">{{ $liquidacion->termination_reason }}</div>
                 </div>
             @endif
+            <div class="info-row">
+                <div class="info-label">Salario Base:</div>
+                <div class="info-value">{{ \App\Models\Liquidacion::formatCurrency($liquidacion->base_salary) }}</div>
+            </div>
         </div>
     </div>
 

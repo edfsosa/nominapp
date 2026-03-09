@@ -326,6 +326,37 @@ class LiquidacionResource extends Resource
                     })
                     ->visible(fn(Liquidacion $record) => $record->isDraft()),
 
+                Action::make('recalculate')
+                    ->label('Recalcular')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Recalcular Liquidación')
+                    ->modalDescription(
+                        fn(Liquidacion $record) =>
+                        "¿Recalcular la liquidación de {$record->employee->full_name}? " .
+                            "Se eliminarán los conceptos actuales y se recalculará desde cero. " .
+                            "Los cambios manuales en los items se perderán."
+                    )
+                    ->action(function (Liquidacion $record, LiquidacionService $service) {
+                        try {
+                            $service->calculate($record);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Liquidación recalculada')
+                                ->body("Neto a pagar: {$record->fresh()->formatted_net_amount}")
+                                ->send();
+                        } catch (\Throwable $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Error al recalcular')
+                                ->body($e->getMessage())
+                                ->send();
+                        }
+                    })
+                    ->visible(fn(Liquidacion $record) => $record->isCalculated()),
+
                 Action::make('close')
                     ->label('Cerrar')
                     ->icon('heroicon-o-lock-closed')

@@ -69,21 +69,23 @@ class LiquidacionService
             $indemnizacionAmount = 0;
             if (Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
                 $indemnizacionAmount = $this->calculateIndemnizacion($yearsOfService, $monthsOfService, $averageSalary6m);
-                $totalHaberes += $indemnizacionAmount;
+                if ($indemnizacionAmount > 0) {
+                    $totalHaberes += $indemnizacionAmount;
 
-                $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
-                $items[] = [
-                    'type' => 'haber',
-                    'category' => 'indemnizacion',
-                    'description' => "Indemnización: {$daysPerYear} días/año x {$yearsOfService} años (+ fracción)",
-                    'amount' => $indemnizacionAmount,
-                    'metadata' => [
-                        'years' => $yearsOfService,
-                        'months_fraction' => $monthsOfService % 12,
-                        'average_salary_6m' => $averageSalary6m,
-                        'daily_avg' => round($averageSalary6m / 30, 2),
-                    ],
-                ];
+                    $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
+                    $items[] = [
+                        'type' => 'haber',
+                        'category' => 'indemnizacion',
+                        'description' => "Indemnización: {$daysPerYear} días/año x {$yearsOfService} años (+ fracción)",
+                        'amount' => $indemnizacionAmount,
+                        'metadata' => [
+                            'years' => $yearsOfService,
+                            'months_fraction' => $monthsOfService % 12,
+                            'average_salary_6m' => $averageSalary6m,
+                            'daily_avg' => round($averageSalary6m / 30, 2),
+                        ],
+                    ];
+                }
             }
 
             // ===== COMPONENTE 3: VACACIONES PROPORCIONALES =====

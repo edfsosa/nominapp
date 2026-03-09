@@ -51,10 +51,20 @@ class CreateLiquidacion extends CreateRecord
         }
 
         $employee = Employee::find($data['employee_id']);
+        $contract = $employee->activeContract;
+        $salary = (float) ($contract?->salary ?? 0);
 
-        $data['hire_date'] = $employee->hire_date;
-        $data['base_salary'] = $employee->base_salary;
-        $data['daily_salary'] = round($employee->base_salary / 30, 2);
+        if ($contract?->salary_type === 'jornal') {
+            $dailySalary = $salary;
+            $baseSalary  = round($salary * 30, 2);
+        } else {
+            $baseSalary  = $salary;
+            $dailySalary = $salary > 0 ? round($salary / 30, 2) : 0;
+        }
+
+        $data['hire_date']    = $employee->hire_date;
+        $data['base_salary']  = $baseSalary;
+        $data['daily_salary'] = $dailySalary;
         $data['created_by_id'] = Auth::id();
         $data['status'] = 'draft';
 
