@@ -29,23 +29,8 @@ class ViewLiquidacion extends ViewRecord
                         "Tipo: " . Liquidacion::getTerminationTypeLabel($this->record->termination_type)
                 )
                 ->action(function (LiquidacionService $service) {
-                    try {
-                        $service->calculate($this->record);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Liquidación calculada')
-                            ->body("Neto a pagar: {$this->record->fresh()->formatted_net_amount}")
-                            ->send();
-
-                        $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->danger()
-                            ->title('Error al calcular')
-                            ->body($e->getMessage())
-                            ->send();
-                    }
+                    LiquidacionResource::performCalculation($this->record, $service, 'Liquidación calculada');
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->isDraft()),
 
@@ -61,23 +46,8 @@ class ViewLiquidacion extends ViewRecord
                         "Los cambios manuales en los items se perderán."
                 )
                 ->action(function (LiquidacionService $service) {
-                    try {
-                        $service->calculate($this->record);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Liquidación recalculada')
-                            ->body("Neto a pagar: {$this->record->fresh()->formatted_net_amount}")
-                            ->send();
-
-                        $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
-                    } catch (\Throwable $e) {
-                        Notification::make()
-                            ->danger()
-                            ->title('Error al recalcular')
-                            ->body($e->getMessage())
-                            ->send();
-                    }
+                    LiquidacionResource::performCalculation($this->record, $service, 'Liquidación recalculada');
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->isCalculated()),
 
@@ -92,21 +62,14 @@ class ViewLiquidacion extends ViewRecord
                         "El empleado será marcado como INACTIVO y los préstamos pendientes serán cancelados."
                 )
                 ->action(function (LiquidacionService $service) {
-                    $service->close($this->record);
-
-                    Notification::make()
-                        ->success()
-                        ->title('Liquidación cerrada')
-                        ->body("El empleado {$this->record->employee->full_name} ha sido desactivado.")
-                        ->send();
-
+                    LiquidacionResource::performClose($this->record, $service);
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->isCalculated()),
 
             Action::make('regenerate_pdf')
                 ->label('Regenerar PDF')
-                ->icon('heroicon-o-arrow-path')
+                ->icon('heroicon-o-document-arrow-down')
                 ->color('warning')
                 ->action(function (LiquidacionPDFGenerator $generator) {
                     $pdfPath = $generator->generate($this->record);

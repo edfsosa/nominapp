@@ -138,31 +138,6 @@ class EmployeeResource extends Resource
                             ]),
                     ]),
 
-                Section::make('Información Laboral')
-                    ->description('Datos del empleo y contratación')
-                    ->icon('heroicon-o-briefcase')
-                    ->collapsible()
-                    ->schema([
-                        Grid::make(2)
-                            ->schema([
-                                DatePicker::make('hire_date')
-                                    ->label('Fecha de contratación')
-                                    ->native(false)
-                                    ->displayFormat('d/m/Y')
-                                    ->minDate(now()->subYears(30))
-                                    ->maxDate(now()->addYears(1))
-                                    ->default(now())
-                                    ->required(),
-
-                                Select::make('payment_method')
-                                    ->label('Método de pago')
-                                    ->options(Employee::getPaymentMethodOptions())
-                                    ->native(false)
-                                    ->default('debit')
-                                    ->required(),
-                            ]),
-                    ]),
-
                 Section::make('Asignaciones')
                     ->description('Sucursal y horario del empleado')
                     ->icon('heroicon-o-building-office')
@@ -341,7 +316,6 @@ class EmployeeResource extends Resource
                     ->label('Antigüedad')
                     ->date('d/m/Y')
                     ->description(fn(Employee $record): string => $record->antiquity_description)
-                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('birth_date')
@@ -367,8 +341,6 @@ class EmployeeResource extends Resource
                     ->color(fn(Employee $record): string => $record->payment_method_color)
                     ->formatStateUsing(fn(Employee $record): string => $record->payment_method_label)
                     ->badge()
-                    ->sortable()
-                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('created_at_description')
@@ -436,7 +408,13 @@ class EmployeeResource extends Resource
                     ->options(Employee::getPaymentMethodOptions())
                     ->placeholder('Todos los métodos')
                     ->native(false)
-                    ->multiple(),
+                    ->multiple()
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (blank($data['values'])) {
+                            return $query;
+                        }
+                        return $query->whereHas('activeContract', fn($q) => $q->whereIn('payment_method', $data['values']));
+                    }),
 
                 Filter::make('hire_date')
                     ->label('Fecha de contratación')
@@ -455,11 +433,11 @@ class EmployeeResource extends Resource
                         return $query
                             ->when(
                                 $data['hired_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('hire_date', '>=', $date),
+                                fn(Builder $query, $date): Builder => $query->whereHas('activeContract', fn($q) => $q->whereDate('start_date', '>=', $date)),
                             )
                             ->when(
                                 $data['hired_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('hire_date', '<=', $date),
+                                fn(Builder $query, $date): Builder => $query->whereHas('activeContract', fn($q) => $q->whereDate('start_date', '<=', $date)),
                             );
                     }),
 

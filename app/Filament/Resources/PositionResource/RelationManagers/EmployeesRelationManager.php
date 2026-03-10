@@ -77,7 +77,6 @@ class EmployeesRelationManager extends RelationManager
                 TextColumn::make('hire_date')
                     ->label('Fecha de Ingreso')
                     ->date('d/m/Y')
-                    ->sortable()
                     ->toggleable(),
             ])
             ->filters([

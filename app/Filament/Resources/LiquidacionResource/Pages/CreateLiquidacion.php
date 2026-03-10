@@ -34,39 +34,49 @@ class CreateLiquidacion extends CreateRecord
             ]);
         }
 
-        $duplicateDate = Liquidacion::where('employee_id', $data['employee_id'])
-            ->whereDate('termination_date', $data['termination_date'])
-            ->exists();
+        $employee = Employee::find($data['employee_id']);
+        $contract = $employee->activeContract;
 
-        if ($duplicateDate) {
+        if (!$contract) {
             Notification::make()
                 ->danger()
-                ->title('Liquidación duplicada')
-                ->body('Ya existe una liquidación para este empleado con la misma fecha de egreso.')
+                ->title('Sin contrato activo')
+                ->body('Este empleado no tiene un contrato activo. No se puede crear una liquidación.')
                 ->send();
 
             throw ValidationException::withMessages([
-                'termination_date' => 'Ya existe una liquidación para este empleado con esa fecha de egreso.',
+                'employee_id' => 'Este empleado no tiene un contrato activo.',
             ]);
         }
 
-        $employee = Employee::find($data['employee_id']);
-        $contract = $employee->activeContract;
-        $salary = (float) ($contract?->salary ?? 0);
+        $salary = (float) ($contract->salary ?? 0);
 
-        if ($contract?->salary_type === 'jornal') {
+        if ($salary <= 0) {
+            Notification::make()
+                ->danger()
+                ->title('Salario inválido')
+                ->body('El contrato activo del empleado tiene un salario de 0. No se puede crear una liquidación.')
+                ->send();
+
+            throw ValidationException::withMessages([
+                'employee_id' => 'El contrato activo del empleado tiene un salario de 0.',
+            ]);
+        }
+
+        if ($contract->salary_type === 'jornal') {
             $dailySalary = $salary;
             $baseSalary  = round($salary * 30, 2);
         } else {
             $baseSalary  = $salary;
-            $dailySalary = $salary > 0 ? round($salary / 30, 2) : 0;
+            $dailySalary = round($salary / 30, 2);
         }
 
-        $data['hire_date']    = $employee->hire_date;
-        $data['base_salary']  = $baseSalary;
-        $data['daily_salary'] = $dailySalary;
+        $data['hire_date']     = $contract->start_date;
+        $data['base_salary']   = $baseSalary;
+        $data['daily_salary']  = $dailySalary;
+        $data['salary_type']   = $contract->salary_type;
         $data['created_by_id'] = Auth::id();
-        $data['status'] = 'draft';
+        $data['status']        = 'draft';
 
         return $data;
     }

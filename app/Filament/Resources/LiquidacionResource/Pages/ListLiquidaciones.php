@@ -16,6 +16,7 @@ class ListLiquidaciones extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            LiquidacionResource::getExcelExportAction(),
             CreateAction::make()
                 ->label('Nueva Liquidación')
                 ->icon('heroicon-o-plus'),
@@ -24,23 +25,32 @@ class ListLiquidaciones extends ListRecords
 
     public function getTabs(): array
     {
+        $counts = Liquidacion::query()
+            ->selectRaw("
+                COUNT(*) as total,
+                SUM(status = 'draft') as draft,
+                SUM(status = 'calculated') as calculated,
+                SUM(status = 'closed') as closed
+            ")
+            ->first();
+
         return [
             'all' => Tab::make('Todas')
-                ->badge(Liquidacion::count()),
+                ->badge($counts->total),
 
             'draft' => Tab::make('Borradores')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'draft'))
-                ->badge(Liquidacion::where('status', 'draft')->count())
+                ->badge($counts->draft)
                 ->badgeColor('gray'),
 
             'calculated' => Tab::make('Calculadas')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'calculated'))
-                ->badge(Liquidacion::where('status', 'calculated')->count())
+                ->badge($counts->calculated)
                 ->badgeColor('warning'),
 
             'closed' => Tab::make('Cerradas')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'closed'))
-                ->badge(Liquidacion::where('status', 'closed')->count())
+                ->badge($counts->closed)
                 ->badgeColor('success'),
         ];
     }

@@ -166,7 +166,7 @@
 
         .signature-item {
             display: table-cell;
-            width: 33.33%;
+            width: 50%;
             text-align: center;
             padding: 0 15px;
         }
@@ -280,8 +280,15 @@
                 </div>
             @endif
             <div class="info-row">
-                <div class="info-label">Salario Base:</div>
-                <div class="info-value">{{ \App\Models\Liquidacion::formatCurrency($liquidacion->base_salary) }}</div>
+                <div class="info-label">{{ $liquidacion->salary_type === 'jornal' ? 'Jornal Diario:' : 'Salario Base:' }}</div>
+                <div class="info-value">
+                    @if ($liquidacion->salary_type === 'jornal')
+                        {{ \App\Models\Liquidacion::formatCurrency($liquidacion->daily_salary) }}/jornal
+                        (Base mensual ref.: {{ \App\Models\Liquidacion::formatCurrency($liquidacion->base_salary) }})
+                    @else
+                        {{ \App\Models\Liquidacion::formatCurrency($liquidacion->base_salary) }}/mes
+                    @endif
+                </div>
             </div>
         </div>
     </div>
@@ -293,24 +300,48 @@
             <thead>
                 <tr>
                     <th style="width: 50%;">Concepto</th>
-                    <th style="width: 15%;" class="text-center">Dias</th>
-                    <th style="width: 15%;" class="text-right">Valor Diario</th>
+                    <th style="width: 30%;">Detalle</th>
                     <th style="width: 20%;" class="text-right">Total</th>
                 </tr>
             </thead>
             <tbody>
                 @foreach ($liquidacion->items->where('type', 'haber') as $item)
+                    @php
+                        $meta = $item->metadata ?? [];
+                        $isJornal = $liquidacion->salary_type === 'jornal';
+                        $unit = $isJornal ? 'jornal(es)' : 'días';
+                        $rateLabel = $isJornal ? '/jornal' : '/día';
+                        $detalle = match ($item->category) {
+                            'preaviso', 'vacaciones', 'salario_pendiente' =>
+                                ($meta['days'] ?? '-') . ' ' . $unit . ' × ' .
+                                (isset($meta['daily_salary'])
+                                    ? \App\Models\Liquidacion::formatCurrency($meta['daily_salary']) . $rateLabel
+                                    : '-'),
+                            'indemnizacion' =>
+                                ($meta['years'] ?? 0) . ' año(s)' .
+                                (($meta['months_fraction'] ?? 0) > 0
+                                    ? ' + ' . $meta['months_fraction'] . ' mes(es)'
+                                    : '') .
+                                (isset($meta['daily_avg'])
+                                    ? ' | ' . \App\Models\Liquidacion::formatCurrency($meta['daily_avg']) . ($isJornal ? '/jornal prom.' : '/día prom.')
+                                    : ''),
+                            'aguinaldo' =>
+                                ($meta['months_in_year'] ?? '-') . ' meses del año ' . ($meta['year'] ?? ''),
+                            'indemnizacion_estabilidad' =>
+                                'Igual a indemnización base (Art. 95 CLT — más de 10 años)',
+                            default => '-',
+                        };
+                    @endphp
                     <tr>
                         <td>{{ $item->description }}</td>
-                        <td class="text-center">{{ $item->metadata['days'] ?? '-' }}</td>
-                        <td class="amount">{{ isset($item->metadata['daily_salary']) ? \App\Models\Liquidacion::formatCurrency($item->metadata['daily_salary']) : '-' }}</td>
+                        <td>{{ $detalle }}</td>
                         <td class="amount">{{ \App\Models\Liquidacion::formatCurrency($item->amount) }}</td>
                     </tr>
                 @endforeach
             </tbody>
             <tfoot>
                 <tr class="highlight">
-                    <th colspan="3">TOTAL HABERES</th>
+                    <th colspan="2">TOTAL HABERES</th>
                     <th class="amount">{{ \App\Models\Liquidacion::formatCurrency($liquidacion->total_haberes) }}</th>
                 </tr>
             </tfoot>
@@ -330,17 +361,19 @@
             </thead>
             <tbody>
                 @foreach ($liquidacion->items->where('type', 'deduction') as $item)
+                    @php
+                        $meta = $item->metadata ?? [];
+                        $detalle = match ($item->category) {
+                            'ips' =>
+                                'Base: ' . \App\Models\Liquidacion::formatCurrency($meta['base'] ?? 0) .
+                                ' × ' . ($meta['rate'] ?? 9) . '%',
+                            'loan' => 'Saldo pendiente de préstamos',
+                            default => '-',
+                        };
+                    @endphp
                     <tr>
                         <td>{{ $item->description }}</td>
-                        <td>
-                            @if ($item->category === 'ips')
-                                Base: {{ \App\Models\Liquidacion::formatCurrency($item->metadata['base'] ?? 0) }} x {{ $item->metadata['rate'] ?? 9 }}%
-                            @elseif ($item->category === 'loan')
-                                Saldo pendiente de prestamos
-                            @else
-                                -
-                            @endif
-                        </td>
+                        <td>{{ $detalle }}</td>
                         <td class="amount">{{ \App\Models\Liquidacion::formatCurrency($item->amount) }}</td>
                     </tr>
                 @endforeach
@@ -381,11 +414,6 @@
             <div class="signature-line"></div>
             <div class="signature-label">Empleador / RRHH</div>
             <div class="signature-sublabel">Firma y Sello</div>
-        </div>
-        <div class="signature-item">
-            <div class="signature-line"></div>
-            <div class="signature-label">Testigo</div>
-            <div class="signature-sublabel">Nombre y CI</div>
         </div>
     </div>
 

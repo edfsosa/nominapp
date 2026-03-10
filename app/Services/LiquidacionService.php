@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Aguinaldo;
 use App\Models\Employee;
 use App\Models\Liquidacion;
-use App\Models\LiquidacionItem;
 use App\Models\Loan;
 use App\Models\Payroll;
 use App\Models\VacationBalance;
@@ -31,18 +30,25 @@ class LiquidacionService
             // Limpiar items previos si se recalcula
             $liquidacion->items()->delete();
 
+            $settings = app(PayrollSettings::class);
             $employee = $liquidacion->employee;
             $terminationDate = Carbon::parse($liquidacion->termination_date);
             $hireDate = Carbon::parse($liquidacion->hire_date);
 
             $baseSalary = (float) $liquidacion->base_salary;
-            $dailySalary = round($baseSalary / 30, 2);
+            // Usar daily_salary ya calculado (maneja jornal correctamente); recalcular solo si falta
+            $dailySalary = $liquidacion->daily_salary > 0
+                ? (float) $liquidacion->daily_salary
+                : round($baseSalary / 30, 2);
+
+            $isJornal = $liquidacion->salary_type === 'jornal';
+            $unit = $isJornal ? 'jornales' : 'días';
 
             $yearsOfService = $hireDate->diffInYears($terminationDate);
             $monthsOfService = $hireDate->diffInMonths($terminationDate);
             $daysOfService = $hireDate->diffInDays($terminationDate);
 
-            $averageSalary6m = $this->calculateAverageSalary6Months($employee, $terminationDate);
+            $averageSalary6m = $this->calculateAverageSalary6Months($employee, $terminationDate, $baseSalary);
 
             $items = [];
             $totalHaberes = 0;
@@ -53,38 +59,57 @@ class LiquidacionService
             $preavisoAmount = 0;
             if (Liquidacion::includesPreaviso($liquidacion->termination_type) && !$liquidacion->preaviso_otorgado) {
                 $preavisoDays = $this->calculatePreavisoDays($yearsOfService);
-                $preavisoAmount = round($preavisoDays * $dailySalary, 0);
-                $totalHaberes += $preavisoAmount;
+                if ($preavisoDays > 0) {
+                    $preavisoAmount = round($preavisoDays * $dailySalary, 0);
+                    $totalHaberes += $preavisoAmount;
 
-                $items[] = [
-                    'type' => 'haber',
-                    'category' => 'preaviso',
-                    'description' => "Preaviso: {$preavisoDays} días x Gs. " . number_format($dailySalary, 0, ',', '.'),
-                    'amount' => $preavisoAmount,
-                    'metadata' => ['days' => $preavisoDays, 'daily_salary' => $dailySalary],
-                ];
+                    $items[] = [
+                        'type' => 'haber',
+                        'category' => 'preaviso',
+                        'description' => "Preaviso: {$preavisoDays} {$unit}",
+                        'amount' => $preavisoAmount,
+                        'metadata' => ['days' => $preavisoDays, 'daily_salary' => $dailySalary, 'unit' => $unit],
+                    ];
+                }
             }
 
             // ===== COMPONENTE 2: INDEMNIZACIÓN =====
             $indemnizacionAmount = 0;
+            $indemnizacionEstabilidadAmount = 0;
             if (Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
                 $indemnizacionAmount = $this->calculateIndemnizacion($yearsOfService, $monthsOfService, $averageSalary6m);
                 if ($indemnizacionAmount > 0) {
                     $totalHaberes += $indemnizacionAmount;
 
-                    $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
+                    $daysPerYear = $settings->indemnizacion_days_per_year;
+                    $remainingMonths = $monthsOfService % 12;
+                    $units = $yearsOfService + ($remainingMonths > 6 ? 1 : 0);
                     $items[] = [
-                        'type' => 'haber',
+                        'type'     => 'haber',
                         'category' => 'indemnizacion',
-                        'description' => "Indemnización: {$daysPerYear} días/año x {$yearsOfService} años (+ fracción)",
-                        'amount' => $indemnizacionAmount,
+                        'description' => "Indemnización: {$units} unid. × {$daysPerYear} {$unit} = " . ($units * $daysPerYear) . " {$unit}",
+                        'amount'   => $indemnizacionAmount,
                         'metadata' => [
-                            'years' => $yearsOfService,
-                            'months_fraction' => $monthsOfService % 12,
+                            'years'           => $yearsOfService,
+                            'months_fraction' => $remainingMonths,
+                            'units'           => $units,
                             'average_salary_6m' => $averageSalary6m,
-                            'daily_avg' => round($averageSalary6m / 30, 2),
+                            'daily_avg'       => round($averageSalary6m / 30, 2),
                         ],
                     ];
+
+                    // Estabilidad laboral propia: >10 años = indemnización doble (Art. 95 CLT)
+                    if ($yearsOfService >= 10) {
+                        $indemnizacionEstabilidadAmount = $indemnizacionAmount;
+                        $totalHaberes += $indemnizacionEstabilidadAmount;
+                        $items[] = [
+                            'type'     => 'haber',
+                            'category' => 'indemnizacion_estabilidad',
+                            'description' => 'Indemnización adicional — Estabilidad Laboral Propia (Art. 95 CLT)',
+                            'amount'   => $indemnizacionEstabilidadAmount,
+                            'metadata' => ['base_indemnizacion' => $indemnizacionAmount],
+                        ];
+                    }
                 }
             }
 
@@ -97,9 +122,9 @@ class LiquidacionService
                 $items[] = [
                     'type' => 'haber',
                     'category' => 'vacaciones',
-                    'description' => "Vacaciones proporcionales: {$vacacionesDays} días",
+                    'description' => "Vacaciones proporcionales: {$vacacionesDays} {$unit}",
                     'amount' => $vacacionesAmount,
-                    'metadata' => ['days' => $vacacionesDays, 'daily_salary' => $dailySalary],
+                    'metadata' => ['days' => $vacacionesDays, 'daily_salary' => $dailySalary, 'unit' => $unit],
                 ];
             }
 
@@ -126,16 +151,16 @@ class LiquidacionService
                 $items[] = [
                     'type' => 'haber',
                     'category' => 'salario_pendiente',
-                    'description' => "Salario pendiente: {$salarioPendienteDays} días del mes",
+                    'description' => "Salario pendiente: {$salarioPendienteDays} {$unit} del mes",
                     'amount' => $salarioPendienteAmount,
-                    'metadata' => ['days' => $salarioPendienteDays, 'daily_salary' => $dailySalary],
+                    'metadata' => ['days' => $salarioPendienteDays, 'daily_salary' => $dailySalary, 'unit' => $unit],
                 ];
             }
 
             // ===== DEDUCCIONES =====
 
             // IPS 9% sobre salario pendiente + vacaciones (preaviso/indemnización/aguinaldo exentos)
-            $ipsRate = app(PayrollSettings::class)->ips_employee_rate;
+            $ipsRate = $settings->ips_employee_rate;
             $ipsBase = $salarioPendienteAmount + $vacacionesAmount;
             $ipsDeduction = round($ipsBase * ($ipsRate / 100), 0);
             if ($ipsDeduction > 0) {
@@ -165,11 +190,7 @@ class LiquidacionService
             $netAmount = $totalHaberes - $totalDeductions;
 
             // Persistir items
-            foreach ($items as $item) {
-                LiquidacionItem::create(array_merge($item, [
-                    'liquidacion_id' => $liquidacion->id,
-                ]));
-            }
+            $liquidacion->items()->createMany($items);
 
             // Actualizar liquidación
             $liquidacion->update([
@@ -180,7 +201,8 @@ class LiquidacionService
                 'average_salary_6m' => $averageSalary6m,
                 'preaviso_days' => $preavisoDays,
                 'preaviso_amount' => $preavisoAmount,
-                'indemnizacion_amount' => $indemnizacionAmount,
+                'indemnizacion_amount'             => $indemnizacionAmount,
+                'indemnizacion_estabilidad_amount' => $indemnizacionEstabilidadAmount,
                 'vacaciones_days' => $vacacionesDays,
                 'vacaciones_amount' => $vacacionesAmount,
                 'aguinaldo_proporcional_amount' => $aguinaldoAmount,
@@ -221,6 +243,11 @@ class LiquidacionService
 
             $liquidacion->employee->update(['status' => 'inactive']);
 
+            $liquidacion->employee->activeContract?->update([
+                'status'  => 'terminated',
+                'end_date' => $liquidacion->termination_date,
+            ]);
+
             $cancelledLoans = $this->getPendingLoanIds($liquidacion->employee);
             $this->cancelPendingLoans($liquidacion->employee);
 
@@ -259,19 +286,14 @@ class LiquidacionService
         $daysPerYear = app(PayrollSettings::class)->indemnizacion_days_per_year;
         $dailyAvg = $avgSalary6m / 30;
 
-        // Años completos
-        $fullYearsDays = $years * $daysPerYear;
-
-        // Fracción proporcional por meses restantes
+        // Fracción superior a 6 meses cuenta como año completo (Art. 91 CLT)
         $remainingMonths = $totalMonths - ($years * 12);
-        $fractionDays = round(($remainingMonths / 12) * $daysPerYear, 2);
+        $units = $years + ($remainingMonths > 6 ? 1 : 0);
 
-        $totalDays = $fullYearsDays + $fractionDays;
-
-        return round($totalDays * $dailyAvg, 0);
+        return round($units * $daysPerYear * $dailyAvg, 0);
     }
 
-    protected function calculateAverageSalary6Months(Employee $employee, Carbon $terminationDate): float
+    protected function calculateAverageSalary6Months(Employee $employee, Carbon $terminationDate, float $fallbackSalary): float
     {
         $sixMonthsAgo = $terminationDate->copy()->subMonths(6)->startOfMonth();
 
@@ -282,10 +304,13 @@ class LiquidacionService
             })
             ->get();
 
+        // Sin liquidaciones previas: usar salario base de la liquidación (no del empleado,
+        // que puede haberse modificado desde el contrato original)
         if ($payrolls->isEmpty()) {
-            return (float) $employee->base_salary;
+            return $fallbackSalary;
         }
 
+        // Dividir por la cantidad real de meses encontrados (< 6 si el empleado tiene menos tiempo)
         $totalGross = $payrolls->sum('gross_salary');
         return round($totalGross / $payrolls->count(), 2);
     }

@@ -199,6 +199,13 @@ class ContractResource extends Resource
                             ->native(false)
                             ->default('presencial')
                             ->required(),
+
+                        Select::make('payment_method')
+                            ->label('Método de Pago')
+                            ->options(\App\Models\Employee::getPaymentMethodOptions())
+                            ->native(false)
+                            ->default('debit')
+                            ->required(),
                     ])
                     ->columns(2),
 

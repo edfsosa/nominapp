@@ -22,6 +22,7 @@ class Contract extends Model
         'position_id',
         'department_id',
         'work_modality',
+        'payment_method',
         'document_path',
         'status',
         'notes',

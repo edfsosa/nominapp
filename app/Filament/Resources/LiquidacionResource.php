@@ -8,6 +8,9 @@ use App\Models\Employee;
 use App\Models\Liquidacion;
 use App\Services\LiquidacionService;
 use Filament\Forms\Components\DatePicker;
+use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
+use pxlrbt\FilamentExcel\Columns\Column;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -24,7 +27,6 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
@@ -70,6 +72,7 @@ class LiquidacionResource extends Resource
                             ->label('Empleado')
                             ->options(function () {
                                 return Employee::where('status', 'active')
+                                    ->whereHas('activeContract')
                                     ->get()
                                     ->mapWithKeys(fn($e) => [$e->id => "{$e->full_name} - CI: {$e->ci}"]);
                             })
@@ -81,9 +84,14 @@ class LiquidacionResource extends Resource
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if ($state) {
                                     $employee = Employee::find($state);
-                                    if ($employee) {
-                                        $set('hire_date', $employee->hire_date?->format('Y-m-d'));
-                                        $set('base_salary', $employee->base_salary);
+                                    $contract = $employee?->activeContract;
+                                    if ($employee && $contract) {
+                                        $salary = (float) ($contract->salary ?? 0);
+                                        $baseSalary = $contract->salary_type === 'jornal'
+                                            ? round($salary * 30, 2)
+                                            : $salary;
+                                        $set('hire_date', $contract->start_date?->format('Y-m-d'));
+                                        $set('base_salary', $baseSalary);
                                     }
                                 }
                             })
@@ -103,14 +111,17 @@ class LiquidacionResource extends Resource
                             ->columnSpan(1),
 
                         Placeholder::make('employee_salary')
-                            ->label('Salario Base')
+                            ->label(function (Get $get) {
+                                $contract = Employee::find($get('employee_id'))?->activeContract;
+                                return $contract?->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual';
+                            })
                             ->content(function (Get $get) {
-                                $employeeId = $get('employee_id');
-                                if ($employeeId) {
-                                    $employee = Employee::find($employeeId);
-                                    return $employee ? Liquidacion::formatCurrency($employee->base_salary) : '-';
+                                $contract = Employee::find($get('employee_id'))?->activeContract;
+                                if (!$contract) {
+                                    return '-';
                                 }
-                                return '-';
+                                $suffix = $contract->salary_type === 'jornal' ? '/día' : '/mes';
+                                return Liquidacion::formatCurrency((float) $contract->salary) . $suffix;
                             })
                             ->columnSpan(1),
                     ])
@@ -133,7 +144,7 @@ class LiquidacionResource extends Resource
                             ->native(false)
                             ->required()
                             ->reactive()
-                            ->disabled(fn(?Liquidacion $record) => $record && !$record->isDraft())
+                            ->disabled(fn(?Liquidacion $record) => $record && $record->isClosed())
                             ->columnSpan(1),
 
                         Toggle::make('preaviso_otorgado')
@@ -141,7 +152,7 @@ class LiquidacionResource extends Resource
                             ->helperText('Si el empleador dio aviso anticipado, no se paga preaviso')
                             ->default(false)
                             ->visible(fn(Get $get) => Liquidacion::includesPreaviso($get('termination_type') ?? ''))
-                            ->disabled(fn(?Liquidacion $record) => $record && !$record->isDraft())
+                            ->disabled(fn(?Liquidacion $record) => $record && $record->isClosed())
                             ->columnSpan(2),
 
                         Placeholder::make('components_info')
@@ -175,17 +186,6 @@ class LiquidacionResource extends Resource
                             ->columnSpan(2),
                     ])
                     ->columns(2),
-
-                Section::make('Notas')
-                    ->schema([
-                        Textarea::make('notes')
-                            ->label('Observaciones')
-                            ->placeholder('Notas adicionales sobre esta liquidación')
-                            ->rows(2)
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
-                    ])
-                    ->collapsed(),
             ]);
     }
 
@@ -307,23 +307,9 @@ class LiquidacionResource extends Resource
                         "¿Calcular la liquidación de {$record->employee->full_name}? " .
                             "Tipo: " . Liquidacion::getTerminationTypeLabel($record->termination_type)
                     )
-                    ->action(function (Liquidacion $record, LiquidacionService $service) {
-                        try {
-                            $service->calculate($record);
-
-                            Notification::make()
-                                ->success()
-                                ->title('Liquidación calculada')
-                                ->body("Neto a pagar: {$record->fresh()->formatted_net_amount}")
-                                ->send();
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error al calcular')
-                                ->body($e->getMessage())
-                                ->send();
-                        }
-                    })
+                    ->action(fn(Liquidacion $record, LiquidacionService $service) =>
+                        static::performCalculation($record, $service, 'Liquidación calculada')
+                    )
                     ->visible(fn(Liquidacion $record) => $record->isDraft()),
 
                 Action::make('recalculate')
@@ -338,23 +324,9 @@ class LiquidacionResource extends Resource
                             "Se eliminarán los conceptos actuales y se recalculará desde cero. " .
                             "Los cambios manuales en los items se perderán."
                     )
-                    ->action(function (Liquidacion $record, LiquidacionService $service) {
-                        try {
-                            $service->calculate($record);
-
-                            Notification::make()
-                                ->success()
-                                ->title('Liquidación recalculada')
-                                ->body("Neto a pagar: {$record->fresh()->formatted_net_amount}")
-                                ->send();
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error al recalcular')
-                                ->body($e->getMessage())
-                                ->send();
-                        }
-                    })
+                    ->action(fn(Liquidacion $record, LiquidacionService $service) =>
+                        static::performCalculation($record, $service, 'Liquidación recalculada')
+                    )
                     ->visible(fn(Liquidacion $record) => $record->isCalculated()),
 
                 Action::make('close')
@@ -369,15 +341,9 @@ class LiquidacionResource extends Resource
                             "El empleado será marcado como INACTIVO y los préstamos pendientes serán cancelados. " .
                             "Esta acción no se puede deshacer."
                     )
-                    ->action(function (Liquidacion $record, LiquidacionService $service) {
-                        $service->close($record);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Liquidación cerrada')
-                            ->body("El empleado {$record->employee->full_name} ha sido desactivado.")
-                            ->send();
-                    })
+                    ->action(fn(Liquidacion $record, LiquidacionService $service) =>
+                        static::performClose($record, $service)
+                    )
                     ->visible(fn(Liquidacion $record) => $record->isCalculated()),
 
                 Action::make('download_pdf')
@@ -390,9 +356,6 @@ class LiquidacionResource extends Resource
 
                 EditAction::make()
                     ->visible(fn(Liquidacion $record) => !$record->isClosed()),
-
-                DeleteAction::make()
-                    ->visible(fn(Liquidacion $record) => $record->isDraft()),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -405,10 +368,18 @@ class LiquidacionResource extends Resource
                                     $deleted++;
                                 }
                             }
+                            $ignored = $records->count() - $deleted;
                             if ($deleted > 0) {
                                 Notification::make()
                                     ->success()
-                                    ->title("Se eliminaron {$deleted} liquidaciones en borrador")
+                                    ->title("Se eliminaron {$deleted} liquidacion(es) en borrador")
+                                    ->send();
+                            }
+                            if ($ignored > 0) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title("{$ignored} liquidacion(es) no eliminadas")
+                                    ->body('Solo se pueden eliminar liquidaciones en estado borrador.')
                                     ->send();
                             }
                         }),
@@ -431,7 +402,11 @@ class LiquidacionResource extends Resource
                                 ->label('Nombre Completo'),
                             TextEntry::make('employee.ci')
                                 ->label('Cédula de Identidad')
-                                ->copyable(),
+                                ->icon('heroicon-o-identification')
+                                ->badge()
+                                ->color('gray')
+                                ->copyable()
+                                ->copyMessage('Cédula copiada'),
                         ])->columns(2),
                         Group::make([
                             TextEntry::make('employee.activeContract.position.name')
@@ -472,15 +447,30 @@ class LiquidacionResource extends Resource
                                 ->formatStateUsing(fn(string $state): string => Liquidacion::getTerminationTypeLabel($state)),
                             TextEntry::make('seniority')
                                 ->label('Antigüedad')
-                                ->state(fn(Liquidacion $record) => "{$record->years_of_service} año(s), " . ($record->months_of_service % 12) . " mes(es)"),
+                                ->state(fn(Liquidacion $record) => $record->years_of_service !== null
+                                    ? "{$record->years_of_service} año(s), " . ($record->months_of_service % 12) . " mes(es)"
+                                    : null)
+                                ->placeholder('Pendiente de cálculo'),
                         ])->columns(2),
+                        TextEntry::make('preaviso_otorgado')
+                            ->label('Preaviso otorgado por empleador')
+                            ->formatStateUsing(fn(bool $state) => $state ? 'Sí — no se cobra preaviso' : 'No — se cobra preaviso')
+                            ->badge()
+                            ->color(fn(bool $state) => $state ? 'info' : 'warning')
+                            ->visible(fn(Liquidacion $record) => Liquidacion::includesPreaviso($record->termination_type)),
                         Group::make([
                             TextEntry::make('base_salary')
-                                ->label('Salario Base')
-                                ->money('PYG', locale: 'es_PY'),
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Base')
+                                ->formatStateUsing(function (Liquidacion $record) {
+                                    if ($record->salary_type === 'jornal') {
+                                        return Liquidacion::formatCurrency($record->daily_salary) . '/día';
+                                    }
+                                    return Liquidacion::formatCurrency($record->base_salary) . '/mes';
+                                }),
                             TextEntry::make('average_salary_6m')
-                                ->label('Promedio Últimos 6 Meses')
-                                ->money('PYG', locale: 'es_PY'),
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Jornal Promedio 6 Meses' : 'Salario Promedio 6 Meses')
+                                ->money('PYG', locale: 'es_PY')
+                                ->placeholder('Pendiente de cálculo'),
                         ])->columns(2),
                         TextEntry::make('termination_reason')
                             ->label('Motivo')
@@ -489,22 +479,28 @@ class LiquidacionResource extends Resource
                     ]),
 
                 InfolistSection::make('Cálculo de Haberes')
+                    ->visible(fn(Liquidacion $record) => !$record->isDraft())
                     ->schema([
                         Group::make([
                             TextEntry::make('preaviso_info')
-                                ->label('Preaviso')
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Preaviso (jornales)' : 'Preaviso (días)')
                                 ->state(fn(Liquidacion $record) => $record->preaviso_amount > 0
-                                    ? "{$record->preaviso_days} días - " . Liquidacion::formatCurrency($record->preaviso_amount)
+                                    ? "{$record->preaviso_days} " . ($record->salary_type === 'jornal' ? 'jornales' : 'días') . ' - ' . Liquidacion::formatCurrency($record->preaviso_amount)
                                     : ($record->preaviso_otorgado ? 'Otorgado (no aplica pago)' : 'No aplica')),
                             TextEntry::make('indemnizacion_amount')
-                                ->label('Indemnización')
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Indemnización (jornales)' : 'Indemnización')
                                 ->money('PYG', locale: 'es_PY'),
+                            TextEntry::make('indemnizacion_estabilidad_amount')
+                                ->label('Estabilidad Laboral (Art. 95 CLT)')
+                                ->money('PYG', locale: 'es_PY')
+                                ->color('warning')
+                                ->visible(fn(Liquidacion $record) => $record->indemnizacion_estabilidad_amount > 0),
                         ])->columns(2),
                         Group::make([
                             TextEntry::make('vacaciones_info')
-                                ->label('Vacaciones Proporcionales')
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Vacaciones (jornales)' : 'Vacaciones Proporcionales')
                                 ->state(fn(Liquidacion $record) => $record->vacaciones_amount > 0
-                                    ? "{$record->vacaciones_days} días - " . Liquidacion::formatCurrency($record->vacaciones_amount)
+                                    ? "{$record->vacaciones_days} " . ($record->salary_type === 'jornal' ? 'jornales' : 'días') . ' - ' . Liquidacion::formatCurrency($record->vacaciones_amount)
                                     : 'Gs. 0'),
                             TextEntry::make('aguinaldo_proporcional_amount')
                                 ->label('Aguinaldo Proporcional')
@@ -512,9 +508,9 @@ class LiquidacionResource extends Resource
                         ])->columns(2),
                         Group::make([
                             TextEntry::make('salario_pendiente_info')
-                                ->label('Salario Pendiente')
+                                ->label(fn(Liquidacion $record) => $record->salary_type === 'jornal' ? 'Jornales Pendientes' : 'Salario Pendiente')
                                 ->state(fn(Liquidacion $record) => $record->salario_pendiente_amount > 0
-                                    ? "{$record->salario_pendiente_days} días - " . Liquidacion::formatCurrency($record->salario_pendiente_amount)
+                                    ? "{$record->salario_pendiente_days} " . ($record->salary_type === 'jornal' ? 'jornales' : 'días') . ' - ' . Liquidacion::formatCurrency($record->salario_pendiente_amount)
                                     : 'Gs. 0'),
                             TextEntry::make('total_haberes')
                                 ->label('TOTAL HABERES')
@@ -525,6 +521,7 @@ class LiquidacionResource extends Resource
                     ]),
 
                 InfolistSection::make('Descuentos')
+                    ->visible(fn(Liquidacion $record) => !$record->isDraft())
                     ->schema([
                         Group::make([
                             TextEntry::make('ips_deduction')
@@ -544,6 +541,7 @@ class LiquidacionResource extends Resource
                     ]),
 
                 InfolistSection::make('Neto a Pagar')
+                    ->visible(fn(Liquidacion $record) => !$record->isDraft())
                     ->schema([
                         TextEntry::make('net_amount')
                             ->label('NETO A PAGAR')
@@ -594,6 +592,95 @@ class LiquidacionResource extends Resource
                             ->columnSpanFull(),
                     ])
                     ->collapsed(),
+            ]);
+    }
+
+    public static function performCalculation(Liquidacion $record, LiquidacionService $service, string $successTitle): void
+    {
+        try {
+            $service->calculate($record);
+
+            Notification::make()
+                ->success()
+                ->title($successTitle)
+                ->body("Neto a pagar: {$record->fresh()->formatted_net_amount}")
+                ->send();
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->danger()
+                ->title('Error al calcular')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    public static function performClose(Liquidacion $record, LiquidacionService $service): void
+    {
+        try {
+            $service->close($record);
+
+            Notification::make()
+                ->success()
+                ->title('Liquidación cerrada')
+                ->body("El empleado {$record->employee->full_name} ha sido desactivado.")
+                ->send();
+        } catch (\Throwable $e) {
+            Notification::make()
+                ->danger()
+                ->title('Error al cerrar liquidación')
+                ->body($e->getMessage())
+                ->send();
+        }
+    }
+
+    public static function getExcelExportAction(): ExportAction
+    {
+        return ExportAction::make('export_excel')
+            ->label('Exportar a Excel')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('info')
+            ->tooltip('Exportar registros visibles (respeta filtros y tabs activos)')
+            ->exports([
+                ExcelExport::make()
+                    ->withColumns([
+                        Column::make('employee.ci')->heading('CI'),
+                        Column::make('employee.full_name')->heading('Empleado'),
+                        Column::make('hire_date')->heading('Fecha Ingreso'),
+                        Column::make('termination_date')->heading('Fecha Egreso'),
+                        Column::make('termination_type')
+                            ->heading('Tipo Desvinculación')
+                            ->getStateUsing(fn($record) => Liquidacion::getTerminationTypeLabel($record->termination_type)),
+                        Column::make('years_of_service')->heading('Años de Servicio'),
+                        Column::make('salary_type')
+                            ->heading('Tipo Salario')
+                            ->getStateUsing(fn($record) => $record->salary_type === 'jornal' ? 'Jornal' : 'Mensual'),
+                        Column::make('base_salary')->heading('Salario Base / Jornal'),
+                        Column::make('preaviso_days')->heading('Preaviso (días)'),
+                        Column::make('preaviso_amount')->heading('Preaviso'),
+                        Column::make('indemnizacion_amount')->heading('Indemnización'),
+                        Column::make('indemnizacion_estabilidad_amount')->heading('Estabilidad Laboral'),
+                        Column::make('vacaciones_days')->heading('Vacaciones (días)'),
+                        Column::make('vacaciones_amount')->heading('Vacaciones'),
+                        Column::make('aguinaldo_proporcional_amount')->heading('Aguinaldo Proporcional'),
+                        Column::make('salario_pendiente_days')->heading('Sal. Pendiente (días)'),
+                        Column::make('salario_pendiente_amount')->heading('Salario Pendiente'),
+                        Column::make('total_haberes')->heading('Total Haberes'),
+                        Column::make('ips_deduction')->heading('Descuento IPS'),
+                        Column::make('loan_deduction')->heading('Descuento Préstamos'),
+                        Column::make('total_deductions')->heading('Total Descuentos'),
+                        Column::make('net_amount')->heading('Neto a Pagar'),
+                        Column::make('status')
+                            ->heading('Estado')
+                            ->getStateUsing(fn($record) => match ($record->status) {
+                                'draft'      => 'Borrador',
+                                'calculated' => 'Calculada',
+                                'closed'     => 'Cerrada',
+                                default      => $record->status,
+                            }),
+                        Column::make('calculated_at')->heading('Fecha Cálculo'),
+                        Column::make('closed_at')->heading('Fecha Cierre'),
+                    ])
+                    ->withFilename(fn() => 'liquidaciones_' . now()->format('d_m_Y_H_i_s')),
             ]);
     }
 

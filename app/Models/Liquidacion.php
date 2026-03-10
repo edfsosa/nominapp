@@ -20,6 +20,7 @@ class Liquidacion extends Model
         'hire_date',
         'base_salary',
         'daily_salary',
+        'salary_type',
         'years_of_service',
         'months_of_service',
         'days_of_service',
@@ -27,6 +28,7 @@ class Liquidacion extends Model
         'preaviso_days',
         'preaviso_amount',
         'indemnizacion_amount',
+        'indemnizacion_estabilidad_amount',
         'vacaciones_days',
         'vacaciones_amount',
         'aguinaldo_proporcional_amount',
@@ -58,7 +60,8 @@ class Liquidacion extends Model
         'average_salary_6m' => 'decimal:2',
         'preaviso_days' => 'integer',
         'preaviso_amount' => 'decimal:2',
-        'indemnizacion_amount' => 'decimal:2',
+        'indemnizacion_amount'             => 'decimal:2',
+        'indemnizacion_estabilidad_amount' => 'decimal:2',
         'vacaciones_days' => 'integer',
         'vacaciones_amount' => 'decimal:2',
         'aguinaldo_proporcional_amount' => 'decimal:2',
@@ -107,7 +110,7 @@ class Liquidacion extends Model
 
     public static function includesPreaviso(string $type): bool
     {
-        return in_array($type, ['unjustified_dismissal', 'justified_dismissal']);
+        return $type === 'unjustified_dismissal';
     }
 
     public static function includesIndemnizacion(string $type): bool

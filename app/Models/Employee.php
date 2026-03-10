@@ -22,8 +22,6 @@ class Employee extends Model
         'birth_date',
         'phone',
         'email',
-        'hire_date',
-        'payment_method',
         'branch_id',
         'schedule_id',
         'status',
@@ -32,13 +30,23 @@ class Employee extends Model
 
     protected $casts = [
         'birth_date'      => 'date',
-        'hire_date'       => 'date',
         'face_descriptor' => 'array',
     ];
 
     // ───────────────────────────────────────────
     // Accessors delegados al contrato activo
     // ───────────────────────────────────────────
+
+    public function getHireDateAttribute(): ?Carbon
+    {
+        return $this->activeContract?->start_date
+            ?? $this->contracts()->oldest('start_date')->first()?->start_date;
+    }
+
+    public function getPaymentMethodAttribute(): ?string
+    {
+        return $this->activeContract?->payment_method;
+    }
 
     public function getPositionIdAttribute(): ?int
     {

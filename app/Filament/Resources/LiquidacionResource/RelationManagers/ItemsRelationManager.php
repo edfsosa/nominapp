@@ -8,7 +8,7 @@ use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Columns\Summarizers\Sum;
+use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 
@@ -109,9 +109,14 @@ class ItemsRelationManager extends RelationManager
                     ->weight('bold')
                     ->color(fn($record) => $record->type === 'haber' ? 'success' : 'danger')
                     ->summarize([
-                        Sum::make()
-                            ->money('PYG', locale: 'es_PY')
-                            ->label('Total'),
+                        Summarizer::make()
+                            ->label('Total Haberes')
+                            ->using(fn($query) => $query->where('type', 'haber')->sum('amount'))
+                            ->money('PYG', locale: 'es_PY'),
+                        Summarizer::make()
+                            ->label('Total Descuentos')
+                            ->using(fn($query) => $query->where('type', 'deduction')->sum('amount'))
+                            ->money('PYG', locale: 'es_PY'),
                     ]),
             ])
             ->actions([
