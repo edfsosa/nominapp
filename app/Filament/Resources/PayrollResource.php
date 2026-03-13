@@ -6,11 +6,6 @@ use App\Filament\Resources\PayrollResource\Pages;
 use App\Filament\Resources\PayrollResource\RelationManagers;
 use App\Models\Payroll;
 use App\Services\PayrollService;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -22,8 +17,6 @@ use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -45,107 +38,6 @@ class PayrollResource extends Resource
     protected static ?string $slug = 'recibos';
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
     protected static ?int $navigationSort = 2;
-
-    public static function form(Form $form): Form
-    {
-        return $form
-            ->schema([
-                Section::make('Información del Recibo')
-                    ->schema([
-                        Select::make('employee_id')
-                            ->label('Empleado')
-                            ->relationship('employee', 'id')
-                            ->searchable()
-                            ->preload()
-                            ->native(false)
-                            ->required()
-                            ->getOptionLabelFromRecordUsing(function ($record) {
-                                return "{$record->first_name} {$record->last_name} - CI: {$record->ci}";
-                            })
-                            ->columnSpan(1),
-
-                        Select::make('payroll_period_id')
-                            ->label('Período')
-                            ->relationship('period', 'name')
-                            ->searchable()
-                            ->preload()
-                            ->native(false)
-                            ->required()
-                            ->columnSpan(1),
-                    ])
-                    ->columns(2),
-
-                Section::make('Salarios')
-                    ->schema([
-                        TextInput::make('base_salary')
-                            ->label(fn(?Payroll $record): string => $record?->employee?->employment_type === 'day_laborer'
-                                ? 'Jornal del Período'
-                                : 'Salario Base')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->required()
-                            ->disabled()
-                            ->dehydrated()
-                            ->helperText(fn(?Payroll $record): string => $record?->employee?->employment_type === 'day_laborer'
-                                ? 'Tarifa diaria × días trabajados'
-                                : 'Salario base del empleado')
-                            ->columnSpan(1),
-
-                        TextInput::make('gross_salary')
-                            ->label('Salario Bruto')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->required()
-                            ->helperText('Salario base + percepciones')
-                            ->columnSpan(1),
-
-                        TextInput::make('total_perceptions')
-                            ->label('Total Percepciones')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->default(0.00)
-                            ->required()
-                            ->columnSpan(1),
-
-                        TextInput::make('total_deductions')
-                            ->label('Total Deducciones')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->default(0.00)
-                            ->required()
-                            ->columnSpan(1),
-
-                        TextInput::make('net_salary')
-                            ->label('Salario Neto')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->required()
-                            ->helperText('Salario bruto - deducciones')
-                            ->columnSpan(2),
-                    ])
-                    ->columns(2),
-
-                Section::make('Información Adicional')
-                    ->schema([
-                        DateTimePicker::make('generated_at')
-                            ->label('Fecha de Generación')
-                            ->displayFormat('d/m/Y H:i')
-                            ->native(false)
-                            ->disabled()
-                            ->dehydrated()
-                            ->default(now())
-                            ->columnSpan(1),
-
-                        TextInput::make('pdf_path')
-                            ->label('Ruta del PDF')
-                            ->disabled()
-                            ->dehydrated()
-                            ->columnSpan(1),
-                    ])
-                    ->columns(2)
-                    ->collapsed(),
-            ]);
-    }
 
     public static function table(Table $table): Table
     {
@@ -285,18 +177,16 @@ class PayrollResource extends Resource
                     ->label('Año Actual')
                     ->query(fn($query) => $query->whereHas('period', function ($q) {
                         $q->whereYear('start_date', now()->year);
-                    }))
-                    ->default(),
+                    })),
             ])
             ->actions([
-                ViewAction::make(),
-
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
                     ->url(fn(Payroll $record) => route('payrolls.download', $record))
-                    ->openUrlInNewTab(),
+                    ->openUrlInNewTab()
+                    ->visible(fn(Payroll $record) => (bool) $record->pdf_path),
 
                 Action::make('approve')
                     ->label('Aprobar')
@@ -401,9 +291,6 @@ class PayrollResource extends Resource
                                 ->send();
                         }
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
-
-                EditAction::make()
                     ->visible(fn(Payroll $record) => $record->status === 'draft'),
 
                 DeleteAction::make()
@@ -515,7 +402,7 @@ class PayrollResource extends Resource
                         ->label('Descargar PDFs')
                         ->icon('heroicon-o-document-arrow-down')
                         ->color('info')
-                        ->action(function (Collection $records) {
+                        ->action(function (Collection $records, \Livewire\Component $livewire) {
                             $records->load('employee');
                             $validRecords = $records->filter(
                                 fn(Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
@@ -530,37 +417,44 @@ class PayrollResource extends Resource
                                 return;
                             }
 
+                            $tempDir = storage_path('app/public/temp');
+                            if (!is_dir($tempDir)) {
+                                mkdir($tempDir, 0755, true);
+                            }
+
+                            // Limpiar archivos temporales de más de 1 hora
+                            foreach (glob($tempDir . '/*.{pdf,zip}', GLOB_BRACE) as $file) {
+                                if (is_file($file) && (time() - filemtime($file)) > 3600) {
+                                    @unlink($file);
+                                }
+                            }
+
+                            $uniqueId = \Illuminate\Support\Str::uuid();
+
                             if ($validRecords->count() === 1) {
                                 $record = $validRecords->first();
-                                return response()->streamDownload(function () use ($record) {
-                                    echo Storage::disk('public')->get($record->pdf_path);
-                                }, 'recibo_' . $record->employee->ci . '.pdf', ['Content-Type' => 'application/pdf']);
+                                $filename = $uniqueId . '_recibo_' . $record->employee->ci . '.pdf';
+                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir . '/' . $filename);
+                            } else {
+                                $filename = $uniqueId . '_recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
+                                $zip = new \ZipArchive();
+                                $zip->open($tempDir . '/' . $filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+                                foreach ($validRecords as $record) {
+                                    $zip->addFromString(
+                                        'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
+                                        Storage::disk('public')->get($record->pdf_path)
+                                    );
+                                }
+                                $zip->close();
                             }
 
-                            $zipFileName = 'recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
-                            $zipPath = storage_path('app/temp/' . $zipFileName);
+                            $livewire->js("window.open('" . route('payrolls.download.temp', ['filename' => $filename]) . "', '_blank')");
 
-                            if (!is_dir(storage_path('app/temp'))) {
-                                mkdir(storage_path('app/temp'), 0755, true);
-                            }
-
-                            $zip = new \ZipArchive();
-                            $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-
-                            foreach ($validRecords as $record) {
-                                $pdfContent = Storage::disk('public')->get($record->pdf_path);
-                                $zip->addFromString(
-                                    'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
-                                    $pdfContent
-                                );
-                            }
-
-                            $zip->close();
-
-                            return response()->streamDownload(function () use ($zipPath) {
-                                echo file_get_contents($zipPath);
-                                @unlink($zipPath);
-                            }, $zipFileName, ['Content-Type' => 'application/zip']);
+                            Notification::make()
+                                ->success()
+                                ->title('Descarga iniciada')
+                                ->body('Los recibos se están descargando.')
+                                ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
 
@@ -796,7 +690,6 @@ class PayrollResource extends Resource
             'index' => Pages\ListPayrolls::route('/'),
             'create' => Pages\CreatePayroll::route('/create'),
             'view' => Pages\ViewPayroll::route('/{record}'),
-            'edit' => Pages\EditPayroll::route('/{record}/edit'),
         ];
     }
 }

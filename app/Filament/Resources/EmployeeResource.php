@@ -194,6 +194,30 @@ class EmployeeResource extends Resource
                                     ->hiddenOn('create'),
                             ]),
                     ]),
+
+                Section::make('Protección de Maternidad')
+                    ->description('Ley N° 5508/15 — Protección durante el embarazo y hasta el primer año de vida del hijo')
+                    ->icon('heroicon-o-heart')
+                    ->collapsible()
+                    ->collapsed()
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                DatePicker::make('maternity_protection_until')
+                                    ->label('Protegida hasta')
+                                    ->native(false)
+                                    ->displayFormat('d/m/Y')
+                                    ->minDate(now()->subYears(1))
+                                    ->nullable()
+                                    ->helperText('Fecha hasta la que aplica la protección (normalmente 1 año desde el nacimiento del hijo). Dejar vacío si no aplica.')
+                                    ->columnSpan(1),
+
+                                Placeholder::make('maternity_info')
+                                    ->label('¿Qué implica este campo?')
+                                    ->content('Si esta fecha es hoy o posterior, el sistema mostrará una advertencia al intentar crear una liquidación para esta empleada. La protección no impide el proceso — es solo un aviso legal.')
+                                    ->columnSpan(1),
+                            ]),
+                    ]),
             ])
             ->columns(1);
     }

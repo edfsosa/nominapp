@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
+use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollService;
 use Filament\Forms\Components\DatePicker;
@@ -20,6 +21,7 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
@@ -50,16 +52,13 @@ class PayrollPeriodResource extends Resource
                         TextInput::make('name')
                             ->label('Nombre')
                             ->placeholder('Ejemplo: Enero 2024')
+                            ->helperText('Si se deja vacío, se generará automáticamente según la frecuencia y fechas.')
                             ->maxLength(255)
                             ->columnSpan(2),
 
                         Select::make('frequency')
                             ->label('Frecuencia')
-                            ->options([
-                                'monthly'  => 'Mensual',
-                                'biweekly' => 'Quincenal',
-                                'weekly'   => 'Semanal',
-                            ])
+                            ->options(PayrollPeriod::frequencyOptions())
                             ->native(false)
                             ->required()
                             ->reactive()
@@ -89,16 +88,16 @@ class PayrollPeriodResource extends Resource
                             ->disabled(fn($get) => !$get('start_date'))
                             ->helperText('La fecha de fin debe ser posterior a la fecha de inicio')
                             ->rules([
-                                function ($get) {
-                                    return function (string $attribute, $value, \Closure $fail) use ($get) {
-                                        $query = \App\Models\PayrollPeriod::where('frequency', $get('frequency'))
+                                function ($get, $record) {
+                                    // Valida que no exista otro período con la misma frecuencia y rango de fechas.
+                                    // Al editar, se excluye el registro actual ($record->id) para no compararlo consigo mismo.
+                                    return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                                        $query = PayrollPeriod::where('frequency', $get('frequency'))
                                             ->where('start_date', $get('start_date'))
                                             ->where('end_date', $value);
 
-                                        // Obtener el ID del registro actual si existe (cuando editamos)
-                                        $recordId = $get('id');
-                                        if ($recordId) {
-                                            $query->where('id', '!=', $recordId);
+                                        if ($record?->id) {
+                                            $query->where('id', '!=', $record->id);
                                         }
 
                                         if ($query->exists()) {
@@ -115,11 +114,7 @@ class PayrollPeriodResource extends Resource
                     ->schema([
                         Select::make('status')
                             ->label('Estado')
-                            ->options([
-                                'draft'      => 'Borrador',
-                                'processing' => 'En Proceso',
-                                'closed'     => 'Cerrado',
-                            ])
+                            ->options(PayrollPeriod::statusOptions())
                             ->native(false)
                             ->default('draft')
                             ->required()
@@ -160,12 +155,7 @@ class PayrollPeriodResource extends Resource
                     ->label('Frecuencia')
                     ->badge()
                     ->color('info')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'monthly'  => 'Mensual',
-                        'biweekly' => 'Quincenal',
-                        'weekly'   => 'Semanal',
-                        default    => $state,
-                    })
+                    ->formatStateUsing(fn(string $state): string => PayrollPeriod::frequencyOptions()[$state] ?? $state)
                     ->sortable(),
 
                 TextColumn::make('start_date')
@@ -189,18 +179,8 @@ class PayrollPeriodResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'draft'      => 'gray',
-                        'processing' => 'warning',
-                        'closed'     => 'success',
-                        default      => 'primary',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'draft'      => 'Borrador',
-                        'processing' => 'En Proceso',
-                        'closed'     => 'Cerrado',
-                        default      => $state,
-                    })
+                    ->color(fn(string $state): string => PayrollPeriod::statusColors()[$state] ?? 'primary')
+                    ->formatStateUsing(fn(string $state): string => PayrollPeriod::statusOptions()[$state] ?? $state)
                     ->sortable(),
 
                 TextColumn::make('closed_at')
@@ -224,20 +204,12 @@ class PayrollPeriodResource extends Resource
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'draft'      => 'Borrador',
-                        'processing' => 'En Proceso',
-                        'closed'     => 'Cerrado',
-                    ])
+                    ->options(PayrollPeriod::statusOptions())
                     ->native(false),
 
                 SelectFilter::make('frequency')
                     ->label('Frecuencia')
-                    ->options([
-                        'monthly'  => 'Mensual',
-                        'biweekly' => 'Quincenal',
-                        'weekly'   => 'Semanal',
-                    ])
+                    ->options(PayrollPeriod::frequencyOptions())
                     ->native(false),
 
                 Filter::make('current_year')
@@ -246,8 +218,6 @@ class PayrollPeriodResource extends Resource
                     ->default(),
             ])
             ->actions([
-                ViewAction::make(),
-
                 Action::make('generate_payrolls')
                     ->label('Generar Recibos')
                     ->icon('heroicon-o-document-plus')
@@ -257,7 +227,7 @@ class PayrollPeriodResource extends Resource
                     ->modalDescription(
                         fn(PayrollPeriod $record) =>
                         "¿Está seguro de generar los recibos de nómina para el período {$record->name}? " .
-                            "Esta acción creará recibos para todos los empleados activos."
+                            "Esta acción creará recibos para los empleados activos que aún no tengan uno en este período."
                     )
                     ->action(function (PayrollPeriod $record, PayrollService $payrollService) {
                         $count = $payrollService->generateForPeriod($record);
@@ -276,11 +246,11 @@ class PayrollPeriodResource extends Resource
                             Notification::make()
                                 ->warning()
                                 ->title('No se generaron recibos')
-                                ->body('Es posible que ya hayan sido generados o que no haya empleados activos.')
+                                ->body('Todos los empleados activos ya tienen recibo en este período.')
                                 ->send();
                         }
                     })
-                    ->visible(fn(PayrollPeriod $record) => in_array($record->status, ['draft', 'processing']) && !$record->payrolls()->exists()),
+                    ->visible(fn(PayrollPeriod $record) => in_array($record->status, ['draft', 'processing'])),
 
                 Action::make('regenerate_payrolls')
                     ->label('Regenerar Recibos')
@@ -306,22 +276,23 @@ class PayrollPeriodResource extends Resource
                         }
 
                         $count = 0;
-                        $errors = 0;
+                        $failedEmployees = [];
 
                         foreach ($payrolls as $payroll) {
                             try {
                                 $payrollService->regenerateForEmployee($payroll);
                                 $count++;
                             } catch (\Throwable $e) {
-                                $errors++;
+                                $failedEmployees[] = $payroll->employee->full_name;
                             }
                         }
 
-                        if ($errors > 0) {
+                        if (!empty($failedEmployees)) {
+                            $names = implode(', ', $failedEmployees);
                             Notification::make()
                                 ->warning()
                                 ->title("Regeneración parcial")
-                                ->body("Se regeneraron {$count} recibos. {$errors} recibos tuvieron errores. Revise el log para más detalles.")
+                                ->body("Se regeneraron {$count} recibos. Fallaron: {$names}. Revise el log para más detalles.")
                                 ->duration(10000)
                                 ->send();
                         } else {
@@ -332,7 +303,7 @@ class PayrollPeriodResource extends Resource
                                 ->send();
                         }
                     })
-                    ->visible(fn(PayrollPeriod $record) => $record->status === 'processing' && $record->payrolls()->where('status', 'draft')->exists()),
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'processing' && ($record->draft_payrolls_count ?? 0) > 0),
 
                 Action::make('close_period')
                     ->label('Cerrar Período')
@@ -344,6 +315,7 @@ class PayrollPeriodResource extends Resource
                         "¿Está seguro de cerrar el período {$record->name}? Una vez cerrado, no se podrán generar más recibos para este período."
                     )
                     ->before(function (PayrollPeriod $record, Action $action) {
+                        // Regla 1: no se puede cerrar si quedan recibos en borrador sin aprobar.
                         $draftPayrolls = $record->payrolls()->where('status', 'draft')->count();
 
                         if ($draftPayrolls > 0) {
@@ -351,6 +323,30 @@ class PayrollPeriodResource extends Resource
                                 ->danger()
                                 ->title('No se puede cerrar el período')
                                 ->body("Hay {$draftPayrolls} recibos en estado borrador. Apruebe todos los recibos antes de cerrar el período.")
+                                ->duration(10000)
+                                ->send();
+
+                            $action->cancel();
+                            return;
+                        }
+
+                        // Regla 2: no se puede cerrar si hay empleados activos sin recibo en este período.
+                        // Usa los mismos filtros que generateForPeriod() para garantizar consistencia.
+                        $payrollEmployeeIds = $record->payrolls()->pluck('employee_id');
+
+                        $missingCount = Employee::where('status', 'active')
+                            ->whereHas('activeContract', fn($q) => $q
+                                ->where('payroll_type', $record->frequency)
+                                ->whereNotNull('salary')
+                            )
+                            ->whereNotIn('id', $payrollEmployeeIds)
+                            ->count();
+
+                        if ($missingCount > 0) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Hay empleados sin recibo')
+                                ->body("Hay {$missingCount} empleado(s) activo(s) sin recibo en este período. Use 'Generar Recibos' antes de cerrar.")
                                 ->duration(10000)
                                 ->send();
 
@@ -369,11 +365,44 @@ class PayrollPeriodResource extends Resource
                             ->body("El período {$record->name} ha sido cerrado exitosamente.")
                             ->send();
                     })
-                    ->visible(fn(PayrollPeriod $record) => $record->status === 'processing'),
+                    // Ocultar si hay borradores: en ese estado el ->before() lo bloquearía de todas formas.
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'processing' && ($record->draft_payrolls_count ?? 0) === 0),
 
-                EditAction::make(),
-                DeleteAction::make()
-                    ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
+                Action::make('reopen_period')
+                    ->label('Reabrir Período')
+                    ->icon('heroicon-o-lock-open')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Reabrir Período de Nómina')
+                    ->modalDescription(fn(PayrollPeriod $record) =>
+                        "¿Está seguro de reabrir el período {$record->name}? Esto permitirá generar o modificar recibos nuevamente."
+                    )
+                    ->action(function (PayrollPeriod $record) {
+                        $record->update([
+                            'status' => 'processing',
+                            'closed_at' => null,
+                        ]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Período reabierto')
+                            ->body("El período {$record->name} ha sido reabierto exitosamente.")
+                            ->send();
+                    })
+                    ->visible(fn(PayrollPeriod $record) => $record->status === 'closed'),
+
+                ActionGroup::make([
+                    ViewAction::make(),
+
+                    // Períodos cerrados no son editables para proteger la integridad del flujo de nómina.
+                    EditAction::make()
+                        ->visible(fn(PayrollPeriod $record) => $record->status !== 'closed')
+                        ->color('primary'),
+
+                    // Solo se permiten eliminar períodos en borrador para evitar pérdida de datos importantes.
+                    DeleteAction::make()
+                        ->visible(fn(PayrollPeriod $record) => $record->status === 'draft'),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -401,6 +430,11 @@ class PayrollPeriodResource extends Resource
                         }),
                 ]),
             ])
+            // Precarga el conteo de recibos en borrador por período en una sola query,
+            // evitando N+1 en el visible() de la acción "Regenerar Recibos".
+            ->modifyQueryUsing(fn($query) => $query->withCount([
+                'payrolls as draft_payrolls_count' => fn($q) => $q->where('status', 'draft'),
+            ]))
             ->defaultSort('start_date', 'desc')
             ->emptyStateHeading('No hay períodos de nómina registrados')
             ->emptyStateDescription('Comienza a crear períodos de nómina para gestionar los pagos de los empleados.')
@@ -422,12 +456,7 @@ class PayrollPeriodResource extends Resource
                                 ->label('Frecuencia')
                                 ->badge()
                                 ->color('info')
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'monthly'  => 'Mensual',
-                                    'biweekly' => 'Quincenal',
-                                    'weekly'   => 'Semanal',
-                                    default    => $state,
-                                }),
+                                ->formatStateUsing(fn(string $state): string => PayrollPeriod::frequencyOptions()[$state] ?? $state),
                         ])->columns(2),
 
                         Group::make([
@@ -449,18 +478,8 @@ class PayrollPeriodResource extends Resource
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
-                                    'draft'      => 'gray',
-                                    'processing' => 'warning',
-                                    'closed'     => 'success',
-                                    default      => 'primary',
-                                })
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'draft'      => 'Borrador',
-                                    'processing' => 'En Proceso',
-                                    'closed'     => 'Cerrado',
-                                    default      => $state,
-                                }),
+                                ->color(fn(string $state): string => PayrollPeriod::statusColors()[$state] ?? 'primary')
+                                ->formatStateUsing(fn(string $state): string => PayrollPeriod::statusOptions()[$state] ?? $state),
 
                             TextEntry::make('closed_at')
                                 ->label('Fecha de Cierre')

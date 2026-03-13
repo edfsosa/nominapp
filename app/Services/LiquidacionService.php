@@ -48,6 +48,10 @@ class LiquidacionService
             $monthsOfService = $hireDate->diffInMonths($terminationDate);
             $daysOfService = $hireDate->diffInDays($terminationDate);
 
+            // Detectar período de prueba: usar trial_days del contrato activo (default 30)
+            $trialDays = $employee->activeContract?->trial_days ?? 30;
+            $inTrialPeriod = $daysOfService <= $trialDays;
+
             $averageSalary6m = $this->calculateAverageSalary6Months($employee, $terminationDate, $baseSalary);
 
             $items = [];
@@ -57,7 +61,7 @@ class LiquidacionService
             // ===== COMPONENTE 1: PREAVISO =====
             $preavisoDays = 0;
             $preavisoAmount = 0;
-            if (Liquidacion::includesPreaviso($liquidacion->termination_type) && !$liquidacion->preaviso_otorgado) {
+            if (!$inTrialPeriod && Liquidacion::includesPreaviso($liquidacion->termination_type) && !$liquidacion->preaviso_otorgado) {
                 $preavisoDays = $this->calculatePreavisoDays($yearsOfService);
                 if ($preavisoDays > 0) {
                     $preavisoAmount = round($preavisoDays * $dailySalary, 0);
@@ -76,7 +80,7 @@ class LiquidacionService
             // ===== COMPONENTE 2: INDEMNIZACIÓN =====
             $indemnizacionAmount = 0;
             $indemnizacionEstabilidadAmount = 0;
-            if (Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
+            if (!$inTrialPeriod && Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
                 $indemnizacionAmount = $this->calculateIndemnizacion($yearsOfService, $monthsOfService, $averageSalary6m);
                 if ($indemnizacionAmount > 0) {
                     $totalHaberes += $indemnizacionAmount;
@@ -115,7 +119,7 @@ class LiquidacionService
 
             // ===== COMPONENTE 3: VACACIONES PROPORCIONALES =====
             [$vacacionesDays, $vacacionesAmount] = $this->calculateVacacionesProporcionales(
-                $employee, $terminationDate, $yearsOfService, $dailySalary
+                $employee, $terminationDate, $yearsOfService, $daysOfService, $trialDays, $dailySalary
             );
             if ($vacacionesAmount > 0) {
                 $totalHaberes += $vacacionesAmount;
@@ -128,23 +132,10 @@ class LiquidacionService
                 ];
             }
 
-            // ===== COMPONENTE 4: AGUINALDO PROPORCIONAL =====
-            $aguinaldoAmount = $this->calculateAguinaldoProporcional($employee, $terminationDate);
-            if ($aguinaldoAmount > 0) {
-                $totalHaberes += $aguinaldoAmount;
-                $monthsInYear = $terminationDate->month;
-                $items[] = [
-                    'type' => 'haber',
-                    'category' => 'aguinaldo',
-                    'description' => "Aguinaldo proporcional: {$monthsInYear} meses del año {$terminationDate->year}",
-                    'amount' => $aguinaldoAmount,
-                    'metadata' => ['months_in_year' => $monthsInYear, 'year' => $terminationDate->year],
-                ];
-            }
-
-            // ===== COMPONENTE 5: SALARIO PENDIENTE =====
+            // ===== COMPONENTE 4: SALARIO PENDIENTE =====
+            // Se calcula antes que el aguinaldo porque este lo usa como base cuando no hay nóminas previas
             [$salarioPendienteDays, $salarioPendienteAmount] = $this->calculateSalarioPendiente(
-                $employee, $terminationDate, $dailySalary
+                $employee, $terminationDate, $dailySalary, $hireDate
             );
             if ($salarioPendienteAmount > 0) {
                 $totalHaberes += $salarioPendienteAmount;
@@ -157,12 +148,47 @@ class LiquidacionService
                 ];
             }
 
+            // ===== COMPONENTE 5: AGUINALDO PROPORCIONAL =====
+            $aguinaldoAmount = $this->calculateAguinaldoProporcional($employee, $terminationDate, $salarioPendienteAmount);
+            if ($aguinaldoAmount > 0) {
+                $totalHaberes += $aguinaldoAmount;
+                $monthsInYear = $terminationDate->month;
+                $items[] = [
+                    'type' => 'haber',
+                    'category' => 'aguinaldo',
+                    'description' => "Aguinaldo proporcional: {$monthsInYear} meses del año {$terminationDate->year}",
+                    'amount' => $aguinaldoAmount,
+                    'metadata' => ['months_in_year' => $monthsInYear, 'year' => $terminationDate->year],
+                ];
+            }
+
             // ===== DEDUCCIONES =====
 
+            // Ausencias injustificadas dentro del período liquidado (no cubiertas por nómina previa)
+            [$absenceDays, $absenceDeduction] = $this->calculateAbsenceDeductions(
+                $employee, $hireDate, $terminationDate, $dailySalary
+            );
+            if ($absenceDeduction > 0) {
+                $totalDeductions += $absenceDeduction;
+                $items[] = [
+                    'type' => 'deduction',
+                    'category' => 'ausencias',
+                    'description' => "Ausencias injustificadas: {$absenceDays} día(s)",
+                    'amount' => $absenceDeduction,
+                    'metadata' => ['days' => $absenceDays, 'daily_salary' => $dailySalary],
+                ];
+            }
+
             // IPS 9% sobre salario pendiente + vacaciones (preaviso/indemnización/aguinaldo exentos)
+            // Solo se aplica si el empleado tiene activa la deducción IPS en su perfil
             $ipsRate = $settings->ips_employee_rate;
+            $ipsDeductionCode = $settings->ips_deduction_code;
             $ipsBase = $salarioPendienteAmount + $vacacionesAmount;
-            $ipsDeduction = round($ipsBase * ($ipsRate / 100), 0);
+            $hasIps = $employee->deductions()
+                ->where('code', $ipsDeductionCode)
+                ->wherePivotNull('end_date')
+                ->exists();
+            $ipsDeduction = ($hasIps && $ipsBase > 0) ? round($ipsBase * ($ipsRate / 100), 0) : 0;
             if ($ipsDeduction > 0) {
                 $totalDeductions += $ipsDeduction;
                 $items[] = [
@@ -319,23 +345,34 @@ class LiquidacionService
         Employee $employee,
         Carbon $terminationDate,
         int $yearsOfService,
+        int $daysOfService,
+        int $trialDays,
         float $dailySalary
     ): array {
-        $entitledDays = $this->getEntitledVacationDays($yearsOfService);
-
-        if ($entitledDays === 0) {
+        // Sin derecho a vacaciones dentro del período de prueba
+        if ($daysOfService <= $trialDays) {
             return [0, 0];
         }
 
-        // Obtener balance del año actual
         $currentYear = $terminationDate->year;
         $balance = VacationBalance::where('employee_id', $employee->id)
             ->where('year', $currentYear)
             ->first();
-
         $usedDays = $balance?->used_days ?? 0;
 
-        // Calcular días proporcionales según meses trabajados en el período
+        if ($yearsOfService < 1) {
+            // Primer año incompleto: proporcional sobre 12 días base (1 día por mes trabajado)
+            $monthsWorked = (int) $employee->hire_date->diffInMonths($terminationDate);
+            $proportionalDays = max(0, $monthsWorked - $usedDays);
+            $amount = round($proportionalDays * $dailySalary, 0);
+
+            return [$proportionalDays, $amount];
+        }
+
+        // Año completo o más: usar tabla de días según antigüedad
+        $entitledDays = $this->getEntitledVacationDays($yearsOfService);
+
+        // Calcular días proporcionales según meses trabajados desde el último aniversario
         $anniversaryDate = $employee->hire_date->copy()->year($currentYear);
         if ($anniversaryDate->gt($terminationDate)) {
             $anniversaryDate->subYear();
@@ -373,7 +410,7 @@ class LiquidacionService
         return 12; // fallback
     }
 
-    protected function calculateAguinaldoProporcional(Employee $employee, Carbon $terminationDate): float
+    protected function calculateAguinaldoProporcional(Employee $employee, Carbon $terminationDate, float $salarioPendienteAmount = 0): float
     {
         $year = $terminationDate->year;
 
@@ -394,12 +431,17 @@ class LiquidacionService
             })
             ->get();
 
+        // Empleado nuevo sin nóminas previas: el aguinaldo se calcula sobre lo ganado en esta liquidación
+        if ($payrolls->isEmpty()) {
+            return $salarioPendienteAmount > 0 ? round($salarioPendienteAmount / 12, 0) : 0;
+        }
+
         $totalEarned = $payrolls->sum(fn($p) => (float) $p->base_salary + (float) $p->total_perceptions);
 
         return round($totalEarned / 12, 0);
     }
 
-    protected function calculateSalarioPendiente(Employee $employee, Carbon $terminationDate, float $dailySalary): array
+    protected function calculateSalarioPendiente(Employee $employee, Carbon $terminationDate, float $dailySalary, Carbon $hireDate): array
     {
         // Verificar si ya se pagó el mes actual
         $hasPayroll = Payroll::where('employee_id', $employee->id)
@@ -412,10 +454,37 @@ class LiquidacionService
             return [0, 0];
         }
 
-        $daysWorked = $terminationDate->day;
+        // Si el empleado fue contratado en el mismo mes/año, contar solo desde su primer día
+        if ($hireDate->month === $terminationDate->month && $hireDate->year === $terminationDate->year) {
+            $daysWorked = $terminationDate->day - $hireDate->day + 1;
+        } else {
+            $daysWorked = $terminationDate->day;
+        }
+
         $amount = round($daysWorked * $dailySalary, 0);
 
         return [$daysWorked, $amount];
+    }
+
+    protected function calculateAbsenceDeductions(Employee $employee, Carbon $hireDate, Carbon $terminationDate, float $dailySalary): array
+    {
+        // Solo aplica a empleados de tiempo completo; para jornaleros la ausencia ya implica no cobrar ese día
+        if ($employee->employment_type === 'day_laborer') {
+            return [0, 0];
+        }
+
+        $absentDays = $employee->attendanceDays()
+            ->whereBetween('date', [$hireDate->toDateString(), $terminationDate->toDateString()])
+            ->where('status', 'absent')
+            ->where('is_holiday', false)
+            ->where('is_weekend', false)
+            ->count();
+
+        if ($absentDays === 0) {
+            return [0, 0];
+        }
+
+        return [$absentDays, round($absentDays * $dailySalary, 0)];
     }
 
     protected function calculatePendingLoans(Employee $employee): float

@@ -4,14 +4,17 @@ namespace App\Filament\Resources\PayrollPeriodResource\Pages;
 
 use App\Filament\Resources\PayrollPeriodResource;
 use App\Models\PayrollPeriod;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ListPayrollPeriods extends ListRecords
 {
@@ -34,125 +37,111 @@ class ListPayrollPeriods extends ListRecords
                         ])
                         ->native(false)
                         ->required()
-                        ->reactive()
-                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                            // Auto-calcular end_date si hay start_date
-                            $startDate = $get('start_date');
-                            if ($startDate) {
-                                $start = \Carbon\Carbon::parse($startDate);
-                                $end = match ($state) {
-                                    'monthly' => $start->copy()->endOfMonth(),
-                                    'biweekly' => $start->copy()->addDays(13), // 14 días (0-13)
-                                    'weekly' => $start->copy()->addDays(6),    // 7 días (0-6)
-                                    default => $start->copy()->endOfMonth(),
-                                };
-                                $set('end_date', $end->format('Y-m-d'));
-                            }
-                        })
+                        ->default('monthly')
+                        ->live()
                         ->helperText(fn($state) => match ($state) {
-                            'monthly' => 'Un período por mes',
+                            'monthly'  => 'Un período por mes',
                             'biweekly' => 'Períodos de 14 días',
-                            'weekly' => 'Períodos de 7 días',
-                            default => null,
+                            'weekly'   => 'Períodos de 7 días',
+                            default    => null,
                         }),
 
                     DatePicker::make('start_date')
-                        ->label('Fecha de Inicio')
+                        ->label('Inicio del rango')
                         ->displayFormat('d/m/Y')
                         ->native(false)
                         ->closeOnDateSelection()
                         ->required()
-                        ->reactive()
-                        ->afterStateUpdated(function ($state, callable $set, callable $get) {
-                            // Auto-calcular end_date basado en frequency
-                            $frequency = $get('frequency');
-                            if ($frequency && $state) {
-                                $start = \Carbon\Carbon::parse($state);
-                                $end = match ($frequency) {
-                                    'monthly' => $start->copy()->endOfMonth(),
-                                    'biweekly' => $start->copy()->addDays(13), // 14 días
-                                    'weekly' => $start->copy()->addDays(6),    // 7 días
-                                    default => $start->copy()->endOfMonth(),
-                                };
-                                $set('end_date', $end->format('Y-m-d'));
-                            }
-                        }),
+                        ->live()
+                        ->helperText('Fecha de inicio del primer período'),
 
                     DatePicker::make('end_date')
-                        ->label('Fecha de Fin')
+                        ->label('Fin del rango')
                         ->displayFormat('d/m/Y')
                         ->native(false)
                         ->closeOnDateSelection()
                         ->required()
+                        ->live()
                         ->minDate(fn($get) => $get('start_date'))
                         ->disabled(fn($get) => !$get('start_date'))
-                        ->helperText('Se calcula automáticamente según la frecuencia'),
+                        ->helperText('Fecha hasta la que se generarán períodos consecutivos'),
 
-                    Select::make('quantity')
-                        ->label('Cantidad de Períodos')
-                        ->options([
-                            1  => '1 período',
-                            2  => '2 períodos',
-                            3  => '3 períodos',
-                            4  => '4 períodos',
-                            6  => '6 períodos',
-                            12 => '12 períodos',
-                            24 => '24 períodos',
-                            26 => '26 períodos (medio año quincenal)',
-                            52 => '52 períodos (año completo semanal)',
-                        ])
-                        ->native(false)
-                        ->default(1)
-                        ->required()
-                        ->helperText('Cantidad de períodos consecutivos a generar'),
+                    Placeholder::make('periods_preview')
+                        ->label('Períodos a generar')
+                        ->content(function ($get) {
+                            $start     = $get('start_date');
+                            $end       = $get('end_date');
+                            $frequency = $get('frequency');
+
+                            if (!$start || !$end || !$frequency) {
+                                return 'Complete los campos para ver la cantidad estimada.';
+                            }
+
+                            $startDate = Carbon::parse($start);
+                            $rangeEnd  = Carbon::parse($end);
+
+                            if ($startDate->gt($rangeEnd)) {
+                                return 'La fecha de inicio debe ser anterior al fin del rango.';
+                            }
+
+                            $count      = 0;
+                            $firstStart = null;
+                            $lastEnd    = null;
+                            $cursor     = $startDate->copy();
+
+                            while ($cursor->lte($rangeEnd)) {
+                                $periodEnd = $this->calculateEndDate($cursor, $frequency);
+                                if ($count === 0) {
+                                    $firstStart = $cursor->copy();
+                                }
+                                $lastEnd = $periodEnd->copy();
+                                $count++;
+                                $cursor = $periodEnd->addDay();
+                            }
+
+                            if ($count === 0) {
+                                return 'El rango no cubre ningún período completo.';
+                            }
+
+                            return "{$count} período(s): {$firstStart->format('d/m/Y')} → {$lastEnd->format('d/m/Y')}";
+                        }),
                 ])
                 ->modalWidth('md')
                 ->modalHeading('Generar Períodos de Nómina')
                 ->modalDescription('Complete los datos para generar automáticamente los períodos de nómina.')
                 ->action(function (array $data) {
-                    $created = 0;
-                    $skipped = 0;
+                    $created  = 0;
+                    $skipped  = 0;
+                    $rangeEnd = Carbon::parse($data['end_date']);
 
-                    $startDate = \Carbon\Carbon::parse($data['start_date']);
-                    $endDate = \Carbon\Carbon::parse($data['end_date']);
+                    DB::transaction(function () use ($data, $rangeEnd, &$created, &$skipped) {
+                        $periodStart = Carbon::parse($data['start_date']);
 
-                    for ($i = 0; $i < $data['quantity']; $i++) {
-                        // Generar nombre automático
-                        $name = match ($data['frequency']) {
-                            'monthly' => $startDate->locale('es')->isoFormat('MMMM YYYY'),
-                            'biweekly' => 'Quincena ' . $startDate->format('d/m/Y') . ' - ' . $endDate->format('d/m/Y'),
-                            'weekly' => 'Semana ' . $startDate->format('d/m/Y') . ' - ' . $endDate->format('d/m/Y'),
-                            default => $startDate->format('d/m/Y') . ' - ' . $endDate->format('d/m/Y'),
-                        };
+                        while ($periodStart->lte($rangeEnd)) {
+                            $periodEnd = $this->calculateEndDate($periodStart, $data['frequency']);
+                            $name      = PayrollPeriod::generateName($data['frequency'], $periodStart, $periodEnd);
 
-                        // Verificar si ya existe
-                        $exists = PayrollPeriod::where('frequency', $data['frequency'])
-                            ->where('start_date', $startDate->format('Y-m-d'))
-                            ->where('end_date', $endDate->format('Y-m-d'))
-                            ->exists();
+                            $exists = PayrollPeriod::where('frequency', $data['frequency'])
+                                ->where('start_date', $periodStart->format('Y-m-d'))
+                                ->where('end_date', $periodEnd->format('Y-m-d'))
+                                ->exists();
 
-                        if (!$exists) {
-                            PayrollPeriod::create([
-                                'name' => $name,
-                                'frequency' => $data['frequency'],
-                                'start_date' => $startDate->format('Y-m-d'),
-                                'end_date' => $endDate->format('Y-m-d'),
-                                'status' => 'draft',
-                            ]);
-                            $created++;
-                        } else {
-                            $skipped++;
+                            if (!$exists) {
+                                PayrollPeriod::create([
+                                    'name'       => $name,
+                                    'frequency'  => $data['frequency'],
+                                    'start_date' => $periodStart->format('Y-m-d'),
+                                    'end_date'   => $periodEnd->format('Y-m-d'),
+                                    'status'     => 'draft',
+                                ]);
+                                $created++;
+                            } else {
+                                $skipped++;
+                            }
+
+                            $periodStart = $periodEnd->copy()->addDay();
                         }
-
-                        // Calcular siguiente período
-                        $startDate = $endDate->copy()->addDay();
-                        $endDate = match ($data['frequency']) {
-                            'monthly' => $startDate->copy()->endOfMonth(),
-                            'biweekly' => $startDate->copy()->addDays(13), // 14 días
-                            'weekly' => $startDate->copy()->addDays(6),    // 7 días
-                            default => $startDate->copy()->endOfMonth(),
-                        };
-                    }
+                    });
 
                     // Notificación de resultado
                     if ($created > 0) {
@@ -171,7 +160,6 @@ class ListPayrollPeriods extends ListRecords
                     }
                 }),
 
-
             CreateAction::make()
                 ->label('Nuevo Período')
                 ->icon('heroicon-o-plus'),
@@ -180,38 +168,49 @@ class ListPayrollPeriods extends ListRecords
 
     public function getTabs(): array
     {
+        // Una sola query para todos los badges, evitando 7 queries separadas.
+        $counts = PayrollPeriod::selectRaw('
+            COUNT(*) as total,
+            SUM(status = "draft") as draft,
+            SUM(status = "processing") as processing,
+            SUM(status = "closed") as closed,
+            SUM(frequency = "monthly") as monthly,
+            SUM(frequency = "biweekly") as biweekly,
+            SUM(frequency = "weekly") as weekly
+        ')->first();
+
         return [
             'all' => Tab::make('Todos')
-                ->badge(PayrollPeriod::count()),
+                ->badge($counts->total),
 
             'draft' => Tab::make('Borradores')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'draft'))
-                ->badge(PayrollPeriod::where('status', 'draft')->count())
+                ->badge($counts->draft)
                 ->badgeColor('gray'),
 
             'processing' => Tab::make('En Proceso')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'processing'))
-                ->badge(PayrollPeriod::where('status', 'processing')->count())
+                ->badge($counts->processing)
                 ->badgeColor('warning'),
 
             'closed' => Tab::make('Cerrados')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'closed'))
-                ->badge(PayrollPeriod::where('status', 'closed')->count())
+                ->badge($counts->closed)
                 ->badgeColor('success'),
 
             'monthly' => Tab::make('Mensuales')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('frequency', 'monthly'))
-                ->badge(PayrollPeriod::where('frequency', 'monthly')->count())
+                ->badge($counts->monthly)
                 ->badgeColor('info'),
 
             'biweekly' => Tab::make('Quincenales')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('frequency', 'biweekly'))
-                ->badge(PayrollPeriod::where('frequency', 'biweekly')->count())
+                ->badge($counts->biweekly)
                 ->badgeColor('info'),
 
             'weekly' => Tab::make('Semanales')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('frequency', 'weekly'))
-                ->badge(PayrollPeriod::where('frequency', 'weekly')->count())
+                ->badge($counts->weekly)
                 ->badgeColor('info'),
         ];
     }
@@ -219,5 +218,17 @@ class ListPayrollPeriods extends ListRecords
     public function getDefaultActiveTab(): string | int | null
     {
         return 'all';
+    }
+
+    // Calcula la fecha de fin según la frecuencia del período.
+    // Centralizado para evitar duplicación y garantizar consistencia.
+    private function calculateEndDate(Carbon $start, string $frequency): Carbon
+    {
+        return match ($frequency) {
+            'monthly'  => $start->copy()->endOfMonth(),
+            'biweekly' => $start->copy()->addDays(13), // 14 días (día 0 al 13)
+            'weekly'   => $start->copy()->addDays(6),  // 7 días (día 0 al 6)
+            default    => $start->copy()->endOfMonth(),
+        };
     }
 }

@@ -170,6 +170,126 @@ class PayrollService
         return $count;
     }
 
+    public function generateForEmployee(Employee $employee, PayrollPeriod $period): Payroll
+    {
+        if (!in_array($period->status, ['draft', 'processing'])) {
+            throw new \InvalidArgumentException(
+                "No se pueden generar recibos para un período con estado '{$period->status}'. Solo se permiten períodos en borrador o en proceso."
+            );
+        }
+
+        if (Payroll::where('employee_id', $employee->id)
+            ->where('payroll_period_id', $period->id)
+            ->exists()
+        ) {
+            throw new \InvalidArgumentException(
+                "Ya existe un recibo para este empleado en el período seleccionado."
+            );
+        }
+
+        $employee->load('activeContract');
+
+        if (!$employee->activeContract) {
+            throw new \InvalidArgumentException(
+                "El empleado no tiene un contrato activo."
+            );
+        }
+
+        if ($employee->activeContract->payroll_type !== $period->frequency) {
+            throw new \InvalidArgumentException(
+                "El tipo de nómina del contrato del empleado ({$employee->activeContract->payroll_type}) no coincide con la frecuencia del período ({$period->frequency})."
+            );
+        }
+
+        DB::beginTransaction();
+
+        try {
+            if ($employee->employment_type === 'day_laborer') {
+                $workedDays = $employee->attendanceDays()
+                    ->whereBetween('date', [$period->start_date, $period->end_date])
+                    ->where('status', 'present')
+                    ->count();
+
+                if ($workedDays === 0) {
+                    throw new \InvalidArgumentException(
+                        "El empleado jornalero no tiene días trabajados registrados en este período."
+                    );
+                }
+
+                $baseSalary = round($employee->daily_rate * $workedDays, 2);
+            } else {
+                $baseSalary = $employee->base_salary;
+            }
+
+            $perceptions     = $this->perceptionCalculator->calculate($employee, $period);
+            $deductions      = $this->deductionCalculator->calculate($employee, $period);
+            $extras          = $this->extraHourCalculator->calculate($employee, $period);
+            $absences        = $this->absencePenaltyCalculator->calculate($employee, $period);
+            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
+
+            $totalPerceptions = $perceptions['total'] + $extras['total'];
+            $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+            $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
+
+            $payroll = Payroll::create([
+                'employee_id'      => $employee->id,
+                'payroll_period_id' => $period->id,
+                'base_salary'      => $baseSalary,
+                'total_perceptions' => $totalPerceptions,
+                'total_deductions' => $totalDeductions,
+                'gross_salary'     => $baseSalary + $totalPerceptions,
+                'net_salary'       => $netSalary,
+                'generated_at'     => now(),
+                'status'           => 'draft',
+            ]);
+
+            foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+                PayrollItem::create([
+                    'payroll_id'  => $payroll->id,
+                    'type'        => 'perception',
+                    'description' => $item['description'],
+                    'amount'      => $item['amount'],
+                ]);
+            }
+
+            foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
+                PayrollItem::create([
+                    'payroll_id'  => $payroll->id,
+                    'type'        => 'deduction',
+                    'description' => $item['description'],
+                    'amount'      => $item['amount'],
+                ]);
+            }
+
+            if ($loanInstallments['installments']->isNotEmpty()) {
+                $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
+                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
+            }
+
+            $pdfPath = $this->payrollPDFGenerator->generate($payroll);
+            $payroll->update(['pdf_path' => $pdfPath]);
+
+            DB::commit();
+
+            Log::info('Recibo de nómina generado manualmente', [
+                'payroll_id' => $payroll->id,
+                'employee_id' => $employee->id,
+                'period_id'  => $period->id,
+                'net_salary' => $netSalary,
+            ]);
+
+            return $payroll->refresh();
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            Log::error('Error al generar recibo manualmente: ' . $e->getMessage(), [
+                'employee_id' => $employee->id,
+                'period_id'  => $period->id,
+                'trace'      => $e->getTraceAsString(),
+            ]);
+            throw $e;
+        }
+    }
+
     public function regenerateForEmployee(Payroll $payroll): Payroll
     {
         // Validar que la nómina no esté aprobada o pagada

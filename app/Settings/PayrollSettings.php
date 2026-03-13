@@ -25,6 +25,7 @@ class PayrollSettings extends Settings
 
     // Liquidación
     public float $ips_employee_rate;
+    public string $ips_deduction_code;
     public int $indemnizacion_days_per_year;
 
     // Vacaciones

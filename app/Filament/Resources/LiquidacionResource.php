@@ -6,6 +6,7 @@ use App\Filament\Resources\LiquidacionResource\Pages;
 use App\Filament\Resources\LiquidacionResource\RelationManagers\ItemsRelationManager;
 use App\Models\Employee;
 use App\Models\Liquidacion;
+use Carbon\Carbon;
 use App\Services\LiquidacionService;
 use Filament\Forms\Components\DatePicker;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
@@ -151,7 +152,22 @@ class LiquidacionResource extends Resource
                             ->label('¿Se otorgó preaviso al empleado?')
                             ->helperText('Si el empleador dio aviso anticipado, no se paga preaviso')
                             ->default(false)
-                            ->visible(fn(Get $get) => Liquidacion::includesPreaviso($get('termination_type') ?? ''))
+                            ->visible(function (Get $get) {
+                                if (!Liquidacion::includesPreaviso($get('termination_type') ?? '')) {
+                                    return false;
+                                }
+                                $employee = Employee::find($get('employee_id'));
+                                $trialDays = $employee?->activeContract?->trial_days ?? 30;
+                                $hireDate = $get('hire_date') ?? $employee?->activeContract?->start_date;
+                                $terminationDate = $get('termination_date');
+                                if ($hireDate && $terminationDate) {
+                                    $daysOfService = Carbon::parse($hireDate)->diffInDays(Carbon::parse($terminationDate));
+                                    if ($daysOfService <= $trialDays) {
+                                        return false;
+                                    }
+                                }
+                                return true;
+                            })
                             ->disabled(fn(?Liquidacion $record) => $record && $record->isClosed())
                             ->columnSpan(2),
 
@@ -163,18 +179,35 @@ class LiquidacionResource extends Resource
                                     return 'Seleccione un tipo de desvinculación';
                                 }
 
+                                $employee = Employee::find($get('employee_id'));
+                                $trialDays = $employee?->activeContract?->trial_days ?? 30;
+                                $hireDate = $get('hire_date') ?? $employee?->activeContract?->start_date;
+                                $terminationDate = $get('termination_date');
+
+                                $inTrialPeriod = false;
+                                if ($hireDate && $terminationDate) {
+                                    $daysOfService = Carbon::parse($hireDate)->diffInDays(Carbon::parse($terminationDate));
+                                    $inTrialPeriod = $daysOfService <= $trialDays;
+                                }
+
                                 $components = [];
-                                if (Liquidacion::includesPreaviso($type) && !$get('preaviso_otorgado')) {
+                                if (!$inTrialPeriod && Liquidacion::includesPreaviso($type) && !$get('preaviso_otorgado')) {
                                     $components[] = 'Preaviso';
                                 }
-                                if (Liquidacion::includesIndemnizacion($type)) {
+                                if (!$inTrialPeriod && Liquidacion::includesIndemnizacion($type)) {
                                     $components[] = 'Indemnización';
                                 }
-                                $components[] = 'Vacaciones proporcionales';
+                                if (!$inTrialPeriod) {
+                                    $components[] = 'Vacaciones proporcionales';
+                                }
                                 $components[] = 'Aguinaldo proporcional';
                                 $components[] = 'Salario pendiente';
 
-                                return 'Incluye: ' . implode(' + ', $components);
+                                $result = 'Incluye: ' . implode(' + ', $components);
+                                if ($inTrialPeriod) {
+                                    $result .= ' — ⚠️ Período de prueba activo: preaviso e indemnización excluidos';
+                                }
+                                return $result;
                             })
                             ->columnSpan(2),
 
@@ -533,6 +566,12 @@ class LiquidacionResource extends Resource
                                 ->money('PYG', locale: 'es_PY')
                                 ->color('danger'),
                         ])->columns(2),
+                        TextEntry::make('ausencias_deduction')
+                            ->label('Ausencias Injustificadas')
+                            ->state(fn(Liquidacion $record) => (float) $record->items()->where('category', 'ausencias')->sum('amount'))
+                            ->money('PYG', locale: 'es_PY')
+                            ->color('danger')
+                            ->visible(fn(Liquidacion $record) => $record->items()->where('category', 'ausencias')->exists()),
                         TextEntry::make('total_deductions')
                             ->label('TOTAL DESCUENTOS')
                             ->money('PYG', locale: 'es_PY')
@@ -667,6 +706,9 @@ class LiquidacionResource extends Resource
                         Column::make('total_haberes')->heading('Total Haberes'),
                         Column::make('ips_deduction')->heading('Descuento IPS'),
                         Column::make('loan_deduction')->heading('Descuento Préstamos'),
+                        Column::make('ausencias_deduction')
+                            ->heading('Descuento Ausencias')
+                            ->getStateUsing(fn($record) => (float) $record->items()->where('category', 'ausencias')->sum('amount')),
                         Column::make('total_deductions')->heading('Total Descuentos'),
                         Column::make('net_amount')->heading('Neto a Pagar'),
                         Column::make('status')

@@ -5,6 +5,7 @@ namespace App\Filament\Resources\LiquidacionResource\Pages;
 use App\Filament\Resources\LiquidacionResource;
 use App\Models\Employee;
 use App\Models\Liquidacion;
+use App\Settings\PayrollSettings;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
@@ -35,6 +36,34 @@ class CreateLiquidacion extends CreateRecord
         }
 
         $employee = Employee::find($data['employee_id']);
+
+        // Advertencia de protección de maternidad (Ley 5508/15) — no bloquea, solo informa
+        if ($employee->isUnderMaternityProtection()) {
+            $until = $employee->maternity_protection_until->format('d/m/Y');
+            Notification::make()
+                ->warning()
+                ->title('Empleada bajo protección de maternidad')
+                ->body("Esta empleada goza de protección de maternidad hasta el {$until} (Ley N° 5508/15). El despido sin justa causa está prohibido durante este período. Si procede, asegúrese de contar con la autorización judicial correspondiente.")
+                ->persistent()
+                ->send();
+        }
+
+        // Advertencia si el empleado no tiene deducción IPS — no se descontará el 9% en la liquidación
+        $ipsCode = app(PayrollSettings::class)->ips_deduction_code;
+        $hasIps = $employee->deductions()
+            ->where('code', $ipsCode)
+            ->wherePivotNull('end_date')
+            ->exists();
+
+        if (!$hasIps) {
+            Notification::make()
+                ->warning()
+                ->title('Empleado sin deducción IPS registrada')
+                ->body("Este empleado no tiene la deducción IPS ({$ipsCode}) activa en su perfil. El aporte obrero del 9% no será descontado en la liquidación. Verifique si corresponde antes de continuar.")
+                ->persistent()
+                ->send();
+        }
+
         $contract = $employee->activeContract;
 
         if (!$contract) {

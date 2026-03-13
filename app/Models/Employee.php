@@ -20,6 +20,7 @@ class Employee extends Model
         'last_name',
         'ci',
         'birth_date',
+        'maternity_protection_until',
         'phone',
         'email',
         'branch_id',
@@ -29,8 +30,9 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'birth_date'      => 'date',
-        'face_descriptor' => 'array',
+        'birth_date'                 => 'date',
+        'maternity_protection_until' => 'date',
+        'face_descriptor'            => 'array',
     ];
 
     // ───────────────────────────────────────────
@@ -646,6 +648,16 @@ class Employee extends Model
     public function getAgeDescriptionAttribute(): string
     {
         return $this->birth_date ? $this->birth_date->age . ' años' : '';
+    }
+
+    /**
+     * Indica si la empleada está en período de protección de maternidad (Ley 5508/15).
+     * Devuelve true si maternity_protection_until existe y es hoy o en el futuro.
+     */
+    public function isUnderMaternityProtection(): bool
+    {
+        return $this->maternity_protection_until !== null
+            && $this->maternity_protection_until->isFuture();
     }
 
     /**

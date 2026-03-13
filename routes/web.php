@@ -101,6 +101,9 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/download', [PayrollController::class, 'download'])->name('download');
         Route::get('/view', [PayrollController::class, 'view'])->name('view');
     });
+    Route::get('/recibos/temp/{filename}', [PayrollController::class, 'downloadTemp'])
+        ->name('payrolls.download.temp')
+        ->where('filename', '.+');
 
     // Recibos de aguinaldo (13° salario)
     Route::prefix('aguinaldos/{aguinaldo}')->name('aguinaldos.')->group(function () {

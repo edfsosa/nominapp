@@ -368,6 +368,11 @@
                                 'Base: ' . \App\Models\Liquidacion::formatCurrency($meta['base'] ?? 0) .
                                 ' × ' . ($meta['rate'] ?? 9) . '%',
                             'loan' => 'Saldo pendiente de préstamos',
+                            'ausencias' =>
+                                ($meta['days'] ?? '-') . ' día(s) × ' .
+                                (isset($meta['daily_salary'])
+                                    ? \App\Models\Liquidacion::formatCurrency($meta['daily_salary']) . '/día'
+                                    : '-'),
                             default => '-',
                         };
                     @endphp

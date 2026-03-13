@@ -184,7 +184,7 @@ class ManagePayrollSettings extends SettingsPage
                     ->description('Parámetros para cálculo de liquidaciones (Art. 78-100)')
                     ->icon('heroicon-o-document-text')
                     ->schema([
-                        Grid::make(2)
+                        Grid::make(3)
                             ->schema([
                                 // Aporte IPS obrero con validación numérica y formato porcentual
                                 TextInput::make('ips_employee_rate')
@@ -196,6 +196,13 @@ class ManagePayrollSettings extends SettingsPage
                                     ->required()
                                     ->suffix('%')
                                     ->helperText('Default: 9%'),
+
+                                // Código de la deducción IPS en el catálogo de deducciones
+                                TextInput::make('ips_deduction_code')
+                                    ->label('Código deducción IPS')
+                                    ->required()
+                                    ->maxLength(20)
+                                    ->helperText('Código del catálogo de deducciones (Default: IPS001)'),
 
                                 // Días de indemnización por año con validación numérica
                                 TextInput::make('indemnizacion_days_per_year')

@@ -18,6 +18,11 @@ class ItemsRelationManager extends RelationManager
     protected static ?string $modelLabel = 'ítem';
     protected static ?string $pluralModelLabel = 'ítems';
 
+    public function isReadOnly(): bool
+    {
+        return $this->getOwnerRecord()->status !== 'draft';
+    }
+
     public function form(Form $form): Form
     {
         return $form
@@ -30,7 +35,7 @@ class ItemsRelationManager extends RelationManager
                     ])
                     ->native(false)
                     ->required()
-                    ->reactive()
+                    ->live()
                     ->columnSpan(1),
 
                 TextInput::make('description')
@@ -116,24 +121,8 @@ class ItemsRelationManager extends RelationManager
             ->bulkActions([
                 Tables\Actions\BulkActionGroup::make([
                     Tables\Actions\DeleteBulkAction::make()
-                        ->action(function ($records) {
-                            if ($this->getOwnerRecord()->status !== 'draft') {
-                                \Filament\Notifications\Notification::make()
-                                    ->warning()
-                                    ->title('Recibo no editable')
-                                    ->body('Solo se pueden modificar ítems de recibos en estado borrador.')
-                                    ->send();
-                                return;
-                            }
-
-                            $records->each->delete();
-
-                            \Filament\Notifications\Notification::make()
-                                ->success()
-                                ->title('Ítems eliminados')
-                                ->body('Los ítems seleccionados han sido eliminados.')
-                                ->send();
-                        }),
+                        ->visible(fn() => $this->getOwnerRecord()->status === 'draft')
+                        ->after(fn() => $this->recalculatePayrollTotals()),
                 ]),
             ])
             ->emptyStateHeading('No hay ítems registrados')

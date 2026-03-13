@@ -4,13 +4,9 @@ namespace App\Filament\Resources\PayrollResource\Pages;
 
 use App\Filament\Resources\PayrollResource;
 use App\Models\Payroll;
-use App\Models\PayrollPeriod;
-use Filament\Actions\Action;
-use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Excel;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
@@ -22,52 +18,6 @@ class ListPayrolls extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('approve_all')
-                ->label('Aprobar Todos')
-                ->icon('heroicon-o-check-circle')
-                ->color('success')
-                ->requiresConfirmation()
-                ->modalHeading('Aprobar Todos los Recibos')
-                ->modalDescription(function () {
-                    $count = Payroll::where('status', 'draft')->count();
-                    return "Se aprobarán {$count} recibos en estado Borrador. ¿Desea continuar?";
-                })
-                ->action(function () {
-                    $count = Payroll::where('status', 'draft')
-                        ->update([
-                            'status' => 'approved',
-                            'approved_by_id' => Auth::id(),
-                            'approved_at' => now(),
-                        ]);
-
-                    Notification::make()
-                        ->success()
-                        ->title("{$count} recibos aprobados")
-                        ->send();
-                })
-                ->visible(fn() => Payroll::where('status', 'draft')->exists()),
-
-            Action::make('mark_all_paid')
-                ->label('Marcar Todos Pagados')
-                ->icon('heroicon-o-banknotes')
-                ->color('info')
-                ->requiresConfirmation()
-                ->modalHeading('Marcar Todos como Pagados')
-                ->modalDescription(function () {
-                    $count = Payroll::where('status', 'approved')->count();
-                    return "Se marcarán {$count} recibos aprobados como pagados. ¿Desea continuar?";
-                })
-                ->action(function () {
-                    $count = Payroll::where('status', 'approved')
-                        ->update(['status' => 'paid']);
-
-                    Notification::make()
-                        ->success()
-                        ->title("{$count} recibos marcados como pagados")
-                        ->send();
-                })
-                ->visible(fn() => Payroll::where('status', 'approved')->exists()),
-
             ExportAction::make()
                 ->exports([
                     ExcelExport::make()
@@ -83,46 +33,33 @@ class ListPayrolls extends ListRecords
 
     public function getTabs(): array
     {
-        $currentPeriod = PayrollPeriod::where('status', 'processing')
-            ->orWhere('status', 'draft')
-            ->latest('start_date')
-            ->first();
+        // Una sola query para todos los badges.
+        $counts = Payroll::selectRaw('
+            COUNT(*) as total,
+            SUM(status = "draft") as draft,
+            SUM(status = "approved") as approved,
+            SUM(status = "paid") as paid
+        ')->first();
 
-        $tabs = [
+        return [
             'all' => Tab::make('Todos')
-                ->badge(Payroll::count()),
+                ->badge($counts->total),
+
+            'draft' => Tab::make('Borradores')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'draft'))
+                ->badge($counts->draft)
+                ->badgeColor('gray'),
+
+            'approved' => Tab::make('Aprobados')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'approved'))
+                ->badge($counts->approved)
+                ->badgeColor('success'),
+
+            'paid' => Tab::make('Pagados')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'paid'))
+                ->badge($counts->paid)
+                ->badgeColor('info'),
         ];
-
-        if ($currentPeriod) {
-            $tabs['current_period'] = Tab::make($currentPeriod->name)
-                ->modifyQueryUsing(
-                    fn(Builder $query) =>
-                    $query->where('payroll_period_id', $currentPeriod->id)
-                )
-                ->badge(Payroll::where('payroll_period_id', $currentPeriod->id)->count())
-                ->badgeColor('success');
-        }
-
-        // Últimos 3 períodos
-        $recentPeriods = PayrollPeriod::latest('start_date')
-            ->take(3)
-            ->get();
-
-        foreach ($recentPeriods as $period) {
-            if ($currentPeriod && $period->id === $currentPeriod->id) {
-                continue; // Ya lo agregamos arriba
-            }
-
-            $tabs["period_{$period->id}"] = Tab::make($period->name)
-                ->modifyQueryUsing(
-                    fn(Builder $query) =>
-                    $query->where('payroll_period_id', $period->id)
-                )
-                ->badge(Payroll::where('payroll_period_id', $period->id)->count())
-                ->badgeColor('info');
-        }
-
-        return $tabs;
     }
 
     public function getDefaultActiveTab(): string | int | null

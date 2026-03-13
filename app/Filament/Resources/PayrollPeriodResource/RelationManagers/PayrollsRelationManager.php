@@ -160,7 +160,7 @@ class PayrollsRelationManager extends RelationManager
                     })
                     ->query(function (Builder $query, array $data) {
                         if (filled($data['value'])) {
-                            return $query->whereHas('employee', function (Builder $query) use ($data) {
+                            return $query->whereHas('employee.activeContract', function (Builder $query) use ($data) {
                                 $query->where('position_id', $data['value']);
                             });
                         }
@@ -328,7 +328,7 @@ class PayrollsRelationManager extends RelationManager
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
                     ->icon('heroicon-o-banknotes')
-                    ->color('info')
+                    ->color('primary')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
                     ->modalDescription(fn(Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
@@ -536,37 +536,44 @@ class PayrollsRelationManager extends RelationManager
                                 return;
                             }
 
+                            $tempDir = storage_path('app/public/temp');
+                            if (!is_dir($tempDir)) {
+                                mkdir($tempDir, 0755, true);
+                            }
+
+                            // Limpiar archivos temporales de más de 1 hora
+                            foreach (glob($tempDir . '/*.{pdf,zip}', GLOB_BRACE) as $file) {
+                                if (is_file($file) && (time() - filemtime($file)) > 3600) {
+                                    @unlink($file);
+                                }
+                            }
+
+                            $uniqueId = \Illuminate\Support\Str::uuid();
+
                             if ($validRecords->count() === 1) {
                                 $record = $validRecords->first();
-                                return response()->streamDownload(function () use ($record) {
-                                    echo Storage::disk('public')->get($record->pdf_path);
-                                }, 'recibo_' . $record->employee->ci . '.pdf', ['Content-Type' => 'application/pdf']);
+                                $filename = $uniqueId . '_recibo_' . $record->employee->ci . '.pdf';
+                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir . '/' . $filename);
+                            } else {
+                                $filename = $uniqueId . '_recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
+                                $zip = new \ZipArchive();
+                                $zip->open($tempDir . '/' . $filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+                                foreach ($validRecords as $record) {
+                                    $zip->addFromString(
+                                        'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
+                                        Storage::disk('public')->get($record->pdf_path)
+                                    );
+                                }
+                                $zip->close();
                             }
 
-                            $zipFileName = 'recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
-                            $zipPath = storage_path('app/temp/' . $zipFileName);
+                            $this->js("window.open('" . route('payrolls.download.temp', ['filename' => $filename]) . "', '_blank')");
 
-                            if (!is_dir(storage_path('app/temp'))) {
-                                mkdir(storage_path('app/temp'), 0755, true);
-                            }
-
-                            $zip = new \ZipArchive();
-                            $zip->open($zipPath, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-
-                            foreach ($validRecords as $record) {
-                                $pdfContent = Storage::disk('public')->get($record->pdf_path);
-                                $zip->addFromString(
-                                    'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
-                                    $pdfContent
-                                );
-                            }
-
-                            $zip->close();
-
-                            return response()->streamDownload(function () use ($zipPath) {
-                                echo file_get_contents($zipPath);
-                                @unlink($zipPath);
-                            }, $zipFileName, ['Content-Type' => 'application/zip']);
+                            Notification::make()
+                                ->success()
+                                ->title('Descarga iniciada')
+                                ->body('Los recibos se están descargando.')
+                                ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
 

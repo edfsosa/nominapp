@@ -7,9 +7,9 @@ use App\Models\Payroll;
 use App\Services\PayrollService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\EditAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Auth;
 
 class ViewPayroll extends ViewRecord
 {
@@ -36,7 +36,7 @@ class ViewPayroll extends ViewRecord
                 ->action(function () {
                     $this->record->update([
                         'status' => 'approved',
-                        'approved_by_id' => auth()->id(),
+                        'approved_by_id' => Auth::id(),
                         'approved_at' => now(),
                     ]);
 
@@ -46,7 +46,7 @@ class ViewPayroll extends ViewRecord
                         ->body("El recibo de {$this->record->employee->full_name} ha sido aprobado.")
                         ->send();
 
-                    $this->refreshFormData(['status', 'approved_by_id', 'approved_at']);
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->status === 'draft'),
 
@@ -65,7 +65,7 @@ class ViewPayroll extends ViewRecord
                         ->title('Recibo marcado como pagado')
                         ->send();
 
-                    $this->refreshFormData(['status']);
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->status === 'approved'),
 
@@ -85,7 +85,7 @@ class ViewPayroll extends ViewRecord
                         ->body("El recibo ha vuelto a estado Aprobado.")
                         ->send();
 
-                    $this->refreshFormData(['status']);
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->status === 'paid'),
 
@@ -109,7 +109,7 @@ class ViewPayroll extends ViewRecord
                         ->body("El recibo ha vuelto a estado Borrador.")
                         ->send();
 
-                    $this->refreshFormData(['status', 'approved_by_id', 'approved_at']);
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 ->visible(fn() => $this->record->status === 'approved'),
 
@@ -147,9 +147,6 @@ class ViewPayroll extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->status === 'draft'),
-
-            EditAction::make()
                 ->visible(fn() => $this->record->status === 'draft'),
 
             DeleteAction::make()

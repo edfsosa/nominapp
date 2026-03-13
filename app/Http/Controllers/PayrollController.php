@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Payroll;
 use App\Settings\GeneralSettings;
 use Illuminate\Support\Facades\Storage;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PayrollController extends Controller
 {
@@ -24,6 +25,27 @@ class PayrollController extends Controller
         return response()->file($path, [
             'Content-Type' => 'application/pdf',
         ]);
+    }
+
+    // Descargar un archivo temporal (PDF o ZIP) generado por bulk actions
+    public function downloadTemp(string $filename): BinaryFileResponse
+    {
+        $path = storage_path('app/public/temp/' . $filename);
+
+        if (!file_exists($path)) {
+            abort(404, 'Archivo no encontrado');
+        }
+
+        $cleanFilename = preg_replace('/^[a-f0-9-]+_/', '', $filename);
+
+        if (str_ends_with($filename, '.zip')) {
+            return response()->download($path, $cleanFilename)->deleteFileAfterSend(true);
+        }
+
+        return response()->file($path, [
+            'Content-Type'        => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="' . $cleanFilename . '"',
+        ])->deleteFileAfterSend(true);
     }
 
     // Montar vista para mostrar el PDF en el navegador
