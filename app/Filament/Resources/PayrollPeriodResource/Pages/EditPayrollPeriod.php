@@ -114,6 +114,44 @@ class EditPayrollPeriod extends EditRecord
                 })
                 ->visible(fn() => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
 
+            Action::make('revert_to_draft')
+                ->label('Revertir a Borrador')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('Revertir período a Borrador')
+                ->modalDescription(function () {
+                    $draftCount = $this->record->payrolls()->where('status', 'draft')->count();
+                    return "Esta acción revertirá el período \"{$this->record->name}\" a estado Borrador " .
+                        "y eliminará los {$draftCount} recibo(s) en borrador. " .
+                        "Los recibos aprobados o pagados impiden esta acción.";
+                })
+                ->before(function (Action $action) {
+                    $blockedCount = $this->record->payrolls()->whereIn('status', ['approved', 'paid'])->count();
+                    if ($blockedCount > 0) {
+                        Notification::make()
+                            ->danger()
+                            ->title('No se puede revertir el período')
+                            ->body("Hay {$blockedCount} recibo(s) aprobado(s) o pagado(s). Solo se puede revertir si todos los recibos están en borrador.")
+                            ->duration(10000)
+                            ->send();
+                        $action->cancel();
+                    }
+                })
+                ->action(function () {
+                    $deleted = $this->record->payrolls()->where('status', 'draft')->delete();
+                    $this->record->update(['status' => 'draft']);
+
+                    Notification::make()
+                        ->success()
+                        ->title('Período revertido a Borrador')
+                        ->body("Se eliminaron {$deleted} recibo(s) en borrador y el período volvió a estado Borrador.")
+                        ->send();
+
+                    $this->refreshFormData(['status', 'updated_at']);
+                })
+                ->visible(fn() => $this->record->status === 'processing'),
+
             Action::make('close_period')
                 ->label('Cerrar Período')
                 ->icon('heroicon-o-lock-closed')
