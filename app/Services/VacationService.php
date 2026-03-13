@@ -126,28 +126,26 @@ class VacationService
     }
 
     /**
-     * Calcula los días hábiles entre dos fechas para un empleado
-     * Días hábiles = Lunes a Sábado según horario del empleado, excluyendo feriados
+     * Calcula los días hábiles entre dos fechas.
+     * Usa vacation_business_days de la configuración (default: lunes a sábado), excluyendo feriados.
      */
     public static function calculateBusinessDays(Employee $employee, Carbon $startDate, Carbon $endDate): int
     {
         $businessDays = 0;
         $period = CarbonPeriod::create($startDate, $endDate);
+        $workingDays = app(PayrollSettings::class)->vacation_business_days;
 
-        // Obtener feriados en el rango
         $holidays = Holiday::whereBetween('date', [$startDate, $endDate])
             ->pluck('date')
             ->map(fn($date) => $date->format('Y-m-d'))
             ->toArray();
 
         foreach ($period as $date) {
-            // Verificar si es feriado
             if (in_array($date->format('Y-m-d'), $holidays)) {
                 continue;
             }
 
-            // Verificar si es día laboral según horario del empleado
-            if (self::isWorkDay($employee, $date)) {
+            if (in_array($date->dayOfWeekIso, $workingDays)) {
                 $businessDays++;
             }
         }
@@ -156,43 +154,31 @@ class VacationService
     }
 
     /**
-     * Verifica si una fecha es día laboral para el empleado
+     * Verifica si una fecha es día laboral para el empleado (usado fuera del contexto de vacaciones)
      */
     public static function isWorkDay(Employee $employee, Carbon $date): bool
     {
-        // Si no tiene horario asignado, asumir lunes a sábado
         if (!$employee->schedule) {
-            $dayOfWeek = $date->dayOfWeekIso; // 1=Lunes, 7=Domingo
-            return $dayOfWeek >= 1 && $dayOfWeek <= 6; // Lunes a Sábado
+            $dayOfWeek = $date->dayOfWeekIso;
+            return $dayOfWeek >= 1 && $dayOfWeek <= 6;
         }
 
-        // Verificar según horario del empleado
-        $dayOfWeek = $date->dayOfWeekIso;
-        return !$employee->schedule->isDayOff($dayOfWeek);
+        return !$employee->schedule->isDayOff($date->dayOfWeekIso);
     }
 
     /**
-     * Calcula la fecha de reintegro (próximo día laboral después de end_date)
-     * No puede ser domingo ni feriado
+     * Calcula la fecha de reintegro (primer día hábil después de end_date).
+     * Usa vacation_business_days de la configuración, excluyendo feriados.
      */
     public static function calculateReturnDate(Employee $employee, Carbon $endDate): Carbon
     {
         $returnDate = $endDate->copy()->addDay();
-
-        // Buscar el próximo día laboral
-        $maxIterations = 30; // Evitar bucle infinito
+        $workingDays = app(PayrollSettings::class)->vacation_business_days;
+        $maxIterations = 30;
         $iterations = 0;
 
         while ($iterations < $maxIterations) {
-            // Verificar si es feriado
-            if (Holiday::isHoliday($returnDate)) {
-                $returnDate->addDay();
-                $iterations++;
-                continue;
-            }
-
-            // Verificar si es día laboral según horario
-            if (self::isWorkDay($employee, $returnDate)) {
+            if (!Holiday::isHoliday($returnDate) && in_array($returnDate->dayOfWeekIso, $workingDays)) {
                 return $returnDate;
             }
 
@@ -200,7 +186,6 @@ class VacationService
             $iterations++;
         }
 
-        // Si no encuentra en 30 días, devolver el día siguiente al fin
         return $endDate->copy()->addDay();
     }
 

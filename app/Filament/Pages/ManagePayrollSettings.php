@@ -7,6 +7,7 @@ use Filament\Pages\SettingsPage;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 
 class ManagePayrollSettings extends SettingsPage
@@ -224,7 +225,6 @@ class ManagePayrollSettings extends SettingsPage
                     ->schema([
                         Grid::make(2)
                             ->schema([
-                                // Mínimo días consecutivos para fraccionar vacaciones con validación numérica
                                 TextInput::make('vacation_min_consecutive_days')
                                     ->label('Mínimo días consecutivos')
                                     ->numeric()
@@ -234,7 +234,6 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('días')
                                     ->helperText('Fraccionamiento mínimo (Default: 6)'),
 
-                                // Años mínimos de servicio para tener derecho a vacaciones con validación numérica
                                 TextInput::make('vacation_min_years_service')
                                     ->label('Años mínimos de servicio')
                                     ->numeric()
@@ -244,6 +243,21 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('años')
                                     ->helperText('Para tener derecho a vacaciones (Default: 1)'),
                             ]),
+
+                        CheckboxList::make('vacation_business_days')
+                            ->label('Días hábiles para vacaciones')
+                            ->helperText('Días que se cuentan como hábiles al calcular vacaciones. Default: Lunes a Sábado.')
+                            ->options([
+                                1 => 'Lunes',
+                                2 => 'Martes',
+                                3 => 'Miércoles',
+                                4 => 'Jueves',
+                                5 => 'Viernes',
+                                6 => 'Sábado',
+                                7 => 'Domingo',
+                            ])
+                            ->columns(7)
+                            ->required(),
                     ])
                     ->collapsed(),
             ]);

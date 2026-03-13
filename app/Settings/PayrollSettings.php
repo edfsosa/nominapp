@@ -31,6 +31,7 @@ class PayrollSettings extends Settings
     // Vacaciones
     public int $vacation_min_consecutive_days;
     public int $vacation_min_years_service;
+    public array $vacation_business_days;
 
     public static function group(): string
     {

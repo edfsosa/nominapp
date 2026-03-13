@@ -639,7 +639,9 @@ class Employee extends Model
      */
     public function getAntiquityDescriptionAttribute(): string
     {
-        return $this->hire_date->diffForHumans(null, true) . ' en la empresa';
+        return $this->hire_date
+            ? $this->hire_date->diffForHumans(null, true) . ' en la empresa'
+            : 'Sin fecha de ingreso';
     }
 
     /**
