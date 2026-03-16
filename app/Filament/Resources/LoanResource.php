@@ -2,37 +2,42 @@
 
 namespace App\Filament\Resources;
 
-use App\Models\Loan;
+use App\Filament\Resources\LoanResource\Pages;
+use App\Filament\Resources\LoanResource\RelationManagers\InstallmentsRelationManager;
 use App\Models\Employee;
+use App\Models\Loan;
+use App\Settings\GeneralSettings;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
-use Filament\Resources\Resource;
-use App\Settings\GeneralSettings;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Auth;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Columns\TextColumn;
-use Illuminate\Database\Eloquent\Model;
-use Filament\Forms\Components\TextInput;
+use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\Section as InfolistSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
-use Filament\Forms\Components\DatePicker;
-use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\Placeholder;
+use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
-use App\Filament\Resources\LoanResource\Pages;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
-use App\Filament\Resources\LoanResource\RelationManagers\InstallmentsRelationManager;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class LoanResource extends Resource
 {
@@ -60,6 +65,38 @@ class LoanResource extends Resource
             ->schema([
                 Section::make('Información General')
                     ->schema([
+                        Select::make('employee_id')
+                            ->label('Empleado')
+                            ->relationship(
+                                name: 'employee',
+                                modifyQueryUsing: fn(Builder $query, Get $get) => $query
+                                    ->where('status', 'active')
+                                    ->when(
+                                        $get('type') === 'advance',
+                                        fn($q) => $q->whereHas('activeContract', fn($c) => $c->whereNotNull('salary')->where('salary', '>', 0))
+                                    )
+                                    ->orderBy('first_name')
+                                    ->orderBy('last_name'),
+                            )
+                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
+                            ->searchable(['first_name', 'last_name', 'ci'])
+                            ->native(false)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, Get $get) {
+                                $set('amount', null);
+                                $set('installment_amount', null);
+
+                                $max = null;
+                                if ($get('type') === 'advance' && $get('employee_id')) {
+                                    $employee = Employee::find($get('employee_id'));
+                                    $max = $employee?->getMaxAdvanceAmount();
+                                }
+                                $set('max_advance_amount', $max);
+                            })
+                            ->disabled(fn(string $operation) => $operation === 'edit')
+                            ->helperText('Solo se muestran empleados activos.'),
+
                         Select::make('type')
                             ->label('Tipo')
                             ->options(Loan::getTypeOptions())
@@ -74,33 +111,23 @@ class LoanResource extends Resource
                                 $set('employee_id', null);
                                 $set('amount', null);
                                 $set('installment_amount', null);
-                            })
-                            ->disabled(fn(string $operation) => $operation === 'edit'),
-
-                        Select::make('employee_id')
-                            ->label('Empleado')
-                            ->relationship(
-                                name: 'employee',
-                                modifyQueryUsing: fn(Builder $query, Get $get) => $query
-                                    ->where('status', 'active')
-                                    ->when(
-                                        $get('type') === 'advance',
-                                        fn($q) => $q->whereHas('activeContract', fn ($c) => $c->whereNotNull('salary')->where('salary', '>', 0))
-                                    )
-                                    ->orderBy('first_name')
-                                    ->orderBy('last_name'),
-                            )
-                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
-                            ->searchable(['first_name', 'last_name', 'ci'])
-                            ->native(false)
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function (Set $set) {
-                                $set('amount', null);
-                                $set('installment_amount', null);
+                                $set('max_advance_amount', null);
                             })
                             ->disabled(fn(string $operation) => $operation === 'edit')
-                            ->columnSpan(2),
+                            ->helperText('Los adelantos son siempre de 1 cuota y tienen un monto máximo basado en el salario del empleado.'),
+
+                        Select::make('reason')
+                            ->label('Motivo')
+                            ->options([
+                                'personal' => 'Personal',
+                                'medical' => 'Médico',
+                                'education' => 'Educación',
+                                'other' => 'Otro',
+                            ])
+                            ->default('personal')
+                            ->native(false)
+                            ->placeholder('Seleccione un motivo')
+                            ->required(),
 
                         TextInput::make('amount')
                             ->label('Monto Total')
@@ -108,9 +135,8 @@ class LoanResource extends Resource
                             ->required()
                             ->minValue(1)
                             ->maxValue(function (Get $get) use ($maxLoanAmount) {
-                                if ($get('type') === 'advance' && $get('employee_id')) {
-                                    $employee = Employee::find($get('employee_id'));
-                                    return $employee?->base_salary ? (float) ($employee->base_salary / 2) : $maxLoanAmount;
+                                if ($get('type') === 'advance') {
+                                    return $get('max_advance_amount') ?? $maxLoanAmount;
                                 }
                                 return $maxLoanAmount;
                             })
@@ -123,16 +149,13 @@ class LoanResource extends Resource
                                 }
                             })
                             ->helperText(function (Get $get) use ($maxLoanAmount) {
-                                if ($get('type') === 'advance' && $get('employee_id')) {
-                                    $employee = Employee::find($get('employee_id'));
-                                    if ($employee?->base_salary) {
-                                        $max = $employee->base_salary / 2;
-                                        return "Máximo: " . number_format($max, 0, ',', '.') . " Gs. (50% del salario)";
-                                    }
+                                if ($get('type') === 'advance') {
+                                    $max = $get('max_advance_amount');
+                                    return $max
+                                        ? "Máximo: " . number_format($max, 0, ',', '.') . " Gs. (50% del salario devengado en el período)"
+                                        : "Seleccione un empleado para ver el monto máximo";
                                 }
-                                return $get('type') === 'advance'
-                                    ? "Seleccione un empleado para ver el monto máximo"
-                                    : "Máximo: " . number_format($maxLoanAmount, 0, ',', '.') . " Gs.";
+                                return "Máximo: " . number_format($maxLoanAmount, 0, ',', '.') . " Gs.";
                             })
                             ->disabled(fn(string $operation) => $operation === 'edit'),
 
@@ -160,23 +183,16 @@ class LoanResource extends Resource
                             ->disabled()
                             ->dehydrated()
                             ->helperText('Calculado automáticamente'),
-                    ])
-                    ->columns(3),
-
-                Section::make('Detalles')
-                    ->schema([
-                        Textarea::make('reason')
-                            ->label('Motivo')
-                            ->placeholder('Ingrese el motivo del préstamo o adelanto...')
-                            ->rows(1)
-                            ->columnSpanFull(),
 
                         Textarea::make('notes')
                             ->label('Notas')
                             ->placeholder('Notas adicionales...')
                             ->rows(1)
                             ->columnSpanFull(),
-                    ]),
+
+                        Hidden::make('max_advance_amount')->dehydrated(false),
+                    ])
+                    ->columns(3),
 
                 Section::make('Estado y Aprobación')
                     ->schema([
@@ -211,6 +227,109 @@ class LoanResource extends Resource
     }
 
     /**
+     * Función para definir el infolist de visualización de préstamos/adelantos
+     *
+     * @param Infolist $infolist
+     * @return Infolist
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                InfolistSection::make('Información del Empleado')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('employee.full_name')
+                                ->label('Empleado')
+                                ->icon('heroicon-o-user'),
+
+                            TextEntry::make('employee.ci')
+                                ->label('CI')
+                                ->icon('heroicon-o-identification')
+                                ->badge()
+                                ->color('gray')
+                                ->copyable(),
+
+                            TextEntry::make('employee.activeContract.position.name')
+                                ->label('Cargo')
+                                ->icon('heroicon-o-briefcase')
+                                ->badge()
+                                ->color('info')
+                                ->placeholder('-'),
+                        ])->columns(3),
+                    ]),
+
+                InfolistSection::make('Datos del Préstamo / Adelanto')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('type')
+                                ->label('Tipo')
+                                ->formatStateUsing(fn(string $state) => Loan::getTypeLabel($state))
+                                ->color(fn(string $state) => Loan::getTypeColor($state))
+                                ->icon(fn(string $state) => Loan::getTypeIcon($state))
+                                ->badge(),
+
+                            TextEntry::make('reason')
+                                ->label('Motivo')
+                                ->formatStateUsing(fn(?string $state) => match ($state) {
+                                    'personal'  => 'Personal',
+                                    'medical'   => 'Médico',
+                                    'education' => 'Educación',
+                                    'other'     => 'Otro',
+                                    default     => $state ?? '-',
+                                })
+                                ->badge()
+                                ->color('gray'),
+
+                            TextEntry::make('status')
+                                ->label('Estado')
+                                ->formatStateUsing(fn(string $state) => Loan::getStatusLabel($state))
+                                ->color(fn(string $state) => Loan::getStatusColor($state))
+                                ->icon(fn(string $state) => Loan::getStatusIcon($state))
+                                ->badge(),
+                        ])->columns(3),
+
+                        Group::make([
+                            TextEntry::make('amount')
+                                ->label('Monto Total')
+                                ->money('PYG', locale: 'es_PY')
+                                ->icon('heroicon-o-banknotes'),
+
+                            TextEntry::make('installment_amount')
+                                ->label('Monto por Cuota')
+                                ->money('PYG', locale: 'es_PY'),
+
+                            TextEntry::make('installments_count')
+                                ->label('Progreso')
+                                ->formatStateUsing(fn(Loan $record) => $record->progress_description),
+                        ])->columns(3),
+
+                        TextEntry::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Sin notas')
+                            ->columnSpanFull(),
+                    ]),
+
+                InfolistSection::make('Aprobación')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('granted_at')
+                                ->label('Fecha de Otorgamiento')
+                                ->date('d/m/Y')
+                                ->icon('heroicon-o-calendar')
+                                ->placeholder('-'),
+
+                            TextEntry::make('grantedBy.name')
+                                ->label('Otorgado por')
+                                ->icon('heroicon-o-user-circle')
+                                ->placeholder('-'),
+                        ])->columns(2),
+                    ])
+                    ->visible(fn(Loan $record) => $record->isActive() || $record->isPaid()),
+            ]);
+    }
+
+    /**
      * Función para definir la tabla de visualización de préstamos/adelantos
      *
      * @param Table $table
@@ -219,8 +338,18 @@ class LoanResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee', 'grantedBy']))
+            ->modifyQueryUsing(
+                fn(Builder $query) => $query
+                    ->with(['employee', 'grantedBy'])
+                    ->withCount(['installments as paid_count' => fn($q) => $q->where('status', 'paid')])
+            )
             ->columns([
+                ImageColumn::make('employee.photo')
+                    ->label('Foto')
+                    ->circular()
+                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->toggleable(),
+
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
                     ->searchable(['first_name', 'last_name'])
@@ -236,7 +365,7 @@ class LoanResource extends Resource
                     ->color('gray')
                     ->copyable()
                     ->tooltip('Haz clic para copiar')
-                    ->copyMessage('Cédula copiada'),
+                    ->copyMessage('CI copiada al portapapeles'),
 
                 TextColumn::make('type')
                     ->label('Tipo')
@@ -249,18 +378,20 @@ class LoanResource extends Resource
                 TextColumn::make('amount')
                     ->label('Monto')
                     ->money('PYG', locale: 'es_PY')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('installments_count')
                     ->label('Cuotas')
                     ->formatStateUsing(fn(Loan $record) => $record->progress_description)
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('installment_amount')
-                    ->label('Cuota')
+                    ->label('Monto por Cuota')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -274,7 +405,7 @@ class LoanResource extends Resource
                     ->label('Otorgado')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->toggleable(),
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('grantedBy.name')
                     ->label('Otorgado por')
@@ -286,8 +417,13 @@ class LoanResource extends Resource
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('updated_at')
+                    ->label('Actualizado')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('created_at', 'desc')
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo')
@@ -304,7 +440,6 @@ class LoanResource extends Resource
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
-                    ->preload(false)
                     ->native(false),
 
                 Filter::make('granted_at')
@@ -329,8 +464,6 @@ class LoanResource extends Resource
                     }),
             ])
             ->actions([
-                EditAction::make(),
-
                 Action::make('activate')
                     ->label('Activar')
                     ->icon('heroicon-o-play')
@@ -362,7 +495,7 @@ class LoanResource extends Resource
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn(Loan $record) => $record->isPending() || ($record->isActive() && $record->paid_installments_count === 0))
+                    ->visible(fn(Loan $record) => $record->isPending() || ($record->isActive() && $record->paid_count == 0))
                     ->requiresConfirmation()
                     ->modalHeading(fn(Loan $record) => "Cancelar {$record->type_label}")
                     ->modalDescription(fn(Loan $record) => "¿Está seguro de que desea cancelar este {$record->type_label}?")
@@ -418,7 +551,7 @@ class LoanResource extends Resource
                             Notification::make()
                                 ->title('Activación Completada')
                                 ->body($message)
-                                ->success()
+                                ->{$failed > 0 ? 'warning' : 'success'}()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -438,18 +571,26 @@ class LoanResource extends Resource
                         ])
                         ->action(function (Collection $records, array $data) {
                             $cancelled = 0;
+                            $skipped = 0;
 
                             foreach ($records as $record) {
-                                if ($record->isPending() || ($record->isActive() && $record->paid_installments_count === 0)) {
+                                if ($record->isPending() || ($record->isActive() && $record->paid_count == 0)) {
                                     $result = $record->cancel($data['reason'] ?? null);
-                                    if ($result['success']) $cancelled++;
+                                    $result['success'] ? $cancelled++ : $skipped++;
+                                } else {
+                                    $skipped++;
                                 }
+                            }
+
+                            $body = "Se cancelaron {$cancelled} préstamos/adelantos.";
+                            if ($skipped > 0) {
+                                $body .= " {$skipped} no pudieron cancelarse (tienen cuotas pagadas o ya están en un estado final).";
                             }
 
                             Notification::make()
                                 ->title('Cancelación Completada')
-                                ->body("Se cancelaron {$cancelled} préstamos/adelantos.")
-                                ->success()
+                                ->body($body)
+                                ->{$skipped > 0 ? 'warning' : 'success'}()
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -468,7 +609,7 @@ class LoanResource extends Resource
                         ->icon('heroicon-o-trash'),
                 ]),
             ])
-            ->striped()
+            ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('No hay préstamos o adelantos aún')
             ->emptyStateDescription('Comienza agregando tu primer préstamo o adelanto al sistema')
             ->emptyStateIcon('heroicon-o-banknotes');
@@ -494,9 +635,10 @@ class LoanResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListLoans::route('/'),
+            'index'  => Pages\ListLoans::route('/'),
             'create' => Pages\CreateLoan::route('/create'),
-            'edit' => Pages\EditLoan::route('/{record}/edit'),
+            'view'   => Pages\ViewLoan::route('/{record}'),
+            'edit'   => Pages\EditLoan::route('/{record}/edit'),
         ];
     }
 

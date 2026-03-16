@@ -61,26 +61,32 @@ class LoanInstallmentCalculator
      */
     public function markInstallmentsAsPaid(array $installmentIds): int
     {
-        $count = 0;
-
-        foreach ($installmentIds as $id) {
-            $installment = LoanInstallment::find($id);
-
-            if ($installment && $installment->isPending()) {
-                $installment->update([
-                    'status' => 'paid',
-                    'paid_at' => now(),
-                    'notes' => ($installment->notes ? $installment->notes . "\n" : '') .
-                        'Pagado automáticamente vía nómina.',
-                ]);
-
-                // Verificar si el préstamo está completamente pagado
-                $installment->loan->checkIfPaid();
-
-                $count++;
-            }
+        if (empty($installmentIds)) {
+            return 0;
         }
 
-        return $count;
+        $installments = LoanInstallment::whereIn('id', $installmentIds)
+            ->where('status', 'pending')
+            ->get();
+
+        $now = now();
+
+        foreach ($installments as $installment) {
+            $notes = ($installment->notes ? $installment->notes . "\n" : '') .
+                'Pagado automáticamente vía nómina.';
+
+            $installment->update([
+                'status' => 'paid',
+                'paid_at' => $now,
+                'notes'   => $notes,
+            ]);
+        }
+
+        // Verificar una sola vez por préstamo único si ya está completamente pagado
+        $installments->pluck('loan_id')->unique()->each(function (int $loanId) {
+            \App\Models\Loan::find($loanId)?->checkIfPaid();
+        });
+
+        return $installments->count();
     }
 }

@@ -295,76 +295,67 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $loan->employee->position->name ?? 'N/A' }}</div>
+                <div class="info-value">{{ $loan->employee->activeContract?->position?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $loan->employee->position->department->name ?? 'N/A' }}</div>
+                <div class="info-value">{{ $loan->employee->activeContract?->position?->department?->name ?? 'N/A' }}</div>
             </div>
         </div>
     </div>
 
     {{-- Detalles del Prestamo/Adelanto --}}
+    @php
+        $reasonLabels = ['personal' => 'Personal', 'medical' => 'Médico', 'education' => 'Educación', 'other' => 'Otro'];
+    @endphp
     <div class="section">
         <div class="section-title">Detalles del {{ $loan->isLoan() ? 'Prestamo' : 'Adelanto' }}</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Monto Total:</div>
-                <div class="info-value"><strong>Gs. {{ number_format($loan->amount, 0, ',', '.') }}</strong></div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cantidad de Cuotas:</div>
-                <div class="info-value">{{ $loan->installments_count }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Monto por Cuota:</div>
-                <div class="info-value">Gs. {{ number_format($loan->installment_amount, 0, ',', '.') }}</div>
-            </div>
-            @if ($loan->reason)
-                <div class="info-row">
-                    <div class="info-label">Motivo:</div>
-                    <div class="info-value">{{ $loan->reason }}</div>
-                </div>
-            @endif
-            @if ($loan->granted_at)
-                <div class="info-row">
-                    <div class="info-label">Fecha de Otorgamiento:</div>
-                    <div class="info-value">{{ $loan->granted_at->format('d/m/Y') }}</div>
-                </div>
-            @endif
-        </div>
+        <table style="margin: 0;">
+            <tbody>
+                <tr>
+                    <td class="text-left" style="width: 25%; font-weight: bold;">Monto Total</td>
+                    <td class="text-left" style="width: 25%;"><strong>Gs. {{ number_format($loan->amount, 0, ',', '.') }}</strong></td>
+                    <td class="text-left" style="width: 25%; font-weight: bold;">Monto por Cuota</td>
+                    <td class="text-left" style="width: 25%;">Gs. {{ number_format($loan->installment_amount, 0, ',', '.') }}</td>
+                </tr>
+                <tr>
+                    <td class="text-left" style="font-weight: bold;">Cantidad de Cuotas</td>
+                    <td class="text-left;">{{ $loan->installments_count }}</td>
+                    <td class="text-left" style="font-weight: bold;">Motivo</td>
+                    <td class="text-left">{{ $reasonLabels[$loan->reason] ?? $loan->reason ?? '-' }}</td>
+                </tr>
+                @if ($loan->granted_at)
+                <tr>
+                    <td class="text-left" style="font-weight: bold;">Fecha de Otorgamiento</td>
+                    <td class="text-left" colspan="3">{{ $loan->granted_at->format('d/m/Y') }}</td>
+                </tr>
+                @endif
+            </tbody>
+        </table>
     </div>
 
     {{-- Progreso de Pago (solo si esta activo o pagado) --}}
     @if ($loan->isActive() || $loan->isPaid())
         <div class="summary-section">
             <div class="summary-title">Progreso de Pago</div>
-            <div class="summary-grid">
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="summary-label">Cuotas Pagadas:</span>
-                        {{ $loan->paid_installments_count }} de {{ $loan->installments_count }}
-                    </div>
-                </div>
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="summary-label">Monto Pagado:</span>
-                        Gs. {{ number_format($loan->paid_amount, 0, ',', '.') }}
-                    </div>
-                </div>
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="summary-label">Monto Pendiente:</span>
-                        Gs. {{ number_format($loan->pending_amount, 0, ',', '.') }}
-                    </div>
-                </div>
-                <div class="summary-row">
-                    <div class="summary-item">
-                        <span class="summary-label">Progreso:</span>
-                        <strong>{{ $loan->progress_percentage }}%</strong>
-                    </div>
-                </div>
-            </div>
+            <table style="margin: 0;">
+                <thead>
+                    <tr>
+                        <th>Cuotas Pagadas</th>
+                        <th>Monto Pagado</th>
+                        <th>Monto Pendiente</th>
+                        <th>Progreso</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>{{ $loan->paid_installments_count }} de {{ $loan->installments_count }}</td>
+                        <td class="amount">Gs. {{ number_format($loan->paid_amount, 0, ',', '.') }}</td>
+                        <td class="amount">Gs. {{ number_format($loan->pending_amount, 0, ',', '.') }}</td>
+                        <td><strong>{{ $loan->progress_percentage }}%</strong></td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
     @endif
 
@@ -388,9 +379,6 @@
                             <td>{{ $installment->installment_number }}</td>
                             <td class="{{ $installment->isOverdue() ? 'overdue' : '' }}">
                                 {{ $installment->due_date->format('d/m/Y') }}
-                                @if ($installment->isOverdue())
-                                    (Vencida)
-                                @endif
                             </td>
                             <td class="amount">Gs. {{ number_format($installment->amount, 0, ',', '.') }}</td>
                             <td>

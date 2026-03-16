@@ -2,78 +2,76 @@
 
 namespace App\Filament\Resources\LoanResource\RelationManagers;
 
-use Filament\Forms\Form;
-use Filament\Tables\Table;
 use App\Models\LoanInstallment;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
+use Filament\Forms\Form;
+use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Forms\Components\DateTimePicker;
+use Filament\Tables\Table;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
-use Filament\Resources\RelationManagers\RelationManager;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
 class InstallmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'installments';
-
     protected static ?string $title = 'Cuotas';
-
     protected static ?string $recordTitleAttribute = 'installment_number';
 
-    /**
-     * Función para definir el formulario de visualización de una cuota de préstamo.
-     *
-     * @param Form $form
-     * @return Form
-     */
     public function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                TextInput::make('installment_number')
-                    ->label('Número de Cuota')
-                    ->disabled(),
-
-                TextInput::make('amount')
-                    ->label('Monto')
-                    ->prefix('Gs.')
-                    ->disabled(),
-
-                DatePicker::make('due_date')
-                    ->label('Fecha de Vencimiento')
-                    ->native(false)
-                    ->displayFormat('d/m/Y')
-                    ->disabled(),
-
-                Select::make('status')
-                    ->label('Estado')
-                    ->options(LoanInstallment::getStatusOptions())
-                    ->disabled(),
-
-                DateTimePicker::make('paid_at')
-                    ->label('Fecha de Pago')
-                    ->native(false)
-                    ->disabled()
-                    ->visible(fn($record) => $record?->paid_at !== null),
-
-                Textarea::make('notes')
-                    ->label('Notas')
-                    ->rows(2)
-                    ->columnSpanFull(),
-            ]);
+        return $form->schema([]);
     }
 
     /**
-     * Función para definir la tabla de cuotas de préstamo.
-     *
-     * @param Table $table
-     * @return Table
+     * Infolist para la visualización de una cuota en el ViewAction
+     */
+    public function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Group::make([
+                    TextEntry::make('installment_number')
+                        ->label('Cuota #'),
+
+                    TextEntry::make('amount')
+                        ->label('Monto')
+                        ->money('PYG', locale: 'es_PY'),
+
+                    TextEntry::make('status')
+                        ->label('Estado')
+                        ->formatStateUsing(fn(string $state) => LoanInstallment::getStatusLabel($state))
+                        ->color(fn(string $state) => LoanInstallment::getStatusColor($state))
+                        ->icon(fn(string $state) => LoanInstallment::getStatusIcon($state))
+                        ->badge(),
+                ])->columns(3),
+
+                Group::make([
+                    TextEntry::make('due_date')
+                        ->label('Fecha de Vencimiento')
+                        ->date('d/m/Y')
+                        ->icon('heroicon-o-calendar'),
+
+                    TextEntry::make('paid_at')
+                        ->label('Fecha de Pago')
+                        ->dateTime('d/m/Y H:i')
+                        ->icon('heroicon-o-check-circle')
+                        ->placeholder('No pagado'),
+                ])->columns(2),
+
+                TextEntry::make('notes')
+                    ->label('Notas')
+                    ->placeholder('Sin notas')
+                    ->columnSpanFull(),
+            ])
+            ->columns(1);
+    }
+
+    /**
+     * Tabla de cuotas del préstamo
      */
     public function table(Table $table): Table
     {
@@ -108,9 +106,9 @@ class InstallmentsRelationManager extends RelationManager
                     ->label('Pagado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->placeholder('-'),
+                    ->placeholder('-')
+                    ->toggleable(),
             ])
-            ->defaultSort('installment_number', 'asc')
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
@@ -120,18 +118,21 @@ class InstallmentsRelationManager extends RelationManager
             ->actions([
                 ViewAction::make(),
             ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    ExportBulkAction::make()
-                        ->exports([
-                            ExcelExport::make()
-                                ->fromTable()
-                                ->withFilename('cuotas_préstamo_' . $this->ownerRecord->id . '_' . now()->format('Y_m_d_H_i_s') . '.xlsx'),
-                        ])
-                        ->label('Exportar a Excel')
-                        ->color('info')
-                        ->icon('heroicon-o-arrow-down-tray'),
-                ]),
-            ]);
+            ->headerActions([
+                ExportAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->withFilename('cuotas_préstamo_' . $this->ownerRecord->id . '_' . now()->format('Y_m_d_H_i_s') . '.xlsx'),
+                    ])
+                    ->label('Exportar a Excel')
+                    ->color('info')
+                    ->icon('heroicon-o-arrow-down-tray'),
+            ])
+            ->defaultSort('installment_number', 'asc')
+            ->paginated(false)
+            ->emptyStateHeading('No hay cuotas asignadas a este préstamo')
+            ->emptyStateDescription('Las cuotas se generarán automáticamente al crear y activar el préstamo.')
+            ->emptyStateIcon('heroicon-o-check-circle');
     }
 }

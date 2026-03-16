@@ -26,19 +26,8 @@ class CreateLoan extends CreateRecord
             $data['installment_amount'] = round($data['amount'] / $data['installments_count'], 0);
         }
 
-        // Validar que no exceda el límite
         $settings = app(GeneralSettings::class);
         $maxAmount = $settings->max_loan_amount;
-
-        if ($data['amount'] > $maxAmount) {
-            Notification::make()
-                ->danger()
-                ->title('Monto excede el límite')
-                ->body("El monto máximo permitido es " . number_format($maxAmount, 0, ',', '.') . " Gs.")
-                ->send();
-
-            $this->halt();
-        }
 
         // Validación específica para adelantos: máximo 50% del salario base
         if ($data['type'] === 'advance') {
@@ -53,16 +42,18 @@ class CreateLoan extends CreateRecord
                 $this->halt();
             }
 
-            if (!$employee->base_salary || $employee->base_salary <= 0) {
+            $referenceSalary = $employee->getAdvanceReferenceSalary();
+
+            if (!$referenceSalary) {
                 Notification::make()
                     ->danger()
-                    ->title('Empleado sin salario base')
-                    ->body('Los adelantos solo están disponibles para empleados con salario base definido.')
+                    ->title('Empleado sin salario definido')
+                    ->body('Los adelantos requieren que el empleado tenga salario mensual o jornal definido en su contrato activo.')
                     ->send();
                 $this->halt();
             }
 
-            $maxAdvance = (float) ($employee->base_salary / 2);
+            $maxAdvance = $employee->getMaxAdvanceAmount();
 
             if ($data['amount'] > $maxAdvance) {
                 Notification::make()
@@ -71,12 +62,23 @@ class CreateLoan extends CreateRecord
                     ->body(
                         "El máximo para este empleado es " .
                             number_format($maxAdvance, 0, ',', '.') .
-                            " Gs. (50% de " . number_format($employee->base_salary, 0, ',', '.') . " Gs.)"
+                            " Gs. (50% de " . number_format($referenceSalary, 0, ',', '.') . " Gs.)"
                     )
                     ->persistent()
                     ->send();
                 $this->halt();
             }
+        }
+
+        // Validar que préstamos no excedan el límite global
+        if ($data['type'] === 'loan' && $data['amount'] > $maxAmount) {
+            Notification::make()
+                ->danger()
+                ->title('Monto excede el límite')
+                ->body("El monto máximo permitido es " . number_format($maxAmount, 0, ',', '.') . " Gs.")
+                ->send();
+
+            $this->halt();
         }
 
         // Validar que no tenga un préstamo/adelanto del mismo tipo pendiente o activo
@@ -118,12 +120,12 @@ class CreateLoan extends CreateRecord
     }
 
     /**
-     * Título de la notificación al crear el préstamo
+     * Obtiene el título de la notificación al crear un préstamo/adelanto exitosamente, personalizado según el tipo de registro creado.
      *
      * @return string|null
      */
     protected function getCreatedNotificationTitle(): ?string
     {
-        return 'Préstamo creado exitosamente';
+        return ucfirst($this->record->type_label) . ' creado exitosamente';
     }
 }

@@ -232,6 +232,13 @@ class Loan extends Model
             ];
         }
 
+        if (!$this->employee->activeContract) {
+            return [
+                'success' => false,
+                'message' => 'El empleado no tiene un contrato activo. No es posible activar el ' . strtolower($this->type_label) . '.',
+            ];
+        }
+
         // Para adelantos: verificar que no exista nómina del período actual
         if ($this->isAdvance()) {
             $currentPeriod = $this->getCurrentPeriod();
@@ -386,7 +393,7 @@ class Loan extends Model
         return match ($payrollType) {
             'weekly' => $this->getNextMonday($now),
             'biweekly' => $this->getNextBiweeklyDate($now),
-            default => $now->copy()->addMonth()->startOfMonth(),
+            default => $now->copy()->addMonth()->endOfMonth(),
         };
     }
 

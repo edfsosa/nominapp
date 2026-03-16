@@ -2,30 +2,27 @@
 
 namespace App\Filament\Resources\LoanResource\Pages;
 
+use App\Filament\Resources\LoanResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
-use Illuminate\Support\Facades\Auth;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
-use App\Filament\Resources\LoanResource;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Auth;
 
-class EditLoan extends EditRecord
+class ViewLoan extends ViewRecord
 {
     protected static string $resource = LoanResource::class;
-    protected static ?string $title = 'Editar';
 
     /**
-     * Define las acciones del encabezado de la página
+     * Define las acciones del encabezado de la página de detalle del préstamo
      *
      * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
-            /**
-             * Acción para activar el préstamo o adelanto
-             */
             Action::make('activate')
                 ->label('Activar')
                 ->icon('heroicon-o-play')
@@ -34,7 +31,7 @@ class EditLoan extends EditRecord
                 ->requiresConfirmation()
                 ->modalHeading(fn() => "Activar {$this->record->type_label}")
                 ->modalDescription(function () {
-                    $amount = number_format($this->record->installment_amount, 0, ',', '.');
+                    $amount      = number_format($this->record->installment_amount, 0, ',', '.');
                     $payrollType = $this->record->employee->payroll_type_label;
 
                     if ($this->record->isAdvance()) {
@@ -63,9 +60,6 @@ class EditLoan extends EditRecord
                     }
                 }),
 
-            /**
-             * Acción para cancelar el préstamo o adelanto
-             */
             Action::make('cancel')
                 ->label('Cancelar')
                 ->icon('heroicon-o-x-circle')
@@ -77,7 +71,7 @@ class EditLoan extends EditRecord
                     $type = strtolower($this->record->type_label);
 
                     if ($this->record->isActive()) {
-                        $pendingCount = $this->record->pending_installments_count;
+                        $pendingCount  = $this->record->pending_installments_count;
                         $pendingAmount = $this->record->pending_amount;
                         return "¿Está seguro de que desea cancelar este {$type}? Se cancelarán {$pendingCount} cuota(s) pendiente(s) por un total de " . number_format($pendingAmount, 0, ',', '.') . " Gs.";
                     }
@@ -110,9 +104,6 @@ class EditLoan extends EditRecord
                     }
                 }),
 
-            /**
-             * Acción para exportar el préstamo o adelanto a PDF
-             */
             Action::make('export_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -121,21 +112,13 @@ class EditLoan extends EditRecord
                 ->url(fn() => route('loans.pdf', $this->record))
                 ->openUrlInNewTab(),
 
-            /**
-             * Acción para eliminar el préstamo o adelanto
-             */
+            EditAction::make()
+                ->icon('heroicon-o-pencil-square')
+                ->visible(fn() => $this->record->isPending()),
+
             DeleteAction::make()
+                ->icon('heroicon-o-trash')
                 ->visible(fn() => $this->record->isPending() || $this->record->isCancelled()),
         ];
-    }
-
-    /**
-     * Título de la notificación al editar el préstamo
-     *
-     * @return string|null
-     */
-    protected function getEditedNotificationTitle(): ?string
-    {
-        return ucfirst($this->record->type_label) . ' actualizado exitosamente';
     }
 }

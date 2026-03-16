@@ -6,21 +6,19 @@ use App\Models\Loan;
 use App\Models\Payroll;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
-use App\Models\LoanInstallment;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\LoansExport;
 use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
-use Filament\Support\Enums\MaxWidth;
 use App\Filament\Resources\LoanResource;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\OverdueInstallmentsExport;
 
 class ListLoans extends ListRecords
 {
@@ -32,7 +30,9 @@ class ListLoans extends ListRecords
     protected ?array $loanCounts = null;
 
     /**
-     * Obtiene los conteos cacheados para los badges
+     * Obtiene los conteos de préstamos para badges de tabs, con caching para evitar consultas repetidas
+     *
+     * @return array
      */
     protected function getLoanCounts(): array
     {
@@ -73,51 +73,33 @@ class ListLoans extends ListRecords
                         ->searchable()
                         ->preload()
                         ->options(function () {
-                            // Obtener IDs de empleados que ya tienen adelanto activo o pendiente
-                            $employeesWithActiveAdvance = Loan::where('type', 'advance')
-                                ->whereIn('status', ['pending', 'active'])
-                                ->pluck('employee_id')
-                                ->toArray();
-
-                            // Obtener IDs de empleados que ya tienen nómina del período actual
                             $now = Carbon::now();
-                            $employeesWithCurrentPayroll = collect();
 
-                            // Buscar períodos actuales por cada tipo de nómina
-                            $currentPeriods = PayrollPeriod::where('start_date', '<=', $now)
+                            // IDs con adelanto activo o pendiente
+                            $withActiveAdvance = Loan::where('type', 'advance')
+                                ->whereIn('status', ['pending', 'active'])
+                                ->pluck('employee_id');
+
+                            // IDs con nómina en algún período activo actualmente
+                            $currentPeriodIds = PayrollPeriod::where('start_date', '<=', $now)
                                 ->where('end_date', '>=', $now)
-                                ->get();
+                                ->pluck('id');
 
-                            foreach ($currentPeriods as $period) {
-                                $employeeIds = Payroll::where('payroll_period_id', $period->id)
-                                    ->pluck('employee_id');
-                                $employeesWithCurrentPayroll = $employeesWithCurrentPayroll->merge($employeeIds);
-                            }
+                            $withCurrentPayroll = Payroll::whereIn('payroll_period_id', $currentPeriodIds)
+                                ->pluck('employee_id');
 
-                            $excludeIds = array_merge(
-                                $employeesWithActiveAdvance,
-                                $employeesWithCurrentPayroll->unique()->toArray()
-                            );
+                            $excludeIds = $withActiveAdvance->merge($withCurrentPayroll)->unique();
 
-                            // Empleados activos con salario base, sin adelanto activo/pendiente y sin nómina actual
                             return Employee::where('status', 'active')
-                                ->whereNotNull('base_salary')
-                                ->where('base_salary', '>', 0)
+                                ->whereHas('activeContract', fn($q) => $q->where('salary_type', 'mensual')->where('salary', '>', 0))
                                 ->whereNotIn('id', $excludeIds)
+                                ->with('activeContract')
                                 ->get()
                                 ->mapWithKeys(fn($employee) => [
                                     $employee->id => "{$employee->full_name} - CI: {$employee->ci} - Salario: " . number_format($employee->base_salary, 0, ',', '.') . " Gs."
                                 ]);
                         })
-                        ->helperText('Solo empleados activos con salario base, sin adelanto pendiente/activo y sin nómina del período actual'),
-
-                    Textarea::make('reason')
-                        ->label('Motivo')
-                        ->placeholder('Adelanto de salario')
-                        ->maxLength(255)
-                        ->nullable()
-                        ->default('Adelanto de salario')
-                        ->rows(1),
+                        ->helperText('Solo empleados activos con salario mensual, sin adelanto pendiente/activo y sin nómina del período actual'),
                 ])
                 ->modalHeading('Generar Adelantos Masivos')
                 ->modalDescription('Se crearán adelantos en estado pendiente. El monto se calculará según el porcentaje del salario de cada empleado.')
@@ -126,26 +108,37 @@ class ListLoans extends ListRecords
                     $count = 0;
                     $percentage = $data['percentage'] / 100;
 
-                    foreach ($data['employee_ids'] as $employeeId) {
-                        $employee = Employee::find($employeeId);
+                    $employees = Employee::with('activeContract')
+                        ->whereIn('id', $data['employee_ids'])
+                        ->get()
+                        ->keyBy('id');
 
-                        if (!$employee || !$employee->base_salary) {
-                            continue;
+                    DB::transaction(function () use ($data, $employees, $percentage, &$count) {
+                        foreach ($data['employee_ids'] as $employeeId) {
+                            $employee = $employees->get($employeeId);
+
+                            if (!$employee || !$employee->base_salary) {
+                                continue;
+                            }
+
+                            $amount = round($employee->base_salary * $percentage, 0);
+
+                            if ($amount <= 0) {
+                                continue;
+                            }
+
+                            Loan::create([
+                                'employee_id'       => $employeeId,
+                                'type'              => 'advance',
+                                'amount'            => $amount,
+                                'installments_count' => 1,
+                                'installment_amount' => $amount,
+                                'status'            => 'pending',
+                                'reason'            => $data['reason'],
+                            ]);
+                            $count++;
                         }
-
-                        $amount = round($employee->base_salary * $percentage, 0);
-
-                        Loan::create([
-                            'employee_id' => $employeeId,
-                            'type' => 'advance',
-                            'amount' => $amount,
-                            'installments_count' => 1,
-                            'installment_amount' => $amount,
-                            'status' => 'pending',
-                            'reason' => $data['reason'] ?? 'Adelanto de salario',
-                        ]);
-                        $count++;
-                    }
+                    });
 
                     Notification::make()
                         ->title('Adelantos generados')
@@ -154,39 +147,40 @@ class ListLoans extends ListRecords
                         ->send();
                 }),
 
-            Action::make('overdueInstallments')
-                ->label('Cuotas Vencidas')
-                ->icon('heroicon-o-exclamation-triangle')
-                ->color('danger')
-                ->badge(fn() => LoanInstallment::overdue()->count() ?: null)
-                ->badgeColor('danger')
-                ->modalHeading('Cuotas Vencidas')
-                ->modalDescription(fn() => 'Hay ' . LoanInstallment::overdue()->count() . ' cuotas vencidas pendientes de pago.')
-                ->modalContent(function () {
-                    $overdueInstallments = LoanInstallment::overdue()
-                        ->with(['loan.employee'])
-                        ->orderBy('due_date')
-                        ->get();
+            Action::make('export')
+                ->label('Exportar Excel')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('info')
+                ->form([
+                    Select::make('status')
+                        ->label('Estado')
+                        ->options([
+                            'pending'   => 'Pendientes',
+                            'active'    => 'Activos',
+                            'paid'      => 'Pagados',
+                            'cancelled' => 'Cancelados',
+                        ])
+                        ->placeholder('Todos los estados')
+                        ->multiple()
+                        ->native(false),
 
-                    return view('filament.resources.loan-resource.pages.overdue-installments-modal', [
-                        'installments' => $overdueInstallments,
-                    ]);
-                })
-                ->modalWidth(MaxWidth::FourExtraLarge)
-                ->modalSubmitAction(false)
-                ->modalCancelActionLabel('Cerrar')
-                ->extraModalFooterActions([
-                    Action::make('exportOverdue')
-                        ->label('Exportar a Excel')
-                        ->icon('heroicon-o-arrow-down-tray')
-                        ->color('info')
-                        ->action(function () {
-                            return Excel::download(
-                                new OverdueInstallmentsExport(),
-                                'cuotas_vencidas_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
-                            );
-                        }),
-                ]),
+                    Select::make('type')
+                        ->label('Tipo')
+                        ->options([
+                            'loan'    => 'Préstamos',
+                            'advance' => 'Adelantos',
+                        ])
+                        ->placeholder('Todos los tipos')
+                        ->native(false),
+                ])
+                ->modalHeading('Exportar Préstamos / Adelantos')
+                ->modalSubmitActionLabel('Exportar')
+                ->action(function (array $data) {
+                    return Excel::download(
+                        new LoansExport($data['status'] ?? null, $data['type'] ?? null),
+                        'prestamos_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                    );
+                }),
 
             CreateAction::make()
                 ->label('Nuevo Préstamo/Adelanto')
@@ -222,17 +216,10 @@ class ListLoans extends ListRecords
                 ->badge($counts['by_status']['paid'])
                 ->badgeColor('success'),
 
-            'loans' => Tab::make('Préstamos')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('type', 'loan'))
-                ->badge($counts['by_type']['loan'])
-                ->badgeColor('info')
-                ->icon('heroicon-o-banknotes'),
-
-            'advances' => Tab::make('Adelantos')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('type', 'advance'))
-                ->badge($counts['by_type']['advance'])
-                ->badgeColor('warning')
-                ->icon('heroicon-o-clock'),
+            'cancelled' => Tab::make('Cancelados')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'cancelled'))
+                ->badge($counts['by_status']['cancelled'])
+                ->badgeColor('danger'),
         ];
     }
 

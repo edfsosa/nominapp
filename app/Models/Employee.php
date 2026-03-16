@@ -621,7 +621,7 @@ class Employee extends Model
      */
     public function getPayrollTypeLabelAttribute(): string
     {
-        return self::getPayrollTypeOptions()[$this->payroll_type] ?? $this->payroll_type;
+        return self::getPayrollTypeOptions()[$this->payroll_type] ?? $this->payroll_type ?? '-';
     }
 
     /**
@@ -727,14 +727,47 @@ class Employee extends Model
     }
 
     /**
-     * Calcula el monto máximo de adelanto (50% del salario base)
+     * Calcula el salario devengado de referencia para adelantos.
+     * - Mensual: salario base fijo del contrato activo.
+     * - Jornalero: días efectivamente trabajados en el período actual × jornal diario.
+     *   El adelanto solo puede solicitarse sobre trabajo ya realizado (Art. MTESS).
+     */
+    public function getAdvanceReferenceSalary(): ?float
+    {
+        if ($this->base_salary && $this->base_salary > 0) {
+            return (float) $this->base_salary;
+        }
+
+        if ($this->daily_rate && $this->daily_rate > 0) {
+            $now = Carbon::now();
+
+            $period = PayrollPeriod::where('frequency', $this->payroll_type)
+                ->where('start_date', '<=', $now)
+                ->where('end_date', '>=', $now)
+                ->first();
+
+            if (!$period) {
+                return null;
+            }
+
+            $workedDays = $this->attendanceDays()
+                ->whereBetween('date', [$period->start_date, $period->end_date])
+                ->where('status', 'present')
+                ->count();
+
+            return $workedDays > 0 ? (float) ($workedDays * $this->daily_rate) : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Calcula el monto máximo de adelanto (50% del salario de referencia mensual)
      */
     public function getMaxAdvanceAmount(): ?float
     {
-        if ($this->base_salary && $this->base_salary > 0) {
-            return (float) ($this->base_salary / 2);
-        }
-        return null;
+        $reference = $this->getAdvanceReferenceSalary();
+        return $reference ? $reference / 2 : null;
     }
 
     /**
@@ -742,8 +775,8 @@ class Employee extends Model
      */
     public function canRequestAdvance(): bool
     {
-        // Debe tener salario base definido
-        if (!$this->base_salary || $this->base_salary <= 0) {
+        // Debe tener salario de referencia definido (mensual o jornalero)
+        if (!$this->getAdvanceReferenceSalary()) {
             return false;
         }
 
