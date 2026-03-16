@@ -2,7 +2,6 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
@@ -10,11 +9,7 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Generar contratos para empleados activos que aún no tienen ninguno.
-        //    Si ya se ejecutó el comando manualmente antes, esto no hace nada.
-        Artisan::call('contracts:generate-from-employees');
-
-        // 2. Copiar payroll_type de employees a sus contratos activos existentes
+        // 1. Copiar payroll_type de employees a sus contratos activos existentes
         //    (cubre a los empleados que ya tenían contrato antes de esta migración).
         DB::table('contracts')
             ->join('employees', 'contracts.employee_id', '=', 'employees.id')

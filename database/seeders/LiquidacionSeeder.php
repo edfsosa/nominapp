@@ -28,9 +28,9 @@ class LiquidacionSeeder extends Seeder
             $terminationTypes = ['unjustified_dismissal', 'resignation'];
 
             foreach ($employees as $index => $employee) {
-                $hireDate = Carbon::parse($employee->hire_date);
+                $hireDate = Carbon::now()->subYears(rand(1, 8))->subMonths(rand(0, 11));
                 $terminationDate = Carbon::now()->subDays(rand(10, 60));
-                $baseSalary = $employee->base_salary ?? ($employee->daily_rate * 30);
+                $baseSalary = rand(2_500_000, 6_000_000);
                 $dailySalary = round($baseSalary / 30);
                 $terminationType = $terminationTypes[$index % count($terminationTypes)];
 

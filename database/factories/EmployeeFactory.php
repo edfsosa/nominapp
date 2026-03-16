@@ -23,10 +23,6 @@ class EmployeeFactory extends Factory
         // Edad laboral realista: 18-60 años
         $birthDate = $this->faker->dateTimeBetween('-60 years', '-18 years');
 
-        // Contratación: después de cumplir 18, hasta hoy
-        $minHireDate = (clone $birthDate)->modify('+18 years');
-        $hireDate = $this->faker->dateTimeBetween($minHireDate, 'now');
-
         return [
             'first_name'      => $this->faker->firstName,
             'last_name'       => $this->faker->lastName,
@@ -34,8 +30,6 @@ class EmployeeFactory extends Factory
             'birth_date'      => $birthDate->format('Y-m-d'),
             'phone'           => $this->faker->numerify('(09##) ###-###'),
             'email'           => $this->faker->unique()->safeEmail,
-            'hire_date'       => $hireDate->format('Y-m-d'),
-            'payment_method'  => $this->faker->randomElement(['debit', 'cash', 'check']),
             'branch_id'       => !empty(static::$branchIds) ? $this->faker->randomElement(static::$branchIds) : null,
             'schedule_id'     => !empty(static::$scheduleIds) ? $this->faker->randomElement(static::$scheduleIds) : null,
             'status'          => $this->faker->randomElement(['active', 'inactive', 'suspended']),

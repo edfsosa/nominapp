@@ -30,7 +30,7 @@ class EmployeePerceptionSeeder extends Seeder
                 $rows[] = [
                     'employee_id'   => $employee->id,
                     'perception_id' => $perceptionByCode['BON001']->id,
-                    'start_date'    => $employee->hire_date,
+                    'start_date'    => $now->toDateString(),
                     'end_date'      => null,
                     'custom_amount' => null,
                     'notes'         => null,
@@ -44,7 +44,7 @@ class EmployeePerceptionSeeder extends Seeder
                 $rows[] = [
                     'employee_id'   => $employee->id,
                     'perception_id' => $perceptionByCode['COM001']->id,
-                    'start_date'    => $employee->hire_date,
+                    'start_date'    => $now->toDateString(),
                     'end_date'      => null,
                     'custom_amount' => null,
                     'notes'         => 'Comisión estándar del departamento',
@@ -58,7 +58,7 @@ class EmployeePerceptionSeeder extends Seeder
                 $rows[] = [
                     'employee_id'   => $employee->id,
                     'perception_id' => $perceptionByCode['GRA001']->id,
-                    'start_date'    => $employee->hire_date,
+                    'start_date'    => $now->toDateString(),
                     'end_date'      => null,
                     'custom_amount' => null,
                     'notes'         => null,
