@@ -1,30 +1,30 @@
 /**
  * =============================================================================
- * AUTO-REGISTRO FACIAL - EMPLEADOS
+ * CAPTURA FACIAL — ENTRY POINT UNIFICADO
  * =============================================================================
  *
- * @fileoverview Punto de entrada para el auto-registro facial por empleados.
- *               Extiende FaceCaptureApp con comportamiento específico:
- *               - No redirige a /employees al cerrar modal
- *               - Deshabilita controles después de enviar exitosamente
- *               - Mensaje de éxito diferente (pendiente de aprobación)
+ * Lee `data-mode` del body para instanciar la clase correcta:
+ *   - "employee"   → FaceCaptureApp        (admin, guarda directo)
+ *   - "enrollment" → EnrollmentCaptureApp  (auto-registro, sin redirect)
  *
- * @requires ../shared/FaceCaptureApp.js
+ * @requires ./FaceCaptureApp.js
  * @requires face-api.js (cargado via CDN en la vista)
  */
 
-import { FaceCaptureApp } from '../shared/FaceCaptureApp.js';
+import { FaceCaptureApp } from './FaceCaptureApp.js';
+
+/* ============================================================
+   CLASE ESPECÍFICA PARA AUTO-REGISTRO (ENROLLMENT)
+   ============================================================ */
 
 class EnrollmentCaptureApp extends FaceCaptureApp {
 
     /**
-     * Override: después de guardar exitosamente, deshabilita todo.
-     * El empleado no puede reintentar ni navegar a /employees.
+     * Override: después de guardar exitosamente, deshabilita todo
+     * y no muestra opción de reintento (el registro ya fue enviado).
      */
     async handleSaveDescriptor(event) {
-        if (event) {
-            event.preventDefault();
-        }
+        if (event) event.preventDefault();
 
         if (!this.currentDescriptor) {
             this.updateStatus("No hay descriptor para guardar");
@@ -38,7 +38,6 @@ class EnrollmentCaptureApp extends FaceCaptureApp {
 
             await this.saveDescriptorAjax();
 
-            // Deshabilitar todos los controles
             this.setButtonState(this.btnCapture, false);
             this.setButtonState(this.btnStart, false);
             this.setButtonState(this.btnSave, false);
@@ -47,12 +46,12 @@ class EnrollmentCaptureApp extends FaceCaptureApp {
             this.showSuccessModal();
         } catch (error) {
             this.handleError("Error al enviar el registro", error);
-            this.setButtonState(this.btnSave, true, "Enviar Registro");
+            this.setButtonState(this.btnSave, true, "Guardar");
         }
     }
 
     /**
-     * Override: no redirige a /employees, solo cierra el modal.
+     * Override: no redirige a /employees, solo oculta el modal.
      */
     hideModal() {
         if (this.modal) {
@@ -63,7 +62,7 @@ class EnrollmentCaptureApp extends FaceCaptureApp {
     }
 
     /**
-     * Override: al cerrar modal redirigir al mismo URL.
+     * Override: al cerrar el modal redirigir al mismo URL.
      * El servidor detectará status=pending_approval y mostrará la vista "ya enviado".
      */
     handleCloseModal() {
@@ -71,9 +70,9 @@ class EnrollmentCaptureApp extends FaceCaptureApp {
     }
 }
 
-// =============================================================================
-// INICIALIZACIÓN
-// =============================================================================
+/* ============================================================
+   INICIALIZACIÓN
+   ============================================================ */
 
 document.addEventListener("DOMContentLoaded", () => {
     try {
@@ -84,14 +83,16 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        window.enrollmentApp = new EnrollmentCaptureApp();
-        console.log("Aplicación de auto-registro facial inicializada");
+        const mode = document.body.dataset.mode || "employee";
+        const AppClass = mode === "enrollment" ? EnrollmentCaptureApp : FaceCaptureApp;
 
-        window.enrollmentApp.initializeSystem();
+        window.faceCaptureApp = new AppClass();
+        console.log(`Aplicación de captura facial inicializada (modo: ${mode})`);
+
+        window.faceCaptureApp.initializeSystem();
     } catch (error) {
         console.error("Error al inicializar la aplicación:", error);
-        document.getElementById(
-            "status"
-        ).textContent = `Error de inicialización: ${error.message}`;
+        document.getElementById("status").textContent =
+            `Error de inicialización: ${error.message}`;
     }
 });
