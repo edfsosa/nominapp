@@ -20,12 +20,64 @@
 
     <x-attendance.mark-loading />
 
-    <main id="main-content" class="container">
-        <h1>Marcación facial</h1>
+    {{-- Splash: requiere toque del usuario para desbloquear audio/vibración y arrancar cámara --}}
+    <div id="splashOverlay" class="splash-overlay" aria-label="Pantalla de bienvenida">
+        <div class="splash-body">
 
-        <x-alert-container />
+            <div class="splash-top">
+                <p class="splash-greeting" id="splashGreeting"></p>
+                <p class="splash-time"     id="splashTime"></p>
+                <p class="splash-date"     id="splashDate"></p>
+            </div>
 
-        <div class="grid">
+            <div class="splash-center">
+                <div class="splash-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 3H5a2 2 0 0 0-2 2v4m0 6v4a2 2 0 0 0 2 2h4m6-18h4a2 2 0 0 1 2 2v4m0 6v4a2 2 0 0 1-2 2h-4"/>
+                        <circle cx="12" cy="10" r="2"/>
+                        <path d="M9 16c0 1.657 1.343 3 3 3s3-1.343 3-3"/>
+                    </svg>
+                </div>
+                <p class="splash-title">Registro de Asistencia</p>
+                <p class="splash-hint">Posicionate frente a la cámara<br>para identificarte automáticamente</p>
+            </div>
+
+            <div class="splash-bottom">
+                <button id="splashBtn" type="button" class="splash-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
+                        <circle cx="12" cy="13" r="4"/>
+                    </svg>
+                    Identificarme
+                </button>
+            </div>
+
+        </div>
+    </div>
+
+    <header class="app-header">
+        <div class="app-header-brand">
+            <span class="app-mode-badge">Marcación Facial</span>
+        </div>
+        <div class="app-clock" id="headerClock" aria-live="off" aria-label="Hora actual"></div>
+    </header>
+
+    <div id="offlineBanner" class="offline-banner" role="alert" aria-live="assertive" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="1" y1="1" x2="23" y2="23"/>
+            <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+            <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+            <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+            <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+            <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+            <circle cx="12" cy="20" r="1" fill="currentColor"/>
+        </svg>
+        <span>Sin conexión — las marcaciones no pueden registrarse</span>
+    </div>
+
+    <main id="main-content" class="page-wrapper">
+        <div class="main-grid">
             <x-attendance.video-section />
             <x-attendance.form-section />
         </div>
@@ -34,20 +86,34 @@
     <x-modal
         id="successModal"
         type="success"
-        title="¡Marcación registrada!"
+        title="Marcación registrada"
         description="Su marcación se ha registrado correctamente."
-        buttonText="Aceptar"
+        buttonText="Listo"
     />
 
-    <x-modal
-        id="errorModal"
-        type="error"
-        title="Error"
-        description=""
-        buttonText="Cerrar"
-    />
+    <div id="errorModal" class="modal hidden" role="dialog" aria-modal="true"
+        aria-labelledby="errorModalTitle" aria-describedby="errorModalDesc">
+        <div class="modal-content modal-error">
+            <div class="modal-icon modal-icon--error" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="12" y1="8" x2="12" y2="12"/>
+                    <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+            </div>
+            <h2 id="errorModalTitle">Error al registrar</h2>
+            <p id="errorModalDesc"></p>
+            <div class="modal-actions">
+                <button id="retryErrorModal" type="button" class="btn-modal-retry">Reintentar</button>
+                <button id="closeErrorModal" type="button" class="btn-modal-dismiss">
+                    Recargar página
+                    <span class="btn-modal-dismiss-hint">Solo si el problema persiste</span>
+                </button>
+            </div>
+        </div>
+    </div>
 
-    <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js" referrerpolicy="no-referrer"></script>
+    <script defer src="{{ asset('js/face-api.min.js') }}"></script>
 </body>
 
 </html>

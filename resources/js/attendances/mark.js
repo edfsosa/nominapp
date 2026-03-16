@@ -1,3 +1,5 @@
+import L from 'leaflet';
+
 /**
  * =============================================================================
  * MARCACIÓN FACIAL - MODO MANUAL
@@ -47,14 +49,11 @@ document.addEventListener("DOMContentLoaded", () => {
     /** @type {CanvasRenderingContext2D|null} Contexto 2D del canvas */
     const ctx = overlay?.getContext("2d");
 
-    /** @type {HTMLButtonElement} Botón para iniciar la cámara */
-    const btnStart = document.getElementById("btnStart");
+    /** @type {HTMLButtonElement} Fallback para iOS: toca para activar cámara */
+    const cameraFallback = document.getElementById("cameraFallback");
 
     /** @type {HTMLButtonElement} Botón para identificar al empleado */
     const btnIdentify = document.getElementById("btnIdentify");
-
-    /** @type {HTMLButtonElement} Botón para obtener geolocalización */
-    const btnGeo = document.getElementById("btnGeo");
 
     /** @type {HTMLButtonElement} Botón para registrar la marcación */
     const btnMark = document.getElementById("btnMark");
@@ -62,23 +61,37 @@ document.addEventListener("DOMContentLoaded", () => {
     /** @type {HTMLSelectElement} Selector de tipo de evento */
     const eventTypeEl = document.getElementById("eventType");
 
-    /** @type {HTMLElement} Tarjeta de información del empleado */
-    const empCard = document.getElementById("empCard");
+    // New UI elements added in the redesign
+    const videoWrap       = document.getElementById("videoWrap");
+    const statusDot       = document.getElementById("statusDot");
+    const statusText      = document.getElementById("statusText");
+    const locationStatus  = document.getElementById("locationStatus");
+    const locationCoords  = document.getElementById("locationCoords");
+    const locationMapEl   = document.getElementById("locationMap");
+    const btnGeoRetry     = document.getElementById("btnGeoRetry");
+    const headerClock     = document.getElementById("headerClock");
+    const eventBtns       = document.querySelectorAll(".event-btn");
 
-    /** @type {HTMLElement} Elemento para mostrar el nombre del empleado */
-    const empName = document.getElementById("empName");
+    // Step sections — wizard de un solo screen
+    const step1Section    = document.getElementById("step1Section");
+    const step2Section    = document.getElementById("step2Section");
 
-    /** @type {HTMLElement} Elemento para mostrar el documento del empleado */
-    const empDoc = document.getElementById("empDoc");
+    // Barra compacta de empleado en Paso 2
+    const step2EmployeeBar  = document.getElementById("step2EmployeeBar");
+    const step2Avatar       = document.getElementById("step2Avatar");
+    const step2Name         = document.getElementById("step2Name");
+    const step2Meta         = document.getElementById("step2Meta");
+    const step2LastEventEl  = document.getElementById("step2LastEvent");
+    const step2BtnBack      = document.getElementById("step2BtnBack");
 
-    /** @type {HTMLElement} Elemento para mostrar información adicional */
-    const empInfo = document.getElementById("empInfo");
-
-    /** @type {HTMLInputElement} Campo oculto para latitud */
-    const latEl = document.getElementById("lat");
-
-    /** @type {HTMLInputElement} Campo oculto para longitud */
-    const lngEl = document.getElementById("lng");
+const statusBar           = document.getElementById("statusBar");
+    const captureProgress     = document.getElementById("captureProgress");
+    const captureDots         = captureProgress ? Array.from(captureProgress.querySelectorAll(".capture-dot")) : [];
+    const splashOverlay       = document.getElementById("splashOverlay");
+    const gpsBanner           = document.getElementById("gpsBanner");
+    const gpsBannerText       = document.getElementById("gpsBannerText");
+    const gpsBannerRetry      = document.getElementById("gpsBannerRetry");
+    const markHint            = document.getElementById("markHint");
 
     // ==========================================================================
     // CONFIGURACIÓN Y CONSTANTES
@@ -92,9 +105,7 @@ document.addEventListener("DOMContentLoaded", () => {
     const CSRF = csrfToken ? csrfToken.content : "";
 
     if (!CSRF) {
-        console.warn(
-            "Token CSRF no encontrado. Esto puede causar errores en las peticiones POST."
-        );
+        logWarn("Token CSRF no encontrado. Esto puede causar errores en las peticiones POST.");
     }
 
     /**
@@ -108,6 +119,15 @@ document.addEventListener("DOMContentLoaded", () => {
      * @constant {number}
      */
     const MIN_FACE_SIZE = 100;
+
+    /** HTML del spinner para estados de carga en botones */
+    const SPINNER_SVG = '<svg class="btn-spinner" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 2a10 10 0 0 1 10 10"/></svg>';
+
+    /**
+     * Milisegundos entre cada dot del dwell de auto-identificación
+     * 5 dots × 300ms = 1.5s de permanencia antes de disparar la identificación
+     */
+    const DWELL_STEP_MS = 300;
 
     /**
      * Textos descriptivos para cada tipo de evento de marcación
@@ -143,10 +163,24 @@ document.addEventListener("DOMContentLoaded", () => {
     let drawLoopActive = false;
 
     /**
+     * Estado actual de detección facial en el bucle
+     * @type {null|'found'|'absent'}
+     */
+    let faceInFrameState = null;
+
+    /**
      * Timestamp de la última detección para limitar frecuencia
      * @type {number}
      */
     let lastDetectionTime = 0;
+
+    /** Instancia del mapa Leaflet del mini-mapa de ubicación */
+    let locationMap    = null;
+    /** Marcador del mini-mapa */
+    let locationMarker = null;
+
+    /** Controla si el splash ya fue procesado (evita doble disparo) */
+    let splashHandled = false;
 
     /**
      * Estado de la aplicación con datos del empleado y ubicación
@@ -176,21 +210,53 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     let previousActiveElement = null;
 
+    /** @type {boolean} Indica si hay una identificación en curso (evita re-entradas) */
+    let isIdentifying = false;
+
+    /** @type {number} Timestamp hasta el cual el drawLoop no actualiza el estado visual ni se inicia un nuevo dwell */
+    let notRecognizedUntil = 0;
+
+    /** @type {number|null} ID del setInterval del dwell de auto-identificación */
+    let autoIdDotInterval = null;
+
+    /** @type {boolean} Indica si el usuario ya ha interactuado (requerido por Web Audio API) */
+    let userHasInteracted = false;
+
+    /** @type {boolean} Indica si el modal de error está visible (pausa el dwell de auto-identificación) */
+    let errorModalVisible = false;
+
+    /** @type {{employee: object, lastEvent: string|null}|null} Datos pendientes de paso 2 cuando GPS falla */
+    let pendingStep2 = null;
+
+    /** @type {number|null} Último código de error de geolocalización (1=denegado, 2=no disponible, 3=timeout) */
+    let lastGpsErrorCode = null;
+
+    /** @type {{employeeId: number, eventType: string, time: number}|null} Última marcación registrada (para ventana anti-duplicados) */
+    let lastMark = null;
+
+    /** @type {boolean} Indica si se está esperando confirmación de duplicado (segundo tap) */
+    let requireDuplicateConfirm = false;
+
+    /** @type {number|null} Timeout que restablece el estado de confirmación de duplicado */
+    let duplicateConfirmTimeout = null;
+
+    /** @type {AudioContext|null} Contexto de audio compartido */
+    let audioCtx = null;
+
+    /** @type {boolean} Indica si ya se agregó el listener de teclado del modal de error */
+    let errorKeyListenerAdded = false;
+
     /**
      * Timeout actual de la alerta para poder cancelarlo
      * @type {number|null}
      */
-    let currentAlertTimeout = null;
-
     // ==========================================================================
     // CONFIGURACIÓN FACE-API
     // ==========================================================================
 
     // Verificar que face-api.js está cargado
     if (typeof faceapi === "undefined") {
-        console.error(
-            "face-api.js no está cargado. Asegúrate de incluir la librería antes de este script."
-        );
+        logError("face-api.js no está cargado. Asegúrate de incluir la librería antes de este script.");
         return;
     }
 
@@ -217,13 +283,320 @@ document.addEventListener("DOMContentLoaded", () => {
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
     /**
-     * Registra un mensaje en la consola con formato de estado
-     * @param {string} message - Mensaje a registrar
-     * @returns {void}
+     * Registra un mensaje informativo en la consola
+     * @param {string} message
      */
     const logStatus = (message) => {
         console.log("[Status]", message);
     };
+
+    /**
+     * Registra una advertencia recuperable en la consola
+     * @param {string} message
+     * @param {*} [detail]
+     */
+    const logWarn = (message, detail) => {
+        detail !== undefined ? console.warn("[Warn]", message, detail) : console.warn("[Warn]", message);
+    };
+
+    /**
+     * Registra un error real en la consola (nivel error, con stack trace)
+     * @param {string} message
+     * @param {*} [errorObj]
+     */
+    const logError = (message, errorObj) => {
+        errorObj !== undefined ? console.error("[Error]", message, errorObj) : console.error("[Error]", message);
+    };
+
+    // --------------------------------------------------------------------------
+    // MENSAJES DE ERROR DETALLADOS
+    // --------------------------------------------------------------------------
+    /**
+     * Transforma un mensaje de error crudo del servidor en un mensaje amigable
+     * con sugerencias concretas para el usuario.
+     * @param {string|null} rawMessage
+     * @returns {string}
+     */
+    function buildDetailedError(rawMessage) {
+        if (!rawMessage) return "No se pudo completar la marcación. Por favor, intente nuevamente.";
+        const msg = rawMessage.toLowerCase();
+        if (msg.includes("ambiguo") || msg.includes("ambiguous") || msg.includes("múltiple") || msg.includes("multiple face")) {
+            return "Se detectaron múltiples rostros o el rostro no es claro. Asegúrese de estar solo frente a la cámara y reposicione su cara.";
+        }
+        if (msg.includes("no identificado") || msg.includes("not found") || msg.includes("no match")) {
+            return "No se pudo reconocer su rostro. Asegúrese de estar frente a la cámara con buena iluminación, sin lentes de sol ni gorras, y mantenga el rostro quieto.";
+        }
+        if (msg.includes("descriptor") || msg.includes("muestra") || msg.includes("sample")) {
+            return "No se detectó un rostro válido. Acerque el rostro a la cámara (30–60 cm) y asegúrese de tener buena iluminación frontal.";
+        }
+        if (msg.includes("conexión") || msg.includes("network") || msg.includes("fetch")) {
+            return !navigator.onLine
+                ? "Sin conexión a internet. Verifique la red del dispositivo y vuelva a intentar."
+                : "Error de conexión al servidor. Verifique que el dispositivo tenga acceso a la red y vuelva a intentar.";
+        }
+        if (msg.includes("csrf") || msg.includes("419")) {
+            return "La sesión expiró. Por favor, recargue la página para continuar.";
+        }
+        if (msg.includes("event") || msg.includes("evento") || msg.includes("allowed")) {
+            return "No hay tipos de marcación disponibles para este empleado en este momento. Consulte con el departamento de RRHH.";
+        }
+        return "Ocurrió un error inesperado. Por favor, intente nuevamente.";
+    }
+
+    // --------------------------------------------------------------------------
+    // AUDIO FEEDBACK (Web Audio API)
+    // --------------------------------------------------------------------------
+    function getAudioCtx() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+    }
+
+    function playTone(freq, duration, gain = 0.25, delay = 0) {
+        try {
+            const ctx = getAudioCtx();
+            ctx.resume();
+            const osc = ctx.createOscillator();
+            const env = ctx.createGain();
+            osc.connect(env);
+            env.connect(ctx.destination);
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            const t = ctx.currentTime + delay;
+            env.gain.setValueAtTime(gain, t);
+            env.gain.exponentialRampToValueAtTime(0.001, t + duration);
+            osc.start(t);
+            osc.stop(t + duration + 0.01);
+        } catch (_) { /* audio no disponible */ }
+    }
+
+    function playBeep(type) {
+        if (!userHasInteracted) return;
+        if (type === "success") {
+            playTone(880,  0.08, 0.22, 0.0);
+            playTone(1100, 0.12, 0.22, 0.1);
+        } else if (type === "error") {
+            playTone(440, 0.08, 0.22, 0.0);
+            playTone(330, 0.14, 0.22, 0.1);
+        }
+    }
+
+    // --------------------------------------------------------------------------
+    // BANNER OFFLINE
+    // --------------------------------------------------------------------------
+    function setOfflineBanner(isOffline) {
+        const banner = document.getElementById("offlineBanner");
+        if (!banner) return;
+        banner.classList.toggle("is-visible", isOffline);
+        banner.setAttribute("aria-hidden", String(!isOffline));
+        // Re-evaluar botón de marcación al cambiar estado de conexión
+        checkEnableMark();
+    }
+
+    // --------------------------------------------------------------------------
+    // RELOJ EN TIEMPO REAL
+    // --------------------------------------------------------------------------
+    function updateClock() {
+        if (headerClock) {
+            const now = new Date();
+            const day   = String(now.getDate()).padStart(2, "0");
+            const month = String(now.getMonth() + 1).padStart(2, "0");
+            const year  = now.getFullYear();
+            const dateStr = `${day}/${month}/${year}`;
+            const timeStr = now.toLocaleTimeString("es-BO", {
+                hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+            });
+            headerClock.innerHTML =
+                `<span class="clock-date">${dateStr}</span><span class="clock-time">${timeStr}</span>`;
+        }
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // --------------------------------------------------------------------------
+    // ESTADO VISUAL DEL VIDEO
+    // --------------------------------------------------------------------------
+    function setVideoState(stateClass) {
+        if (!videoWrap) return;
+        videoWrap.classList.remove(
+            "video-wrap--detecting", "video-wrap--face-found",
+            "video-wrap--success", "video-wrap--error"
+        );
+        if (stateClass) videoWrap.classList.add(`video-wrap--${stateClass}`);
+    }
+
+    function setStatusBar(text, dotClass) {
+        if (statusText) {
+            statusText.classList.remove("status-text--new");
+            void statusText.offsetWidth; // reiniciar animación
+            statusText.textContent = text;
+            statusText.classList.add("status-text--new");
+        }
+        if (statusBar) {
+            statusBar.classList.remove("status-bar--detecting", "status-bar--found", "status-bar--error");
+            if (dotClass) statusBar.classList.add(`status-bar--${dotClass}`);
+        }
+        if (statusDot) {
+            statusDot.classList.remove(
+                "status-dot--active", "status-dot--found",
+                "status-dot--success", "status-dot--error"
+            );
+            const cssMap = { detecting: "active", found: "found", success: "success", error: "error" };
+            const cssClass = cssMap[dotClass] ?? dotClass;
+            if (cssClass) statusDot.classList.add(`status-dot--${cssClass}`);
+        }
+    }
+
+    // --------------------------------------------------------------------------
+    // PROGRESO DE CAPTURA FACIAL
+    // --------------------------------------------------------------------------
+    function showCaptureProgress() {
+        if (!captureProgress) return;
+        captureDots.forEach(dot => dot.classList.remove("capture-dot--filled"));
+        captureProgress.classList.remove("hidden");
+    }
+
+    function updateCaptureProgress(count) {
+        captureDots.forEach((dot, i) => {
+            dot.classList.toggle("capture-dot--filled", i < count);
+        });
+    }
+
+    function hideCaptureProgress() {
+        if (!captureProgress) return;
+        captureProgress.classList.add("hidden");
+        captureDots.forEach(dot => dot.classList.remove("capture-dot--filled", "capture-dot--success", "capture-dot--error"));
+    }
+
+    /**
+     * Finaliza la animación de captura mostrando todos los dots en el color del resultado
+     * (éxito = verde, error = rojo) durante 400ms antes de ocultarlos.
+     * @param {"success"|"error"} outcome
+     */
+    async function finishCaptureProgress(outcome) {
+        if (!captureProgress) return;
+        captureDots.forEach(dot => {
+            dot.classList.remove("capture-dot--filled", "capture-dot--success", "capture-dot--error");
+            dot.classList.add(`capture-dot--${outcome}`);
+        });
+        captureProgress.classList.remove("hidden");
+        await sleep(400);
+        hideCaptureProgress();
+    }
+
+    // --------------------------------------------------------------------------
+    // GPS EN SEGUNDO PLANO
+    // --------------------------------------------------------------------------
+    function showGPSBanner(message) {
+        if (!gpsBanner || !gpsBannerText) return;
+        gpsBannerText.textContent = message;
+        gpsBanner.classList.remove("hidden");
+    }
+
+    const pulseIcon = L.divIcon({
+        className: '',
+        html: '<div class="map-pulse-marker"><div class="map-pulse-ring"></div><div class="map-pulse-dot"></div></div>',
+        iconSize: [28, 28],
+        iconAnchor: [14, 14],
+    });
+
+    function showLocationMap(lat, lng) {
+        if (!locationMapEl) return;
+        locationMapEl.classList.remove("hidden");
+        locationMapEl.removeAttribute("aria-hidden");
+        if (btnGeoRetry) btnGeoRetry.classList.remove("hidden");
+        // El mapa hace las coordenadas redundantes — ocultar el span
+        if (locationCoords) locationCoords.classList.add("hidden");
+
+        setTimeout(() => {
+            if (!locationMap) {
+                locationMap = L.map(locationMapEl, {
+                    zoomControl: false,
+                    attributionControl: false,
+                    dragging: false,
+                    scrollWheelZoom: false,
+                    doubleClickZoom: false,
+                    touchZoom: false,
+                }).setView([lat, lng], 16);
+                L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19,
+                }).addTo(locationMap);
+                locationMarker = L.marker([lat, lng], { icon: pulseIcon }).addTo(locationMap);
+                setTimeout(() => locationMap?.invalidateSize(), 50);
+            } else {
+                locationMap.setView([lat, lng], 16);
+                locationMarker.setLatLng([lat, lng]);
+                locationMap.invalidateSize();
+            }
+        }, 120);
+    }
+
+    function hideGPSBanner() {
+        if (gpsBanner) gpsBanner.classList.add("hidden");
+    }
+
+    /**
+     * Muestra un contador regresivo en locationStatus durante la solicitud GPS.
+     * @param {number} totalSec - Segundos totales del timeout GPS
+     * @returns {function} Función para detener el contador
+     */
+    function startGPSProgress(totalSec = 10) {
+        let remaining = totalSec;
+        const dots = ["·", "··", "···"];
+        let dotIdx = 0;
+
+        const tick = () => {
+            if (locationStatus) {
+                locationStatus.textContent = `Obteniendo GPS ${dots[dotIdx % 3]} ${remaining}s`;
+            }
+            dotIdx++;
+            remaining--;
+        };
+        tick(); // mostrar inmediatamente
+        const id = setInterval(tick, 1000);
+        return () => clearInterval(id);
+    }
+
+    function requestGPSBackground(onSuccess, onError) {
+        if (!navigator.geolocation) {
+            lastGpsErrorCode = null;
+            if (locationStatus) locationStatus.textContent = "GPS no disponible en este dispositivo";
+            onError?.();
+            return;
+        }
+
+        const stopProgress = startGPSProgress(10);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                stopProgress();
+                lastGpsErrorCode = null;
+                hideGPSBanner();
+                state.location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                if (locationStatus) locationStatus.textContent = "Ubicación obtenida";
+                if (locationCoords) {
+                    locationCoords.textContent = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                }
+                showLocationMap(pos.coords.latitude, pos.coords.longitude);
+                checkEnableMark();
+                onSuccess?.();
+            },
+            (err) => {
+                stopProgress();
+                lastGpsErrorCode = err.code;
+                const msgs = {
+                    1: "Ubicación denegada. Active el permiso en su navegador y toque Reintentar.",
+                    2: "No se pudo obtener la ubicación. Verifique que el GPS esté activo.",
+                    3: "Tiempo de espera agotado al obtener la ubicación.",
+                };
+                const msg = msgs[err.code] || "No se pudo obtener la ubicación.";
+                if (locationStatus) locationStatus.textContent = msg;
+                showGPSBanner(msg);
+                logWarn("GPS en segundo plano:", msg);
+                onError?.();
+            },
+            { timeout: 10000, maximumAge: 60000, enableHighAccuracy: true }
+        );
+    }
 
     // ==========================================================================
     // FUNCIONES DE VERIFICACIÓN
@@ -238,17 +611,8 @@ document.addEventListener("DOMContentLoaded", () => {
         const requiredElements = {
             video,
             overlay,
-            btnStart,
-            btnIdentify,
-            btnGeo,
             btnMark,
             eventTypeEl,
-            empCard,
-            empName,
-            empDoc,
-            empInfo,
-            latEl,
-            lngEl,
         };
 
         const missingElements = [];
@@ -259,10 +623,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         if (missingElements.length > 0) {
-            console.error("Elementos del DOM faltantes:", missingElements);
-            const errorMsg = "Error: Faltan elementos requeridos en la página. Por favor, recarga.";
-            logStatus(errorMsg);
-            showErrorModal("Error de inicialización", errorMsg);
+            logError("Elementos del DOM faltantes:", missingElements);
+            const errorMsg = "La página no cargó correctamente. Por favor, recárguela.";
+            showErrorModal("No se pudo cargar la página", errorMsg);
             return false;
         }
         return true;
@@ -300,6 +663,72 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function showSplash() {
+        if (splashOverlay) splashOverlay.classList.remove("hidden");
+    }
+
+    function hideSplash(callback) {
+        if (!splashOverlay) { callback?.(); return; }
+        splashOverlay.classList.add("fading");
+        setTimeout(() => {
+            splashOverlay.classList.add("hidden");
+            splashOverlay.classList.remove("fading");
+            callback?.();
+        }, 300);
+    }
+
+    function returnToSplash() {
+        // Resetear estado
+        state.employee = null;
+        state.allowed  = [];
+        state.location = null;
+        isIdentifying  = false;
+        cancelAutoIdentifyDwell?.();
+        drawLoopActive = false;
+        faceInFrameState = null;
+        requireDuplicateConfirm = false;
+        if (duplicateConfirmTimeout) { clearTimeout(duplicateConfirmTimeout); duplicateConfirmTimeout = null; }
+
+        // Detener stream
+        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+        if (video) video.srcObject = null;
+
+        // Resetear UI de empleado y eventos
+        if (step2EmployeeBar) step2EmployeeBar.classList.add("hidden");
+        eventBtns.forEach(btn => {
+            btn.disabled = true;
+            btn.setAttribute("aria-disabled", "true");
+            btn.setAttribute("aria-pressed", "false");
+            btn.classList.remove("hidden");
+        });
+        if (eventTypeEl) {
+            eventTypeEl.innerHTML = '<option value="">— primero identifícate —</option>';
+            eventTypeEl.disabled = true;
+        }
+        if (btnMark) {
+            btnMark.disabled = true;
+            btnMark.setAttribute("aria-disabled", "true");
+            btnMark.textContent = "Confirmar marcación";
+        }
+        setStatusBar("Inicie la cámara para comenzar", null);
+
+        // Resetear ubicación y mapa
+        if (locationStatus) locationStatus.textContent = "Solicitando ubicación...";
+        if (locationCoords) { locationCoords.textContent = ""; locationCoords.classList.remove("hidden"); }
+        if (locationMapEl) { locationMapEl.classList.add("hidden"); locationMapEl.setAttribute("aria-hidden", "true"); }
+        if (btnGeoRetry) btnGeoRetry.classList.add("hidden");
+        if (locationMap) { locationMap.remove(); locationMap = null; locationMarker = null; }
+
+        // Volver al wizard paso 1 (sin animación — el splash lo cubre)
+        if (step2Section) step2Section.classList.add("hidden");
+        if (step1Section) step1Section.classList.remove("hidden");
+
+        // Mostrar splash y permitir nuevo toque
+        splashHandled = false;
+        showSplash();
+        window.scrollTo({ top: 0, behavior: "instant" });
+    }
+
     /**
      * Inicializa el sistema cargando los modelos
      * @async
@@ -308,7 +737,7 @@ document.addEventListener("DOMContentLoaded", () => {
     async function initializeSystem() {
         try {
             // Paso 1: Verificar compatibilidad
-            updateLoadingProgress(10, "Verificando compatibilidad del navegador...");
+            updateLoadingProgress(10, "Iniciando...");
             await sleep(200);
 
             // Verificar que face-api esté disponible
@@ -321,11 +750,11 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error("Tu navegador no soporta acceso a la cámara");
             }
 
-            updateLoadingProgress(30, "Navegador compatible ✓");
+            updateLoadingProgress(30, "Preparando reconocimiento facial...");
             await sleep(200);
 
             // Paso 2: Cargar modelos
-            updateLoadingProgress(40, "Cargando modelos de reconocimiento facial...");
+            updateLoadingProgress(40, "Cargando modelos de identificación...");
 
             if (!modelsLoaded) {
                 await Promise.all([
@@ -336,20 +765,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 modelsLoaded = true;
             }
 
-            updateLoadingProgress(80, "Modelos cargados correctamente ✓");
+            updateLoadingProgress(80, "Casi listo...");
             await sleep(300);
 
             // Paso 3: Sistema listo
-            updateLoadingProgress(100, "Sistema listo ✓");
+            updateLoadingProgress(100, "¡Todo listo!");
             await sleep(500);
 
-            // Ocultar pantalla de carga
+            // Mostrar splash primero (queda detrás del loading por z-index),
+            // luego ocultar loading para que el splash aparezca sin flash de la vista principal
             console.log("Sistema inicializado correctamente");
+            showSplash();
             hideLoadingScreen();
-            showAlert("success", "Sistema listo. Presiona 'Iniciar cámara' para comenzar.", 4000);
 
         } catch (error) {
-            console.error("Error en la inicialización:", error);
+            logError("Error en la inicialización:", error);
 
             // Mostrar error en la pantalla de carga
             if (loadingMessage) {
@@ -361,8 +791,8 @@ document.addEventListener("DOMContentLoaded", () => {
             await sleep(3000);
             hideLoadingScreen();
             showErrorModal(
-                "Error al inicializar",
-                `${error.message}. Por favor, recarga la página.`
+                "El sistema no pudo iniciar",
+                "El sistema no pudo iniciarse correctamente. Recargue la página para continuar."
             );
         }
     }
@@ -397,7 +827,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
         try {
             logStatus("Cargando modelos de reconocimiento facial...");
-            showAlert("info", "Cargando modelos de reconocimiento facial...", 0);
+            setStatusBar("Cargando modelos de reconocimiento facial...", "detecting");
 
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
@@ -407,16 +837,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
             modelsLoaded = true;
             logStatus("Modelos cargados correctamente");
-            showAlert("success", "Modelos cargados. Presiona 'Iniciar cámara' para comenzar.", 4000);
+            setStatusBar("Modelos listos — presione Iniciar cámara", null);
         } catch (error) {
             modelsLoaded = false;
-            const errorMsg = "Error al cargar los modelos de reconocimiento facial. Por favor, recarga la página.";
-            logStatus(errorMsg);
-            showErrorModal(
-                "Error al cargar modelos",
-                errorMsg + " Si el problema persiste, verifica tu conexión a internet."
-            );
-            console.error("Error al cargar los modelos:", error);
+            const errorMsg = "No se pudieron cargar los datos necesarios. Recargue la página. Si el problema persiste, verifique su conexión a internet.";
+            logError("Error al cargar los modelos:", error);
+            showErrorModal("Error de carga", errorMsg);
             throw error;
         }
     }
@@ -453,40 +879,43 @@ document.addEventListener("DOMContentLoaded", () => {
 
             // Verificar que los modelos estén cargados antes de iniciar el draw loop
             if (modelsLoaded) {
+                faceInFrameState = null;
+                notRecognizedUntil = 0;
                 drawLoopActive = true;
-                requestAnimationFrame(drawLoop);
+                setTimeout(drawLoop, 0);
             } else {
-                const errorMsg = "Los modelos no están cargados. Por favor, recarga la página.";
+                const errorMsg = "El sistema no está listo aún. Por favor, recargue la página.";
                 logStatus(errorMsg);
-                showErrorModal("Modelos no cargados", errorMsg);
+                showErrorModal("Sistema no listo", errorMsg);
                 return;
             }
 
-            // Habilitar el botón de identificación
-            btnIdentify.disabled = false;
-            btnIdentify.removeAttribute("aria-disabled");
+            setVideoState("detecting");
+            setStatusBar("Coloque su rostro dentro del óvalo · 30–50 cm", "detecting");
             logStatus("Cámara iniciada correctamente");
-            showAlert("success", "Cámara iniciada. Presiona 'Identificar' cuando estés listo.", 4000);
         } catch (e) {
             let errorTitle = "Error de cámara";
             let errorMsg = "";
 
             if (e.name === "NotAllowedError") {
                 errorTitle = "Permiso denegado";
-                errorMsg = "Por favor, habilita el acceso a la cámara en tu navegador y recarga la página.";
+                errorMsg = "Habilite el acceso a la cámara en la configuración de su navegador y toque Reintentar.";
             } else if (e.name === "NotFoundError") {
                 errorTitle = "Cámara no encontrada";
-                errorMsg = "No se detectó ninguna cámara en tu dispositivo. Por favor, conecta una cámara y recarga la página.";
+                errorMsg = "No se detectó ninguna cámara en este dispositivo. Conecte una cámara y toque Reintentar.";
             } else if (e.name === "NotReadableError") {
                 errorTitle = "Cámara en uso";
-                errorMsg = "La cámara está siendo utilizada por otra aplicación. Cierra otras aplicaciones que puedan estar usando la cámara e intenta nuevamente.";
+                errorMsg = "La cámara está siendo utilizada por otra aplicación. Ciérrela e intente nuevamente.";
             } else {
-                errorMsg = "No se pudo iniciar la cámara: " + e.message;
+                errorMsg = "No se pudo iniciar la cámara. Intente nuevamente.";
             }
 
-            logStatus(errorMsg);
-            showErrorModal(errorTitle, errorMsg);
-            console.error("Error al iniciar la cámara:", e);
+            logError("Error al iniciar la cámara:", e);
+            setVideoState("error");
+            showErrorModal(errorTitle, errorMsg, async () => {
+                setStatusBar("Iniciando cámara...", "detecting");
+                await startCamera();
+            });
         }
     }
 
@@ -506,53 +935,47 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!drawLoopActive) return;
 
         try {
-            const now = performance.now();
-            const DETECTION_INTERVAL = 200;
+            if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0 && modelsLoaded) {
+                const detection = await faceapi
+                    .detectSingleFace(video, tinyOptions)
+                    .withFaceLandmarks();
 
-            // Limitar la frecuencia de detección
-            if (now - lastDetectionTime > DETECTION_INTERVAL) {
-                lastDetectionTime = now;
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-                // Verificar que el video esté listo y los modelos cargados
-                if (video.readyState >= 2 && modelsLoaded) {
-                    const detection = await faceapi
-                        .detectSingleFace(video, tinyOptions)
-                        .withFaceLandmarks();
-
-                    // Limpiar el lienzo
-                    ctx.clearRect(0, 0, overlay.width, overlay.height);
-
-                    if (detection) {
-                        // Ajustar dimensiones solo si es necesario
-                        if (
-                            overlay.width !== video.videoWidth ||
-                            overlay.height !== video.videoHeight
-                        ) {
+                // Durante captura activa, cooldown post-error o modal de error visible, el drawLoop no toca el estado visual
+                if (!isIdentifying && Date.now() > notRecognizedUntil && !errorModalVisible) {
+                    if (detection && video.videoWidth > 0 && video.videoHeight > 0) {
+                        if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
                             faceapi.matchDimensions(overlay, video);
                         }
-
-                        // Redimensionar resultados
-                        const resizedDetections = faceapi.resizeResults(detection, {
+                        faceapi.resizeResults(detection, {
                             width: video.videoWidth,
                             height: video.videoHeight,
                         });
 
-                        // Dibujar detecciones y puntos clave
-                        faceapi.draw.drawDetections(overlay, resizedDetections);
-                        faceapi.draw.drawFaceLandmarks(overlay, resizedDetections);
+                        if (faceInFrameState !== "found") {
+                            faceInFrameState = "found";
+                            setVideoState("face-found");
+                            setStatusBar("Quédate quieto...", "found");
+                            startAutoIdentifyDwell();
+                        }
+                    } else {
+                        ctx.clearRect(0, 0, overlay.width, overlay.height);
+                        if (faceInFrameState !== "absent") {
+                            faceInFrameState = "absent";
+                            cancelAutoIdentifyDwell();
+                            setVideoState("detecting");
+                            setStatusBar("Coloque su rostro dentro del óvalo · 30–50 cm", "detecting");
+                        }
                     }
                 }
             }
-
-            // Continuar el bucle solo si está activo
-            if (drawLoopActive) {
-                requestAnimationFrame(drawLoop);
-            }
         } catch (error) {
-            console.error("Error en drawLoop:", error);
-            if (drawLoopActive) {
-                requestAnimationFrame(drawLoop);
-            }
+            logError("Error en drawLoop:", error);
+        }
+
+        if (drawLoopActive) {
+            setTimeout(drawLoop, 200);
         }
     }
 
@@ -569,81 +992,42 @@ document.addEventListener("DOMContentLoaded", () => {
      * @throws {Error} Si no se capturan suficientes muestras válidas
      * @returns {Promise<number[]>} Array de 128 números representando el descriptor facial promediado
      */
-    async function captureDescriptor(samples = 5, intervalMs = 150) {
-        // Validar parámetros
-        if (!Number.isInteger(samples) || samples <= 0) {
-            throw new Error("El número de muestras debe ser un entero positivo.");
-        }
-        if (intervalMs <= 0) {
-            throw new Error("El intervalo debe ser un número positivo.");
-        }
+    async function captureDescriptor(samples = 5, intervalMs = 150, onProgress = null) {
+        const descriptors = [];
 
-        // Verificar que los modelos estén cargados
-        if (!modelsLoaded) {
-            throw new Error("Los modelos de reconocimiento facial no están cargados.");
-        }
-
-        logStatus(`Capturando ${samples} muestras de rostro...`);
-        showAlert("info", "Capturando rostro... mantén la cara estable", 0);
-
-        const list = [];
-        let attempts = 0;
-        const maxAttempts = samples * 3;
-
-        try {
-            while (list.length < samples && attempts < maxAttempts) {
-                logStatus(`Captura ${list.length + 1} de ${samples}`);
-
+        for (let i = 0; i < samples; i++) {
+            try {
                 const det = await faceapi
                     .detectSingleFace(video, tinyOptions)
                     .withFaceLandmarks()
                     .withFaceDescriptor();
 
                 if (det?.descriptor) {
-                    // Validar tamaño del rostro detectado
                     const box = det.detection.box;
                     if (box.width >= MIN_FACE_SIZE && box.height >= MIN_FACE_SIZE) {
-                        list.push(det.descriptor);
+                        descriptors.push(Array.from(det.descriptor));
+                        if (onProgress) onProgress(descriptors.length);
                     } else {
-                        console.warn(
-                            `Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${MIN_FACE_SIZE}px)`
-                        );
-                        showAlert("warning", "Acerca el rostro a la cámara", 2000);
+                        logWarn(`Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${MIN_FACE_SIZE}px)`);
                     }
-                } else {
-                    console.warn("No se detectó un rostro en esta iteración.");
                 }
-
-                attempts++;
-                await sleep(intervalMs);
+            } catch (error) {
+                logWarn(`Error capturando muestra ${i + 1}:`, error);
             }
-
-            // Verificar si se capturaron suficientes muestras (mínimo 3)
-            const minRequired = Math.min(3, samples);
-            if (list.length < minRequired) {
-                throw new Error(
-                    `Solo se capturaron ${list.length} muestras válidas (mínimo ${minRequired}). Acerque el rostro a la cámara.`
-                );
-            }
-
-            // Calcular el promedio de los descriptores
-            const avg = new Float32Array(128).fill(0);
-            list.forEach((descriptor) => {
-                descriptor.forEach((value, i) => {
-                    avg[i] += value;
-                });
-            });
-            for (let i = 0; i < 128; i++) {
-                avg[i] /= list.length;
-            }
-
-            logStatus(`Captura completada con éxito (${list.length} muestras).`);
-            return Array.from(avg);
-        } catch (error) {
-            console.error("Error en captureDescriptor:", error);
-            logStatus("Error al capturar el descriptor: " + error.message);
-            throw error;
+            if (i < samples - 1) await sleep(intervalMs);
         }
+
+        if (descriptors.length < 3) {
+            throw new Error(`Solo se capturaron ${descriptors.length} muestras válidas (mínimo 3). Acerque el rostro a la cámara.`);
+        }
+
+        const averaged = new Array(128).fill(0);
+        for (let i = 0; i < 128; i++) {
+            let sum = 0;
+            for (const desc of descriptors) sum += desc[i];
+            averaged[i] = sum / descriptors.length;
+        }
+        return averaged;
     }
 
     // ==========================================================================
@@ -660,15 +1044,27 @@ document.addEventListener("DOMContentLoaded", () => {
     function enableStep2(allowed) {
         try {
             if (!Array.isArray(allowed)) {
-                console.error('El parámetro "allowed" debe ser un arreglo.');
+                logError('El parámetro "allowed" debe ser un arreglo.');
                 return;
             }
 
             eventTypeEl.innerHTML = "";
 
+            // Update visual event buttons — show only allowed, hide the rest
+            eventBtns.forEach((btn) => {
+                const eventVal = btn.getAttribute("data-event");
+                if (allowed.includes(eventVal)) {
+                    btn.classList.remove("hidden");
+                    btn.disabled = false;
+                    btn.removeAttribute("aria-disabled");
+                } else {
+                    btn.classList.add("hidden");
+                }
+            });
+
             if (allowed.length === 0) {
                 addOption(eventTypeEl, "", "No hay eventos permitidos para hoy");
-                disableElements([eventTypeEl, btnGeo, btnMark]);
+                disableElements([eventTypeEl, btnMark]);
                 return;
             }
 
@@ -679,9 +1075,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 addOption(eventTypeEl, event, text);
             });
 
-            enableElements([eventTypeEl, btnGeo]);
+            enableElements([eventTypeEl]);
         } catch (error) {
-            console.error("Error en enableStep2:", error);
+            logError("Error en enableStep2:", error);
         }
     }
 
@@ -737,18 +1133,40 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function checkEnableMark() {
         try {
-            if (!state || !eventTypeEl || !latEl || !lngEl || !btnMark) {
-                console.error("Elementos necesarios no están definidos.");
+            if (!state || !eventTypeEl || !btnMark) {
+                logError("Elementos necesarios no están definidos.");
                 return;
             }
 
             const isEmployeeSelected = !!(state.employee && state.employee.id);
             const isEventSelected = !!eventTypeEl.value;
-            const isLocationSet = !!(latEl.value && lngEl.value);
+            const isLocationSet = !!state.location;
+            const isOnline = navigator.onLine;
+            const canMark = isEmployeeSelected && isEventSelected && isLocationSet && isOnline;
 
-            btnMark.disabled = !(isEmployeeSelected && isEventSelected && isLocationSet);
+            btnMark.disabled = !canMark;
+            btnMark.setAttribute("aria-disabled", canMark ? "false" : "true");
+
+            if (markHint) {
+                if (canMark) {
+                    markHint.textContent = "";
+                    markHint.classList.add("hidden");
+                } else if (!isOnline) {
+                    markHint.textContent = "Sin conexión — la marcación no puede registrarse ahora";
+                    markHint.classList.remove("hidden");
+                } else if (isEmployeeSelected && !isEventSelected) {
+                    markHint.textContent = "Seleccioná el tipo de marcación para continuar";
+                    markHint.classList.remove("hidden");
+                } else if (isEmployeeSelected && isEventSelected && !isLocationSet) {
+                    markHint.textContent = "Esperando ubicación GPS...";
+                    markHint.classList.remove("hidden");
+                } else {
+                    markHint.textContent = "";
+                    markHint.classList.add("hidden");
+                }
+            }
         } catch (error) {
-            console.error("Error en checkEnableMark:", error);
+            logError("Error en checkEnableMark:", error);
         }
     }
 
@@ -777,24 +1195,353 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {string|null} lastEvent - Último evento registrado del empleado
      * @returns {void}
      */
-    function updateEmployeeUI(employee, lastEvent) {
+    // ==========================================================================
+    // CÁMARA POST-IDENTIFICACIÓN
+    // ==========================================================================
+
+// ==========================================================================
+    // AUTO-IDENTIFICACIÓN CON DWELL
+    // ==========================================================================
+
+    /**
+     * Inicia el dwell de auto-identificación llenando los dots uno a uno.
+     * Al completar los 5 dots dispara runIdentification() automáticamente.
+     */
+    function startAutoIdentifyDwell() {
+        if (isIdentifying || autoIdDotInterval || Date.now() <= notRecognizedUntil || errorModalVisible) return;
+
+        let dotsFilled = 0;
+        showCaptureProgress();
+
+        autoIdDotInterval = setInterval(() => {
+            dotsFilled++;
+            updateCaptureProgress(dotsFilled);
+            if (dotsFilled >= captureDots.length) {
+                clearInterval(autoIdDotInterval);
+                autoIdDotInterval = null;
+                runIdentification(true);
+            }
+        }, DWELL_STEP_MS);
+    }
+
+    /**
+     * Cancela el dwell en curso y oculta los dots (si no hay identificación activa).
+     */
+    function cancelAutoIdentifyDwell() {
+        if (autoIdDotInterval) {
+            clearInterval(autoIdDotInterval);
+            autoIdDotInterval = null;
+        }
+        if (!isIdentifying) hideCaptureProgress();
+    }
+
+    /**
+     * Ejecuta el flujo completo de identificación facial.
+     * Puede ser llamado por el dwell automático o por el botón manual.
+     */
+    async function runIdentification(fromDwell = false) {
+        if (isIdentifying) return;
+        if (!navigator.onLine) {
+            setStatusBar("Sin conexión — no se puede identificar ahora", "error");
+            return;
+        }
+        isIdentifying = true;
+
+        cancelAutoIdentifyDwell();
+        if (btnIdentify) btnIdentify.disabled = true;
+
+        if (fromDwell) {
+            // Dots already full from dwell — pause briefly so the user sees the completed state
+            await sleep(250);
+        } else {
+            // Manual trigger — show empty dots that fill as samples are captured
+            showCaptureProgress();
+        }
+
         try {
-            if (empCard) empCard.classList.remove("hidden");
+            logStatus("Iniciando captura de rostro...");
+            const descriptor = await captureDescriptor(5, 150, fromDwell ? null : (count) => {
+                updateCaptureProgress(count);
+            });
 
-            if (empName) {
-                empName.textContent = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+            logStatus("Enviando datos para identificación...");
+            setStatusBar("Identificando empleado...", "found");
+
+            if (!CSRF) throw new Error("Token CSRF no disponible");
+
+            const resp = await fetch("/marcar/identificar", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Accept: "application/json",
+                    "X-CSRF-TOKEN": CSRF,
+                },
+                body: JSON.stringify({ face_descriptor: descriptor }),
+            });
+
+            if (resp.status === 419) throw Object.assign(new Error("session_expired"), { is419: true });
+
+            const json = await resp.json();
+            if (!json.ok) throw new Error(json.message || "No identificado");
+
+            state.employee = json.employee;
+            state.allowed  = json.allowed_events || [];
+
+            await finishCaptureProgress("success");
+
+            if (state.allowed.length === 0) {
+                // Jornada completa — detener cámara y mostrar aviso
+                if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+                drawLoopActive = false;
+                faceInFrameState = null;
+                if (video) video.srcObject = null;
+
+                const fullName = `${json.employee.first_name || ""} ${json.employee.last_name || ""}`.trim();
+                const titleEl = document.getElementById("successModalTitle");
+                const descEl  = document.getElementById("successModalDesc");
+                if (titleEl) titleEl.textContent = "¡Jornada completada!";
+                if (descEl)  descEl.textContent  = `${fullName ? fullName + ", ya" : "Ya"} no tienes más marcaciones disponibles por hoy. ¡Hasta mañana!`;
+                showSuccessModal();
+                navigator.vibrate?.(80);
+                playBeep("success");
+                logStatus("Jornada completa — sin eventos disponibles");
+                return;
             }
 
-            if (empDoc) {
-                empDoc.textContent = employee.ci ? `Doc: ${employee.ci}` : "Sin documento";
+            enableStep2(state.allowed);
+            checkEnableMark();
+            transitionToStep2(json.employee, json.last_event, json.last_event_time);
+            navigator.vibrate?.(80);
+            logStatus("Empleado identificado ✓");
+
+            // Auto-seleccionar el evento si solo hay uno disponible
+            if (state.allowed.length === 1) {
+                const singleEvent = state.allowed[0];
+                const autoBtn = [...eventBtns].find(b => b.getAttribute("data-event") === singleEvent);
+                if (autoBtn) {
+                    eventBtns.forEach(b => b.setAttribute("aria-pressed", "false"));
+                    autoBtn.setAttribute("aria-pressed", "true");
+                    if (eventTypeEl) {
+                        eventTypeEl.value = singleEvent;
+                        eventTypeEl.dispatchEvent(new Event("change"));
+                    }
+                }
             }
 
-            if (empInfo) {
-                const translatedEvent = translateEventType(lastEvent);
-                empInfo.textContent = `Última marcación: ${translatedEvent}`;
+        } catch (e) {
+            logError("Error en la identificación:", e);
+            if (e.is419) {
+                await finishCaptureProgress("error");
+                playBeep("error");
+                showErrorModal(
+                    "Sesión expirada",
+                    "La sesión ha caducado. Recargue la página para continuar.",
+                    false
+                );
+                return;
             }
+            const detailed = buildDetailedError(e.message);
+            // Cooldown de 3s: drawLoop no actualiza estado visual ni se inicia nuevo dwell
+            notRecognizedUntil = Date.now() + 3000;
+            setVideoState("error");
+            setStatusBar("No se pudo identificar", "error");
+            await finishCaptureProgress("error");
+            playBeep("error");
+            showErrorModal("No se pudo identificar", detailed);
+        } finally {
+            isIdentifying = false;
+        }
+    }
+
+    // ==========================================================================
+    // TRANSICIONES DE PASO (STEP WIZARD)
+    // ==========================================================================
+
+    /**
+     * Transiciona de Paso 1 (cámara) a Paso 2 (selección de evento).
+     * Detiene la cámara, puebla la barra de empleado y anima el cambio.
+     */
+    function transitionToStep2(employee, lastEvent, lastEventTime) {
+        // Verificar que la ubicación GPS esté disponible antes de continuar
+        if (!state.location) {
+            pendingStep2 = { employee, lastEvent, lastEventTime };
+
+            const gpsMsg = lastGpsErrorCode === 1
+                ? "El permiso de ubicación está denegado. Vaya a la configuración de su navegador, habilite la ubicación para este sitio y toque Reintentar."
+                : lastGpsErrorCode === 2
+                    ? "No se pudo obtener la ubicación GPS. Verifique que el GPS esté activado en el dispositivo y toque Reintentar."
+                    : "No se pudo obtener la ubicación GPS. Esto es necesario para registrar la marcación. Intente nuevamente.";
+
+            showErrorModal("Ubicación no disponible", gpsMsg, () => {
+                // Mantener errorModalVisible=true durante la solicitud GPS para
+                // evitar que el drawLoop dispare un nuevo dwell y re-identifique al empleado
+                errorModalVisible = true;
+                setStatusBar("Obteniendo ubicación GPS...", "detecting");
+                requestGPSBackground(
+                    () => {
+                        // GPS obtenido — continuar al paso 2
+                        errorModalVisible = false;
+                        const pending = pendingStep2;
+                        pendingStep2 = null;
+                        if (pending) transitionToStep2(pending.employee, pending.lastEvent, pending.lastEventTime);
+                    },
+                    () => {
+                        // GPS falló de nuevo — liberar y mostrar modal otra vez
+                        errorModalVisible = false;
+                        const pending = pendingStep2;
+                        pendingStep2 = null;
+                        if (pending) transitionToStep2(pending.employee, pending.lastEvent, pending.lastEventTime);
+                    }
+                );
+            });
+            return;
+        }
+
+        pendingStep2 = null;
+
+        // Detener cámara
+        if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+        drawLoopActive = false;
+        faceInFrameState = null;
+        if (video) video.srcObject = null;
+        if (ctx) ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+        // Poblar barra de empleado en Paso 2
+        const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+        const initials = [employee.first_name?.[0], employee.last_name?.[0]]
+            .filter(Boolean).join("").toUpperCase() || "?";
+
+        if (step2Avatar) {
+            step2Avatar.textContent = "";
+            if (employee.photo_url) {
+                const img = document.createElement("img");
+                img.src       = employee.photo_url;
+                img.alt       = fullName;
+                img.className = "step2-avatar-img";
+                step2Avatar.appendChild(img);
+            } else {
+                step2Avatar.textContent = initials;
+            }
+        }
+        if (step2Name)        step2Name.textContent       = fullName;
+        if (step2Meta)        step2Meta.textContent       = employee.ci ? `CI: ${employee.ci}` : (employee.branch_name ?? "");
+        if (step2LastEventEl) step2LastEventEl.textContent = lastEvent
+            ? `Última: ${translateEventType(lastEvent)}${lastEventTime ? ` · ${lastEventTime}` : ""}`
+            : "Sin marcaciones previas hoy";
+        if (step2EmployeeBar) step2EmployeeBar.classList.remove("hidden");
+
+        // Animar salida de Paso 1
+        if (step1Section) {
+            step1Section.classList.add("step-leaving");
+
+            const onStep1Leave = (e) => {
+                if (e.target !== step1Section) return; // ignorar bubbling de hijos
+                step1Section.removeEventListener("animationend", onStep1Leave);
+                step1Section.classList.add("hidden");
+                step1Section.classList.remove("step-leaving");
+
+                // Animar entrada de Paso 2
+                if (step2Section) {
+                    step2Section.classList.remove("hidden");
+                    void step2Section.offsetWidth; // forzar reflow
+                    step2Section.classList.add("step-entering");
+
+                    const onStep2Enter = (e2) => {
+                        if (e2.target !== step2Section) return;
+                        step2Section.removeEventListener("animationend", onStep2Enter);
+                        step2Section.classList.remove("step-entering");
+                    };
+                    step2Section.addEventListener("animationend", onStep2Enter);
+                }
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            };
+            step1Section.addEventListener("animationend", onStep1Leave);
+        }
+    }
+
+    /**
+     * Transiciona de Paso 2 (selección) de vuelta a Paso 1 (cámara).
+     * Limpia el estado del empleado y reinicia la cámara.
+     */
+    async function transitionToStep1() {
+        // Limpiar estado del empleado y auto-identificación
+        state.employee = null;
+        state.allowed  = [];
+        isIdentifying  = false;
+        cancelAutoIdentifyDwell();
+
+        // Limpiar barra de empleado
+        if (step2EmployeeBar) step2EmployeeBar.classList.add("hidden");
+
+        // Deshabilitar eventos y botón de marcación
+        eventBtns.forEach(btn => {
+            btn.disabled = true;
+            btn.setAttribute("aria-disabled", "true");
+            btn.setAttribute("aria-pressed", "false");
+            btn.classList.remove("hidden");
+        });
+        if (eventTypeEl) {
+            eventTypeEl.innerHTML = '<option value="">— primero identifícate —</option>';
+            eventTypeEl.disabled = true;
+        }
+        if (btnMark) {
+            btnMark.disabled = true;
+            btnMark.setAttribute("aria-disabled", "true");
+            btnMark.textContent = "Confirmar marcación";
+        }
+
+        // Animar salida de Paso 2
+        if (step2Section) {
+            step2Section.classList.add("step-leaving");
+
+            const onStep2Leave = (e) => {
+                if (e.target !== step2Section) return; // ignorar bubbling de hijos
+                step2Section.removeEventListener("animationend", onStep2Leave);
+                step2Section.classList.add("hidden");
+                step2Section.classList.remove("step-leaving");
+
+                // Animar entrada de Paso 1
+                if (step1Section) {
+                    step1Section.classList.remove("hidden");
+                    void step1Section.offsetWidth;
+                    step1Section.classList.add("step-entering");
+
+                    const onStep1Enter = (e2) => {
+                        if (e2.target !== step1Section) return;
+                        step1Section.removeEventListener("animationend", onStep1Enter);
+                        step1Section.classList.remove("step-entering");
+                    };
+                    step1Section.addEventListener("animationend", onStep1Enter);
+                }
+                window.scrollTo({ top: 0, behavior: "smooth" });
+            };
+            step2Section.addEventListener("animationend", onStep2Leave);
+        }
+
+        // Resetear ubicación y mapa
+        state.location = null;
+        if (locationStatus) locationStatus.textContent = "Solicitando ubicación...";
+        if (locationCoords) { locationCoords.textContent = ""; locationCoords.classList.remove("hidden"); }
+        if (locationMapEl) {
+            locationMapEl.classList.add("hidden");
+            locationMapEl.setAttribute("aria-hidden", "true");
+        }
+        if (btnGeoRetry) btnGeoRetry.classList.add("hidden");
+        if (locationMap) {
+            locationMap.remove();
+            locationMap    = null;
+            locationMarker = null;
+        }
+
+        // Reiniciar cámara en paralelo con la animación
+        faceInFrameState = null;
+        try {
+            await startCamera();
         } catch (error) {
-            console.error("Error al actualizar UI del empleado:", error);
+            logError("Error al reiniciar cámara:", error);
+            showErrorModal("Error de cámara", "No se pudo reiniciar la cámara. Intente nuevamente.", async () => {
+                await startCamera();
+            });
         }
     }
 
@@ -808,17 +1555,33 @@ document.addEventListener("DOMContentLoaded", () => {
      *              y configura eventos para cerrarlo (botón, backdrop, tecla ESC)
      * @returns {void}
      */
-    function showSuccessModal() {
+    function showSuccessModal(name, eventType, time) {
         const modal = document.getElementById("successModal");
         const closeModal = document.getElementById("closeModal");
 
         if (!modal || !closeModal) {
-            console.error("Elementos del modal no encontrados");
+            logError("Elementos del modal no encontrados");
             return;
+        }
+
+        // Poblar bloque de detalle si se proveyeron datos
+        const metaEl    = document.getElementById("successModalMeta");
+        const nameEl    = document.getElementById("successModalMetaName");
+        const eventEl   = document.getElementById("successModalMetaEvent");
+        const timeEl    = document.getElementById("successModalMetaTime");
+
+        if (metaEl && name && eventType && time) {
+            if (nameEl)  nameEl.textContent  = name;
+            if (eventEl) eventEl.textContent = translateEventType(eventType);
+            if (timeEl)  timeEl.textContent  = time.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+            metaEl.classList.remove("hidden");
+        } else if (metaEl) {
+            metaEl.classList.add("hidden");
         }
 
         previousActiveElement = document.activeElement;
 
+        modal.setAttribute("aria-hidden", "false");
         modal.classList.remove("hidden");
         void modal.offsetWidth; // Forzar reflow para animación
 
@@ -828,7 +1591,6 @@ document.addEventListener("DOMContentLoaded", () => {
 
         setTimeout(() => {
             closeModal.focus();
-            modal.setAttribute("aria-hidden", "false");
         }, 100);
 
         document.body.classList.add("modal-open");
@@ -863,18 +1625,17 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (!modal) return;
 
+        if (modal.contains(document.activeElement)) {
+            document.activeElement.blur();
+        }
+
         modal.setAttribute("aria-hidden", "true");
         modal.classList.remove("show");
 
         setTimeout(() => {
             modal.classList.add("hidden");
             document.body.classList.remove("modal-open");
-
-            if (previousActiveElement && previousActiveElement.focus) {
-                previousActiveElement.focus();
-            }
-
-            resetSystem();
+            returnToSplash();
         }, 250);
     }
 
@@ -884,53 +1645,43 @@ document.addEventListener("DOMContentLoaded", () => {
      * @param {string} message - Descripción detallada del error
      * @returns {void}
      */
-    function showErrorModal(title, message) {
-        const modal = document.getElementById("errorModal");
-        const closeBtn = document.getElementById("closeErrorModal");
+    function showErrorModal(title, message, onRetry) {
+        const modal   = document.getElementById("errorModal");
         const titleEl = document.getElementById("errorModalTitle");
-        const descEl = document.getElementById("errorModalDesc");
+        const descEl  = document.getElementById("errorModalDesc");
+        const retryBtn = document.getElementById("retryErrorModal");
 
-        if (!modal || !closeBtn || !titleEl || !descEl) {
-            console.error("Elementos del modal de error no encontrados");
+        if (!modal || !titleEl || !descEl) {
+            logError("Elementos del modal de error no encontrados");
             return;
         }
 
         previousActiveElement = document.activeElement;
 
         titleEl.textContent = title || "Error";
-        descEl.textContent = message || "Ha ocurrido un error inesperado.";
+        descEl.textContent  = message || "Ha ocurrido un error inesperado.";
 
+        // onRetry === false → ocultar botón Reintentar (ej: sesión expirada, reintentar no ayudaría)
+        if (retryBtn) {
+            const hideRetry = onRetry === false;
+            retryBtn.classList.toggle("hidden", hideRetry);
+            retryBtn._onRetry = hideRetry ? null : (onRetry || null);
+        }
+
+        errorModalVisible = true;
+        cancelAutoIdentifyDwell();
+
+        modal.setAttribute("aria-hidden", "false");
         modal.classList.remove("hidden");
         void modal.offsetWidth;
 
-        requestAnimationFrame(() => {
-            modal.classList.add("show");
-        });
+        requestAnimationFrame(() => { modal.classList.add("show"); });
 
-        setTimeout(() => {
-            closeBtn.focus();
-            modal.setAttribute("aria-hidden", "false");
-        }, 100);
+        if (retryBtn) retryBtn._shownAt = Date.now();
+        const focusTarget = (onRetry !== false ? retryBtn : null) ?? document.getElementById("closeErrorModal");
+        setTimeout(() => { focusTarget?.focus(); }, 100);
 
         document.body.classList.add("modal-open");
-
-        if (!errorModalListenerAdded) {
-            closeBtn.addEventListener("click", closeErrorModalHandler);
-
-            modal.addEventListener("click", (e) => {
-                if (e.target === modal) {
-                    closeErrorModalHandler();
-                }
-            });
-
-            document.addEventListener("keydown", (e) => {
-                if (e.key === "Escape" && modal.classList.contains("show")) {
-                    closeErrorModalHandler();
-                }
-            });
-
-            errorModalListenerAdded = true;
-        }
     }
 
     /**
@@ -938,93 +1689,8 @@ document.addEventListener("DOMContentLoaded", () => {
      * @returns {void}
      */
     function closeErrorModalHandler() {
-        const modal = document.getElementById("errorModal");
-
-        if (!modal) return;
-
-        modal.setAttribute("aria-hidden", "true");
-        modal.classList.remove("show");
-
-        setTimeout(() => {
-            modal.classList.add("hidden");
-            document.body.classList.remove("modal-open");
-
-            if (previousActiveElement && previousActiveElement.focus) {
-                previousActiveElement.focus();
-            }
-        }, 250);
-    }
-
-    // ==========================================================================
-    // FUNCIONES DE ALERTAS
-    // ==========================================================================
-
-    /**
-     * Muestra una alerta inline en el contenedor de alertas
-     * @param {('error'|'warning'|'info'|'success')} type - Tipo de alerta que determina el estilo
-     * @param {string} message - Mensaje a mostrar
-     * @param {number} [duration=5000] - Duración en ms antes de ocultar (0 = permanente)
-     * @returns {void}
-     */
-    function showAlert(type, message, duration = 5000) {
-        const container = document.getElementById("alertContainer");
-
-        if (!container) {
-            console.error("Contenedor de alertas no encontrado");
-            return;
-        }
-
-        if (currentAlertTimeout) {
-            clearTimeout(currentAlertTimeout);
-        }
-
-        const icons = {
-            error: "⚠",
-            warning: "⚠",
-            info: "ℹ",
-            success: "✓",
-        };
-
-        const alertBox = document.createElement("div");
-        alertBox.className = `alert-box alert-box-${type}`;
-        alertBox.setAttribute("role", "alert");
-
-        alertBox.innerHTML = `
-            <div class="alert-box-icon">${icons[type] || "ℹ"}</div>
-            <div class="alert-box-content">
-                <div class="alert-box-message">${message}</div>
-            </div>
-        `;
-
-        container.innerHTML = "";
-        container.appendChild(alertBox);
-
-        if (duration > 0) {
-            currentAlertTimeout = setTimeout(() => {
-                alertBox.style.opacity = "0";
-                alertBox.style.transform = "translateY(-10px)";
-                setTimeout(() => {
-                    if (alertBox.parentNode === container) {
-                        container.removeChild(alertBox);
-                    }
-                }, 300);
-            }, duration);
-        }
-    }
-
-    /**
-     * Limpia todas las alertas del contenedor
-     * @returns {void}
-     */
-    function clearAlerts() {
-        const container = document.getElementById("alertContainer");
-        if (container) {
-            container.innerHTML = "";
-        }
-        if (currentAlertTimeout) {
-            clearTimeout(currentAlertTimeout);
-            currentAlertTimeout = null;
-        }
+        errorModalVisible = false;
+        setTimeout(() => window.location.reload(), 250);
     }
 
     // ==========================================================================
@@ -1039,8 +1705,6 @@ document.addEventListener("DOMContentLoaded", () => {
      */
     function resetSystem() {
         try {
-            clearAlerts();
-
             // Limpiar estado global
             state.employee = null;
             state.allowed = [];
@@ -1053,6 +1717,8 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             drawLoopActive = false;
+            faceInFrameState = null;
+            notRecognizedUntil = 0;
 
             if (video) {
                 video.srcObject = null;
@@ -1063,38 +1729,46 @@ document.addEventListener("DOMContentLoaded", () => {
             }
 
             // Limpiar campos
-            if (empInfo) empInfo.textContent = "";
-            if (empName) empName.textContent = "";
-            if (empDoc) empDoc.textContent = "";
-            if (latEl) latEl.value = "";
-            if (lngEl) lngEl.value = "";
             if (eventTypeEl) {
                 eventTypeEl.innerHTML = '<option value="">— primero identificate —</option>';
             }
-            if (empCard) empCard.classList.add("hidden");
 
             // Resetear botones
-            if (btnStart) {
-                btnStart.disabled = false;
-                btnStart.removeAttribute("aria-disabled");
-            }
             if (btnIdentify) {
                 btnIdentify.disabled = true;
                 btnIdentify.setAttribute("aria-disabled", "true");
-            }
-            if (btnGeo) {
-                btnGeo.disabled = true;
-                btnGeo.setAttribute("aria-disabled", "true");
             }
             if (btnMark) {
                 btnMark.disabled = true;
                 btnMark.setAttribute("aria-disabled", "true");
             }
 
+            setVideoState(null);
+            setStatusBar("Inicie la cámara para comenzar", null);
+            eventBtns.forEach((btn) => {
+                btn.disabled = true;
+                btn.setAttribute("aria-disabled", "true");
+                btn.setAttribute("aria-pressed", "false");
+                btn.classList.remove("hidden");
+            });
+
+            // Resetear fila de ubicación
+            if (locationStatus) locationStatus.textContent = "Solicitando ubicación...";
+            if (locationCoords) { locationCoords.textContent = ""; locationCoords.classList.remove("hidden"); }
+            if (locationMapEl) {
+                locationMapEl.classList.add("hidden");
+                locationMapEl.setAttribute("aria-hidden", "true");
+            }
+            if (btnGeoRetry) btnGeoRetry.classList.add("hidden");
+            if (locationMap) {
+                locationMap.remove();
+                locationMap    = null;
+                locationMarker = null;
+            }
+
             logStatus("Sistema reiniciado");
-            showAlert("info", "Sistema reiniciado. Presiona 'Iniciar cámara' para comenzar.", 4000);
         } catch (error) {
-            console.error("Error al resetear el sistema:", error);
+            logError("Error al resetear el sistema:", error);
         }
     }
 
@@ -1102,130 +1776,144 @@ document.addEventListener("DOMContentLoaded", () => {
     // EVENT LISTENERS
     // ==========================================================================
 
-    // Evento: Iniciar cámara
-    if (btnStart) {
-        btnStart.addEventListener("click", async () => {
+    // Evento: Splash — primer toque del usuario (desbloquea audio/vibración e inicia cámara)
+    if (splashOverlay) {
+        // Poblar saludo, hora y fecha dinámicamente
+        const splashGreetingEl = document.getElementById("splashGreeting");
+        const splashTimeEl     = document.getElementById("splashTime");
+        const splashDateEl     = document.getElementById("splashDate");
+
+        const updateSplashClock = () => {
+            const now  = new Date();
+            const hour = now.getHours();
+
+            if (splashGreetingEl) {
+                splashGreetingEl.textContent = hour < 12 ? "Buenos días" : hour < 19 ? "Buenas tardes" : "Buenas noches";
+            }
+            if (splashTimeEl) {
+                splashTimeEl.textContent = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+            }
+            if (splashDateEl) {
+                const d = String(now.getDate()).padStart(2, "0");
+                const m = String(now.getMonth() + 1).padStart(2, "0");
+                const y = now.getFullYear();
+                splashDateEl.textContent = `${d}/${m}/${y}`;
+            }
+        };
+
+        updateSplashClock();
+        const splashClockInterval = setInterval(updateSplashClock, 10000);
+
+        const handleSplashTap = () => {
+            if (splashHandled) return;
+            splashHandled = true;
+            clearInterval(splashClockInterval);
+            userHasInteracted = true;
+            hideSplash(async () => {
+                try {
+                    await startCamera();
+                } catch (cameraError) {
+                    if (cameraError.name === "NotAllowedError" && cameraFallback) {
+                        cameraFallback.classList.remove("hidden");
+                        setStatusBar("Toca la imagen para activar la cámara", null);
+                    } else {
+                        showErrorModal("Error de cámara", "No se pudo iniciar la cámara. Recargue la página e intente nuevamente.");
+                    }
+                }
+            });
+        };
+
+        const splashBtn = document.getElementById("splashBtn");
+        if (splashBtn) {
+            splashBtn.addEventListener("click",      handleSplashTap);
+            splashBtn.addEventListener("touchstart", (e) => { e.preventDefault(); handleSplashTap(); });
+        }
+        splashOverlay.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") handleSplashTap(); });
+    }
+
+    // Fallback de cámara para iOS/Safari
+    if (cameraFallback) {
+        cameraFallback.addEventListener("click", async () => {
+            userHasInteracted = true;
+            cameraFallback.classList.add("hidden");
             try {
-                btnStart.disabled = true;
-                await loadModels();
                 await startCamera();
             } catch (error) {
-                console.error("Error al iniciar:", error);
-                logStatus("Error al inicializar el sistema");
-                btnStart.disabled = false;
-            }
-        });
-    }
-
-    // Evento: Identificar empleado
-    if (btnIdentify) {
-        btnIdentify.addEventListener("click", async () => {
-            btnIdentify.disabled = true;
-
-            try {
-                logStatus("Iniciando captura de rostro...");
-                const descriptor = await captureDescriptor(5, 150);
-
-                logStatus("Enviando datos para identificación...");
-                showAlert("info", "Identificando empleado...", 0);
-
-                if (!CSRF) {
-                    throw new Error("Token CSRF no disponible");
-                }
-
-                const resp = await fetch("/marcar/identificar", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        Accept: "application/json",
-                        "X-CSRF-TOKEN": CSRF,
-                    },
-                    body: JSON.stringify({ face_descriptor: descriptor }),
+                logError("Error al iniciar cámara desde fallback:", error);
+                showErrorModal("Error de cámara", "No se pudo iniciar la cámara. Intente nuevamente.", async () => {
+                    await startCamera();
                 });
-
-                const json = await resp.json();
-
-                if (!json.ok) {
-                    throw new Error(json.message || "No identificado");
-                }
-
-                state.employee = json.employee;
-                state.allowed = json.allowed_events || [];
-
-                updateEmployeeUI(json.employee, json.last_event);
-                enableStep2(state.allowed);
-                checkEnableMark();
-
-                logStatus("Empleado identificado ✓");
-                showAlert("success", "Empleado identificado correctamente", 3000);
-            } catch (e) {
-                console.error("Error en la identificación:", e);
-                let errorMsg = e.message || "No se pudo identificar al empleado";
-                logStatus("Error: " + errorMsg);
-                showAlert("error", errorMsg, 7000);
-            } finally {
-                btnIdentify.disabled = false;
             }
         });
     }
 
-    // Evento: Obtener geolocalización
-    if (btnGeo) {
-        btnGeo.addEventListener("click", () => {
-            if (!navigator.geolocation) {
-                const errorMsg = "Tu navegador no soporta geolocalización. Por favor, usa un navegador moderno.";
-                logStatus(errorMsg);
-                showErrorModal("Geolocalización no soportada", errorMsg);
-                return;
-            }
-
-            btnGeo.disabled = true;
-            logStatus("Solicitando ubicación GPS...");
-            showAlert("info", "Obteniendo ubicación...", 0);
-
-            navigator.geolocation.getCurrentPosition(
-                (pos) => {
-                    if (latEl) latEl.value = pos.coords.latitude.toFixed(6);
-                    if (lngEl) lngEl.value = pos.coords.longitude.toFixed(6);
-                    state.location = {
-                        lat: pos.coords.latitude,
-                        lng: pos.coords.longitude,
-                    };
-                    checkEnableMark();
-                    logStatus("Ubicación obtenida correctamente");
-                    showAlert("success", "Ubicación obtenida correctamente", 3000);
-                    btnGeo.disabled = false;
-                },
-                (err) => {
-                    console.error("Error de geolocalización:", err);
-                    let errorMsg = "";
-
-                    switch (err.code) {
-                        case 1:
-                            errorMsg = "Permiso denegado. Por favor, habilita la ubicación en tu navegador.";
-                            break;
-                        case 2:
-                            errorMsg = "No se pudo obtener la ubicación. Verifica que el GPS esté activado.";
-                            break;
-                        case 3:
-                            errorMsg = "Tiempo de espera agotado. Por favor, intenta de nuevo.";
-                            break;
-                        default:
-                            errorMsg = "Error desconocido al obtener ubicación. Por favor, intenta de nuevo.";
-                            break;
-                    }
-
-                    logStatus(errorMsg);
-                    showAlert("error", errorMsg, 6000);
-                    btnGeo.disabled = false;
-                },
-                {
-                    timeout: 10000,
-                    maximumAge: 60000,
-                    enableHighAccuracy: true,
-                }
-            );
+// Botón "Cambiar" en Paso 2 — volver a identificación
+    if (step2BtnBack) {
+        step2BtnBack.addEventListener("click", () => {
+            transitionToStep1();
         });
+    }
+
+    // Evento: Identificar empleado (manual — el dwell también llama runIdentification)
+    if (btnIdentify) {
+        btnIdentify.addEventListener("click", () => {
+            runIdentification();
+        });
+    }
+
+    // Solicitar GPS manualmente (usado como retry desde el modal de error)
+    function requestGPSManual() {
+        userHasInteracted = true;
+        if (!navigator.geolocation) {
+            const errorMsg = "Este dispositivo no puede obtener la ubicación GPS. Si el problema persiste, contacte a RRHH.";
+            logStatus(errorMsg);
+            showErrorModal("Ubicación no disponible", errorMsg);
+            return;
+        }
+
+        logStatus("Solicitando ubicación GPS...");
+        const stopProgress = startGPSProgress(10);
+
+        navigator.geolocation.getCurrentPosition(
+            (pos) => {
+                stopProgress();
+                state.location = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                if (locationStatus) locationStatus.textContent = "Ubicación obtenida";
+                if (locationCoords) {
+                    locationCoords.textContent = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                }
+                showLocationMap(pos.coords.latitude, pos.coords.longitude);
+                checkEnableMark();
+                logStatus("Ubicación obtenida correctamente");
+            },
+            (err) => {
+                stopProgress();
+                logError("Error de geolocalización:", err);
+                let errorMsg = "";
+
+                switch (err.code) {
+                    case 1:
+                        errorMsg = "Permiso de ubicación denegado. Habilite el GPS en su navegador e intente nuevamente.";
+                        break;
+                    case 2:
+                        errorMsg = "No se pudo obtener la ubicación. Verifique que el GPS esté activado e intente nuevamente.";
+                        break;
+                    case 3:
+                        errorMsg = "La obtención de ubicación tardó demasiado. Intente nuevamente.";
+                        break;
+                    default:
+                        errorMsg = "No se pudo obtener la ubicación. Por favor, intente nuevamente.";
+                        break;
+                }
+
+                showErrorModal("Ubicación no disponible", errorMsg, requestGPSManual);
+            },
+            {
+                timeout: 10000,
+                maximumAge: 60000,
+                enableHighAccuracy: true,
+            }
+        );
     }
 
     // Evento: Registrar marcación
@@ -1241,24 +1929,61 @@ document.addEventListener("DOMContentLoaded", () => {
                 if (!eventTypeEl || !eventTypeEl.value) {
                     throw new Error("Tipo de evento no seleccionado.");
                 }
-                if (!latEl || !lngEl || !latEl.value || !lngEl.value) {
+                if (!state.location) {
                     throw new Error("Ubicación no válida.");
                 }
                 if (!CSRF) {
                     throw new Error("Token CSRF no disponible");
                 }
 
+                // Ventana anti-duplicados: bloquear el mismo empleado + evento dentro de 60s
+                const DUPLICATE_WINDOW_MS = 60000;
+                const isDuplicate = lastMark
+                    && lastMark.employeeId === state.employee.id
+                    && lastMark.eventType  === eventTypeEl.value
+                    && Date.now() - lastMark.time < DUPLICATE_WINDOW_MS;
+
+                if (isDuplicate && !requireDuplicateConfirm) {
+                    requireDuplicateConfirm = true;
+                    btnMark.disabled = false;
+                    const secsAgo = Math.round((Date.now() - lastMark.time) / 1000);
+                    if (markHint) {
+                        markHint.textContent = `Ya registraste "${translateEventType(eventTypeEl.value)}" hace ${secsAgo}s. Toca nuevamente para confirmar.`;
+                        markHint.classList.remove("hidden");
+                        markHint.classList.add("mark-hint--warn");
+                    }
+                    duplicateConfirmTimeout = setTimeout(() => {
+                        requireDuplicateConfirm = false;
+                        if (markHint) {
+                            markHint.classList.add("hidden");
+                            markHint.classList.remove("mark-hint--warn");
+                        }
+                    }, 6000);
+                    return;
+                }
+
+                // Segundo tap o fuera de ventana — limpiar estado y proceder
+                if (requireDuplicateConfirm) {
+                    clearTimeout(duplicateConfirmTimeout);
+                    requireDuplicateConfirm = false;
+                    if (markHint) {
+                        markHint.classList.add("hidden");
+                        markHint.classList.remove("mark-hint--warn");
+                    }
+                }
+
                 const payload = {
                     employee_id: state.employee.id,
                     event_type: eventTypeEl.value,
                     location: {
-                        lat: parseFloat(latEl.value),
-                        lng: parseFloat(lngEl.value),
+                        lat: state.location.lat,
+                        lng: state.location.lng,
                     },
                 };
 
                 logStatus("Enviando marcación al servidor...");
-                showAlert("info", "Registrando marcación...", 0);
+                btnMark.classList.add("btn-loading");
+                btnMark.innerHTML = `${SPINNER_SVG} Registrando...`;
 
                 const resp = await fetch("/marcar", {
                     method: "POST",
@@ -1269,20 +1994,36 @@ document.addEventListener("DOMContentLoaded", () => {
                     body: JSON.stringify(payload),
                 });
 
+                if (resp.status === 419) throw Object.assign(new Error("session_expired"), { is419: true });
+
                 const json = await resp.json();
                 if (!resp.ok || !json.ok) {
                     throw new Error(json.message || "No se pudo registrar la marcación.");
                 }
 
-                logStatus(json.message || "Marcación registrada correctamente");
-                clearAlerts();
-                showSuccessModal();
+                logStatus("Marcación registrada correctamente");
+                lastMark = { employeeId: state.employee.id, eventType: eventTypeEl.value, time: Date.now() };
+                playBeep("success");
+                navigator.vibrate?.(120);
+                const fullName = `${state.employee.first_name || ""} ${state.employee.last_name || ""}`.trim();
+                showSuccessModal(fullName, eventTypeEl.value, new Date());
             } catch (e) {
-                console.error("Error en la marcación:", e);
-                const errorMsg = e.message || "No se pudo registrar la marcación. Por favor, intenta de nuevo.";
-                logStatus("Error: " + errorMsg);
-                showErrorModal("Error al registrar marcación", errorMsg);
+                logError("Error en la marcación:", e);
+                if (e.is419) {
+                    playBeep("error");
+                    showErrorModal(
+                        "Sesión expirada",
+                        "La sesión ha caducado. Recargue la página para continuar.",
+                        false
+                    );
+                    return;
+                }
+                const detailed = buildDetailedError(e.message || "No se pudo registrar la marcación. Por favor, intenta de nuevo.");
+                playBeep("error");
+                showErrorModal("No se pudo registrar", detailed);
             } finally {
+                btnMark.classList.remove("btn-loading");
+                btnMark.textContent = "Confirmar marcación";
                 btnMark.disabled = false;
             }
         });
@@ -1293,6 +2034,37 @@ document.addEventListener("DOMContentLoaded", () => {
         eventTypeEl.addEventListener("change", checkEnableMark);
     }
 
+    // Evento: Botones visuales de tipo de evento (sincronizan con el select oculto)
+    eventBtns.forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const eventVal = btn.getAttribute("data-event");
+            eventBtns.forEach((b) => b.setAttribute("aria-pressed", "false"));
+            btn.setAttribute("aria-pressed", "true");
+            if (eventTypeEl) {
+                eventTypeEl.value = eventVal;
+                eventTypeEl.dispatchEvent(new Event("change"));
+            }
+        });
+    });
+
+    // Evento: Botones visuales de tipo de evento — marcar interacción de usuario
+    eventBtns.forEach((btn) => {
+        btn.addEventListener("click", () => { userHasInteracted = true; }, { once: true });
+    });
+
+    // Evento: Botón actualizar ubicación del mini-mapa
+    if (btnGeoRetry) {
+        btnGeoRetry.addEventListener("click", () => requestGPSManual());
+    }
+
+    // Evento: Botón reintentar GPS del banner inline
+    if (gpsBannerRetry) {
+        gpsBannerRetry.addEventListener("click", () => {
+            hideGPSBanner();
+            requestGPSBackground();
+        });
+    }
+
     // Evento: Limpiar recursos al salir de la página
     window.addEventListener("beforeunload", () => {
         if (stream) {
@@ -1301,9 +2073,106 @@ document.addEventListener("DOMContentLoaded", () => {
         drawLoopActive = false;
     });
 
+    // Evento: Detección de conexión online/offline
+    setOfflineBanner(!navigator.onLine);
+    window.addEventListener("offline", () => setOfflineBanner(true));
+    window.addEventListener("online",  () => setOfflineBanner(false));
+
+    // Evento: Botón "Reintentar" del modal de error
+    const retryErrorBtn = document.getElementById("retryErrorModal");
+    if (retryErrorBtn) {
+        retryErrorBtn.addEventListener("click", () => {
+            // Guardia contra tap-through: ignorar si el click llega < 400ms después de mostrar el modal
+            if (Date.now() - (retryErrorBtn._shownAt || 0) < 400) return;
+
+            // Blur antes de ocultar el modal para evitar la advertencia ARIA
+            if (document.activeElement === retryErrorBtn) retryErrorBtn.blur();
+
+            // Cerrar modal
+            const modal = document.getElementById("errorModal");
+            if (modal) {
+                modal.setAttribute("aria-hidden", "true");
+                modal.classList.remove("show");
+                setTimeout(() => {
+                    modal.classList.add("hidden");
+                    document.body.classList.remove("modal-open");
+                    errorModalVisible = false;
+                    if (previousActiveElement?.focus && !modal.contains(previousActiveElement)) {
+                        previousActiveElement.focus();
+                    }
+                }, 250);
+            }
+            // Ejecutar callback de reintento si fue provisto (ej: re-solicitar GPS)
+            const onRetry = retryErrorBtn._onRetry;
+            retryErrorBtn._onRetry = null;
+            if (typeof onRetry === "function") {
+                setTimeout(onRetry, 260); // esperar a que el modal termine de ocultarse
+                return;
+            }
+
+            // Dar feedback mientras el cooldown de 3s expira
+            setStatusBar("Reintentando en un momento...", "detecting");
+            // No limpiar notRecognizedUntil — dejar que el cooldown de 3s expire por sí solo.
+            // drawLoop retomará el estado visual automáticamente cuando el cooldown termine.
+            if (drawLoopActive) {
+                faceInFrameState = null;
+            }
+        });
+    }
+
+    // Evento: Botón "Recargar" del modal de error
+    const closeErrorBtn = document.getElementById("closeErrorModal");
+    if (closeErrorBtn && !errorModalListenerAdded) {
+        closeErrorBtn.addEventListener("click", closeErrorModalHandler);
+        errorModalListenerAdded = true;
+    }
+
+    // Evento: Teclado en modal de error — Escape cierra, Tab queda atrapado dentro del modal
+    if (!errorKeyListenerAdded) {
+        document.addEventListener("keydown", (e) => {
+            if (!errorModalVisible) return;
+            const modal = document.getElementById("errorModal");
+            if (!modal || modal.classList.contains("hidden")) return;
+
+            if (e.key === "Escape") {
+                // Solo cerrar con Escape si el botón "Reintentar" está visible;
+                // si está oculto (ej: sesión expirada) no hacer nada para evitar
+                // recargar la página accidentalmente.
+                const retryBtn = document.getElementById("retryErrorModal");
+                if (retryBtn && !retryBtn.classList.contains("hidden")) {
+                    retryBtn.click();
+                }
+                return;
+            }
+
+            if (e.key === "Tab") {
+                // Focus trap: Tab cicla solo entre los botones visibles del modal
+                const retryBtn  = document.getElementById("retryErrorModal");
+                const closeBtn  = document.getElementById("closeErrorModal");
+                const focusable = [retryBtn, closeBtn].filter(
+                    el => el && !el.classList.contains("hidden")
+                );
+                if (focusable.length <= 1) return;
+                const first = focusable[0];
+                const last  = focusable[focusable.length - 1];
+                if (e.shiftKey && document.activeElement === first) {
+                    e.preventDefault();
+                    last.focus();
+                } else if (!e.shiftKey && document.activeElement === last) {
+                    e.preventDefault();
+                    first.focus();
+                }
+            }
+        });
+        errorKeyListenerAdded = true;
+    }
+
     // ==========================================================================
     // INICIALIZACIÓN
     // ==========================================================================
 
     logStatus("Sistema de marcación facial inicializado");
+
+    // Solicitar GPS en segundo plano al cargar la página
+    requestGPSBackground();
 });
