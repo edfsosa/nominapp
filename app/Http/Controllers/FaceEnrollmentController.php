@@ -7,6 +7,7 @@ use App\Rules\FaceDescriptor;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
@@ -64,6 +65,9 @@ class FaceEnrollmentController extends Controller
             // Validar el descriptor facial usando la regla personalizada
             $data = $request->validate([
                 'face_descriptor' => ['required', new FaceDescriptor],
+                'face_snapshot'   => ['nullable', 'string'],
+                'samples_count'   => ['nullable', 'integer', 'min:1', 'max:255'],
+                'face_score'      => ['nullable', 'numeric', 'min:0', 'max:1'],
             ]);
 
             // El descriptor puede ser un array o una cadena JSON, manejar ambos casos
@@ -78,13 +82,26 @@ class FaceEnrollmentController extends Controller
                 ]);
             }
 
+            // Guardar snapshot del rostro si fue enviado
+            $snapshotPath = null;
+            if (!empty($data['face_snapshot'])) {
+                $snapshotPath = $this->saveSnapshotFromBase64(
+                    $data['face_snapshot'],
+                    $enrollment->id
+                );
+            }
+
             // Actualizar el registro de inscripción con el descriptor facial y cambiar el estado a "pendiente de aprobación"
             $enrollment->update([
                 'face_descriptor' => $descriptor,
-                'status' => 'pending_approval',
-                'captured_at' => now(),
-                'ip_address' => $request->ip(),
-                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
+                'snapshot_path'   => $snapshotPath,
+                'samples_count'   => $data['samples_count'] ?? null,
+                'face_score'      => $data['face_score'] ?? null,
+                'source'          => 'self_enrollment',
+                'status'          => 'pending_approval',
+                'captured_at'     => now(),
+                'ip_address'      => $request->ip(),
+                'user_agent'      => substr($request->userAgent() ?? '', 0, 255),
             ]);
 
             // Registrar el evento de captura facial para auditoría
@@ -112,6 +129,31 @@ class FaceEnrollmentController extends Controller
                 'success' => false,
                 'message' => 'Error al procesar el registro facial. Intente nuevamente.',
             ], 500);
+        }
+    }
+
+    /**
+     * Decodifica un base64 de imagen y lo guarda en storage público.
+     * Retorna la ruta relativa o null si falla.
+     */
+    private function saveSnapshotFromBase64(string $base64, int $enrollmentId): ?string
+    {
+        try {
+            $data = preg_replace('/^data:image\/\w+;base64,/', '', $base64);
+            $imageData = base64_decode($data);
+
+            if ($imageData === false) return null;
+
+            $path = sprintf('face-snapshots/%s/%d.jpg', now()->format('Y/m'), $enrollmentId);
+            Storage::disk('public')->put($path, $imageData);
+
+            return $path;
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar el snapshot facial', [
+                'enrollment_id' => $enrollmentId,
+                'error'         => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 }

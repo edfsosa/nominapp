@@ -14,6 +14,7 @@ use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -70,6 +71,38 @@ class FaceEnrollmentResource extends Resource
                     ->sortable()
                     ->description(fn(FaceEnrollment $record): string => $record->isExpired() && $record->isPendingCapture() ? 'Expirado' : ''),
 
+                ImageColumn::make('snapshot_path')
+                    ->label('Foto')
+                    ->disk('public')
+                    ->height(56)
+                    ->width(48)
+                    ->defaultImageUrl(null)
+                    ->extraImgAttributes(['class' => 'rounded object-cover'])
+                    ->placeholder('—')
+                    ->toggleable(),
+
+                TextColumn::make('face_score')
+                    ->label('Calidad')
+                    ->badge()
+                    ->placeholder('—')
+                    ->formatStateUsing(fn($record) => $record->face_score !== null ? $record->getQualityLabel() : '—')
+                    ->color(fn($record) => $record->face_score !== null ? $record->getQualityColor() : 'gray')
+                    ->description(fn($record) => $record->face_score !== null ? number_format($record->face_score, 4) : '')
+                    ->toggleable(),
+
+                TextColumn::make('source')
+                    ->label('Origen')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state): string => FaceEnrollment::getSourceLabel($state))
+                    ->color(fn(string $state): string => FaceEnrollment::getSourceColor($state))
+                    ->icon(fn(string $state): string => FaceEnrollment::getSourceIcon($state))
+                    ->toggleable(),
+
+                TextColumn::make('samples_count')
+                    ->label('Muestras')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('captured_at')
                     ->label('Capturado')
                     ->dateTime('d/m/Y H:i')
@@ -113,6 +146,11 @@ class FaceEnrollmentResource extends Resource
                     ->options(FaceEnrollment::getStatusOptions())
                     ->native(false)
                     ->multiple(),
+
+                SelectFilter::make('source')
+                    ->label('Origen')
+                    ->options(FaceEnrollment::getSourceOptions())
+                    ->native(false),
 
                 SelectFilter::make('employee_id')
                     ->label('Empleado')

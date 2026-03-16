@@ -88,6 +88,10 @@ class AttendanceFaceMarkController extends Controller
 
             [$employee, $distance, $reason] = $this->identifyEmployeeByDescriptor($live, $threshold);
 
+            if ($employee) {
+                $employee->load('branch');
+            }
+
             if (!$employee) {
                 $message = match($reason) {
                     'ambiguous' => 'Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.',
@@ -118,17 +122,24 @@ class AttendanceFaceMarkController extends Controller
 
             $allowed = $this->allowedNextEvents($last?->event_type);
 
+            $photoUrl = $employee->photo
+                ? \Illuminate\Support\Facades\Storage::url($employee->photo)
+                : url('/images/default-avatar.png');
+
             return response()->json([
                 'ok' => true,
                 'employee' => [
-                    'id' => $employee->id,
-                    'first_name' => $employee->first_name ?? '',
-                    'last_name' => $employee->last_name ?? '',
-                    'ci' => $employee->ci ?? null,
+                    'id'          => $employee->id,
+                    'first_name'  => $employee->first_name ?? '',
+                    'last_name'   => $employee->last_name ?? '',
+                    'ci'          => $employee->ci ?? null,
+                    'branch_name' => $employee->branch?->name ?? null,
+                    'photo_url'   => $photoUrl,
                 ],
                 'distance' => round($distance, 4),
-                'last_event' => $last?->event_type,
-                'allowed_events' => $allowed,
+                'last_event'      => $last?->event_type,
+                'last_event_time' => $last?->recorded_at?->format('H:i'),
+                'allowed_events'  => $allowed,
             ]);
         } catch (Throwable $e) {
             Log::error('identify() error', [
@@ -397,7 +408,7 @@ class AttendanceFaceMarkController extends Controller
                 Employee::query()
                     ->whereNotNull('face_descriptor')
                     ->where('status', 'active')
-                    ->select('id', 'first_name', 'last_name', 'ci', 'face_descriptor')
+                    ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
                     ->get()
             );
 

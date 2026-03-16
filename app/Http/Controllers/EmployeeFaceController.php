@@ -3,10 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Employee;
+use App\Models\FaceEnrollment;
 use App\Rules\FaceDescriptor;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class EmployeeFaceController extends Controller
@@ -33,9 +36,12 @@ class EmployeeFaceController extends Controller
     public function store(Request $request, Employee $employee)
     {
         try {
-            // Validar el descriptor facial
+            // Validar el descriptor facial y metadatos de captura
             $data = $request->validate([
                 'face_descriptor' => ['required', new FaceDescriptor],
+                'face_snapshot'   => ['nullable', 'string'],
+                'samples_count'   => ['nullable', 'integer', 'min:1', 'max:255'],
+                'face_score'      => ['nullable', 'numeric', 'min:0', 'max:1'],
             ]);
 
             // Acepta string JSON o array
@@ -73,10 +79,44 @@ class EmployeeFaceController extends Controller
                 ], 500);
             }
 
+            // Registrar en face_enrollments como captura de admin (auto-aprobada)
+            $snapshotPath = null;
+            if (!empty($data['face_snapshot'])) {
+                $snapshotPath = $this->saveSnapshotFromBase64($data['face_snapshot'], $employee->id);
+            }
+
+            $now = now();
+            $adminId = Auth::id();
+
+            $enrollment = FaceEnrollment::create([
+                'employee_id'     => $employee->id,
+                'token'           => null,
+                'face_descriptor' => $descriptor,
+                'snapshot_path'   => $snapshotPath,
+                'samples_count'   => $data['samples_count'] ?? null,
+                'face_score'      => $data['face_score'] ?? null,
+                'source'          => 'admin',
+                'status'          => 'approved',
+                'expires_at'      => null,
+                'captured_at'     => $now,
+                'reviewed_at'     => $now,
+                'generated_by_id' => $adminId,
+                'reviewed_by_id'  => $adminId,
+                'ip_address'      => $request->ip(),
+                'user_agent'      => substr($request->userAgent() ?? '', 0, 255),
+            ]);
+
+            // Expirar otros enrollments pendientes del mismo empleado
+            FaceEnrollment::where('employee_id', $employee->id)
+                ->where('id', '!=', $enrollment->id)
+                ->whereIn('status', ['pending_capture', 'pending_approval'])
+                ->update(['status' => 'expired']);
+
             // Log de éxito
-            Log::info('Face descriptor saved successfully', [
-                'employee_id' => $employee->id,
-                'employee_name' => $employee->name,
+            Log::info('Face descriptor saved by admin', [
+                'employee_id'   => $employee->id,
+                'enrollment_id' => $enrollment->id,
+                'admin_id'      => $adminId,
             ]);
 
             return response()->json([
@@ -100,6 +140,27 @@ class EmployeeFaceController extends Controller
                 'success' => false,
                 'message' => 'Error al procesar el descriptor facial. Por favor, intente nuevamente.',
             ], 500);
+        }
+    }
+
+    private function saveSnapshotFromBase64(string $base64, int $employeeId): ?string
+    {
+        try {
+            $data = preg_replace('/^data:image\/\w+;base64,/', '', $base64);
+            $imageData = base64_decode($data);
+
+            if ($imageData === false) return null;
+
+            $path = sprintf('face-snapshots/%s/emp_%d.jpg', now()->format('Y/m'), $employeeId);
+            Storage::disk('public')->put($path, $imageData);
+
+            return $path;
+        } catch (\Throwable $e) {
+            Log::warning('No se pudo guardar el snapshot facial (admin)', [
+                'employee_id' => $employeeId,
+                'error'       => $e->getMessage(),
+            ]);
+            return null;
         }
     }
 }

@@ -14,6 +14,10 @@ class FaceEnrollment extends Model
         'employee_id',
         'token',
         'face_descriptor',
+        'snapshot_path',
+        'samples_count',
+        'face_score',
+        'source',
         'status',
         'expires_at',
         'captured_at',
@@ -27,9 +31,11 @@ class FaceEnrollment extends Model
 
     protected $casts = [
         'face_descriptor' => 'array',
-        'expires_at' => 'datetime',
-        'captured_at' => 'datetime',
-        'reviewed_at' => 'datetime',
+        'expires_at'      => 'datetime',
+        'captured_at'     => 'datetime',
+        'reviewed_at'     => 'datetime',
+        'face_score'      => 'float',
+        'samples_count'   => 'integer',
     ];
 
     // =========================================================================
@@ -97,12 +103,75 @@ class FaceEnrollment extends Model
 
     public function isExpired(): bool
     {
-        return $this->expires_at->isPast();
+        return $this->expires_at?->isPast() ?? false;
     }
 
     public function isValid(): bool
     {
         return $this->isPendingCapture() && !$this->isExpired();
+    }
+
+    // =========================================================================
+    // CALIDAD DE CAPTURA
+    // =========================================================================
+
+    public function getQualityTier(): string
+    {
+        if ($this->face_score === null) return 'unknown';
+        if ($this->face_score >= 0.85) return 'alta';
+        if ($this->face_score >= 0.70) return 'media';
+        return 'baja';
+    }
+
+    public function getQualityLabel(): string
+    {
+        return match ($this->getQualityTier()) {
+            'alta'  => 'Alta',
+            'media' => 'Media',
+            'baja'  => 'Baja',
+            default => '—',
+        };
+    }
+
+    public function getQualityColor(): string
+    {
+        return match ($this->getQualityTier()) {
+            'alta'  => 'success',
+            'media' => 'warning',
+            'baja'  => 'danger',
+            default => 'gray',
+        };
+    }
+
+    public static function getSourceOptions(): array
+    {
+        return [
+            'admin'           => 'Admin',
+            'self_enrollment' => 'Auto-registro',
+        ];
+    }
+
+    public static function getSourceLabel(string $source): string
+    {
+        return self::getSourceOptions()[$source] ?? $source;
+    }
+
+    public static function getSourceColor(string $source): string
+    {
+        return match ($source) {
+            'admin'           => 'info',
+            'self_enrollment' => 'gray',
+            default           => 'gray',
+        };
+    }
+
+    public static function getSourceIcon(string $source): string
+    {
+        return match ($source) {
+            'admin'           => 'heroicon-o-shield-check',
+            'self_enrollment' => 'heroicon-o-user',
+            default           => 'heroicon-o-question-mark-circle',
+        };
     }
 
     // =========================================================================
