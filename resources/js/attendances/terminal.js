@@ -3,39 +3,61 @@ document.addEventListener("DOMContentLoaded", () => {
     // ELEMENTOS DEL DOM
     // ============================================================================
     const screens = {
-        loading: document.getElementById("loadingScreen"),
-        typeSelection: document.getElementById("typeSelectionScreen"),
+        loading:        document.getElementById("loadingScreen"),
+        idle:           document.getElementById("idleScreen"),
+        typeSelection:  document.getElementById("typeSelectionScreen"),
         identification: document.getElementById("identificationScreen"),
-        success: document.getElementById("successScreen"),
-        error: document.getElementById("errorScreen"),
+        success:        document.getElementById("successScreen"),
+        dayComplete:    document.getElementById("dayCompleteScreen"),
+        error:          document.getElementById("errorScreen"),
     };
 
     // Loading screen elements
-    const loadingMessage = document.getElementById("loadingMessage");
-    const loadingProgress = document.getElementById("loadingProgress");
+    const loadingMessage    = document.getElementById("loadingMessage");
+    const loadingProgress   = document.getElementById("loadingProgress");
     const loadingPercentage = document.getElementById("loadingPercentage");
-    const loadingStep1 = document.getElementById("step1");
-    const loadingStep2 = document.getElementById("step2");
-    const loadingStep3 = document.getElementById("step3");
+    const loadingStep1      = document.getElementById("step1");
+    const loadingStep2      = document.getElementById("step2");
+    const loadingStep3      = document.getElementById("step3");
 
-    const video = document.getElementById("terminalVideo");
+    const video   = document.getElementById("terminalVideo");
     const overlay = document.getElementById("terminalOverlay");
-    const ctx = overlay?.getContext("2d");
+    const ctx     = overlay?.getContext("2d");
 
-    const identificationTitle = document.getElementById("identificationTitle");
     const identificationStatus = document.getElementById("identificationStatus");
 
-    const typeButtons = document.querySelectorAll(".terminal-type-btn");
-    const btnCancel = document.getElementById("btnCancelIdentification");
+    const terminalHeaderClock = document.getElementById("terminalHeaderClock");
+    const terminalVideoWrap   = document.getElementById("terminalVideoWrap");
+    const idStatusDot         = document.getElementById("idStatusDot");
+    const idleClock           = document.getElementById("idleClock");
+    const idleDate            = document.getElementById("idleDate");
+
+    const terminalCaptureProgress = document.getElementById("terminalCaptureProgress");
+    const terminalCaptureDots     = terminalCaptureProgress
+        ? Array.from(terminalCaptureProgress.querySelectorAll(".capture-dot"))
+        : [];
+
+    const typeButtons   = document.querySelectorAll(".terminal-type-btn");
+    const btnCancel      = document.getElementById("btnCancelIdentification");
     const btnMarkAnother = document.getElementById("btnMarkAnother");
-    const btnRetry = document.getElementById("btnRetry");
+    const btnRetry       = document.getElementById("btnRetry");
+    const btnReload      = document.getElementById("btnReload");
+    const btnThemeToggle = document.getElementById("btnThemeToggle");
+
+    // Day complete screen elements
+    const dayCompleteEmployeePhoto  = document.getElementById("dayCompleteEmployeePhoto");
+    const dayCompleteEmployeeName   = document.getElementById("dayCompleteEmployeeName");
+    const dayCompleteCountdownEl    = document.getElementById("dayCompleteCountdown");
+    const dayCompleteCountdownFill  = document.getElementById("dayCompleteCountdownFill");
 
     // Success screen elements
-    const successEmployeeName = document.getElementById("successEmployeeName");
-    const successEmployeeCI = document.getElementById("successEmployeeCI");
-    const successEventType = document.getElementById("successEventType");
-    const successTime = document.getElementById("successTime");
-    const countdownEl = document.getElementById("countdown");
+    const successEmployeePhoto = document.getElementById("successEmployeePhoto");
+    const successEmployeeName  = document.getElementById("successEmployeeName");
+    const successEmployeeCI   = document.getElementById("successEmployeeCI");
+    const successEventType    = document.getElementById("successEventType");
+    const successTime         = document.getElementById("successTime");
+    const countdownEl         = document.getElementById("countdown");
+    const countdownFill       = document.getElementById("countdownFill");
 
     // Error screen elements
     const errorMessage = document.getElementById("errorMessage");
@@ -43,64 +65,289 @@ document.addEventListener("DOMContentLoaded", () => {
     // CSRF Token
     const csrfToken = document.querySelector("meta[name=csrf-token]");
     const CSRF = csrfToken ? csrfToken.content : "";
+    if (!CSRF) console.warn("Token CSRF no encontrado.");
 
-    if (!CSRF) {
-        console.warn("Token CSRF no encontrado.");
-    }
-
-    const MODELS_URI = "/models";
+    const MODELS_URI      = "/models";
+    const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos sin marcaciones
 
     // ============================================================================
-    // ESTADO GLOBAL DEL TERMINAL
+    // ESTADO GLOBAL
     // ============================================================================
     let terminalState = {
-        selectedType: null,
-        selectedTypeName: null,
-        stream: null,
-        modelsLoaded: false,
-        identifyInterval: null,
-        drawLoopActive: false,
-        employee: null,
-        countdownTimer: null,
-        isProcessing: false, // Flag para bloquear procesamiento simultáneo
+        stream:                 null,
+        modelsLoaded:           false,
+        identifyInterval:       null,
+        drawLoopActive:         false,
+        employee:               null,   // empleado identificado (para selección de tipo)
+        countdownTimer:         null,
+        isProcessing:           false,
+        faceDetected:           false,  // drawLoop lo actualiza; interval lo lee antes de capturar
+        notRecognizedUntil:     0,      // timestamp hasta el cual drawLoop no sobreescribe el estado naranja
+        inNotRecognizedCooldown: false, // true mientras el cooldown está activo; drawLoop lo usa para resetear el texto al salir
+        wakeLock:               null,
+        idleTimer:              null,
+        presenceCheckInterval:  null,
+        isIdle:                 false,
+        userHasInteracted:      false,  // vibración solo permitida tras gesto del usuario
     };
 
-    const tinyOptions = new faceapi.TinyFaceDetectorOptions({
-        inputSize: 416,      // Aumentado de 320 para mejor precisión
-        scoreThreshold: 0.6, // Aumentado de 0.5 para rechazar detecciones de baja calidad
-    });
+    const tinyOptions  = new faceapi.TinyFaceDetectorOptions({ inputSize: 416, scoreThreshold: 0.6 });
+    const lightOptions = new faceapi.TinyFaceDetectorOptions({ inputSize: 160, scoreThreshold: 0.5 });
 
     const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-    // Traducciones de tipos de evento
     const eventTypeNames = {
-        check_in: "ENTRADA",
-        break_start: "INICIO DESCANSO",
-        break_end: "FIN DESCANSO",
-        check_out: "SALIDA",
+        check_in:    "Entrada",
+        break_start: "Inicio descanso",
+        break_end:   "Fin descanso",
+        check_out:   "Salida",
     };
 
     // ============================================================================
-    // FUNCIONES DE PANTALLA DE CARGA
+    // WAKE LOCK — mantiene la pantalla encendida
     // ============================================================================
-    function updateLoadingProgress(percentage, message, stepNumber) {
-        if (loadingProgress) {
-            loadingProgress.style.width = `${percentage}%`;
+    async function acquireWakeLock() {
+        if (!("wakeLock" in navigator)) return;
+        try {
+            terminalState.wakeLock = await navigator.wakeLock.request("screen");
+            terminalState.wakeLock.addEventListener("release", () => {
+                terminalState.wakeLock = null;
+            });
+            console.log("Wake lock adquirido");
+        } catch (err) {
+            console.warn("Wake lock no disponible:", err.message);
         }
-        if (loadingPercentage) {
-            loadingPercentage.textContent = `${percentage}%`;
+    }
+
+    // Re-adquirir wake lock si el tab vuelve al foco
+    document.addEventListener("visibilitychange", async () => {
+        if (document.visibilityState === "visible" && !terminalState.wakeLock) {
+            await acquireWakeLock();
         }
-        if (loadingMessage && message) {
-            loadingMessage.textContent = message;
+    });
+
+    // ============================================================================
+    // RELOJ EN TIEMPO REAL
+    // ============================================================================
+    function updateClock() {
+        const now = new Date();
+        const day   = String(now.getDate()).padStart(2, "0");
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const year  = now.getFullYear();
+        const dateStr = `${day}/${month}/${year}`;
+        const timeStr = now.toLocaleTimeString("es-BO", {
+            hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+        });
+        if (terminalHeaderClock) {
+            terminalHeaderClock.innerHTML =
+                `<span class="clock-date">${dateStr}</span><span class="clock-time">${timeStr}</span>`;
+        }
+        if (idleClock) idleClock.textContent = timeStr;
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    function updateIdleDate() {
+        if (!idleDate) return;
+        const now = new Date();
+        const day   = String(now.getDate()).padStart(2, "0");
+        const month = String(now.getMonth() + 1).padStart(2, "0");
+        const year  = now.getFullYear();
+        const weekday = now.toLocaleDateString("es-BO", { weekday: "long" });
+        idleDate.textContent = `${weekday.charAt(0).toUpperCase() + weekday.slice(1)} ${day}/${month}/${year}`;
+    }
+
+    // ============================================================================
+    // ESTADO VISUAL DEL VIDEO
+    // ============================================================================
+    function setTerminalVideoState(stateClass) {
+        if (!terminalVideoWrap) return;
+        terminalVideoWrap.classList.remove(
+            "video-wrapper--detecting",
+            "video-wrapper--face-found",
+            "video-wrapper--success",
+            "video-wrapper--error"
+        );
+        if (stateClass) terminalVideoWrap.classList.add(`video-wrapper--${stateClass}`);
+    }
+
+    function setIdStatusDot(dotClass) {
+        if (!idStatusDot) return;
+        idStatusDot.classList.remove(
+            "id-status-dot--searching",
+            "id-status-dot--processing",
+            "id-status-dot--found",
+            "id-status-dot--error"
+        );
+        // detecting → searching (naranja), face-found → processing (teal), success → found (verde)
+        const cssMap = { detecting: "searching", "face-found": "processing", success: "found", error: "error" };
+        const cssClass = cssMap[dotClass] || dotClass;
+        if (cssClass) idStatusDot.classList.add(`id-status-dot--${cssClass}`);
+    }
+
+    // ============================================================================
+    // PROGRESO DE CAPTURA FACIAL
+    // ============================================================================
+    function showCaptureProgress() {
+        if (!terminalCaptureProgress) return;
+        terminalCaptureDots.forEach(dot => dot.classList.remove("capture-dot--filled"));
+        terminalCaptureProgress.classList.remove("hidden");
+    }
+
+    function updateCaptureProgress(count) {
+        terminalCaptureDots.forEach((dot, i) => {
+            dot.classList.toggle("capture-dot--filled", i < count);
+        });
+    }
+
+    function hideCaptureProgress() {
+        if (!terminalCaptureProgress) return;
+        terminalCaptureProgress.classList.add("hidden");
+        terminalCaptureDots.forEach(dot => {
+            dot.classList.remove("capture-dot--filled", "capture-dot--success", "capture-dot--error");
+        });
+    }
+
+    async function finishCaptureProgress(outcome) {
+        // Asegurar que los 5 dots están visibles con el color del resultado
+        terminalCaptureDots.forEach(dot => {
+            dot.classList.remove("capture-dot--filled", "capture-dot--success", "capture-dot--error");
+            dot.classList.add(`capture-dot--${outcome}`);
+        });
+        await sleep(400);
+        hideCaptureProgress();
+    }
+
+    // ============================================================================
+    // IDLE — gestión de reposo
+    // ============================================================================
+    function resetIdleTimer() {
+        clearIdleTimer();
+        terminalState.idleTimer = setTimeout(enterIdle, IDLE_TIMEOUT_MS);
+    }
+
+    function clearIdleTimer() {
+        if (terminalState.idleTimer) {
+            clearTimeout(terminalState.idleTimer);
+            terminalState.idleTimer = null;
+        }
+    }
+
+    const terminalHeader = document.querySelector(".terminal-header");
+
+    function enterIdle() {
+        clearIdleTimer();
+        stopAutoIdentification();
+        stopCountdown();
+        terminalState.isIdle = true;
+        updateIdleDate();
+        showScreen("idle");
+        startPresenceCheck();
+        if (terminalHeader) terminalHeader.classList.add("terminal-header--idle");
+    }
+
+    function exitIdle() {
+        if (!terminalState.isIdle) return;
+        terminalState.isIdle = false;
+        stopPresenceCheck();
+        if (terminalHeader) terminalHeader.classList.remove("terminal-header--idle");
+        startIdentificationFlow();
+    }
+
+    // Detección de presencia en modo reposo (detector liviano, sin descriptor)
+    async function startPresenceCheck() {
+        stopPresenceCheck();
+
+        if (!terminalState.stream) {
+            try {
+                terminalState.stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: "user" }, audio: false,
+                });
+                video.srcObject = terminalState.stream;
+                await new Promise(resolve => { video.onloadedmetadata = resolve; });
+            } catch (e) {
+                console.warn("Cámara no disponible para detección de presencia:", e);
+                return;
+            }
         }
 
-        // Actualizar estado de los pasos
+        presenceCheckLoop();
+    }
+
+    async function presenceCheckLoop() {
+        if (!terminalState.isIdle) return;
+
+        try {
+            if (video.readyState >= 2 && video.videoWidth > 0) {
+                const detection = await faceapi.detectSingleFace(video, lightOptions);
+                if (detection && terminalState.isIdle) {
+                    exitIdle();
+                    return;
+                }
+            }
+        } catch (e) { /* ignorar errores en detección de presencia */ }
+
+        if (terminalState.isIdle) {
+            terminalState.presenceCheckInterval = setTimeout(presenceCheckLoop, 2500);
+        }
+    }
+
+    function stopPresenceCheck() {
+        if (terminalState.presenceCheckInterval) {
+            clearTimeout(terminalState.presenceCheckInterval);
+            terminalState.presenceCheckInterval = null;
+        }
+    }
+
+    // ============================================================================
+    // FLUJO DE IDENTIFICACIÓN (nuevo punto de entrada principal)
+    // ============================================================================
+    function startIdentificationFlow() {
+        resetIdleTimer();
+        showScreen("identification");
+        startAutoIdentification();
+        setTerminalVideoState("detecting");
+    }
+
+
+    // ============================================================================
+    // MENSAJES DE ERROR DETALLADOS
+    // ============================================================================
+    function buildDetailedError(rawMessage) {
+        if (!rawMessage) return "No se pudo completar la marcación. Por favor, intente nuevamente.";
+        const msg = rawMessage.toLowerCase();
+        if (msg.includes("no identificado") || msg.includes("not found") || msg.includes("no match")) {
+            return "No se pudo reconocer su rostro. Asegúrese de estar frente a la cámara con buena iluminación, sin lentes de sol ni gorras, y mantenga el rostro quieto.";
+        }
+        if (msg.includes("descriptor") || msg.includes("muestra") || msg.includes("sample")) {
+            return "No se detectó un rostro válido. Acerque el rostro a la cámara (30-60 cm) y asegúrese de tener buena iluminación frontal.";
+        }
+        if (msg.includes("conexión") || msg.includes("network") || msg.includes("fetch")) {
+            return !navigator.onLine
+                ? "Sin conexión a internet. Verifique la red del dispositivo y vuelva a intentar."
+                : "Error de conexión al servidor. Verifique que el dispositivo tenga acceso a la red y vuelva a intentar.";
+        }
+        if (msg.includes("csrf") || msg.includes("419")) {
+            return "La sesión expiró. Por favor, recargue la página para continuar.";
+        }
+        if (msg.includes("event") || msg.includes("evento") || msg.includes("allowed")) {
+            return "No hay tipos de marcación disponibles para este empleado en este momento. Consulte con el departamento de RRHH.";
+        }
+        return rawMessage;
+    }
+
+    // ============================================================================
+    // PANTALLA DE CARGA
+    // ============================================================================
+    function updateLoadingProgress(percentage, message, stepNumber) {
+        if (loadingProgress) loadingProgress.style.width = `${percentage}%`;
+        if (loadingPercentage) loadingPercentage.textContent = `${percentage}%`;
+        if (loadingMessage && message) loadingMessage.textContent = message;
+
         const steps = [loadingStep1, loadingStep2, loadingStep3];
         steps.forEach((step, index) => {
             if (!step) return;
-
             step.classList.remove("active", "completed");
-
             if (index + 1 < stepNumber) {
                 step.classList.add("completed");
             } else if (index + 1 === stepNumber) {
@@ -111,16 +358,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function initializeSystem() {
         try {
-            // Paso 1: Verificar compatibilidad
             updateLoadingProgress(10, "Verificando compatibilidad del navegador...", 1);
             await sleep(300);
 
-            // Verificar que face-api esté disponible
             if (typeof faceapi === "undefined") {
                 throw new Error("La biblioteca face-api.js no está disponible");
             }
-
-            // Verificar soporte de getUserMedia
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 throw new Error("Tu navegador no soporta acceso a la cámara");
             }
@@ -128,9 +371,7 @@ document.addEventListener("DOMContentLoaded", () => {
             updateLoadingProgress(30, "Navegador compatible ✓", 1);
             await sleep(200);
 
-            // Paso 2: Cargar modelos
             updateLoadingProgress(40, "Cargando modelos de reconocimiento facial...", 2);
-
             if (!terminalState.modelsLoaded) {
                 await Promise.all([
                     faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
@@ -143,62 +384,66 @@ document.addEventListener("DOMContentLoaded", () => {
             updateLoadingProgress(80, "Modelos cargados correctamente ✓", 2);
             await sleep(300);
 
-            // Paso 3: Preparar sistema
             updateLoadingProgress(90, "Preparando sistema de marcación...", 3);
             await sleep(300);
 
             updateLoadingProgress(100, "Sistema listo ✓", 3);
             await sleep(500);
 
-            // Ocultar pantalla de carga y mostrar selección de tipo
+            // Adquirir wake lock para mantener pantalla encendida
+            await acquireWakeLock();
+
             console.log("Sistema inicializado correctamente");
-            showScreen("typeSelection");
+
+            // Mostrar pantalla idle primero — requiere toque para activar audio/vibración
+            enterIdle();
 
         } catch (error) {
             console.error("Error en la inicialización:", error);
-
-            // Mostrar error en la pantalla de carga
             if (loadingMessage) {
                 loadingMessage.textContent = `Error: ${error.message}`;
                 loadingMessage.style.color = "#ef4444";
             }
-
-            // Después de 3 segundos, mostrar pantalla de error
             await sleep(3000);
             showError("Error al inicializar el sistema. " + error.message + " Por favor, recargue la página.");
         }
     }
 
     // ============================================================================
-    // FUNCIONES DE NAVEGACIÓN ENTRE PANTALLAS
+    // NAVEGACIÓN ENTRE PANTALLAS
     // ============================================================================
     function showScreen(screenName) {
-        // Ocultar todas las pantallas
-        Object.values(screens).forEach((screen) => {
-            if (screen) screen.classList.add("hidden");
-        });
+        const current = Object.values(screens).find(s => s && !s.classList.contains("hidden"));
+        const next = screens[screenName];
 
-        // Mostrar la pantalla solicitada
-        if (screens[screenName]) {
-            screens[screenName].classList.remove("hidden");
+        const activate = () => {
+            Object.values(screens).forEach(s => {
+                if (s) { s.classList.remove("screen-leaving"); s.classList.add("hidden"); }
+            });
+            if (next) next.classList.remove("hidden");
+        };
+
+        if (current && current !== next) {
+            current.classList.add("screen-leaving");
+            setTimeout(activate, 150);
+        } else {
+            activate();
         }
     }
 
     // ============================================================================
-    // FUNCIONES DE CÁMARA Y FACE-API
+    // CÁMARA Y FACE-API
     // ============================================================================
     async function loadModels() {
         if (terminalState.modelsLoaded) return true;
-
         try {
-            updateStatus("🔄 Cargando modelos...", "loading");
+            updateStatus("Cargando modelos de reconocimiento facial...", "loading");
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODELS_URI),
                 faceapi.nets.faceLandmark68Net.loadFromUri(MODELS_URI),
                 faceapi.nets.faceRecognitionNet.loadFromUri(MODELS_URI),
             ]);
             terminalState.modelsLoaded = true;
-            console.log("Modelos Face-API cargados correctamente");
             return true;
         } catch (error) {
             console.error("Error cargando modelos Face-API:", error);
@@ -208,44 +453,24 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function startCamera() {
-        if (terminalState.stream) {
-            console.log("Cámara ya está activa");
-            return true;
-        }
-
+        if (terminalState.stream) return true;
         try {
-            updateStatus("📷 Iniciando cámara...", "loading");
-
+            updateStatus("Iniciando cámara...", "loading");
             terminalState.stream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: "user" },
-                audio: false,
+                video: { facingMode: "user" }, audio: false,
             });
-
             video.srcObject = terminalState.stream;
-            await new Promise((resolve) => {
-                video.onloadedmetadata = resolve;
-            });
-
-            // Ajustar tamaño del canvas
-            overlay.width = video.videoWidth;
+            await new Promise((resolve) => { video.onloadedmetadata = resolve; });
+            overlay.width  = video.videoWidth;
             overlay.height = video.videoHeight;
-
-            console.log("Cámara iniciada correctamente");
             return true;
         } catch (error) {
             console.error("Error al iniciar cámara:", error);
-
             let message = "No se pudo acceder a la cámara. ";
-            if (error.name === "NotAllowedError") {
-                message += "Por favor, permita el acceso a la cámara.";
-            } else if (error.name === "NotFoundError") {
-                message += "No se encontró ninguna cámara conectada.";
-            } else if (error.name === "NotReadableError") {
-                message += "La cámara está siendo usada por otra aplicación.";
-            } else {
-                message += "Error desconocido: " + error.message;
-            }
-
+            if (error.name === "NotAllowedError")   message += "Por favor, permita el acceso a la cámara.";
+            else if (error.name === "NotFoundError") message += "No se encontró ninguna cámara conectada.";
+            else if (error.name === "NotReadableError") message += "La cámara está siendo usada por otra aplicación.";
+            else message += "Error desconocido: " + error.message;
             showError(message);
             return false;
         }
@@ -256,7 +481,6 @@ document.addEventListener("DOMContentLoaded", () => {
             terminalState.stream.getTracks().forEach((track) => track.stop());
             terminalState.stream = null;
             video.srcObject = null;
-            console.log("Cámara detenida");
         }
         stopDrawLoop();
     }
@@ -275,31 +499,45 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!terminalState.drawLoopActive) return;
 
         try {
-            const detection = await faceapi
-                .detectSingleFace(video, tinyOptions)
-                .withFaceLandmarks()
-                .withFaceDescriptor();
+            if (video.readyState >= 2 && video.videoWidth > 0 && video.videoHeight > 0) {
+                const detection = await faceapi
+                    .detectSingleFace(video, tinyOptions)
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
 
-            // Limpiar canvas
-            ctx.clearRect(0, 0, overlay.width, overlay.height);
+                // Limpiar canvas — sin dibujo de bounding box ni landmarks
+                ctx.clearRect(0, 0, overlay.width, overlay.height);
 
-            if (detection) {
-                // Dibujar detección
-                const dims = faceapi.matchDimensions(overlay, video, true);
-                const resized = faceapi.resizeResults(detection, dims);
-                faceapi.draw.drawDetections(overlay, resized);
-                faceapi.draw.drawFaceLandmarks(overlay, resized);
+                // drawLoop es el dueño exclusivo del estado visual (nunca lo sobreescribe updateStatus)
+                if (!terminalState.isProcessing && Date.now() > terminalState.notRecognizedUntil) {
+                    // Primera vez que se sale del cooldown: resetear texto junto con el color
+                    if (terminalState.inNotRecognizedCooldown) {
+                        terminalState.inNotRecognizedCooldown = false;
+                        updateStatus("Posicione su rostro dentro del óvalo...");
+                    }
+                    if (detection) {
+                        terminalState.faceDetected = true;
+                        setTerminalVideoState("face-found");  // teal — rostro detectado
+                        setIdStatusDot("face-found");
+                    } else {
+                        terminalState.faceDetected = false;
+                        setTerminalVideoState("detecting");   // naranja — sin rostro
+                        setIdStatusDot("detecting");
+                    }
+                }
             }
         } catch (error) {
             console.error("Error en drawLoop:", error);
         }
 
-        setTimeout(drawLoop, 200);
+        if (terminalState.drawLoopActive) {
+            setTimeout(drawLoop, 200);
+        }
     }
 
-    async function captureDescriptor(samples = 5, intervalMs = 150) {
+    async function captureDescriptor(samples = 5, intervalMs = 150, onProgress = null) {
         const descriptors = [];
-        const MIN_FACE_SIZE = 100; // Tamaño mínimo de rostro en píxeles
+        const MIN_FACE_SIZE = 100;
 
         for (let i = 0; i < samples; i++) {
             try {
@@ -309,75 +547,57 @@ document.addEventListener("DOMContentLoaded", () => {
                     .withFaceDescriptor();
 
                 if (detection && detection.descriptor) {
-                    // Validar tamaño del rostro detectado
                     const box = detection.detection.box;
                     if (box.width >= MIN_FACE_SIZE && box.height >= MIN_FACE_SIZE) {
                         descriptors.push(Array.from(detection.descriptor));
-                    } else {
-                        console.warn(`Rostro muy pequeño: ${Math.round(box.width)}x${Math.round(box.height)}px (mínimo ${MIN_FACE_SIZE}px)`);
+                        if (onProgress) onProgress(descriptors.length);
                     }
                 }
             } catch (error) {
                 console.error(`Error capturando muestra ${i + 1}:`, error);
             }
-
-            if (i < samples - 1) {
-                await sleep(intervalMs);
-            }
+            if (i < samples - 1) await sleep(intervalMs);
         }
 
-        // Requerir mínimo 3 muestras válidas de las 5 intentadas
         if (descriptors.length < 3) {
             throw new Error(`Solo se capturaron ${descriptors.length} muestras válidas (mínimo 3). Acerque el rostro a la cámara.`);
         }
 
-        // Promediar descriptores
         const averaged = new Array(128).fill(0);
         for (let i = 0; i < 128; i++) {
             let sum = 0;
-            for (const desc of descriptors) {
-                sum += desc[i];
-            }
+            for (const desc of descriptors) sum += desc[i];
             averaged[i] = sum / descriptors.length;
         }
-
         return averaged;
     }
 
-    function updateStatus(text, icon = "loading") {
+    // updateStatus solo actualiza el texto — el estado visual del video lo maneja drawLoop
+    function updateStatus(text) {
         if (!identificationStatus) return;
-
-        const icons = {
-            loading: "🔄",
-            searching: "👤",
-            found: "✅",
-            error: "❌",
-        };
-
-        identificationStatus.innerHTML = `
-            <div class="status-icon">${icons[icon] || icons.loading}</div>
-            <div class="status-text">${text}</div>
-        `;
+        const statusTextEl = identificationStatus.querySelector(".id-status-text");
+        if (statusTextEl) {
+            statusTextEl.textContent = text;
+        } else {
+            identificationStatus.innerHTML = `
+                <span class="id-status-dot" id="idStatusDot"></span>
+                <span class="id-status-text">${text}</span>
+            `;
+        }
     }
 
     // ============================================================================
-    // FUNCIONES DE IDENTIFICACIÓN
+    // IDENTIFICACIÓN
     // ============================================================================
     async function identifyEmployee(descriptor) {
         try {
             const response = await fetch("/marcar/identificar", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": CSRF,
-                },
-                body: JSON.stringify({
-                    face_descriptor: descriptor,
-                }),
+                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
+                body: JSON.stringify({ face_descriptor: descriptor }),
             });
-
-            const data = await response.json();
-            return data;
+            if (response.status === 419) return { ok: false, is419: true };
+            return await response.json();
         } catch (error) {
             console.error("Error en identificación:", error);
             return { ok: false, message: "Error de conexión" };
@@ -385,54 +605,84 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function startAutoIdentification() {
-        // Cargar modelos
         const modelsLoaded = await loadModels();
         if (!modelsLoaded) return;
 
-        // Iniciar cámara
         const cameraStarted = await startCamera();
         if (!cameraStarted) return;
 
-        // Iniciar draw loop
         startDrawLoop();
+        updateStatus("Posicione su rostro dentro del óvalo...");
 
-        updateStatus("Buscando rostro...", "searching");
-
-        // Intentar identificar cada 3 segundos
         terminalState.identifyInterval = setInterval(async () => {
-            // Verificar si ya hay un proceso en curso
-            if (terminalState.isProcessing) {
-                console.log("Proceso en curso, omitiendo ciclo de identificación");
-                return;
-            }
+            if (terminalState.isProcessing) return;
+
+            // Esperar a que expire el cooldown de "no reconocido" antes de reintentar
+            if (Date.now() <= terminalState.notRecognizedUntil) return;
+
+            // No intentar capturar si drawLoop no detectó ningún rostro recientemente
+            if (!terminalState.faceDetected) return;
 
             try {
-                // Marcar inicio de procesamiento
                 terminalState.isProcessing = true;
+                // Forzar teal al iniciar captura: no depender del estado visual previo
+                setTerminalVideoState("face-found");
+                setIdStatusDot("face-found");
+                updateStatus("Analizando rostro, mantenga la posición...");
+                showCaptureProgress();
 
-                updateStatus("Analizando rostro...", "loading");
+                const descriptor = await captureDescriptor(5, 150, (count) => {
+                    updateCaptureProgress(count);
+                });
 
-                const descriptor = await captureDescriptor(5, 150);
                 const result = await identifyEmployee(descriptor);
 
-                if (result.ok && result.employee) {
-                    // Empleado identificado correctamente
-                    console.log("Empleado identificado:", result.employee);
+                if (result.is419) {
                     stopAutoIdentification();
-                    await registerMark(result.employee);
+                    await finishCaptureProgress("error");
+                    showError("La sesión ha caducado. Recargue la página para continuar.");
+                    return;
+                }
+
+                if (result.ok && result.employee) {
+                    if (terminalState.userHasInteracted) navigator.vibrate?.(80);
+                    stopAutoIdentification();
+
+                    await finishCaptureProgress("success");
+
+                    // Flash verde — identificación exitosa
+                    setTerminalVideoState("success");
+                    setIdStatusDot("success");
+
+                    const allowedEvents = result.allowed_events || [];
+
+                    if (allowedEvents.length === 1) {
+                        // Un único evento válido — registrar automáticamente sin selección
+                        await registerMark(result.employee, allowedEvents[0]);
+                    } else if (allowedEvents.length > 1) {
+                        // Múltiples eventos válidos — mostrar selección al empleado
+                        showTypeSelectionForEmployee(result.employee, allowedEvents);
+                    } else {
+                        // Sin eventos disponibles — jornada ya completada
+                        showDayComplete(result.employee);
+                    }
                 } else {
-                    // No se pudo identificar, seguir intentando
-                    updateStatus("Rostro no reconocido. Intente de nuevo...", "searching");
-                    console.log("No se pudo identificar:", result.message);
+                    await finishCaptureProgress("error");
+
+                    // No reconocido — forzar naranja y bloquear drawLoop 2 segundos
+                    terminalState.notRecognizedUntil = Date.now() + 2000;
+                    terminalState.inNotRecognizedCooldown = true;
+                    setTerminalVideoState("detecting");
+                    setIdStatusDot("detecting");
+                    updateStatus("Rostro no reconocido. Mantenga el rostro quieto frente a la cámara.");
+                    console.log("No se pudo identificar");
                 }
             } catch (error) {
+                await finishCaptureProgress("error");
                 console.error("Error en auto-identificación:", error);
-                updateStatus("Error al analizar. Reintentando...", "error");
+                updateStatus("Error al analizar. Asegúrese de tener buena iluminación.");
             } finally {
-                // Liberar el bloqueo siempre (excepto si ya se detuvo por éxito)
-                if (terminalState.identifyInterval) {
-                    terminalState.isProcessing = false;
-                }
+                if (terminalState.identifyInterval) terminalState.isProcessing = false;
             }
         }, 3000);
     }
@@ -446,29 +696,57 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // FUNCIONES DE REGISTRO DE MARCACIÓN
+    // SELECCIÓN DE TIPO POST-IDENTIFICACIÓN (solo si hay múltiples eventos válidos)
     // ============================================================================
-    async function registerMark(employee) {
+    function showTypeSelectionForEmployee(employee, allowedEvents) {
+        terminalState.employee = employee;
+
+        // Mostrar solo los botones de tipos permitidos para este empleado
+        typeButtons.forEach(btn => {
+            const evtType = btn.getAttribute("data-event-type");
+            btn.style.display = allowedEvents.includes(evtType) ? "" : "none";
+        });
+
+        // Ajustar columnas del grid según cantidad de opciones visibles
+        const visibleCount = allowedEvents.length;
+        const typeGrid = screens.typeSelection?.querySelector(".type-grid");
+        if (typeGrid) {
+            typeGrid.style.gridTemplateColumns = visibleCount === 1 ? "1fr" : "1fr 1fr";
+            typeGrid.style.maxWidth = visibleCount === 1 ? "320px" : "";
+        }
+
+        const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+
+        const screenTitle   = document.getElementById("typeSelectionTitle");
+        const screenEyebrow = document.getElementById("typeSelectionEyebrow");
+        if (screenTitle)   screenTitle.textContent   = fullName ? `Hola, ${fullName}` : "Seleccione marcación";
+        if (screenEyebrow) screenEyebrow.textContent = fullName ? "Empleado verificado ✓" : "Seleccione marcación";
+
+        showScreen("typeSelection");
+    }
+
+    // ============================================================================
+    // REGISTRO DE MARCACIÓN
+    // ============================================================================
+    async function registerMark(employee, eventType) {
         try {
             updateStatus("Registrando marcación...", "loading");
 
             const response = await fetch("/marcar", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                    "X-CSRF-TOKEN": CSRF,
-                },
-                body: JSON.stringify({
-                    employee_id: employee.id,
-                    event_type: terminalState.selectedType,
-                    // NO enviar location - el backend usará las coordenadas de la sucursal
-                }),
+                headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
+                body: JSON.stringify({ employee_id: employee.id, event_type: eventType }),
             });
+
+            if (response.status === 419) {
+                showError("La sesión ha caducado. Recargue la página para continuar.");
+                return;
+            }
 
             const data = await response.json();
 
             if (data.ok) {
-                showSuccessScreen(employee, data.data);
+                showSuccessScreen(employee, data.data, eventType);
             } else {
                 showError(data.message || "No se pudo registrar la marcación.");
             }
@@ -479,45 +757,128 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // FUNCIONES DE PANTALLAS DE RESULTADO
+    // AUDIO FEEDBACK (Web Audio API — sin archivos, sin permisos)
     // ============================================================================
-    function showSuccessScreen(employee, markData) {
-        // Actualizar información del empleado
+    let audioCtx = null;
+
+    function getAudioCtx() {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        return audioCtx;
+    }
+
+    function playTone(freq, duration, gain = 0.25, delay = 0) {
+        try {
+            const ctx = getAudioCtx();
+            ctx.resume();
+            const osc  = ctx.createOscillator();
+            const env  = ctx.createGain();
+            osc.connect(env);
+            env.connect(ctx.destination);
+            osc.type = "sine";
+            osc.frequency.value = freq;
+            const t = ctx.currentTime + delay;
+            env.gain.setValueAtTime(gain, t);
+            env.gain.exponentialRampToValueAtTime(0.001, t + duration);
+            osc.start(t);
+            osc.stop(t + duration + 0.01);
+        } catch (_) { /* audio no disponible */ }
+    }
+
+    function playBeep(type) {
+        if (!terminalState.userHasInteracted) return;
+        if (type === "success") {
+            // Doble beep ascendente — confirmación positiva
+            playTone(880,  0.08, 0.22, 0.0);
+            playTone(1100, 0.12, 0.22, 0.1);
+        } else if (type === "error") {
+            // Beep grave descendente — advertencia
+            playTone(440, 0.08, 0.22, 0.0);
+            playTone(330, 0.14, 0.22, 0.1);
+        }
+    }
+
+    // ============================================================================
+    // PANTALLAS DE RESULTADO
+    // ============================================================================
+    function showSuccessScreen(employee, markData, eventType) {
         const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+        if (successEmployeePhoto) {
+            successEmployeePhoto.src = employee.photo_url || "";
+            successEmployeePhoto.alt = fullName;
+        }
         successEmployeeName.textContent = fullName || "Empleado";
-        successEmployeeCI.textContent = employee.ci ? `CI: ${employee.ci}` : "";
+        successEmployeeCI.textContent   = employee.ci ? `CI: ${employee.ci}` : "";
+        successEventType.textContent    = eventTypeNames[eventType] || eventType;
 
-        // Actualizar tipo de marcación
-        successEventType.textContent = terminalState.selectedTypeName || "";
-
-        // Actualizar hora
         const now = new Date();
         successTime.textContent = now.toLocaleTimeString("es-BO", {
-            hour: "2-digit",
-            minute: "2-digit",
-            second: "2-digit",
+            hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
         });
 
-        // Mostrar pantalla de éxito
+        playBeep("success");
         showScreen("success");
-
-        // Iniciar countdown de 5 segundos
         startCountdown(5);
     }
 
     function showError(message) {
-        errorMessage.textContent = message;
+        const detailed = buildDetailedError(message);
+        if (errorMessage) errorMessage.textContent = detailed;
+        setTerminalVideoState(null);
+        playBeep("error");
         showScreen("error");
+    }
+
+    function showDayComplete(employee) {
+        const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim();
+        if (dayCompleteEmployeePhoto) {
+            dayCompleteEmployeePhoto.src = employee.photo_url || "";
+            dayCompleteEmployeePhoto.alt = fullName;
+        }
+        if (dayCompleteEmployeeName) dayCompleteEmployeeName.textContent = fullName || "Empleado";
+        setTerminalVideoState(null);
+        playBeep("success");
+        showScreen("dayComplete");
+        startDayCompleteCountdown(5);
+    }
+
+    function startDayCompleteCountdown(seconds) {
+        let remaining = seconds;
+        if (dayCompleteCountdownEl)   dayCompleteCountdownEl.textContent = remaining;
+        if (dayCompleteCountdownFill) {
+            dayCompleteCountdownFill.style.transition = "none";
+            dayCompleteCountdownFill.style.width = "100%";
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    dayCompleteCountdownFill.style.transition = `width ${seconds}s linear`;
+                    dayCompleteCountdownFill.style.width = "0%";
+                });
+            });
+        }
+        terminalState.countdownTimer = setInterval(() => {
+            remaining--;
+            if (dayCompleteCountdownEl) dayCompleteCountdownEl.textContent = remaining;
+            if (remaining <= 0) {
+                clearInterval(terminalState.countdownTimer);
+                resetTerminal();
+            }
+        }, 1000);
     }
 
     function startCountdown(seconds) {
         let remaining = seconds;
-        countdownEl.textContent = remaining;
+        if (countdownEl)   countdownEl.textContent = remaining;
+        if (countdownFill) {
+            countdownFill.style.transition = "none";
+            countdownFill.style.width = "100%";
+            // Forzar reflow para que la transición arranque desde 100%
+            countdownFill.offsetWidth;
+            countdownFill.style.transition = `width ${seconds}s linear`;
+            countdownFill.style.width = "0%";
+        }
 
         terminalState.countdownTimer = setInterval(() => {
             remaining--;
-            countdownEl.textContent = remaining;
-
+            if (countdownEl) countdownEl.textContent = remaining;
             if (remaining <= 0) {
                 clearInterval(terminalState.countdownTimer);
                 resetTerminal();
@@ -533,50 +894,46 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // ============================================================================
-    // FUNCIONES DE RESET
+    // RESET
     // ============================================================================
     function resetTerminal() {
         stopAutoIdentification();
         stopCountdown();
 
-        terminalState = {
-            selectedType: null,
-            selectedTypeName: null,
-            stream: null,
-            modelsLoaded: terminalState.modelsLoaded, // Mantener modelos cargados
-            identifyInterval: null,
-            drawLoopActive: false,
-            employee: null,
-            countdownTimer: null,
-            isProcessing: false, // Reset del flag de procesamiento
-        };
+        terminalState.employee     = null;
+        terminalState.isProcessing = false;
 
-        showScreen("typeSelection");
+        // Restaurar visibilidad de todos los botones de tipo
+        typeButtons.forEach(btn => { btn.style.display = ""; });
+
+        // Restaurar título de pantalla de tipo
+        const screenTitle = screens.typeSelection?.querySelector(".screen-title");
+        if (screenTitle) screenTitle.textContent = "Marcación";
+
+        setTerminalVideoState(null);
+
+        // Volver a identificación directamente
+        startIdentificationFlow();
     }
 
     // ============================================================================
     // EVENT LISTENERS
     // ============================================================================
 
-    // Botones de selección de tipo
+    // Botones de tipo (ahora usados solo tras identificación con múltiples eventos)
     typeButtons.forEach((button) => {
-        button.addEventListener("click", () => {
+        button.addEventListener("click", async () => {
             const eventType = button.getAttribute("data-event-type");
-            const eventName = eventTypeNames[eventType] || eventType;
-
-            terminalState.selectedType = eventType;
-            terminalState.selectedTypeName = eventName;
-
-            // Actualizar título de identificación
-            identificationTitle.textContent = eventName;
-
-            // Ir a pantalla de identificación
-            showScreen("identification");
-
-            // Iniciar auto-identificación
-            startAutoIdentification();
+            if (!terminalState.employee) return;
+            clearIdleTimer();
+            await registerMark(terminalState.employee, eventType);
         });
     });
+
+    // Toque en pantalla de reposo → despertar
+    if (screens.idle) {
+        screens.idle.addEventListener("click", () => exitIdle());
+    }
 
     // Botón cancelar identificación
     if (btnCancel) {
@@ -588,15 +945,62 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Botón marcar otra persona (desde pantalla de éxito)
     if (btnMarkAnother) {
-        btnMarkAnother.addEventListener("click", () => {
-            resetTerminal();
-        });
+        btnMarkAnother.addEventListener("click", () => resetTerminal());
     }
 
     // Botón reintentar (desde pantalla de error)
     if (btnRetry) {
-        btnRetry.addEventListener("click", () => {
-            resetTerminal();
+        btnRetry.addEventListener("click", () => resetTerminal());
+    }
+
+    // Botón recargar página (desde pantalla de error — para errores irrecuperables)
+    if (btnReload) {
+        btnReload.addEventListener("click", () => window.location.reload());
+    }
+
+    // ============================================================================
+    // CONECTIVIDAD
+    // ============================================================================
+    const offlineBanner = document.getElementById("offlineBanner");
+
+    function setOffline(isOffline) {
+        if (!offlineBanner) return;
+        offlineBanner.classList.toggle("is-visible", isOffline);
+        offlineBanner.setAttribute("aria-hidden", String(!isOffline));
+    }
+
+    // Estado inicial (por si la página carga sin red)
+    setOffline(!navigator.onLine);
+
+    window.addEventListener("offline", () => setOffline(true));
+    window.addEventListener("online",  () => setOffline(false));
+
+    // Marcar interacción del usuario para habilitar Vibration API
+    const markInteraction = () => {
+        terminalState.userHasInteracted = true;
+        document.removeEventListener("click",      markInteraction);
+        document.removeEventListener("touchstart", markInteraction);
+    };
+    document.addEventListener("click",      markInteraction, { once: true });
+    document.addEventListener("touchstart", markInteraction, { once: true });
+
+    // ============================================================================
+    // TEMA CLARO / OSCURO
+    // ============================================================================
+    (function initTheme() {
+        const saved = localStorage.getItem("terminal-theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        const isDark = saved === "dark" || (!saved && prefersDark);
+        if (isDark) document.documentElement.setAttribute("data-theme", "dark");
+        else document.documentElement.setAttribute("data-theme", "light");
+    })();
+
+    if (btnThemeToggle) {
+        btnThemeToggle.addEventListener("click", () => {
+            const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+            const next = isDark ? "light" : "dark";
+            document.documentElement.setAttribute("data-theme", next);
+            localStorage.setItem("terminal-theme", next);
         });
     }
 
@@ -604,8 +1008,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // INICIALIZACIÓN
     // ============================================================================
     console.log("Terminal de marcación inicializado");
-
-    // Mostrar pantalla de carga e iniciar el sistema
     showScreen("loading");
     initializeSystem();
 });

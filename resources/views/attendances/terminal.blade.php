@@ -16,14 +16,48 @@
         <div class="no-js-warning">Esta página requiere JavaScript para funcionar correctamente.</div>
     </noscript>
 
-    <main class="terminal-container">
-        <x-attendance.terminal-loading />
-        <x-attendance.terminal-type-selector />
-        <x-attendance.terminal-video-section />
-        <x-attendance.terminal-success />
-    </main>
+    <div class="terminal-container">
+        <header class="terminal-header">
+            <div class="terminal-header-brand">
+                <span class="terminal-mode-badge">Modo Terminal</span>
+                <button type="button" id="btnThemeToggle" class="theme-toggle" aria-label="Cambiar tema claro/oscuro">
+                    <svg class="icon-moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+                    </svg>
+                    <svg class="icon-sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
+                        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+                        <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
+                        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="terminal-clock" id="terminalHeaderClock" aria-live="off" aria-label="Hora actual">--:--:--</div>
+        </header>
 
-    <script defer src="https://unpkg.com/face-api.js@0.22.2/dist/face-api.min.js" referrerpolicy="no-referrer"></script>
+        <div id="offlineBanner" class="offline-banner" role="alert" aria-live="assertive" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <line x1="1" y1="1" x2="23" y2="23"/>
+                <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55"/>
+                <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39"/>
+                <path d="M10.71 5.05A16 16 0 0 1 22.56 9"/>
+                <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88"/>
+                <path d="M8.53 16.11a6 6 0 0 1 6.95 0"/>
+                <circle cx="12" cy="20" r="1" fill="currentColor"/>
+            </svg>
+            <span>Sin conexión — las marcaciones no pueden registrarse</span>
+        </div>
+
+        <main id="main-content">
+            <x-attendance.terminal-loading />
+            <x-attendance.terminal-idle />
+            <x-attendance.terminal-type-selector />
+            <x-attendance.terminal-video-section />
+            <x-attendance.terminal-success />
+        </main>
+    </div>
+
+    <script defer src="{{ asset('js/face-api.min.js') }}"></script>
 </body>
 
 </html>

@@ -1,16 +1,23 @@
 <section id="typeSelectionScreen" class="terminal-screen hidden" role="region" aria-label="Selección de tipo de marcación">
-    <div class="terminal-content">
-        <h1 class="terminal-title">MARCACIÓN DE ASISTENCIA</h1>
-        <p class="terminal-subtitle">Seleccione el tipo de marcación</p>
+    <div class="screen-body">
+        <p class="screen-eyebrow" id="typeSelectionEyebrow">Empleado verificado</p>
+        <h1 class="screen-title" id="typeSelectionTitle">Marcación</h1>
+        <p class="screen-subtitle">Seleccione el tipo de marcación</p>
 
-        <div class="terminal-buttons">
+        <div class="type-grid">
             <button
                 type="button"
                 class="terminal-type-btn btn-check-in"
                 data-event-type="check_in"
                 aria-label="Marcar entrada">
-                <span class="btn-icon">🟢</span>
-                <span class="btn-text">ENTRADA</span>
+                <span class="type-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+                        <polyline points="10 17 15 12 10 7"/>
+                        <line x1="15" y1="12" x2="3" y2="12"/>
+                    </svg>
+                </span>
+                <span class="btn-text">Entrada</span>
             </button>
 
             <button
@@ -18,8 +25,13 @@
                 class="terminal-type-btn btn-break-start"
                 data-event-type="break_start"
                 aria-label="Marcar inicio de descanso">
-                <span class="btn-icon">⏸️</span>
-                <span class="btn-text">INICIO DESCANSO</span>
+                <span class="type-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="6" y="4" width="4" height="16"/>
+                        <rect x="14" y="4" width="4" height="16"/>
+                    </svg>
+                </span>
+                <span class="btn-text">Inicio descanso</span>
             </button>
 
             <button
@@ -27,8 +39,12 @@
                 class="terminal-type-btn btn-break-end"
                 data-event-type="break_end"
                 aria-label="Marcar fin de descanso">
-                <span class="btn-icon">▶️</span>
-                <span class="btn-text">FIN DESCANSO</span>
+                <span class="type-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <polygon points="5 3 19 12 5 21 5 3"/>
+                    </svg>
+                </span>
+                <span class="btn-text">Fin descanso</span>
             </button>
 
             <button
@@ -36,9 +52,16 @@
                 class="terminal-type-btn btn-check-out"
                 data-event-type="check_out"
                 aria-label="Marcar salida">
-                <span class="btn-icon">🔴</span>
-                <span class="btn-text">SALIDA</span>
+                <span class="type-icon" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                        <polyline points="16 17 21 12 16 7"/>
+                        <line x1="21" y1="12" x2="9" y2="12"/>
+                    </svg>
+                </span>
+                <span class="btn-text">Salida</span>
             </button>
         </div>
     </div>
 </section>
+
