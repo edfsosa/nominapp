@@ -13,42 +13,40 @@ class PerceptionCalculator
         $items = [];
         $total = 0;
 
-        $perceptions = $employee->perceptions()
-            ->wherePivot('start_date', '<=', $period->end_date)
-            ->where(function ($query) use ($period) {
-                $query->whereNull('end_date')->orWhere('end_date', '>=', $period->start_date);
-            })
+        $assignments = $employee->employeePerceptions()
+            ->forPeriod($period->start_date, $period->end_date)
+            ->with('perception')
             ->get();
 
-        foreach ($perceptions as $perception) {
-            if (!is_null($perception->pivot->custom_amount)) {
-                $amount = $perception->pivot->custom_amount;
-            } elseif ($perception->calculation === 'percentage') {
-                // Para jornaleros usar daily_rate como base, para tiempo completo usar base_salary
-                $salaryBase = $employee->employment_type === 'day_laborer'
-                    ? $employee->daily_rate
-                    : $employee->base_salary;
+        foreach ($assignments as $assignment) {
+            $perception   = $assignment->perception;
+            $customAmount = $assignment->custom_amount;
+            $salaryBase   = 0;
 
-                if (!$salaryBase || $salaryBase <= 0) {
+            if ($customAmount === null && $perception->isPercentage()) {
+                $salaryBase = $employee->employment_type === 'day_laborer'
+                    ? (int) ($employee->daily_rate ?? 0)
+                    : (int) ($employee->base_salary ?? 0);
+
+                if ($salaryBase <= 0) {
                     Log::warning('PerceptionCalculator: porcentaje sobre salario base inválido', [
-                        'employee_id' => $employee->id,
-                        'perception' => $perception->name,
-                        'salary_base' => $salaryBase,
+                        'employee_id'     => $employee->id,
+                        'perception'      => $perception->name,
+                        'salary_base'     => $salaryBase,
                         'employment_type' => $employee->employment_type,
                     ]);
-                    $amount = 0;
-                } else {
-                    $amount = round($salaryBase * ($perception->percent / 100), 2);
+
+                    $items[] = ['description' => $perception->name, 'amount' => 0];
+                    continue;
                 }
-            } else {
-                $amount = $perception->amount ?? 0;
             }
 
+            $amount = $perception->calculateAmount($salaryBase, $customAmount);
             $total += $amount;
 
             $items[] = [
                 'description' => $perception->name,
-                'amount' => $amount,
+                'amount'      => $amount,
             ];
         }
 

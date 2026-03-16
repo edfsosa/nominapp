@@ -16,7 +16,6 @@ class Deduction extends Model
         'percent',
         'is_mandatory',
         'is_active',
-        'affects_ips',
         'affects_irp',
     ];
 
@@ -25,12 +24,11 @@ class Deduction extends Model
         'percent' => 'decimal:2',
         'is_mandatory' => 'boolean',
         'is_active' => 'boolean',
-        'affects_ips' => 'boolean',
         'affects_irp' => 'boolean',
     ];
 
     /**
-     * Relación con el modelo Employee, una deducción puede aplicarse a muchos empleados
+     * Todos los empleados con esta deducción (historial completo).
      */
     public function employees(): BelongsToMany
     {
@@ -38,6 +36,22 @@ class Deduction extends Model
             ->using(EmployeeDeduction::class)
             ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
             ->withTimestamps();
+    }
+
+    /**
+     * Empleados activos con esta deducción: ya iniciadas y sin fecha de fin vencida.
+     */
+    public function activeEmployees(): BelongsToMany
+    {
+        return $this->belongsToMany(Employee::class, 'employee_deductions')
+            ->using(EmployeeDeduction::class)
+            ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
+            ->withTimestamps()
+            ->wherePivot('start_date', '<=', now())
+            ->where(fn($q) => $q
+                ->whereNull('employee_deductions.end_date')
+                ->orWhere('employee_deductions.end_date', '>=', now())
+            );
     }
 
     /**
@@ -50,18 +64,54 @@ class Deduction extends Model
     }
 
     /**
-     * Obtener solo las asignaciones activas (sin fecha de fin)
+     * Obtener solo las asignaciones activas.
      */
     public function activeEmployeeDeductions()
     {
-        return $this->hasMany(EmployeeDeduction::class)->whereNull('end_date');
+        return $this->hasMany(EmployeeDeduction::class)
+            ->where('start_date', '<=', now())
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
-     * Obtener solo las asignaciones inactivas (con fecha de fin)
+     * Obtener solo las asignaciones inactivas: con fecha de fin ya vencida.
      */
     public function inactiveEmployeeDeductions()
     {
-        return $this->hasMany(EmployeeDeduction::class)->whereNotNull('end_date');
+        return $this->hasMany(EmployeeDeduction::class)
+            ->whereNotNull('end_date')
+            ->where('end_date', '<', now());
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    public function isFixed(): bool
+    {
+        return $this->calculation === 'fixed';
+    }
+
+    public function isPercentage(): bool
+    {
+        return $this->calculation === 'percentage';
+    }
+
+    public static function formatPercent(mixed $value): ?string
+    {
+        return $value !== null ? number_format((float) $value, 2) . '%' : null;
+    }
+
+    public function calculateAmount(int $salaryBase, mixed $customAmount = null): float
+    {
+        if ($customAmount !== null) {
+            return (float) $customAmount;
+        }
+
+        if ($this->isPercentage()) {
+            return round($salaryBase * ((float) $this->percent / 100), 2);
+        }
+
+        return (float) ($this->amount ?? 0);
     }
 }

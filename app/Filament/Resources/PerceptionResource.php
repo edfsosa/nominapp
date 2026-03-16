@@ -2,27 +2,29 @@
 
 namespace App\Filament\Resources;
 
-use Filament\Forms;
-use App\Models\Employee;
-use Filament\Forms\Form;
+use App\Filament\Resources\PerceptionResource\Pages;
 use App\Models\Perception;
-use Filament\Tables\Table;
-use Filament\Resources\Resource;
-use Illuminate\Support\Facades\DB;
-use Filament\Tables\Actions\Action;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
+use App\Models\Employee;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Infolists\Components\IconEntry;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
-use App\Filament\Resources\PerceptionResource\Pages;
+use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 
 class PerceptionResource extends Resource
 {
@@ -35,6 +37,12 @@ class PerceptionResource extends Resource
     protected static ?string $navigationIcon = 'heroicon-o-plus-circle';
     protected static ?int $navigationSort = 3;
 
+    /**
+     * Define el formulario para crear y editar percepciones
+     *
+     * @param Form $form
+     * @return Form
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -50,7 +58,7 @@ class PerceptionResource extends Resource
 
                         TextInput::make('code')
                             ->label('Código')
-                            ->placeholder('Ejemplo: PERC001')
+                            ->placeholder('Ejemplo: BON-DES')
                             ->required()
                             ->maxLength(10)
                             ->unique(ignoreRecord: true)
@@ -58,7 +66,8 @@ class PerceptionResource extends Resource
 
                         Textarea::make('description')
                             ->label('Descripción')
-                            ->placeholder('Descripción detallada de la percepción')
+                            ->placeholder('Ejemplo: Bonificación por Desempeño otorgada trimestralmente según evaluación de desempeño')
+                            ->maxLength(255)
                             ->rows(3)
                             ->columnSpanFull(),
                     ])
@@ -74,33 +83,32 @@ class PerceptionResource extends Resource
                             ])
                             ->default('fixed')
                             ->native(false)
-                            ->reactive()
+                            ->live()
                             ->required()
+                            ->helperText('Define cómo se calculará esta percepción')
                             ->columnSpan(1),
 
                         TextInput::make('amount')
                             ->label('Monto Fijo')
                             ->numeric()
-                            ->minValue(0)
+                            ->minValue(1)
                             ->maxValue(999999999.99)
-                            ->step(0.01)
+                            ->step(1)
                             ->prefix('₲')
-                            ->visible(fn(Forms\Get $get) => $get('calculation') === 'fixed')
-                            ->required(fn(Forms\Get $get) => $get('calculation') === 'fixed')
-                            ->default(0.00)
+                            ->visible(fn(Get $get) => $get('calculation') === 'fixed')
+                            ->required(fn(Get $get) => $get('calculation') === 'fixed')
                             ->helperText('Monto que se agregará al salario')
                             ->columnSpan(1),
 
                         TextInput::make('percent')
                             ->label('Porcentaje')
                             ->numeric()
-                            ->minValue(0)
+                            ->minValue(0.01)
                             ->maxValue(100)
                             ->step(0.01)
                             ->suffix('%')
-                            ->visible(fn(Forms\Get $get) => $get('calculation') === 'percentage')
-                            ->required(fn(Forms\Get $get) => $get('calculation') === 'percentage')
-                            ->default(0.00)
+                            ->visible(fn(Get $get) => $get('calculation') === 'percentage')
+                            ->required(fn(Get $get) => $get('calculation') === 'percentage')
                             ->helperText('Porcentaje del salario base que se agregará')
                             ->columnSpan(1),
                     ])
@@ -140,6 +148,12 @@ class PerceptionResource extends Resource
             ]);
     }
 
+    /**
+     * Define la tabla para listar percepciones
+     *
+     * @param Table $table
+     * @return Table
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -160,22 +174,42 @@ class PerceptionResource extends Resource
 
                 TextColumn::make('calculation')
                     ->label('Tipo')
-                    ->formatStateUsing(fn($state) => $state === 'fixed' ? 'Fijo' : 'Porcentaje')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'fixed'      => 'Fijo',
+                        'percentage' => 'Porcentaje',
+                        default      => '-',
+                    })
                     ->badge()
-                    ->color(fn($state) => $state === 'fixed' ? 'success' : 'warning')
+                    ->color(fn($state) => match ($state) {
+                        'fixed'      => 'primary',
+                        'percentage' => 'secondary',
+                        default      => 'gray',
+                    })
                     ->sortable(),
 
                 TextColumn::make('amount')
                     ->label('Monto')
                     ->money('PYG', locale: 'es_PY')
+                    ->placeholder('-')
                     ->sortable()
                     ->toggleable(),
 
                 TextColumn::make('percent')
                     ->label('Porcentaje')
-                    ->formatStateUsing(fn($state) => $state ? number_format($state, 2) . '%' : '-')
+                    ->formatStateUsing(fn($state) => Perception::formatPercent($state))
+                    ->placeholder('-')
                     ->sortable()
                     ->toggleable(),
+
+                IconColumn::make('is_taxable')
+                    ->label('Gravable')
+                    ->boolean()
+                    ->trueIcon('heroicon-o-check-circle')
+                    ->falseIcon('heroicon-o-x-circle')
+                    ->trueColor('success')
+                    ->falseColor('danger')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 IconColumn::make('is_active')
                     ->label('Estado')
@@ -184,13 +218,12 @@ class PerceptionResource extends Resource
                     ->falseIcon('heroicon-o-x-circle')
                     ->trueColor('success')
                     ->falseColor('danger')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('employees_count')
+                TextColumn::make('active_employees_count')
                     ->label('Empleados')
-                    ->counts([
-                        'employees' => fn($query) => $query->whereNull('employee_perceptions.end_date')
-                    ])
+                    ->counts('activeEmployees')
                     ->badge()
                     ->color('info')
                     ->sortable(),
@@ -256,10 +289,9 @@ class PerceptionResource extends Resource
                     ->modalSubmitActionLabel('Sí, asignar a todos')
                     ->action(function (Perception $record) {
                         try {
-                            // Obtener todos los empleados activos
-                            $employees = Employee::where('status', 'active')->get();
+                            $allActiveIds = Employee::where('status', 'active')->pluck('id');
 
-                            if ($employees->isEmpty()) {
+                            if ($allActiveIds->isEmpty()) {
                                 Notification::make()
                                     ->warning()
                                     ->title('No hay empleados activos')
@@ -268,58 +300,69 @@ class PerceptionResource extends Resource
                                 return;
                             }
 
-                            $totalAssigned = 0;
-                            $alreadyAssigned = 0;
+                            $alreadyActiveIds = DB::table('employee_perceptions')
+                                ->where('perception_id', $record->id)
+                                ->whereNull('end_date')
+                                ->pluck('employee_id');
 
-                            foreach ($employees as $employee) {
-                                // Verificar si el empleado ya tiene la percepción asignada (activa)
-                                $hasActivePerception = $employee->employeePerceptions()
-                                    ->where('perception_id', $record->id)
-                                    ->whereNull('end_date')
-                                    ->exists();
+                            $toProcessIds = $allActiveIds->diff($alreadyActiveIds);
+                            $alreadyAssigned = $alreadyActiveIds->count();
 
-                                if (!$hasActivePerception) {
-                                    // Verificar si existe un registro con la misma fecha de inicio (histórico)
-                                    $existingRecord = $employee->employeePerceptions()
-                                        ->where('perception_id', $record->id)
-                                        ->whereDate('start_date', now()->toDateString())
-                                        ->first();
-
-                                    if ($existingRecord) {
-                                        // Si existe un registro con la misma fecha de inicio, reactivarlo
-                                        $existingRecord->update([
-                                            'end_date' => null,
-                                            'notes' => 'Reasignado masivamente desde el panel de percepciones',
-                                        ]);
-                                    } else {
-                                        // Crear nuevo registro
-                                        $employee->employeePerceptions()->create([
-                                            'perception_id' => $record->id,
-                                            'start_date' => now(),
-                                            'end_date' => null,
-                                            'custom_amount' => null,
-                                            'notes' => 'Asignado masivamente desde el panel de percepciones',
-                                        ]);
-                                    }
-                                    $totalAssigned++;
-                                } else {
-                                    $alreadyAssigned++;
-                                }
-                            }
-
-                            if ($totalAssigned > 0) {
-                                Notification::make()
-                                    ->success()
-                                    ->title('Percepción asignada exitosamente')
-                                    ->body("La percepción \"{$record->name}\" fue asignada a {$totalAssigned} empleado(s). {$alreadyAssigned} empleado(s) ya tenían esta percepción.")
-                                    ->send();
-                            } else {
+                            if ($toProcessIds->isEmpty()) {
                                 Notification::make()
                                     ->info()
                                     ->title('Sin cambios')
                                     ->body('Todos los empleados activos ya tienen esta percepción asignada.')
                                     ->send();
+                                return;
                             }
+
+                            DB::transaction(function () use ($record, $toProcessIds) {
+                                $now   = now();
+                                $today = $now->toDateString();
+
+                                // Reactivar registros con fecha de inicio hoy (edge case histórico)
+                                $reactivateIds = DB::table('employee_perceptions')
+                                    ->where('perception_id', $record->id)
+                                    ->whereIn('employee_id', $toProcessIds)
+                                    ->whereDate('start_date', $today)
+                                    ->pluck('employee_id');
+
+                                if ($reactivateIds->isNotEmpty()) {
+                                    DB::table('employee_perceptions')
+                                        ->where('perception_id', $record->id)
+                                        ->whereIn('employee_id', $reactivateIds)
+                                        ->whereDate('start_date', $today)
+                                        ->update([
+                                            'end_date'   => null,
+                                            'notes'      => 'Reasignado masivamente desde el panel de percepciones',
+                                            'updated_at' => $now,
+                                        ]);
+                                }
+
+                                // Insertar nuevos registros en bulk
+                                $newIds = $toProcessIds->diff($reactivateIds);
+                                if ($newIds->isNotEmpty()) {
+                                    DB::table('employee_perceptions')->insert(
+                                        $newIds->map(fn($id) => [
+                                            'employee_id'   => $id,
+                                            'perception_id' => $record->id,
+                                            'start_date'    => $today,
+                                            'end_date'      => null,
+                                            'custom_amount' => null,
+                                            'notes'         => 'Asignado masivamente desde el panel de percepciones',
+                                            'created_at'    => $now,
+                                            'updated_at'    => $now,
+                                        ])->values()->toArray()
+                                    );
+                                }
+                            });
+
+                            Notification::make()
+                                ->success()
+                                ->title('Percepción asignada exitosamente')
+                                ->body("La percepción \"{$record->name}\" fue asignada a {$toProcessIds->count()} empleado(s). {$alreadyAssigned} empleado(s) ya tenían esta percepción.")
+                                ->send();
                         } catch (\Exception $e) {
                             Notification::make()
                                 ->danger()
@@ -328,6 +371,7 @@ class PerceptionResource extends Resource
                                 ->send();
                         }
                     }),
+
                 Action::make('removeFromAllEmployees')
                     ->label('Remover de Todos')
                     ->icon('heroicon-o-user-group')
@@ -338,10 +382,7 @@ class PerceptionResource extends Resource
                     ->modalSubmitActionLabel('Sí, remover de todos')
                     ->action(function (Perception $record) {
                         try {
-                            // Contar las asignaciones activas antes de removerlas
-                            $activeAssignments = $record->employees()
-                                ->wherePivot('end_date', null)
-                                ->count();
+                            $activeAssignments = $record->activeEmployees()->count();
 
                             if ($activeAssignments === 0) {
                                 Notification::make()
@@ -352,12 +393,12 @@ class PerceptionResource extends Resource
                                 return;
                             }
 
-                            // Finalizar todas las asignaciones activas
                             DB::table('employee_perceptions')
                                 ->where('perception_id', $record->id)
                                 ->whereNull('end_date')
                                 ->update([
-                                    'end_date' => now(),
+                                    'end_date'   => now(),
+                                    'notes'      => 'Removido masivamente desde el panel de percepciones',
                                     'updated_at' => now(),
                                 ]);
 
@@ -375,22 +416,122 @@ class PerceptionResource extends Resource
                         }
                     }),
             ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ])
+            ->bulkActions([])
             ->emptyStateHeading('No hay percepciones registradas')
-            ->emptyStateDescription('Comienza a agregar percepciones para gestionar bonificaciones y otros ingresos adicionales de los empleados.')
+            ->emptyStateDescription('Comienza a agregar percepciones para gestionar los adicionales en los salarios de los empleados.')
             ->emptyStateIcon('heroicon-o-plus-circle');
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                InfoSection::make('Información General')
+                    ->schema([
+                        TextEntry::make('code')
+                            ->label('Código')
+                            ->badge()
+                            ->color('gray')
+                            ->copyable()
+                            ->copyMessage('Código copiado'),
+
+                        TextEntry::make('name')
+                            ->label('Nombre'),
+
+                        TextEntry::make('description')
+                            ->label('Descripción')
+                            ->placeholder('Sin descripción')
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
+                InfoSection::make('Configuración de Cálculo')
+                    ->schema([
+                        TextEntry::make('calculation')
+                            ->label('Tipo de Cálculo')
+                            ->badge()
+                            ->formatStateUsing(fn($state) => match ($state) {
+                                'fixed'      => 'Monto Fijo',
+                                'percentage' => 'Porcentaje del Salario',
+                                default      => '-',
+                            })
+                            ->color(fn($state) => match ($state) {
+                                'fixed'      => 'success',
+                                'percentage' => 'warning',
+                                default      => 'gray',
+                            }),
+
+                        TextEntry::make('amount')
+                            ->label('Monto Fijo')
+                            ->money('PYG', locale: 'es_PY')
+                            ->placeholder('-')
+                            ->visible(fn(Perception $record) => $record->calculation === 'fixed'),
+
+                        TextEntry::make('percent')
+                            ->label('Porcentaje')
+                            ->formatStateUsing(fn($state) => $state ? number_format($state, 2) . '%' : '-')
+                            ->visible(fn(Perception $record) => $record->calculation === 'percentage'),
+                    ])
+                    ->columns(2),
+
+                InfoSection::make('Configuración Adicional')
+                    ->schema([
+                        IconEntry::make('is_taxable')
+                            ->label('Gravable')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-check-circle')
+                            ->falseIcon('heroicon-o-x-circle')
+                            ->trueColor('success')
+                            ->falseColor('danger'),
+
+                        IconEntry::make('affects_ips')
+                            ->label('Afecta IPS')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-check-circle')
+                            ->falseIcon('heroicon-o-x-circle')
+                            ->trueColor('success')
+                            ->falseColor('danger'),
+
+                        IconEntry::make('affects_irp')
+                            ->label('Afecta IRP')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-check-circle')
+                            ->falseIcon('heroicon-o-x-circle')
+                            ->trueColor('success')
+                            ->falseColor('danger'),
+
+                        IconEntry::make('is_active')
+                            ->label('Estado')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-check-circle')
+                            ->falseIcon('heroicon-o-x-circle')
+                            ->trueColor('success')
+                            ->falseColor('danger'),
+                    ])
+                    ->columns(4),
+
+                InfoSection::make('Auditoría')
+                    ->schema([
+                        TextEntry::make('created_at')
+                            ->label('Creado')
+                            ->dateTime('d/m/Y H:i'),
+
+                        TextEntry::make('updated_at')
+                            ->label('Última Actualización')
+                            ->dateTime('d/m/Y H:i'),
+                    ])
+                    ->columns(2)
+                    ->collapsed(),
+            ]);
     }
 
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListPerceptions::route('/'),
+            'index'  => Pages\ListPerceptions::route('/'),
             'create' => Pages\CreatePerception::route('/create'),
-            'edit' => Pages\EditPerception::route('/{record}/edit'),
+            'view'   => Pages\ViewPerception::route('/{record}'),
+            'edit'   => Pages\EditPerception::route('/{record}/edit'),
         ];
     }
 }

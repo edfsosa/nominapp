@@ -3,10 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Relations\Pivot;
+use Illuminate\Support\Carbon;
 
 class EmployeeDeduction extends Pivot
 {
     protected $table = 'employee_deductions';
+
+    public $incrementing = true;
 
     protected $fillable = [
         'employee_id',
@@ -15,13 +18,19 @@ class EmployeeDeduction extends Pivot
         'end_date',
         'custom_amount',
         'notes',
+        'deactivated_by_system',
     ];
 
     protected $casts = [
-        'start_date'    => 'date',
-        'end_date'      => 'date',
-        'custom_amount' => 'decimal:2',
+        'start_date'            => 'date',
+        'end_date'              => 'date',
+        'custom_amount'         => 'decimal:2',
+        'deactivated_by_system' => 'boolean',
     ];
+
+    // -------------------------------------------------------------------------
+    // Relaciones
+    // -------------------------------------------------------------------------
 
     public function employee()
     {
@@ -41,26 +50,48 @@ class EmployeeDeduction extends Pivot
         return $this->hasOne(Absent::class);
     }
 
-    public $incrementing = true;
+    // -------------------------------------------------------------------------
+    // Scopes
+    // -------------------------------------------------------------------------
 
     /**
-     * Scope para obtener solo asignaciones activas
+     * Asignaciones activas: ya iniciadas y sin fecha de fin o con fecha de fin futura.
      */
     public function scopeActive($query)
     {
-        return $query->whereNull('end_date');
+        return $query
+            ->where('start_date', '<=', now())
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
-     * Scope para obtener solo asignaciones inactivas
+     * Asignaciones inactivas: con fecha de fin ya vencida.
      */
     public function scopeInactive($query)
     {
-        return $query->whereNotNull('end_date');
+        return $query->whereNotNull('end_date')->where('end_date', '<', now());
     }
 
     /**
-     * Scope para filtrar por empleado
+     * Asignaciones pendientes: aún no han iniciado.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('start_date', '>', now());
+    }
+
+    /**
+     * Asignaciones que estuvieron activas en algún momento dentro del rango dado.
+     */
+    public function scopeForPeriod($query, Carbon $from, Carbon $to)
+    {
+        return $query
+            ->where('start_date', '<=', $to)
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', $from));
+    }
+
+    /**
+     * Scope para filtrar por empleado.
      */
     public function scopeForEmployee($query, $employeeId)
     {
@@ -68,34 +99,53 @@ class EmployeeDeduction extends Pivot
     }
 
     /**
-     * Scope para filtrar por deducción
+     * Scope para filtrar por deducción.
      */
     public function scopeForDeduction($query, $deductionId)
     {
         return $query->where('deduction_id', $deductionId);
     }
 
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
     /**
-     * Verificar si la asignación está activa
+     * Verificar si la asignación está activa: ya inició y sin fecha de fin o con fecha de fin futura.
      */
     public function isActive(): bool
     {
-        return is_null($this->end_date);
+        return $this->start_date->lte(now())
+            && (is_null($this->end_date) || $this->end_date->gte(now()));
     }
 
     /**
-     * Marcar la asignación como inactiva
+     * Verificar si tiene un monto personalizado definido.
      */
-    public function deactivate(): bool
+    public function hasCustomAmount(): bool
     {
-        return $this->update(['end_date' => now()]);
+        return ! is_null($this->custom_amount);
     }
 
     /**
-     * Reactivar una asignación
+     * Marcar la asignación como inactiva estableciendo la fecha de fin.
      */
-    public function reactivate(): bool
+    public function deactivate(Carbon $endDate = null, bool $bySystem = false): bool
     {
-        return $this->update(['end_date' => null]);
+        return $this->update([
+            'end_date'              => $endDate ?? now(),
+            'deactivated_by_system' => $bySystem,
+        ]);
+    }
+
+    /**
+     * Reactivar una asignación con una nueva fecha de inicio y opcionalmente una fecha de fin.
+     */
+    public function reactivate(Carbon $startDate = null, Carbon $endDate = null): bool
+    {
+        return $this->update([
+            'start_date' => $startDate ?? now(),
+            'end_date'   => $endDate,
+        ]);
     }
 }

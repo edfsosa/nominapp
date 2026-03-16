@@ -107,7 +107,7 @@ class EmployeesRelationManager extends RelationManager
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => 'https://ui-avatars.com/api/?name=' . urlencode($record->first_name . ' ' . $record->last_name)),
+                    ->defaultImageUrl(fn($record) => $record->avatar_url),
 
                 TextColumn::make('full_name')
                     ->label('Nombre Completo')

@@ -13,42 +13,40 @@ class DeductionCalculator
         $items = [];
         $total = 0;
 
-        $deductions = $employee->deductions()
-            ->wherePivot('start_date', '<=', $period->end_date)
-            ->where(function ($query) use ($period) {
-                $query->whereNull('end_date')->orWhere('end_date', '>=', $period->start_date);
-            })
+        $assignments = $employee->employeeDeductions()
+            ->forPeriod($period->start_date, $period->end_date)
+            ->with('deduction')
             ->get();
 
-        foreach ($deductions as $deduction) {
-            if (!is_null($deduction->pivot->custom_amount)) {
-                $amount = $deduction->pivot->custom_amount;
-            } elseif ($deduction->calculation === 'percentage') {
-                // Para jornaleros usar daily_rate como base, para tiempo completo usar base_salary
-                $salaryBase = $employee->employment_type === 'day_laborer'
-                    ? $employee->daily_rate
-                    : $employee->base_salary;
+        foreach ($assignments as $assignment) {
+            $deduction    = $assignment->deduction;
+            $customAmount = $assignment->custom_amount;
+            $salaryBase   = 0;
 
-                if (!$salaryBase || $salaryBase <= 0) {
+            if ($customAmount === null && $deduction->isPercentage()) {
+                $salaryBase = $employee->employment_type === 'day_laborer'
+                    ? (int) ($employee->daily_rate ?? 0)
+                    : (int) ($employee->base_salary ?? 0);
+
+                if ($salaryBase <= 0) {
                     Log::warning('DeductionCalculator: porcentaje sobre salario base inválido', [
-                        'employee_id' => $employee->id,
-                        'deduction' => $deduction->name,
-                        'salary_base' => $salaryBase,
+                        'employee_id'     => $employee->id,
+                        'deduction'       => $deduction->name,
+                        'salary_base'     => $salaryBase,
                         'employment_type' => $employee->employment_type,
                     ]);
-                    $amount = 0;
-                } else {
-                    $amount = round($salaryBase * ($deduction->percent / 100), 2);
+
+                    $items[] = ['description' => $deduction->name, 'amount' => 0];
+                    continue;
                 }
-            } else {
-                $amount = $deduction->amount ?? 0;
             }
 
+            $amount = $deduction->calculateAmount($salaryBase, $customAmount);
             $total += $amount;
 
             $items[] = [
                 'description' => $deduction->name,
-                'amount' => $amount,
+                'amount'      => $amount,
             ];
         }
 

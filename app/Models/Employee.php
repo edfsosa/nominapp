@@ -111,7 +111,7 @@ class Employee extends Model
     }
 
     /**
-     * Percepciones aplicadas al empleado
+     * Todas las percepciones asignadas al empleado (historial completo).
      */
     public function perceptions(): BelongsToMany
     {
@@ -122,7 +122,23 @@ class Employee extends Model
     }
 
     /**
-     * Relación con el modelo EmployeeDeduction, un empleado puede tener muchas deducciones
+     * Percepciones activas del empleado: ya iniciadas y sin fecha de fin o con fecha de fin futura.
+     */
+    public function activePerceptions(): BelongsToMany
+    {
+        return $this->belongsToMany(Perception::class, 'employee_perceptions')
+            ->using(EmployeePerception::class)
+            ->withPivot('start_date', 'end_date', 'custom_amount', 'notes')
+            ->withTimestamps()
+            ->wherePivot('start_date', '<=', now())
+            ->where(fn($q) => $q
+                ->whereNull('employee_perceptions.end_date')
+                ->orWhere('employee_perceptions.end_date', '>=', now())
+            );
+    }
+
+    /**
+     * Historial completo de asignaciones de deducciones.
      */
     public function employeeDeductions(): HasMany
     {
@@ -130,11 +146,51 @@ class Employee extends Model
     }
 
     /**
-     * Relación con el modelo EmployeePerception, un empleado puede tener muchas percepciones
+     * Asignaciones de deducciones activas: ya iniciadas y sin fecha de fin o con fecha de fin futura.
+     */
+    public function activeEmployeeDeductions(): HasMany
+    {
+        return $this->hasMany(EmployeeDeduction::class)
+            ->where('start_date', '<=', now())
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+    }
+
+    /**
+     * Asignaciones de deducciones inactivas: con fecha de fin ya vencida.
+     */
+    public function inactiveEmployeeDeductions(): HasMany
+    {
+        return $this->hasMany(EmployeeDeduction::class)
+            ->whereNotNull('end_date')
+            ->where('end_date', '<', now());
+    }
+
+    /**
+     * Historial completo de asignaciones de percepciones.
      */
     public function employeePerceptions(): HasMany
     {
         return $this->hasMany(EmployeePerception::class);
+    }
+
+    /**
+     * Asignaciones de percepciones activas: ya iniciadas y sin fecha de fin o con fecha de fin futura.
+     */
+    public function activeEmployeePerceptions(): HasMany
+    {
+        return $this->hasMany(EmployeePerception::class)
+            ->where('start_date', '<=', now())
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+    }
+
+    /**
+     * Asignaciones de percepciones inactivas: con fecha de fin ya vencida.
+     */
+    public function inactiveEmployeePerceptions(): HasMany
+    {
+        return $this->hasMany(EmployeePerception::class)
+            ->whereNotNull('end_date')
+            ->where('end_date', '<', now());
     }
 
     public function payrolls(): HasMany
@@ -335,6 +391,14 @@ class Employee extends Model
     public function getFullNameAttribute(): string
     {
         return "{$this->first_name} {$this->last_name}";
+    }
+
+    /**
+     * URL del avatar generado automáticamente con las iniciales del empleado
+     */
+    public function getAvatarUrlAttribute(): string
+    {
+        return 'https://ui-avatars.com/api/?name=' . urlencode($this->full_name);
     }
 
     /**
@@ -797,48 +861,66 @@ class Employee extends Model
     }
 
     /**
-     * Asigna todas las deducciones obligatorias activas al empleado
+     * Asigna todas las deducciones obligatorias activas que el empleado aún no tenga.
      *
-     * @return int Cantidad de deducciones asignadas
-     * @throws \Exception Si hay un error al asignar las deducciones
+     * @return int Cantidad de deducciones asignadas (0 si ya las tenía todas)
      */
     public function assignMandatoryDeductions(): int
     {
-        // Obtener todas las deducciones obligatorias y activas
-        $mandatoryDeductions = Deduction::where('is_mandatory', true)
+        $mandatoryIds = Deduction::where('is_mandatory', true)
             ->where('is_active', true)
-            ->get();
+            ->pluck('id');
 
-        if ($mandatoryDeductions->isEmpty()) {
-            throw new \Exception('No hay deducciones obligatorias activas disponibles.');
+        if ($mandatoryIds->isEmpty()) {
+            return 0;
         }
 
-        // Obtener los IDs de las deducciones ya asignadas al empleado
-        $existingDeductionIds = $this->employeeDeductions()
-            ->whereNull('end_date')
-            ->pluck('deduction_id')
-            ->toArray();
+        $alreadyActiveIds = $this->employeeDeductions()
+            ->whereIn('deduction_id', $mandatoryIds)
+            ->where('start_date', '<=', now())
+            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+            ->pluck('deduction_id');
 
-        $assignedCount = 0;
+        $toAssignIds = $mandatoryIds->diff($alreadyActiveIds);
 
-        // Asignar solo las deducciones que no están ya asignadas
-        foreach ($mandatoryDeductions as $deduction) {
-            if (!in_array($deduction->id, $existingDeductionIds)) {
-                $this->employeeDeductions()->create([
-                    'deduction_id' => $deduction->id,
-                    'start_date' => now(),
-                    'end_date' => null,
+        if ($toAssignIds->isEmpty()) {
+            return 0;
+        }
+
+        $now   = now();
+        $today = $now->toDateString();
+
+        // Reactivar registros que ya tienen start_date=hoy (evita violar el unique key)
+        $reactivateIds = $this->employeeDeductions()
+            ->whereIn('deduction_id', $toAssignIds)
+            ->whereDate('start_date', $today)
+            ->pluck('deduction_id');
+
+        if ($reactivateIds->isNotEmpty()) {
+            $this->employeeDeductions()
+                ->whereIn('deduction_id', $reactivateIds)
+                ->whereDate('start_date', $today)
+                ->update(['end_date' => null, 'updated_at' => $now]);
+        }
+
+        // Insertar solo los que realmente no tienen registro hoy
+        $newIds = $toAssignIds->diff($reactivateIds);
+
+        if ($newIds->isNotEmpty()) {
+            $this->employeeDeductions()->insert(
+                $newIds->map(fn($id) => [
+                    'employee_id'   => $this->id,
+                    'deduction_id'  => $id,
+                    'start_date'    => $today,
+                    'end_date'      => null,
                     'custom_amount' => null,
-                    'notes' => 'Deducción obligatoria asignada automáticamente',
-                ]);
-                $assignedCount++;
-            }
+                    'notes'         => 'Deducción obligatoria asignada automáticamente',
+                    'created_at'    => $now,
+                    'updated_at'    => $now,
+                ])->values()->toArray()
+            );
         }
 
-        if ($assignedCount === 0) {
-            throw new \Exception('Todas las deducciones obligatorias ya están asignadas al empleado.');
-        }
-
-        return $assignedCount;
+        return $toAssignIds->count();
     }
 }
