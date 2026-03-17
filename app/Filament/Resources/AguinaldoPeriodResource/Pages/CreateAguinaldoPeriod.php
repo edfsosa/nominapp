@@ -9,8 +9,26 @@ class CreateAguinaldoPeriod extends CreateRecord
 {
     protected static string $resource = AguinaldoPeriodResource::class;
 
-    protected function getRedirectUrl(): string
+    /**
+     * Muta los datos del formulario antes de crear el registro.
+     *
+     * @param array $data
+     * @return array
+     */
+    protected function mutateFormDataBeforeCreate(array $data): array
     {
-        return $this->getResource()::getUrl('index');
+        $data['status'] = 'draft';
+
+        return $data;
+    }
+
+    /**
+     * Obtiene el título de la notificación que se mostrará después de crear el registro.
+     *
+     * @return string|null
+     */
+    protected function getCreatedNotificationTitle(): ?string
+    {
+        return 'Período de aguinaldo creado exitosamente';
     }
 }

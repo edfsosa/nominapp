@@ -271,11 +271,11 @@
             </div>
             <div class="info-row">
                 <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $aguinaldo->employee->position->name ?? 'N/A' }}</div>
+                <div class="info-value">{{ $aguinaldo->employee->activeContract?->position?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $aguinaldo->employee->position->department->name ?? 'N/A' }}</div>
+                <div class="info-value">{{ $aguinaldo->employee->activeContract?->position?->department?->name ?? 'N/A' }}</div>
             </div>
             <div class="info-row">
                 <div class="info-label">Meses Trabajados:</div>

@@ -20,7 +20,7 @@ class AguinaldoItem extends Model
         'base_salary' => 'decimal:2',
         'perceptions' => 'decimal:2',
         'extra_hours' => 'decimal:2',
-        'total' => 'decimal:2',
+        'total'       => 'decimal:2',
     ];
 
     public function aguinaldo(): BelongsTo
@@ -28,35 +28,23 @@ class AguinaldoItem extends Model
         return $this->belongsTo(Aguinaldo::class);
     }
 
-    /**
-     * Formatea un monto en guaraníes paraguayos
-     */
-    public static function formatCurrency(float|int|null $amount): string
-    {
-        if ($amount === null) {
-            return 'Gs. 0';
-        }
-
-        return 'Gs. ' . number_format($amount, 0, ',', '.');
-    }
-
     public function getFormattedBaseSalaryAttribute(): string
     {
-        return self::formatCurrency($this->base_salary);
+        return Aguinaldo::formatCurrency($this->base_salary);
     }
 
     public function getFormattedPerceptionsAttribute(): string
     {
-        return self::formatCurrency($this->perceptions);
+        return Aguinaldo::formatCurrency($this->perceptions);
     }
 
     public function getFormattedExtraHoursAttribute(): string
     {
-        return self::formatCurrency($this->extra_hours);
+        return Aguinaldo::formatCurrency($this->extra_hours);
     }
 
     public function getFormattedTotalAttribute(): string
     {
-        return self::formatCurrency($this->total);
+        return Aguinaldo::formatCurrency($this->total);
     }
 }

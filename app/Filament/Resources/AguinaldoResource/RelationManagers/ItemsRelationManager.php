@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\AguinaldoResource\RelationManagers;
 
-use App\Models\AguinaldoItem;
+use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
@@ -14,6 +14,11 @@ class ItemsRelationManager extends RelationManager
     protected static ?string $title = 'Desglose Mensual';
     protected static ?string $modelLabel = 'mes';
     protected static ?string $pluralModelLabel = 'meses';
+
+    public function form(Form $form): Form
+    {
+        return $form->schema([]);
+    }
 
     public function table(Table $table): Table
     {
@@ -63,6 +68,7 @@ class ItemsRelationManager extends RelationManager
                             ->label('Total Anual'),
                     ]),
             ])
+            ->defaultSort('id')
             ->paginated(false)
             ->emptyStateHeading('Sin desglose mensual')
             ->emptyStateDescription('No hay datos de desglose mensual para este aguinaldo.')

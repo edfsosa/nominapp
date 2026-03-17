@@ -7,6 +7,7 @@ use App\Models\AguinaldoItem;
 use App\Models\AguinaldoPeriod;
 use App\Models\Employee;
 use App\Models\Payroll;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -19,114 +20,170 @@ class AguinaldoService
         $this->pdfGenerator = $pdfGenerator;
     }
 
+    /**
+     * Genera aguinaldos para todos los empleados del período que aún no los tienen.
+     * Retorna el número de aguinaldos generados exitosamente.
+     */
     public function generateForPeriod(AguinaldoPeriod $period): int
     {
         $count = 0;
         $year = $period->year;
         $companyId = $period->company_id;
 
-        // Obtener empleados activos de la empresa (a través de sucursal)
+        // Pre-fetch de employee_ids que ya tienen aguinaldo — evita N+1 en el check de duplicados
+        $existingEmployeeIds = Aguinaldo::where('aguinaldo_period_id', $period->id)
+            ->pluck('employee_id')
+            ->flip(); // para O(1) lookup con isset()
+
         $employees = Employee::query()
             ->whereHas('branch', fn($q) => $q->where('company_id', $companyId))
             ->whereIn('status', ['active', 'suspended'])
             ->get();
 
         foreach ($employees as $employee) {
-            // Evitar duplicados
-            if (Aguinaldo::where('aguinaldo_period_id', $period->id)
-                ->where('employee_id', $employee->id)
-                ->exists()
-            ) {
+            if (isset($existingEmployeeIds[$employee->id])) {
                 continue;
             }
 
-            // Obtener payrolls del empleado en el año
             $payrolls = Payroll::with(['period', 'items'])
-                ->where('employee_id', $employee->id)
-                ->whereHas('period', function ($query) use ($year) {
-                    $query->whereYear('start_date', $year);
-                })
-                ->orderBy('created_at')
+                ->join('payroll_periods', 'payrolls.payroll_period_id', '=', 'payroll_periods.id')
+                ->where('payrolls.employee_id', $employee->id)
+                ->whereYear('payroll_periods.start_date', $year)
+                ->orderBy('payroll_periods.start_date')
+                ->select('payrolls.*')
                 ->get();
 
-            // Si no tiene payrolls en el año, saltar
             if ($payrolls->isEmpty()) {
                 continue;
             }
 
-            DB::beginTransaction();
+            $aguinaldo = null;
 
             try {
-                $totalEarned = 0;
-                $items = [];
+                $aguinaldo = DB::transaction(function () use ($period, $employee, $payrolls) {
+                    $now = now();
+                    ['total' => $totalEarned, 'items' => $itemsData] = $this->calculateItemsFromPayrolls($payrolls);
 
-                foreach ($payrolls as $payroll) {
-                    // Obtener horas extras del desglose (si existe)
-                    $extraHoursAmount = $payroll->items
-                        ->where('type', 'perception')
-                        ->filter(fn($item) => str_contains(strtolower($item->description), 'hora'))
-                        ->sum('amount');
-
-                    // Percepciones sin horas extras
-                    $perceptionsWithoutExtras = $payroll->total_perceptions - $extraHoursAmount;
-
-                    // Total del mes (base + percepciones que ya incluye horas extras)
-                    $monthTotal = $payroll->base_salary + $payroll->total_perceptions;
-                    $totalEarned += $monthTotal;
-
-                    // Obtener nombre del mes en español
-                    $monthName = $payroll->period->start_date->translatedFormat('F');
-
-                    $items[] = [
-                        'month' => ucfirst($monthName),
-                        'base_salary' => $payroll->base_salary,
-                        'perceptions' => $perceptionsWithoutExtras,
-                        'extra_hours' => $extraHoursAmount,
-                        'total' => $monthTotal,
-                    ];
-                }
-
-                // Calcular meses trabajados y aguinaldo
-                $monthsWorked = count($payrolls);
-                $aguinaldoAmount = round($totalEarned / 12, 2);
-
-                // Crear aguinaldo
-                $aguinaldo = Aguinaldo::create([
-                    'aguinaldo_period_id' => $period->id,
-                    'employee_id' => $employee->id,
-                    'total_earned' => $totalEarned,
-                    'months_worked' => $monthsWorked,
-                    'aguinaldo_amount' => $aguinaldoAmount,
-                    'generated_at' => now(),
-                ]);
-
-                // Crear items (desglose mensual)
-                foreach ($items as $item) {
-                    AguinaldoItem::create([
-                        'aguinaldo_id' => $aguinaldo->id,
-                        'month' => $item['month'],
-                        'base_salary' => $item['base_salary'],
-                        'perceptions' => $item['perceptions'],
-                        'extra_hours' => $item['extra_hours'],
-                        'total' => $item['total'],
+                    $aguinaldo = Aguinaldo::create([
+                        'aguinaldo_period_id' => $period->id,
+                        'employee_id'         => $employee->id,
+                        'total_earned'        => $totalEarned,
+                        'months_worked'       => count($payrolls),
+                        'aguinaldo_amount'    => round($totalEarned / 12, 2),
+                        'status'              => 'pending',
+                        'generated_at'        => $now,
                     ]);
-                }
 
-                // Generar PDF
-                $pdfPath = $this->pdfGenerator->generate($aguinaldo);
+                    AguinaldoItem::insert(
+                        array_map(fn($item) => array_merge($item, [
+                            'aguinaldo_id' => $aguinaldo->id,
+                            'created_at'   => $now,
+                            'updated_at'   => $now,
+                        ]), $itemsData)
+                    );
+
+                    return $aguinaldo;
+                });
+
+                // PDF generado FUERA de la transacción para evitar mezclar I/O con DB
+                $pdfPath = $this->pdfGenerator->generate($aguinaldo->load('items'));
                 $aguinaldo->update(['pdf_path' => $pdfPath]);
 
-                DB::commit();
                 $count++;
             } catch (\Throwable $e) {
-                DB::rollBack();
-                Log::error('Error al generar aguinaldo: ' . $e->getMessage(), [
+                Log::error('Error al generar aguinaldo', [
                     'employee_id' => $employee->id,
-                    'period_id' => $period->id,
+                    'period_id'   => $period->id,
+                    'error'       => $e->getMessage(),
                 ]);
             }
         }
 
         return $count;
+    }
+
+    /**
+     * Regenera el aguinaldo de un empleado: recalcula montos, reemplaza items y regenera el PDF.
+     */
+    public function regenerateForEmployee(Aguinaldo $aguinaldo): void
+    {
+        $period = $aguinaldo->period;
+        $employee = $aguinaldo->employee;
+        $year = $period->year;
+
+        $payrolls = Payroll::with(['period', 'items'])
+            ->join('payroll_periods', 'payrolls.payroll_period_id', '=', 'payroll_periods.id')
+            ->where('payrolls.employee_id', $employee->id)
+            ->whereYear('payroll_periods.start_date', $year)
+            ->orderBy('payroll_periods.start_date')
+            ->select('payrolls.*')
+            ->get();
+
+        if ($payrolls->isEmpty()) {
+            throw new \RuntimeException("El empleado no tiene nóminas en {$year}.");
+        }
+
+        DB::transaction(function () use ($aguinaldo, $payrolls) {
+            $now = now();
+            ['total' => $totalEarned, 'items' => $itemsData] = $this->calculateItemsFromPayrolls($payrolls);
+
+            $aguinaldo->items()->delete();
+            AguinaldoItem::insert(
+                array_map(fn($item) => array_merge($item, [
+                    'aguinaldo_id' => $aguinaldo->id,
+                    'created_at'   => $now,
+                    'updated_at'   => $now,
+                ]), $itemsData)
+            );
+
+            $aguinaldo->update([
+                'total_earned'     => $totalEarned,
+                'months_worked'    => count($payrolls),
+                'aguinaldo_amount' => round($totalEarned / 12, 2),
+                'generated_at'     => $now,
+            ]);
+        });
+
+        // Regenerar PDF fuera de la transacción
+        try {
+            $pdfPath = $this->pdfGenerator->generate($aguinaldo->load('items'));
+            $aguinaldo->update(['pdf_path' => $pdfPath]);
+        } catch (\Throwable $e) {
+            Log::warning('PDF no regenerado tras recálculo de aguinaldo', [
+                'aguinaldo_id' => $aguinaldo->id,
+                'error'        => $e->getMessage(),
+            ]);
+        }
+    }
+
+    /**
+     * Calcula los ítems mensuales y el total devengado a partir de las nóminas.
+     * Retorna ['total' => float, 'items' => array].
+     */
+    private function calculateItemsFromPayrolls(Collection $payrolls): array
+    {
+        $totalEarned = 0;
+        $items = [];
+
+        foreach ($payrolls as $payroll) {
+            $extraHoursAmount = $payroll->items
+                ->where('type', 'perception')
+                ->filter(fn($item) => str_contains(strtolower($item->description), 'hora'))
+                ->sum('amount');
+
+            $perceptionsWithoutExtras = $payroll->total_perceptions - $extraHoursAmount;
+            $monthTotal = $payroll->base_salary + $payroll->total_perceptions;
+            $totalEarned += $monthTotal;
+
+            $items[] = [
+                'month'       => ucfirst($payroll->period->start_date->translatedFormat('F')),
+                'base_salary' => $payroll->base_salary,
+                'perceptions' => $perceptionsWithoutExtras,
+                'extra_hours' => $extraHoursAmount,
+                'total'       => $monthTotal,
+            ];
+        }
+
+        return ['total' => $totalEarned, 'items' => $items];
     }
 }

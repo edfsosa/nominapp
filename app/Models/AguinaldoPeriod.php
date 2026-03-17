@@ -17,9 +17,13 @@ class AguinaldoPeriod extends Model
     ];
 
     protected $casts = [
-        'year' => 'integer',
+        'year'      => 'integer',
         'closed_at' => 'datetime',
     ];
+
+    // =========================================================================
+    // RELACIONES
+    // =========================================================================
 
     public function company(): BelongsTo
     {
@@ -31,10 +35,85 @@ class AguinaldoPeriod extends Model
         return $this->hasMany(Aguinaldo::class);
     }
 
+    // =========================================================================
+    // HELPERS ESTÁTICOS PARA ESTADOS
+    // =========================================================================
+
+    public static function getStatusOptions(): array
+    {
+        return [
+            'draft'      => 'Borrador',
+            'processing' => 'En Proceso',
+            'closed'     => 'Cerrado',
+        ];
+    }
+
+    public static function getStatusLabel(string $status): string
+    {
+        return self::getStatusOptions()[$status] ?? $status;
+    }
+
+    public static function getStatusColor(string $status): string
+    {
+        return match ($status) {
+            'draft'      => 'gray',
+            'processing' => 'warning',
+            'closed'     => 'success',
+            default      => 'primary',
+        };
+    }
+
+    public static function getStatusIcon(string $status): string
+    {
+        return match ($status) {
+            'draft'      => 'heroicon-o-pencil',
+            'processing' => 'heroicon-o-cog-6-tooth',
+            'closed'     => 'heroicon-o-lock-closed',
+            default      => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    // =========================================================================
+    // VERIFICADORES DE ESTADO
+    // =========================================================================
+
+    public function isDraft(): bool
+    {
+        return $this->status === 'draft';
+    }
+
+    public function isProcessing(): bool
+    {
+        return $this->status === 'processing';
+    }
+
+    public function isClosed(): bool
+    {
+        return $this->status === 'closed';
+    }
+
+    // =========================================================================
+    // ATRIBUTOS COMPUTADOS
+    // =========================================================================
+
     public function getNameAttribute(): string
     {
         return "Aguinaldo {$this->year} - {$this->company?->name}";
     }
+
+    public function getStatusLabelAttribute(): string
+    {
+        return self::getStatusLabel($this->status);
+    }
+
+    public function getPendingAguinaldosCountAttribute(): int
+    {
+        return $this->aguinaldos()->where('status', 'pending')->count();
+    }
+
+    // =========================================================================
+    // SCOPES
+    // =========================================================================
 
     public function scopeOfYear($query, int $year)
     {

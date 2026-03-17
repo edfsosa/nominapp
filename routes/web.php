@@ -106,10 +106,7 @@ Route::middleware(['auth'])->group(function () {
         ->where('filename', '.+');
 
     // Recibos de aguinaldo (13° salario)
-    Route::prefix('aguinaldos/{aguinaldo}')->name('aguinaldos.')->group(function () {
-        Route::get('/download', [AguinaldoController::class, 'download'])->name('download');
-        Route::get('/view', [AguinaldoController::class, 'view'])->name('view');
-    });
+    Route::get('/aguinaldos/{aguinaldo}/download', [AguinaldoController::class, 'download'])->name('aguinaldos.download');
 
     // Liquidaciones (finiquitos)
     Route::prefix('liquidaciones/{liquidacion}')->name('liquidaciones.')->group(function () {

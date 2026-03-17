@@ -7,12 +7,11 @@ use App\Filament\Resources\AguinaldoPeriodResource\RelationManagers\AguinaldosRe
 use App\Models\AguinaldoPeriod;
 use App\Models\Company;
 use App\Services\AguinaldoService;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -20,129 +19,119 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Validation\Rule;
 
 class AguinaldoPeriodResource extends Resource
 {
     protected static ?string $model = AguinaldoPeriod::class;
     protected static ?string $navigationGroup = 'Nóminas';
-    protected static ?string $navigationLabel = 'Aguinaldos';
+    protected static ?string $navigationLabel = 'Períodos de Aguinaldo';
     protected static ?string $label = 'Período de Aguinaldo';
     protected static ?string $pluralLabel = 'Períodos de Aguinaldo';
     protected static ?string $slug = 'aguinaldo-periodos';
-    protected static ?string $navigationIcon = 'heroicon-o-gift';
+    protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?int $navigationSort = 6;
 
+    /**
+     * Define el formulario para crear o editar un período de aguinaldo, con campos para seleccionar la empresa, el año y agregar notas, incluyendo validaciones personalizadas.
+     *
+     * @param Form $form
+     * @return Form
+     */
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Section::make('Información del Período')
-                    ->schema([
-                        Select::make('company_id')
-                            ->label('Empresa')
-                            ->relationship('company', 'name', fn($query) => $query->active())
-                            ->getOptionLabelFromRecordUsing(fn(Company $record) =>
-                                $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
-                            )
-                            ->searchable()
-                            ->preload()
-                            ->required()
-                            ->native(false)
-                            ->columnSpan(1),
+                Select::make('company_id')
+                    ->label('Empresa')
+                    ->relationship('company', 'name', fn($query) => $query->active())
+                    ->getOptionLabelFromRecordUsing(
+                        fn(Company $record) =>
+                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                    )
+                    ->searchable()
+                    ->preload()
+                    ->required()
+                    ->native(false)
+                    ->helperText('Selecciona la empresa para este período de aguinaldo'),
 
-                        TextInput::make('year')
-                            ->label('Año')
-                            ->numeric()
-                            ->minValue(2000)
-                            ->maxValue(2100)
-                            ->default(now()->year)
-                            ->required()
-                            ->columnSpan(1),
+                TextInput::make('year')
+                    ->label('Año')
+                    ->numeric()
+                    ->minValue(2000)
+                    ->maxValue(2100)
+                    ->default(now()->year)
+                    ->required()
+                    ->rules(fn(Get $get, ?AguinaldoPeriod $record): array => [
+                        Rule::unique('aguinaldo_periods', 'year')
+                            ->where('company_id', $get('company_id'))
+                            ->ignore($record?->id),
                     ])
-                    ->columns(2),
-
-                Section::make('Estado y Notas')
-                    ->schema([
-                        Select::make('status')
-                            ->label('Estado')
-                            ->options([
-                                'draft'      => 'Borrador',
-                                'processing' => 'En Proceso',
-                                'closed'     => 'Cerrado',
-                            ])
-                            ->native(false)
-                            ->default('draft')
-                            ->required()
-                            ->columnSpan(1),
-
-                        DateTimePicker::make('closed_at')
-                            ->label('Fecha de Cierre')
-                            ->displayFormat('d/m/Y H:i')
-                            ->native(false)
-                            ->disabled()
-                            ->helperText('Se establece automáticamente al cerrar el período')
-                            ->columnSpan(1),
-
-                        Textarea::make('notes')
-                            ->label('Notas')
-                            ->placeholder('Observaciones o comentarios sobre este período de aguinaldo')
-                            ->rows(3)
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
+                    ->validationMessages([
+                        'unique' => 'Ya existe un período de aguinaldo para esta empresa y año.',
                     ])
-                    ->columns(2),
-            ]);
+                    ->helperText('El año para el cual se generarán los aguinaldos'),
+
+
+                Textarea::make('notes')
+                    ->label('Notas')
+                    ->placeholder('Observaciones o comentarios sobre este período de aguinaldo')
+                    ->rows(3)
+                    ->maxLength(65535)
+                    ->columnSpanFull(),
+            ])
+            ->columns(2);
     }
 
+    /**
+     * Define la tabla para listar los períodos de aguinaldo, con columnas, filtros y acciones personalizadas.
+     *
+     * @param Table $table
+     * @return Table
+     */
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
                 TextColumn::make('company.name')
                     ->label('Empresa')
-                    ->searchable()
-                    ->sortable()
-                    ->weight('bold')
                     ->icon('heroicon-o-building-office')
-                    ->iconColor('primary'),
+                    ->iconColor('primary')
+                    ->searchable()
+                    ->sortable(),
 
                 TextColumn::make('year')
                     ->label('Año')
-                    ->sortable()
                     ->badge()
-                    ->color('info'),
+                    ->color('info')
+                    ->searchable()
+                    ->sortable(),
 
                 TextColumn::make('aguinaldos_count')
-                    ->label('Aguinaldos')
+                    ->label('Generados')
                     ->counts('aguinaldos')
                     ->alignCenter()
                     ->badge()
                     ->color('success')
                     ->sortable(),
 
+                TextColumn::make('aguinaldos_paid_count')
+                    ->label('Pagados')
+                    ->counts(['aguinaldos as aguinaldos_paid_count' => fn($q) => $q->where('status', 'paid')])
+                    ->alignCenter()
+                    ->badge()
+                    ->color('info')
+                    ->sortable(),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'draft'      => 'gray',
-                        'processing' => 'warning',
-                        'closed'     => 'success',
-                        default      => 'primary',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'draft'      => 'Borrador',
-                        'processing' => 'En Proceso',
-                        'closed'     => 'Cerrado',
-                        default      => $state,
-                    })
+                    ->formatStateUsing(fn(string $state) => AguinaldoPeriod::getStatusLabel($state))
+                    ->color(fn(string $state) => AguinaldoPeriod::getStatusColor($state))
+                    ->icon(fn(string $state) => AguinaldoPeriod::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('closed_at')
@@ -167,20 +156,12 @@ class AguinaldoPeriodResource extends Resource
                 SelectFilter::make('company_id')
                     ->label('Empresa')
                     ->relationship('company', 'name', fn($query) => $query->active())
-                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                    ->getOptionLabelFromRecordUsing(
+                        fn(Company $record) =>
                         $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
                     )
                     ->searchable()
                     ->preload()
-                    ->native(false),
-
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'draft'      => 'Borrador',
-                        'processing' => 'En Proceso',
-                        'closed'     => 'Cerrado',
-                    ])
                     ->native(false),
 
                 SelectFilter::make('year')
@@ -195,103 +176,49 @@ class AguinaldoPeriodResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                ViewAction::make(),
-
                 Action::make('generate_aguinaldos')
-                    ->label('Generar Aguinaldos')
+                    ->label('Generar')
                     ->icon('heroicon-o-document-plus')
                     ->color('success')
                     ->requiresConfirmation()
-                    ->modalHeading('Generar Aguinaldos')
+                    ->modalHeading('¿Generar los aguinaldos?')
                     ->modalDescription(
-                        fn(AguinaldoPeriod $record) =>
-                        "¿Está seguro de generar los aguinaldos para {$record->company->name} - {$record->year}? " .
-                            "Esta acción creará aguinaldos para todos los empleados que hayan tenido nóminas en el año."
+                        fn(AguinaldoPeriod $record) => "Esta acción generará los aguinaldos correspondientes al período de {$record->year} para la empresa {$record->company->name}. Si ya existen aguinaldos generados para este período, no se generarán duplicados."
                     )
+                    ->modalSubmitActionLabel('Sí, generar')
                     ->action(function (AguinaldoPeriod $record, AguinaldoService $aguinaldoService) {
                         $count = $aguinaldoService->generateForPeriod($record);
 
                         if ($count > 0) {
-                            $record->update([
-                                'status' => 'processing',
-                            ]);
+                            $record->update(['status' => 'processing']);
 
                             Notification::make()
                                 ->success()
                                 ->title('Aguinaldos generados')
-                                ->body("Se generaron exitosamente {$count} aguinaldos.")
+                                ->body("Se generaron exitosamente {$count} aguinaldos para el período {$record->year} de {$record->company->name}.")
                                 ->send();
                         } else {
                             Notification::make()
                                 ->warning()
                                 ->title('No se generaron aguinaldos')
-                                ->body('Es posible que ya hayan sido generados o que no haya nóminas para el año seleccionado.')
+                                ->body("Ya fueron generados o no hay nóminas para el período {$record->year} de {$record->company->name}.")
                                 ->send();
                         }
                     })
-                    ->visible(fn(AguinaldoPeriod $record) => $record->status === 'draft'),
-
-                Action::make('close_period')
-                    ->label('Cerrar Período')
-                    ->icon('heroicon-o-lock-closed')
-                    ->color('danger')
-                    ->requiresConfirmation()
-                    ->modalHeading('Cerrar Período de Aguinaldo')
-                    ->modalDescription(
-                        fn(AguinaldoPeriod $record) =>
-                        "¿Está seguro de cerrar el período de aguinaldo {$record->company->name} - {$record->year}? " .
-                            "Una vez cerrado, no se podrán generar más aguinaldos para este período."
-                    )
-                    ->action(function (AguinaldoPeriod $record) {
-                        $record->update([
-                            'status' => 'closed',
-                            'closed_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Período cerrado')
-                            ->body("El período de aguinaldo {$record->year} ha sido cerrado exitosamente.")
-                            ->send();
-                    })
-                    ->visible(fn(AguinaldoPeriod $record) => $record->status === 'processing'),
-
-                EditAction::make(),
-                DeleteAction::make()
-                    ->visible(fn(AguinaldoPeriod $record) => $record->status === 'draft'),
-            ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make()
-                        ->action(function ($records) {
-                            $deleted = 0;
-                            foreach ($records as $record) {
-                                if ($record->status === 'draft') {
-                                    $record->delete();
-                                    $deleted++;
-                                }
-                            }
-
-                            if ($deleted > 0) {
-                                Notification::make()
-                                    ->success()
-                                    ->title("Se eliminaron {$deleted} períodos en borrador")
-                                    ->send();
-                            } else {
-                                Notification::make()
-                                    ->warning()
-                                    ->title('Solo se pueden eliminar períodos en borrador')
-                                    ->send();
-                            }
-                        }),
-                ]),
+                    ->visible(fn(AguinaldoPeriod $record) => $record->isDraft()),
             ])
             ->defaultSort('year', 'desc')
             ->emptyStateHeading('No hay períodos de aguinaldo registrados')
             ->emptyStateDescription('Comienza creando un período de aguinaldo para generar los recibos del 13° salario.')
-            ->emptyStateIcon('heroicon-o-gift');
+            ->emptyStateIcon('heroicon-o-rectangle-stack');
     }
 
+    /**
+     * Define la infolist para mostrar los detalles de un período de aguinaldo, incluyendo información general, estado, resumen y datos del sistema.
+     *
+     * @param Infolist $infolist
+     * @return Infolist
+     */
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -316,18 +243,9 @@ class AguinaldoPeriodResource extends Resource
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
-                                    'draft'      => 'gray',
-                                    'processing' => 'warning',
-                                    'closed'     => 'success',
-                                    default      => 'primary',
-                                })
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'draft'      => 'Borrador',
-                                    'processing' => 'En Proceso',
-                                    'closed'     => 'Cerrado',
-                                    default      => $state,
-                                }),
+                                ->formatStateUsing(fn(string $state) => AguinaldoPeriod::getStatusLabel($state))
+                                ->color(fn(string $state) => AguinaldoPeriod::getStatusColor($state))
+                                ->icon(fn(string $state) => AguinaldoPeriod::getStatusIcon($state)),
 
                             TextEntry::make('closed_at')
                                 ->label('Fecha de Cierre')
@@ -346,17 +264,23 @@ class AguinaldoPeriodResource extends Resource
                     ->schema([
                         Group::make([
                             TextEntry::make('aguinaldos_count')
-                                ->label('Total de Aguinaldos')
+                                ->label('Total Generados')
                                 ->state(fn(AguinaldoPeriod $record) => $record->aguinaldos()->count())
                                 ->badge()
                                 ->color('success'),
+
+                            TextEntry::make('aguinaldos_pending_count')
+                                ->label('Pendientes de Pago')
+                                ->state(fn(AguinaldoPeriod $record) => $record->pending_aguinaldos_count)
+                                ->badge()
+                                ->color('warning'),
 
                             TextEntry::make('total_amount')
                                 ->label('Monto Total')
                                 ->state(fn(AguinaldoPeriod $record) => 'Gs. ' . number_format($record->aguinaldos()->sum('aguinaldo_amount'), 0, ',', '.'))
                                 ->weight('bold')
                                 ->color('success'),
-                        ])->columns(2),
+                        ])->columns(3),
                     ]),
 
                 InfolistSection::make('Información del Sistema')
@@ -375,6 +299,11 @@ class AguinaldoPeriodResource extends Resource
             ]);
     }
 
+    /**
+     * Define las relaciones para el recurso, en este caso la relación con los aguinaldos generados para cada período.
+     *
+     * @return array
+     */
     public static function getRelations(): array
     {
         return [
@@ -382,13 +311,18 @@ class AguinaldoPeriodResource extends Resource
         ];
     }
 
+    /**
+     * Define las páginas para el recurso, incluyendo la página de listado, creación, visualización y edición de períodos de aguinaldo.
+     *
+     * @return array
+     */
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListAguinaldoPeriods::route('/'),
+            'index'  => Pages\ListAguinaldoPeriods::route('/'),
             'create' => Pages\CreateAguinaldoPeriod::route('/create'),
-            'view' => Pages\ViewAguinaldoPeriod::route('/{record}'),
-            'edit' => Pages\EditAguinaldoPeriod::route('/{record}/edit'),
+            'view'   => Pages\ViewAguinaldoPeriod::route('/{record}'),
+            'edit'   => Pages\EditAguinaldoPeriod::route('/{record}/edit'),
         ];
     }
 }

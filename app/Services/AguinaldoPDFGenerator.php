@@ -6,6 +6,7 @@ use App\Models\Aguinaldo;
 use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class AguinaldoPDFGenerator
 {
@@ -33,7 +34,12 @@ class AguinaldoPDFGenerator
         ])->setPaper('A4');
 
         $employee = $aguinaldo->employee;
-        $fileName = 'aguinaldos/aguinaldo_' . $aguinaldo->id . '-' . str_replace(' ', '_', $employee->full_name) . '.pdf';
+        $fileName = 'aguinaldos/aguinaldo_' . $aguinaldo->period->year . '_' . $aguinaldo->id . '-' . Str::slug($employee->full_name) . '.pdf';
+
+        // Eliminar PDF anterior si el nombre cambió (ej. cambio de nombre del empleado)
+        if ($aguinaldo->pdf_path && $aguinaldo->pdf_path !== $fileName) {
+            Storage::disk('public')->delete($aguinaldo->pdf_path);
+        }
 
         Storage::disk('public')->put($fileName, $pdf->output());
 
