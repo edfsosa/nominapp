@@ -205,11 +205,11 @@ class Employee extends Model
     }
 
     /**
-     * Relación con el modelo Absent, un empleado puede tener muchas ausencias
+     * Relación con el modelo Absence, un empleado puede tener muchas ausencias
      */
-    public function absents(): HasMany
+    public function absences(): HasMany
     {
-        return $this->hasMany(Absent::class);
+        return $this->hasMany(Absence::class);
     }
 
     /**

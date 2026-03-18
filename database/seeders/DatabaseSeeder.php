@@ -72,7 +72,7 @@ class DatabaseSeeder extends Seeder
             'employee_vacation_balances',
             'vacations',
             'employee_leaves',
-            'absents',
+            'absences',
             'attendance_events',
             'attendance_days',
             'payroll_items',

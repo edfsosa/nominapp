@@ -2,7 +2,7 @@
 
 namespace App\Observers;
 
-use App\Models\Absent;
+use App\Models\Absence;
 use App\Models\AttendanceDay;
 use Illuminate\Support\Facades\Log;
 
@@ -13,7 +13,7 @@ class AttendanceDayObserver
      */
     public function created(AttendanceDay $day): void
     {
-        $this->createAbsentIfNeeded($day);
+        $this->createAbsenceIfNeeded($day);
     }
 
     /**
@@ -29,20 +29,20 @@ class AttendanceDayObserver
     /**
      * Crea un registro de Absent si el día tiene status='absent' y no existe uno asociado
      */
-    private function createAbsentIfNeeded(AttendanceDay $day): void
+    private function createAbsenceIfNeeded(AttendanceDay $day): void
     {
         if ($day->status !== 'absent') {
             return;
         }
 
         // Verificar que no exista ya un Absent para este día
-        $existingAbsent = Absent::where('attendance_day_id', $day->id)->first();
+        $existingAbsence = Absence::where('attendance_day_id', $day->id)->first();
 
-        if ($existingAbsent) {
+        if ($existingAbsence) {
             return;
         }
 
-        $absent = Absent::create([
+        $absent = Absence::create([
             'employee_id' => $day->employee_id,
             'attendance_day_id' => $day->id,
             'status' => 'pending',
@@ -68,13 +68,13 @@ class AttendanceDayObserver
 
         // Si cambia A 'absent' → crear Absent si no existe
         if ($newStatus === 'absent') {
-            $this->createAbsentIfNeeded($day);
+            $this->createAbsenceIfNeeded($day);
             return;
         }
 
         // Si cambia DE 'absent' a otro estado → eliminar Absent si está pendiente
         if ($oldStatus === 'absent' && $newStatus !== 'absent') {
-            $absent = Absent::where('attendance_day_id', $day->id)->first();
+            $absent = Absence::where('attendance_day_id', $day->id)->first();
 
             if ($absent && $absent->isPending()) {
                 Log::info('Ausencia pendiente eliminada por cambio de estado', [

@@ -1,15 +1,15 @@
 <?php
 
-namespace App\Filament\Resources\AbsentResource\Pages;
+namespace App\Filament\Resources\AbsenceResource\Pages;
 
 use Filament\Actions;
 use Illuminate\Support\Facades\Auth;
-use App\Filament\Resources\AbsentResource;
+use App\Filament\Resources\AbsenceResource;
 use Filament\Resources\Pages\CreateRecord;
 
-class CreateAbsent extends CreateRecord
+class CreateAbsence extends CreateRecord
 {
-    protected static string $resource = AbsentResource::class;
+    protected static string $resource = AbsenceResource::class;
 
     /**
      * Modifica los datos del formulario antes de crear el registro.

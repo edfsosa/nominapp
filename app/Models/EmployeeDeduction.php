@@ -43,11 +43,11 @@ class EmployeeDeduction extends Pivot
     }
 
     /**
-     * Relación con el modelo Absent, una deducción puede originarse de una ausencia
+     * Relación con el modelo Absence, una deducción puede originarse de una ausencia
      */
-    public function absent()
+    public function absence()
     {
-        return $this->hasOne(Absent::class);
+        return $this->hasOne(Absence::class);
     }
 
     // -------------------------------------------------------------------------

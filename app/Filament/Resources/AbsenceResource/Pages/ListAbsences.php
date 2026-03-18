@@ -1,22 +1,22 @@
 <?php
 
-namespace App\Filament\Resources\AbsentResource\Pages;
+namespace App\Filament\Resources\AbsenceResource\Pages;
 
-use App\Models\Absent;
+use App\Models\Absence;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
-use App\Filament\Resources\AbsentResource;
+use App\Filament\Resources\AbsenceResource;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\Pages\ListRecords\Tab;
 
-class ListAbsents extends ListRecords
+class ListAbsences extends ListRecords
 {
-    protected static string $resource = AbsentResource::class;
+    protected static string $resource = AbsenceResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
-            AbsentResource::getExcelExportAction(),
+            AbsenceResource::getExcelExportAction(),
 
             CreateAction::make()
                 ->label('Nueva Ausencia')
@@ -28,20 +28,20 @@ class ListAbsents extends ListRecords
     {
         return [
             'all' => Tab::make('Todas')
-                ->badge(Absent::count()),
+                ->badge(Absence::count()),
 
             'pending' => Tab::make('Pendientes')
-                ->badge(Absent::where('status', 'pending')->count())
+                ->badge(Absence::where('status', 'pending')->count())
                 ->badgeColor('warning')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'pending')),
 
             'justified' => Tab::make('Justificadas')
-                ->badge(Absent::where('status', 'justified')->count())
+                ->badge(Absence::where('status', 'justified')->count())
                 ->badgeColor('success')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'justified')),
 
             'unjustified' => Tab::make('Injustificadas')
-                ->badge(Absent::where('status', 'unjustified')->count())
+                ->badge(Absence::where('status', 'unjustified')->count())
                 ->badgeColor('danger')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'unjustified')),
         ];

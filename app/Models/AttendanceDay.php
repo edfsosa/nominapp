@@ -77,11 +77,11 @@ class AttendanceDay extends Model
     }
 
     /**
-     * Relación con el modelo Absent, un día de asistencia puede tener una ausencia
+     * Relación con el modelo Absence, un día de asistencia puede tener una ausencia
      */
-    public function absent()
+    public function absence()
     {
-        return $this->hasOne(Absent::class);
+        return $this->hasOne(Absence::class);
     }
 
     public function getDateFormattedAttribute(): string

@@ -1,19 +1,18 @@
 <?php
 
-namespace App\Filament\Resources\AbsentResource\Pages;
+namespace App\Filament\Resources\AbsenceResource\Pages;
 
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
+use Filament\Resources\Pages\EditRecord;
+use App\Filament\Resources\AbsenceResource;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\ViewRecord;
-use App\Filament\Resources\AbsentResource;
 use Illuminate\Support\Facades\Auth;
 
-class ViewAbsent extends ViewRecord
+class EditAbsence extends EditRecord
 {
-    protected static string $resource = AbsentResource::class;
+    protected static string $resource = AbsenceResource::class;
 
     protected function getHeaderActions(): array
     {
@@ -22,7 +21,6 @@ class ViewAbsent extends ViewRecord
                 ->label('Justificar')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->tooltip('Marcar esta ausencia como justificada')
                 ->visible(fn() => !$this->record->isJustified())
                 ->requiresConfirmation()
                 ->modalHeading(fn() => $this->record->isUnjustified()
@@ -46,14 +44,13 @@ class ViewAbsent extends ViewRecord
                         ->body($result['message'])
                         ->send();
 
-                    $this->record->refresh();
+                    $this->refreshFormData(['status', 'reviewed_at', 'reviewed_by_id', 'review_notes', 'employee_deduction_id']);
                 }),
 
             Action::make('mark_unjustified')
                 ->label('Marcar Injustificada')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->tooltip('Marcar como injustificada y generar deducción salarial')
                 ->visible(fn() => !$this->record->isUnjustified())
                 ->requiresConfirmation()
                 ->modalHeading(fn() => $this->record->isJustified()
@@ -78,11 +75,8 @@ class ViewAbsent extends ViewRecord
                         ->body($result['message'])
                         ->send();
 
-                    $this->record->refresh();
+                    $this->refreshFormData(['status', 'reviewed_at', 'reviewed_by_id', 'review_notes', 'employee_deduction_id']);
                 }),
-
-            EditAction::make()
-                ->tooltip('Editar datos de la ausencia'),
 
             DeleteAction::make()
                 ->successRedirectUrl($this->getResource()::getUrl('index')),

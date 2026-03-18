@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources;
 
-use App\Models\Absent;
+use App\Models\Absence;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Forms\Form;
@@ -34,11 +34,11 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
-use App\Filament\Resources\AbsentResource\Pages;
+use App\Filament\Resources\AbsenceResource\Pages;
 
-class AbsentResource extends Resource
+class AbsenceResource extends Resource
 {
-    protected static ?string $model = Absent::class;
+    protected static ?string $model = Absence::class;
     protected static ?string $navigationLabel = 'Ausencias';
     protected static ?string $label = 'ausencia';
     protected static ?string $pluralLabel = 'ausencias';
@@ -81,7 +81,7 @@ class AbsentResource extends Resource
                                 return AttendanceDay::query()
                                     ->where('employee_id', $employeeId)
                                     ->where('status', 'absent')
-                                    ->whereDoesntHave('absent') // Solo mostrar días sin registro de ausencia
+                                    ->whereDoesntHave('absence') // Solo mostrar días sin registro de ausencia
                                     ->orderBy('date', 'desc')
                                     ->limit(50) // Limitar a los últimos 50 días
                                     ->get()
@@ -102,7 +102,7 @@ class AbsentResource extends Resource
                     ->schema([
                         Select::make('status')
                             ->label('Estado')
-                            ->options(Absent::getStatusOptions())
+                            ->options(Absence::getStatusOptions())
                             ->required()
                             ->native(false)
                             ->default('pending')
@@ -126,7 +126,7 @@ class AbsentResource extends Resource
                         FileUpload::make('documents')
                             ->label('Documentos Justificativos')
                             ->multiple()
-                            ->directory('absents-documents')
+                            ->directory('absences-documents')
                             ->acceptedFileTypes(['application/pdf', 'image/*'])
                             ->maxSize(5120) // 5MB
                             ->columnSpanFull()
@@ -208,8 +208,8 @@ class AbsentResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Absent::getStatusLabel($state))
-                    ->color(fn(string $state): string => Absent::getStatusColor($state))
+                    ->formatStateUsing(fn(string $state) => Absence::getStatusLabel($state))
+                    ->color(fn(string $state): string => Absence::getStatusColor($state))
                     ->sortable(),
 
                 TextColumn::make('reason')
@@ -251,7 +251,7 @@ class AbsentResource extends Resource
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options(Absent::getStatusOptions())
+                    ->options(Absence::getStatusOptions())
                     ->native(false)
                     ->multiple(),
 
@@ -308,15 +308,15 @@ class AbsentResource extends Resource
                     ->label('Justificar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->tooltip(fn(Absent $record) => $record->isUnjustified()
+                    ->tooltip(fn(Absence $record) => $record->isUnjustified()
                         ? 'Cambiar de injustificada a justificada (eliminará la deducción)'
                         : 'Marcar esta ausencia como justificada')
-                    ->visible(fn(Absent $record) => !$record->isJustified())
+                    ->visible(fn(Absence $record) => !$record->isJustified())
                     ->requiresConfirmation()
-                    ->modalHeading(fn(Absent $record) => $record->isUnjustified()
+                    ->modalHeading(fn(Absence $record) => $record->isUnjustified()
                         ? 'Cambiar a Justificada'
                         : 'Justificar Ausencia')
-                    ->modalDescription(fn(Absent $record) => $record->isUnjustified()
+                    ->modalDescription(fn(Absence $record) => $record->isUnjustified()
                         ? '¿Está seguro? Esto eliminará la deducción generada previamente.'
                         : '¿Está seguro de que desea marcar esta ausencia como justificada?')
                     ->form([
@@ -325,7 +325,7 @@ class AbsentResource extends Resource
                             ->placeholder('Motivo de la justificación...')
                             ->rows(3),
                     ])
-                    ->action(function (Absent $record, array $data) {
+                    ->action(function (Absence $record, array $data) {
                         $result = $record->justify(Auth::id(), $data['review_notes'] ?? null);
 
                         Notification::make()
@@ -339,15 +339,15 @@ class AbsentResource extends Resource
                     ->label('Marcar Injustificada')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->tooltip(fn(Absent $record) => $record->isJustified()
+                    ->tooltip(fn(Absence $record) => $record->isJustified()
                         ? 'Cambiar de justificada a injustificada (generará deducción)'
                         : 'Marcar como injustificada y generar deducción salarial')
-                    ->visible(fn(Absent $record) => !$record->isUnjustified())
+                    ->visible(fn(Absence $record) => !$record->isUnjustified())
                     ->requiresConfirmation()
-                    ->modalHeading(fn(Absent $record) => $record->isJustified()
+                    ->modalHeading(fn(Absence $record) => $record->isJustified()
                         ? 'Cambiar a Injustificada'
                         : 'Marcar como Injustificada')
-                    ->modalDescription(fn(Absent $record) => $record->isJustified()
+                    ->modalDescription(fn(Absence $record) => $record->isJustified()
                         ? 'Esto generará una deducción del salario del empleado.'
                         : 'Esto generará automáticamente una deducción del salario del empleado.')
                     ->form([
@@ -357,7 +357,7 @@ class AbsentResource extends Resource
                             ->rows(3)
                             ->required(),
                     ])
-                    ->action(function (Absent $record, array $data) {
+                    ->action(function (Absence $record, array $data) {
                         $result = $record->markAsUnjustified(Auth::id(), $data['review_notes']);
 
                         Notification::make()
@@ -462,8 +462,8 @@ class AbsentResource extends Resource
                         TextEntry::make('status')
                             ->label('Estado')
                             ->badge()
-                            ->formatStateUsing(fn(string $state) => Absent::getStatusLabel($state))
-                            ->color(fn(string $state): string => Absent::getStatusColor($state)),
+                            ->formatStateUsing(fn(string $state) => Absence::getStatusLabel($state))
+                            ->color(fn(string $state): string => Absence::getStatusColor($state)),
                         TextEntry::make('reported_at')
                             ->label('Fecha de Reporte')
                             ->dateTime('d/m/Y H:i'),
@@ -528,10 +528,10 @@ class AbsentResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListAbsents::route('/'),
-            'create' => Pages\CreateAbsent::route('/create'),
-            'view' => Pages\ViewAbsent::route('/{record}'),
-            'edit' => Pages\EditAbsent::route('/{record}/edit'),
+            'index' => Pages\ListAbsences::route('/'),
+            'create' => Pages\CreateAbsence::route('/create'),
+            'view' => Pages\ViewAbsence::route('/{record}'),
+            'edit' => Pages\EditAbsence::route('/{record}/edit'),
         ];
     }
 
@@ -542,7 +542,7 @@ class AbsentResource extends Resource
      */
     public static function getNavigationBadge(): ?string
     {
-        $pendingCount = Absent::query()
+        $pendingCount = Absence::query()
             ->where('status', 'pending')
             ->whereDate('created_at', now()->toDateString())
             ->count();
