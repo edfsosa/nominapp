@@ -35,9 +35,11 @@ php artisan db:seed --class=ProductionSeeder   # new client setup (sets admin us
 ## Architecture
 
 ### Hierarchy
-`Company → Branch → Department → Position → Employee → Contract`
+Two separate axes that converge in `Contract`:
+- **Physical/location:** `Company → Branch → Employee`
+- **Organizational:** `Company → Department → Position` (`departments.company_id` FK — each company defines its own departments)
 
-Employees delegate their active data (salary, position, start date) to the active `Contract`. Employee status flows through the contract lifecycle.
+`Employee` has `branch_id` (company is derived via `employee→branch→company`). Active salary, position, and start date live in the active `Contract` — not on `Employee` directly. `employee.position_id` is a legacy field; always use `employee.activeContract.position`. Employee status flows through the contract lifecycle.
 
 ### Modules
 
@@ -73,7 +75,7 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 ### Status Enums
 - Employee/Contract: `active`, `inactive`, `draft`, `suspended`
 - Payroll: `draft` → `processing` → `approved` → `paid`
-- Loans: `pending` → `active` → `paid_off` / `defaulted` / `cancelled`
+- Loans: `pending` → `active` → `paid` / `defaulted` / `cancelled`
 
 ### Key Config Files
 - `config/payroll.php` — vacation tiers, payroll rules

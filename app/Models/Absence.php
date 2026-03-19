@@ -279,7 +279,6 @@ class Absence extends Model
                     'calculation' => 'fixed',
                     'is_mandatory' => true,
                     'is_active' => true,
-                    'affects_ips' => false,
                     'affects_irp' => false,
                 ]
             );

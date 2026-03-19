@@ -31,20 +31,13 @@ use Filament\Tables\Table;
 class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
-
     protected static ?string $navigationGroup = 'Organización';
-
     protected static ?int $navigationSort = 1;
-
     protected static ?string $modelLabel = 'Empresa';
-
     protected static ?string $pluralModelLabel = 'Empresas';
-
     protected static ?string $slug = 'empresas';
-
-    protected static ?string $recordTitleAttribute = 'name';
+    protected static ?string $recordTitleAttribute = 'trade_name';
 
     public static function form(Form $form): Form
     {
@@ -162,16 +155,17 @@ class CompanyResource extends Resource
                 ->schema([
                     TextEntry::make('branches_count')
                         ->label('Sucursales')
-                        ->getStateUsing(fn (Company $record) => $record->branches()->count())
+                        ->getStateUsing(fn(Company $record) => $record->branches()->count())
                         ->badge()
                         ->color('info')
                         ->icon('heroicon-o-building-office-2'),
 
                     TextEntry::make('active_employees')
                         ->label('Empleados Activos / Total')
-                        ->getStateUsing(fn (Company $record) => $record->employees()->where('status', 'active')->count().
-                            ' / '.
-                            $record->employees()->count()
+                        ->getStateUsing(
+                            fn(Company $record) => $record->employees()->where('status', 'active')->count() .
+                                ' / ' .
+                                $record->employees()->count()
                         )
                         ->badge()
                         ->color('success')
@@ -179,16 +173,16 @@ class CompanyResource extends Resource
 
                     TextEntry::make('active_contracts')
                         ->label('Contratos Activos')
-                        ->getStateUsing(fn (Company $record) => $record->activeContractsCount())
+                        ->getStateUsing(fn(Company $record) => $record->activeContractsCount())
                         ->badge()
                         ->color('primary')
                         ->icon('heroicon-o-document-text'),
 
                     TextEntry::make('expiring_contracts')
                         ->label('Por Vencer (30 días)')
-                        ->getStateUsing(fn (Company $record) => $record->expiringSoonContractsCount(30))
+                        ->getStateUsing(fn(Company $record) => $record->expiringSoonContractsCount(30))
                         ->badge()
-                        ->color(fn (Company $record) => $record->expiringSoonContractsCount(30) > 0 ? 'warning' : 'gray')
+                        ->color(fn(Company $record) => $record->expiringSoonContractsCount(30) > 0 ? 'warning' : 'gray')
                         ->icon('heroicon-o-clock'),
                 ]),
 
@@ -220,7 +214,7 @@ class CompanyResource extends Resource
                 ->schema([
                     TextEntry::make('legal_type')
                         ->label('Tipo Societario')
-                        ->getStateUsing(fn (Company $record) => $record->legal_type_label)
+                        ->getStateUsing(fn(Company $record) => $record->legal_type_label)
                         ->badge()
                         ->color('info')
                         ->placeholder('No especificado'),
@@ -276,9 +270,9 @@ class CompanyResource extends Resource
 
                     TextEntry::make('is_active')
                         ->label('Estado')
-                        ->formatStateUsing(fn (bool $state) => $state ? 'Activa' : 'Inactiva')
+                        ->formatStateUsing(fn(bool $state) => $state ? 'Activa' : 'Inactiva')
                         ->badge()
-                        ->color(fn (bool $state) => $state ? 'success' : 'danger'),
+                        ->color(fn(bool $state) => $state ? 'success' : 'danger'),
                 ]),
         ]);
     }
@@ -296,7 +290,7 @@ class CompanyResource extends Resource
                     ->label('Razon Social')
                     ->searchable()
                     ->sortable()
-                    ->description(fn (Company $record) => $record->trade_name),
+                    ->description(fn(Company $record) => $record->trade_name),
 
                 TextColumn::make('ruc')
                     ->label('RUC')
@@ -340,7 +334,7 @@ class CompanyResource extends Resource
                     ->label('Organigrama')
                     ->icon('heroicon-o-rectangle-group')
                     ->color('info')
-                    ->url(fn (Company $record) => route('org-chart.show', $record))
+                    ->url(fn(Company $record) => route('org-chart.show', $record))
                     ->openUrlInNewTab(),
                 EditAction::make(),
             ])
