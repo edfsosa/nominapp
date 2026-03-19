@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 
 class Position extends Model
 {
@@ -17,9 +18,16 @@ class Position extends Model
         return $this->belongsTo(Department::class);
     }
 
-    public function employees()
+    public function employees(): HasManyThrough
     {
-        return $this->hasMany(Employee::class);
+        return $this->hasManyThrough(
+            Employee::class,
+            Contract::class,
+            'position_id', // FK en contracts
+            'id',          // FK en employees
+            'id',          // local key en positions
+            'employee_id'  // local key en contracts
+        )->where('contracts.status', 'active');
     }
 
     /**

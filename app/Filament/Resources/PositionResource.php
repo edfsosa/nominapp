@@ -10,6 +10,9 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
@@ -43,23 +46,21 @@ class PositionResource extends Resource
                             ->placeholder('Ejemplo: Gerente de Ventas')
                             ->required()
                             ->maxLength(60)
-                            ->unique(ignoreRecord: true)
+                            ->unique(
+                                ignoreRecord: true,
+                                modifyRuleUsing: fn($rule, Get $get) => $rule->where('department_id', $get('department_id'))
+                            )
                             ->columnSpan(1),
 
                         Select::make('department_id')
                             ->label('Departamento')
                             ->placeholder('Seleccione un departamento')
                             ->relationship('department', 'name')
+                            ->getOptionLabelFromRecordUsing(fn($record) => $record->company?->name . ' — ' . $record->name)
                             ->searchable()
                             ->preload()
                             ->native(false)
                             ->required()
-                            ->createOptionForm([
-                                TextInput::make('name')
-                                    ->label('Nombre del Departamento')
-                                    ->required()
-                                    ->maxLength(60),
-                            ])
                             ->columnSpan(1),
 
                         Select::make('parent_id')
@@ -67,24 +68,77 @@ class PositionResource extends Resource
                             ->placeholder('Ninguno (cargo de nivel superior)')
                             ->relationship('parent', 'name')
                             ->options(function (?Position $record) {
-                                $query = Position::query();
+                                $query = Position::with('department');
 
                                 if ($record) {
-                                    // Excluir el cargo actual y todos sus descendientes
                                     $excludeIds = array_merge([$record->id], $record->getAllDescendantIds());
                                     $query->whereNotIn('id', $excludeIds);
                                 }
 
-                                return $query->pluck('name', 'id');
+                                return $query->get()->mapWithKeys(
+                                    fn($p) => [$p->id => $p->name . ($p->department ? ' — ' . $p->department->name : '')]
+                                );
                             })
                             ->searchable()
-                            ->preload()
                             ->native(false)
                             ->helperText('Seleccione el cargo al que este puesto reporta directamente')
                             ->columnSpan(1),
                     ])
                     ->columns(2),
             ]);
+    }
+
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfoSection::make('Resumen')
+                ->columns(3)
+                ->schema([
+                    TextEntry::make('employees_count')
+                        ->label('Empleados asignados')
+                        ->getStateUsing(fn(Position $record) => $record->employees()->count())
+                        ->badge()
+                        ->color('success')
+                        ->icon('heroicon-o-users'),
+
+                    TextEntry::make('children_count')
+                        ->label('Cargos subordinados')
+                        ->getStateUsing(fn(Position $record) => $record->children()->count())
+                        ->badge()
+                        ->color('info')
+                        ->icon('heroicon-o-arrow-down-circle'),
+
+                    TextEntry::make('created_at')
+                        ->label('Creado')
+                        ->dateTime('d/m/Y H:i'),
+                ]),
+
+            InfoSection::make('Información del Cargo')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('department.name')
+                        ->label('Departamento')
+                        ->badge()
+                        ->color('info')
+                        ->icon('heroicon-o-building-library'),
+
+                    TextEntry::make('department.company.trade_name')
+                        ->label('Empresa')
+                        ->badge()
+                        ->color('gray')
+                        ->icon('heroicon-o-building-office-2'),
+
+                    TextEntry::make('name')
+                        ->label('Nombre del Cargo')
+                        ->weight('bold')
+                        ->icon('heroicon-o-briefcase'),
+
+                    TextEntry::make('parent.name')
+                        ->label('Reporta a')
+                        ->placeholder('Cargo de nivel superior')
+                        ->icon('heroicon-o-arrow-up-circle'),
+                ]),
+        ]);
     }
 
     public static function table(Table $table): Table

@@ -33,8 +33,13 @@ class PositionsRelationManager extends RelationManager
                     ->label('Nombre del cargo')
                     ->placeholder('Ej: Gerente de Ventas, Analista de RRHH...')
                     ->required()
-                    ->maxLength(255)
-                    ->unique('positions', 'name', ignorable: fn($record) => $record)
+                    ->maxLength(60)
+                    ->unique(
+                        table: 'positions',
+                        column: 'name',
+                        ignorable: fn($record) => $record,
+                        modifyRuleUsing: fn($rule, $component) => $rule->where('department_id', $component->getLivewire()->ownerRecord->id)
+                    )
                     ->columnSpanFull(),
             ]);
     }
@@ -59,13 +64,11 @@ class PositionsRelationManager extends RelationManager
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('updated_at')
                     ->label('Actualizado')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->searchable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([

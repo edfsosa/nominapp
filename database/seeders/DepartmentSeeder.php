@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use App\Models\Company;
 
 class DepartmentSeeder extends Seeder
 {
@@ -11,18 +12,19 @@ class DepartmentSeeder extends Seeder
     {
         DB::transaction(function () {
             $now = now();
+            $companyId = Company::first()->id;
 
             $departments = [
-                ['name' => 'Recursos Humanos',    'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Finanzas',            'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Tecnología',          'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Marketing',           'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Ventas',              'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Atención al Cliente', 'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Logística',           'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Administración',      'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Producción',          'created_at' => $now, 'updated_at' => $now],
-                ['name' => 'Calidad',             'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Recursos Humanos',    'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Finanzas',            'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Tecnología',          'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Marketing',           'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Ventas',              'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Atención al Cliente', 'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Logística',           'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Administración',      'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Producción',          'created_at' => $now, 'updated_at' => $now],
+                ['company_id' => $companyId, 'name' => 'Calidad',             'created_at' => $now, 'updated_at' => $now],
             ];
 
             DB::table('departments')->insert($departments);

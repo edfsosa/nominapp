@@ -12,6 +12,25 @@ use Illuminate\Database\Eloquent\Builder;
 class ListPositions extends ListRecords
 {
     protected static string $resource = PositionResource::class;
+    protected ?array $positionCounts = null;
+
+    protected function getPositionCounts(): array
+    {
+        if ($this->positionCounts !== null) {
+            return $this->positionCounts;
+        }
+
+        $withEmployees = Position::has('employees')->count();
+        $total         = Position::count();
+
+        $this->positionCounts = [
+            'total'          => $total,
+            'with_employees' => $withEmployees,
+            'without'        => $total - $withEmployees,
+        ];
+
+        return $this->positionCounts;
+    }
 
     protected function getHeaderActions(): array
     {
@@ -24,18 +43,20 @@ class ListPositions extends ListRecords
 
     public function getTabs(): array
     {
+        $counts = $this->getPositionCounts();
+
         return [
             'all' => Tab::make('Todos')
-                ->badge(Position::count()),
+                ->badge($counts['total'] ?: null),
 
             'with_employees' => Tab::make('Con Empleados')
                 ->modifyQueryUsing(fn(Builder $query) => $query->has('employees'))
-                ->badge(Position::has('employees')->count())
+                ->badge($counts['with_employees'] ?: null)
                 ->badgeColor('success'),
 
             'without_employees' => Tab::make('Sin Empleados')
                 ->modifyQueryUsing(fn(Builder $query) => $query->doesntHave('employees'))
-                ->badge(Position::doesntHave('employees')->count())
+                ->badge($counts['without'] ?: null)
                 ->badgeColor('gray'),
         ];
     }

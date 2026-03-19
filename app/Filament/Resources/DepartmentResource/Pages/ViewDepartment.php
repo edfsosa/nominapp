@@ -1,17 +1,17 @@
 <?php
 
-namespace App\Filament\Resources\PositionResource\Pages;
+namespace App\Filament\Resources\DepartmentResource\Pages;
 
-use App\Filament\Resources\PositionResource;
+use App\Filament\Resources\DepartmentResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
 
-class ViewPosition extends ViewRecord
+class ViewDepartment extends ViewRecord
 {
-    protected static string $resource = PositionResource::class;
+    protected static string $resource = DepartmentResource::class;
 
     /**
-     * Define las acciones disponibles en la vista de detalles del cargo.
+     * Define las acciones disponibles en la vista de detalles del departamento.
      *
      * @return array
      */
