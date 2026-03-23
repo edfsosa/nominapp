@@ -28,6 +28,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 
+/** Gestiona las deducciones asignadas al empleado desde su vista de detalle. */
 class EmployeeDeductionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeeDeductions';
@@ -155,7 +156,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
                         'fixed'      => 'primary',
-                        'percentage' => 'secondary',
+                        'percentage' => 'gray',
                         default      => 'gray',
                     })
                     ->sortable(),

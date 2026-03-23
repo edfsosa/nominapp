@@ -28,6 +28,7 @@ use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 
+/** Gestiona las percepciones asignadas al empleado desde su vista de detalle. */
 class EmployeePerceptionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeePerceptions';
@@ -154,7 +155,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->badge()
                     ->color(fn(string $state): string => match ($state) {
                         'fixed' => 'primary',
-                        'percentage' => 'secondary',
+                        'percentage' => 'gray',
                         default => 'gray',
                     })
                     ->sortable(),

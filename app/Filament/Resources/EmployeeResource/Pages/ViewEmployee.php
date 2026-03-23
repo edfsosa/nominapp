@@ -2,37 +2,30 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
-use App\Models\Employee;
+use App\Filament\Resources\EmployeeResource;
 use App\Models\FaceEnrollment;
 use App\Settings\GeneralSettings;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
-use Filament\Actions\ViewAction;
+use Filament\Actions\EditAction;
 use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\EditRecord;
+use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
-use App\Filament\Resources\EmployeeResource;
 
-class EditEmployee extends EditRecord
+class ViewEmployee extends ViewRecord
 {
     protected static string $resource = EmployeeResource::class;
 
     /**
-     * Define las acciones del encabezado de la página de edición.
+     * Define las acciones disponibles en la vista de detalle del empleado.
      *
      * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()
-                ->icon('heroicon-o-eye')
-                ->color('primary'),
-
             Action::make('capture_face')
-                ->label(fn() => $this->record->has_face ? 'Re-enrolar' : 'Enrolar')
+                ->label(fn() => $this->record->has_face ? 'Re-enrolar rostro' : 'Enrolar rostro')
                 ->icon('heroicon-o-camera')
                 ->color(fn() => $this->record->has_face ? 'warning' : 'success')
                 ->url(fn() => route('face.capture', $this->record))
@@ -75,56 +68,15 @@ class EditEmployee extends EditRecord
                         ->send();
                 }),
 
-            DeleteAction::make()
-                ->label('Eliminar')
-                ->icon('heroicon-o-trash')
-                ->color('danger')
-                ->modalHeading('¿Eliminar empleado?')
-                ->modalDescription(fn() => 'Esta acción no se puede deshacer. Se eliminará al empleado "' . $this->record->full_name . '" y todos sus registros relacionados.')
-                ->modalSubmitActionLabel('Sí, eliminar')
-                ->successNotificationTitle('Empleado eliminado')
-                ->before(function () {
-                    if ($this->record->photo && Storage::disk('public')->exists($this->record->photo)) {
-                        Storage::disk('public')->delete($this->record->photo);
-                    }
-                })
-                ->successRedirectUrl($this->getResource()::getUrl('index')),
+            Action::make('download_legajo')
+                ->label('Descargar Legajo')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('gray')
+                ->url(fn() => route('employees.legajo', $this->record))
+                ->openUrlInNewTab(),
+
+            EditAction::make()
+                ->icon('heroicon-o-pencil-square'),
         ];
-    }
-
-    /**
-     * Obtiene la URL de redirección después de guardar los cambios.
-     *
-     * @return string
-     */
-    protected function getRedirectUrl(): string
-    {
-        return $this->getResource()::getUrl('view', ['record' => $this->record]);
-    }
-
-    /**
-     * Modifica los datos del formulario antes de actualizar el registro. Mantiene el descriptor facial actual para evitar sobrescribirlo si no se captura uno nuevo.
-     *
-     * @param array $data
-     * @return array
-     */
-    protected function mutateFormDataBeforeSave(array $data): array
-    {
-        $data = Employee::sanitizeFormData($data, isCreating: false);
-        $data['face_descriptor'] = $this->record->face_descriptor;
-        return $data;
-    }
-
-    /**
-     * Obtiene la notificación que se muestra después de actualizar el registro.
-     *
-     * @return Notification
-     */
-    protected function getSavedNotification(): Notification
-    {
-        return Notification::make()
-            ->success()
-            ->title('Empleado actualizado')
-            ->body('Los datos de ' . $this->record->full_name . ' han sido actualizados.');
     }
 }

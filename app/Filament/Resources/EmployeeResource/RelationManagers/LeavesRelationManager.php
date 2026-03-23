@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Models\EmployeeLeave;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Select;
@@ -9,19 +10,20 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Actions\CreateAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\CreateAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
 
+/** Gestiona los permisos y licencias del empleado desde su vista de detalle. */
 class LeavesRelationManager extends RelationManager
 {
     protected static string $relationship = 'leaves';
@@ -29,21 +31,19 @@ class LeavesRelationManager extends RelationManager
     protected static ?string $modelLabel = 'Permiso';
     protected static ?string $pluralModelLabel = 'Permisos';
 
+    /**
+     * Define el formulario para registrar y editar permisos.
+     *
+     * @param  Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Select::make('type')
                     ->label('Tipo de permiso')
-                    ->options([
-                        'medical_leave' => 'Reposo Médico',
-                        'vacation' => 'Vacaciones',
-                        'day_off' => 'Día Libre',
-                        'maternity_leave' => 'Permiso por Maternidad',
-                        'paternity_leave' => 'Permiso por Paternidad',
-                        'unpaid_leave' => 'Permiso Sin Goce de Sueldo',
-                        'other' => 'Otro',
-                    ])
+                    ->options(EmployeeLeave::getTypeOptions())
                     ->native(false)
                     ->searchable()
                     ->required()
@@ -66,11 +66,7 @@ class LeavesRelationManager extends RelationManager
 
                 Select::make('status')
                     ->label('Estado')
-                    ->options([
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(EmployeeLeave::getStatusOptions())
                     ->native(false)
                     ->default('pending')
                     ->required()
@@ -92,7 +88,7 @@ class LeavesRelationManager extends RelationManager
                     ->visibility('public')
                     ->nullable()
                     ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/gif'])
-                    ->maxSize(10240) // 10 MB
+                    ->maxSize(10240)
                     ->downloadable()
                     ->previewable()
                     ->openable()
@@ -101,6 +97,12 @@ class LeavesRelationManager extends RelationManager
             ->columns(3);
     }
 
+    /**
+     * Define la tabla de permisos con columnas, filtros y acciones.
+     *
+     * @param  Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
@@ -108,37 +110,10 @@ class LeavesRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('type')
                     ->label('Tipo de permiso')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'medical_leave' => 'Reposo Médico',
-                        'vacation' => 'Vacaciones',
-                        'day_off' => 'Día Libre',
-                        'maternity_leave' => 'Permiso por Maternidad',
-                        'paternity_leave' => 'Permiso por Paternidad',
-                        'unpaid_leave' => 'Sin Goce de Sueldo',
-                        'other' => 'Otro',
-                        default => $state,
-                    })
+                    ->formatStateUsing(fn($state) => EmployeeLeave::getTypeOptions()[$state] ?? $state)
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'medical_leave' => 'danger',
-                        'vacation' => 'success',
-                        'day_off' => 'info',
-                        'maternity_leave' => 'pink',
-                        'paternity_leave' => 'blue',
-                        'unpaid_leave' => 'warning',
-                        'other' => 'gray',
-                        default => 'gray',
-                    })
-                    ->icon(fn($state) => match ($state) {
-                        'medical_leave' => 'heroicon-o-heart',
-                        'vacation' => 'heroicon-o-sun',
-                        'day_off' => 'heroicon-o-calendar',
-                        'maternity_leave' => 'heroicon-o-home',
-                        'paternity_leave' => 'heroicon-o-home',
-                        'unpaid_leave' => 'heroicon-o-pause-circle',
-                        'other' => 'heroicon-o-document-text',
-                        default => 'heroicon-o-document-text',
-                    })
+                    ->color(fn($state) => EmployeeLeave::getTypeColors()[$state] ?? 'gray')
+                    ->icon(fn($state) => EmployeeLeave::getTypeIcons()[$state] ?? 'heroicon-o-document-text')
                     ->sortable()
                     ->searchable()
                     ->wrap(),
@@ -149,34 +124,18 @@ class LeavesRelationManager extends RelationManager
                         fn($record) =>
                         $record->start_date->format('d/m/Y') . ' → ' . $record->end_date->format('d/m/Y')
                     )
-                    ->description(
-                        fn($record) =>
-                        $record->start_date->diffInDays($record->end_date) + 1 . ' ' .
-                            ($record->start_date->diffInDays($record->end_date) + 1 === 1 ? 'día' : 'días')
-                    )
+                    ->description(function ($record) {
+                        $days = $record->start_date->diffInDays($record->end_date) + 1;
+                        return $days . ' ' . ($days === 1 ? 'día' : 'días');
+                    })
                     ->sortable(['start_date', 'end_date']),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'pending' => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                        default => 'gray',
-                    })
-                    ->icon(fn($state) => match ($state) {
-                        'pending' => 'heroicon-o-clock',
-                        'approved' => 'heroicon-o-check-circle',
-                        'rejected' => 'heroicon-o-x-circle',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                        default => $state,
-                    })
+                    ->color(fn($state) => EmployeeLeave::getStatusColors()[$state] ?? 'gray')
+                    ->icon(fn($state) => EmployeeLeave::getStatusIcons()[$state] ?? 'heroicon-o-question-mark-circle')
+                    ->formatStateUsing(fn($state) => EmployeeLeave::getStatusOptions()[$state] ?? $state)
                     ->sortable()
                     ->searchable(),
 
@@ -197,10 +156,9 @@ class LeavesRelationManager extends RelationManager
 
                 TextColumn::make('created_at')
                     ->label('Creado')
-                    ->dateTime('d/m/Y H:i')
-                    ->sortable()
                     ->since()
                     ->description(fn($record) => $record->created_at->format('d/m/Y H:i'))
+                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updated_at')
@@ -212,24 +170,12 @@ class LeavesRelationManager extends RelationManager
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo de permiso')
-                    ->options([
-                        'medical_leave' => 'Reposo Médico',
-                        'vacation' => 'Vacaciones',
-                        'day_off' => 'Día Libre',
-                        'maternity_leave' => 'Permiso por Maternidad',
-                        'paternity_leave' => 'Permiso por Paternidad',
-                        'unpaid_leave' => 'Sin Goce de Sueldo',
-                        'other' => 'Otro',
-                    ])
+                    ->options(EmployeeLeave::getTypeOptions())
                     ->multiple(),
 
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(EmployeeLeave::getStatusOptions())
                     ->multiple(),
 
                 Filter::make('current_year')
@@ -258,6 +204,7 @@ class LeavesRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar permiso')
                     ->modalDescription('¿Estás seguro de que deseas aprobar este permiso?')
+                    ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(fn($record) => $record->update(['status' => 'approved'])),
 
                 Action::make('reject')
@@ -268,6 +215,7 @@ class LeavesRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar permiso')
                     ->modalDescription('¿Estás seguro de que deseas rechazar este permiso?')
+                    ->modalSubmitActionLabel('Sí, rechazar')
                     ->action(fn($record) => $record->update(['status' => 'rejected'])),
 
                 Action::make('download')
@@ -291,7 +239,6 @@ class LeavesRelationManager extends RelationManager
                     ->modalHeading('Eliminar permiso')
                     ->modalDescription('¿Estás seguro de que deseas eliminar este permiso? Esta acción no se puede deshacer.')
                     ->before(function ($record) {
-                        // Eliminar el documento físico si existe
                         if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
                             Storage::disk('public')->delete($record->document_path);
                         }
@@ -306,7 +253,10 @@ class LeavesRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar permisos')
                         ->modalDescription('Se aprobarán los permisos seleccionados que estén en estado pendiente.')
-                        ->action(fn($records) => $records->each->update(['status' => 'approved'])),
+                        ->modalSubmitActionLabel('Sí, aprobar')
+                        ->action(fn($records) => $records->each(
+                            fn($record) => $record->status === 'pending' && $record->update(['status' => 'approved'])
+                        )),
 
                     BulkAction::make('reject_selected')
                         ->label('Rechazar')
@@ -315,13 +265,15 @@ class LeavesRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Rechazar permisos')
                         ->modalDescription('Se rechazarán los permisos seleccionados que estén en estado pendiente.')
-                        ->action(fn($records) => $records->each->update(['status' => 'rejected'])),
+                        ->modalSubmitActionLabel('Sí, rechazar')
+                        ->action(fn($records) => $records->each(
+                            fn($record) => $record->status === 'pending' && $record->update(['status' => 'rejected'])
+                        )),
 
                     DeleteBulkAction::make()
                         ->modalHeading('Eliminar permisos')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estos permisos? Esta acción no se puede deshacer.')
                         ->before(function ($records) {
-                            // Eliminar los documentos físicos
                             foreach ($records as $record) {
                                 if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
                                     Storage::disk('public')->delete($record->document_path);

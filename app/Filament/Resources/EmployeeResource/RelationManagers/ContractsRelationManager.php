@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\Contract;
+use App\Models\Department;
 use App\Models\Position;
 use App\Settings\GeneralSettings;
 use Filament\Forms\Get;
@@ -13,10 +14,14 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\TextInput;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -26,6 +31,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
+/** Gestiona los contratos del empleado desde su vista de detalle. */
 class ContractsRelationManager extends RelationManager
 {
     protected static string $relationship = 'contracts';
@@ -34,107 +40,214 @@ class ContractsRelationManager extends RelationManager
     protected static ?string $modelLabel = 'Contrato';
     protected static ?string $pluralModelLabel = 'Contratos';
 
+    /**
+     * Define el formulario para crear y editar contratos.
+     *
+     * @param  Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Select::make('type')
-                    ->label('Tipo de Contrato')
-                    ->options(Contract::getTypeOptions())
-                    ->required()
-                    ->native(false)
-                    ->live()
-                    ->afterStateUpdated(function (?string $state, Set $set) {
-                        if ($state === 'indefinido') {
-                            $set('end_date', null);
-                        }
-                        $set('trial_days', 30);
-                    })
-                    ->columnSpan(2),
+                Section::make('Contrato')
+                    ->icon('heroicon-o-document-text')
+                    ->compact()
+                    ->schema([
+                        Select::make('type')
+                            ->label('Tipo de Contrato')
+                            ->options(Contract::getTypeOptions())
+                            ->required()
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (?string $state, Set $set) {
+                                if ($state === 'indefinido') {
+                                    $set('end_date', null);
+                                }
+                                $set('trial_days', 30);
+                            })
+                            ->columnSpan(2),
 
-                DatePicker::make('start_date')
-                    ->label('Fecha de Inicio')
-                    ->native(false)
-                    ->displayFormat('d/m/Y')
-                    ->required()
-                    ->default(now())
-                    ->closeOnDateSelection(),
+                        Select::make('work_modality')
+                            ->label('Modalidad')
+                            ->options(Contract::getWorkModalityOptions())
+                            ->native(false)
+                            ->default('presencial')
+                            ->required(),
 
-                DatePicker::make('end_date')
-                    ->label('Fecha de Finalización')
-                    ->native(false)
-                    ->displayFormat('d/m/Y')
-                    ->closeOnDateSelection()
-                    ->visible(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
-                    ->required(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
-                    ->after('start_date'),
+                        DatePicker::make('start_date')
+                            ->label('Fecha de Inicio')
+                            ->native(false)
+                            ->displayFormat('d/m/Y')
+                            ->required()
+                            ->default(now())
+                            ->closeOnDateSelection(),
 
-                TextInput::make('trial_days')
-                    ->label('Días de Prueba')
-                    ->numeric()
-                    ->minValue(0)
-                    ->maxValue(30)
-                    ->default(30)
-                    ->suffix('días')
-                    ->helperText('Art. 58 CLT: Máximo 30 días'),
+                        DatePicker::make('end_date')
+                            ->label('Fecha de Finalización')
+                            ->native(false)
+                            ->displayFormat('d/m/Y')
+                            ->closeOnDateSelection()
+                            ->visible(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->required(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->after('start_date'),
 
-                Select::make('salary_type')
-                    ->label('Tipo de Remuneración')
-                    ->options(Contract::getSalaryTypeOptions())
-                    ->native(false)
-                    ->default('mensual')
-                    ->required()
-                    ->live()
-                    ->helperText('Art. 231 CLT'),
+                        TextInput::make('trial_days')
+                            ->label('Días de Prueba')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(30)
+                            ->default(30)
+                            ->suffix('días'),
+                    ])
+                    ->columns(3),
 
-                TextInput::make('salary')
-                    ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
-                    ->numeric()
-                    ->required()
-                    ->minValue(1)
-                    ->prefix('Gs.')
-                    ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes'),
+                Section::make('Remuneración')
+                    ->icon('heroicon-o-banknotes')
+                    ->compact()
+                    ->schema([
+                        Select::make('salary_type')
+                            ->label('Tipo de Remuneración')
+                            ->options(Contract::getSalaryTypeOptions())
+                            ->native(false)
+                            ->default('mensual')
+                            ->required()
+                            ->live(),
 
-                Select::make('position_id')
-                    ->label('Cargo')
-                    ->options(Position::getOptionsWithDepartment())
-                    ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->required()
-                    ->live()
-                    ->afterStateUpdated(function ($state, Set $set) {
-                        if ($state) {
-                            $position = Position::find($state);
-                            if ($position) {
-                                $set('department_id', $position->department_id);
-                            }
-                        }
-                    }),
+                        TextInput::make('salary')
+                            ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                            ->numeric()
+                            ->required()
+                            ->minValue(1)
+                            ->prefix('Gs.')
+                            ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes'),
+                    ])
+                    ->columns(2),
 
-                Select::make('department_id')
-                    ->label('Departamento')
-                    ->relationship('department', 'name')
-                    ->searchable()
-                    ->preload()
-                    ->native(false)
-                    ->required(),
+                Section::make('Cargo')
+                    ->icon('heroicon-o-briefcase')
+                    ->compact()
+                    ->schema([
+                        Select::make('department_id')
+                            ->label('Departamento')
+                            ->relationship(
+                                'department',
+                                'name',
+                                fn(Builder $query) => $query
+                                    ->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+                                    ->orderBy('name')
+                            )
+                            ->searchable()
+                            ->preload()
+                            ->native(false)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn(Set $set) => $set('position_id', null))
+                            ->createOptionForm([
+                                Grid::make(2)->schema([
+                                    TextInput::make('name')
+                                        ->label('Nombre')
+                                        ->placeholder('Ej: Recursos Humanos, Finanzas, IT...')
+                                        ->required()
+                                        ->maxLength(60)
+                                        ->unique(
+                                            table: Department::class,
+                                            column: 'name',
+                                            ignoreRecord: true,
+                                            modifyRuleUsing: fn($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+                                        )
+                                        ->validationMessages(['unique' => 'Ya existe un departamento con ese nombre en esta empresa.'])
+                                        ->helperText('El nombre debe ser único dentro de la misma empresa.'),
 
-                Select::make('work_modality')
-                    ->label('Modalidad')
-                    ->options(Contract::getWorkModalityOptions())
-                    ->native(false)
-                    ->default('presencial')
-                    ->required(),
+                                    TextInput::make('cost_center')
+                                        ->label('Centro de Costo')
+                                        ->placeholder('Ej: RH-001, FIN-002, IT-003...')
+                                        ->unique(
+                                            table: Department::class,
+                                            column: 'cost_center',
+                                            ignoreRecord: true,
+                                            modifyRuleUsing: fn($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+                                        )
+                                        ->validationMessages(['unique' => 'Ya existe un departamento con ese centro de costo en esta empresa.'])
+                                        ->maxLength(30)
+                                        ->nullable()
+                                        ->helperText('Identificador opcional para organizar y clasificar el departamento.'),
 
-                Textarea::make('notes')
-                    ->label('Observaciones')
-                    ->rows(2)
-                    ->columnSpanFull(),
+                                    Textarea::make('description')
+                                        ->label('Descripción')
+                                        ->placeholder('Ej: Este departamento se encarga de gestionar el talento humano...')
+                                        ->nullable()
+                                        ->maxLength(500)
+                                        ->rows(3)
+                                        ->columnSpanFull()
+                                        ->helperText('La descripción es opcional.'),
+                                ]),
+                            ])
+                            ->createOptionUsing(function (array $data) {
+                                return Department::create([
+                                    'name'        => $data['name'],
+                                    'company_id'  => $this->getOwnerRecord()->branch?->company_id,
+                                    'cost_center' => $data['cost_center'] ?? null,
+                                    'description' => $data['description'] ?? null,
+                                ])->id;
+                            }),
+
+                        Select::make('position_id')
+                            ->label('Cargo')
+                            ->options(function (Get $get) {
+                                $deptId = $get('department_id');
+                                if ($deptId) {
+                                    return Position::where('department_id', $deptId)
+                                        ->orderBy('name')
+                                        ->pluck('name', 'id')
+                                        ->toArray();
+                                }
+                                return Position::getOptionsWithDepartment();
+                            })
+                            ->searchable()
+                            ->native(false)
+                            ->required()
+                            ->createOptionForm(function (Get $get) {
+                                $companyId = $this->getOwnerRecord()->branch?->company_id;
+                                return [
+                                    Select::make('department_id')
+                                        ->label('Departamento')
+                                        ->options(
+                                            Department::where('company_id', $companyId)
+                                                ->orderBy('name')
+                                                ->pluck('name', 'id')
+                                                ->toArray()
+                                        )
+                                        ->default($get('department_id'))
+                                        ->required()
+                                        ->native(false)
+                                        ->disabled()
+                                        ->dehydrated(),
+
+                                    TextInput::make('name')
+                                        ->label('Nombre del Cargo')
+                                        ->required()
+                                        ->maxLength(255),
+                                ];
+                            })
+                            ->createOptionUsing(function (array $data) {
+                                return Position::create([
+                                    'name'          => $data['name'],
+                                    'department_id' => $data['department_id'],
+                                ])->id;
+                            }),
+                    ])
+                    ->columns(2),
             ])
-            ->columns(2);
+            ->columns(1);
     }
 
+    /**
+     * Define la tabla de contratos con columnas, filtros y acciones.
+     *
+     * @param  Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         $settings = app(GeneralSettings::class);
@@ -154,7 +267,8 @@ class ContractsRelationManager extends RelationManager
                 TextColumn::make('start_date')
                     ->label('Inicio')
                     ->date('d/m/Y')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('end_date')
                     ->label('Fin')
@@ -172,22 +286,32 @@ class ContractsRelationManager extends RelationManager
                             return 'warning';
                         }
                         return null;
-                    }),
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('salary')
-                    ->label('Salario')
-                    ->formatStateUsing(fn(Contract $record) => $record->formatted_salary)
-                    ->sortable(),
+                TextColumn::make('position.department.company.name')
+                    ->label('Empresa')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
+
+                TextColumn::make('position.department.name')
+                    ->label('Departamento')
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('position.name')
                     ->label('Cargo')
-                    ->wrap(),
+                    ->searchable()
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('work_modality')
                     ->label('Modalidad')
-                    ->badge()
                     ->formatStateUsing(fn(string $state) => Contract::getWorkModalityLabel($state))
-                    ->color(fn(string $state): string => Contract::getWorkModalityColor($state))
+                    ->searchable()
+                    ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
@@ -244,7 +368,7 @@ class ContractsRelationManager extends RelationManager
                     ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
                     ->visible(fn(Contract $record) => $record->status === 'active')
                     ->form([
-                        \Filament\Forms\Components\FileUpload::make('document_path')
+                        FileUpload::make('document_path')
                             ->label('Contrato Firmado (PDF)')
                             ->disk('public')
                             ->directory('contracts')
@@ -270,7 +394,7 @@ class ContractsRelationManager extends RelationManager
 
                 // Descargar documento firmado
                 Action::make('download_signed')
-                    ->label('Firmado')
+                    ->label('Descargar Firmado')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
                     ->visible(fn(Contract $record) => (bool) $record->document_path)
@@ -279,13 +403,13 @@ class ContractsRelationManager extends RelationManager
 
                         return response()->download(
                             $path,
-                            "contrato_firmado_{$record->start_date->format('Y_m_d')}.pdf"
+                            "Contrato_{$record->employee->first_name}_{$record->employee->last_name}_{$record->type}.pdf"
                         );
                     }),
 
-                // Menú dropdown (acciones de gestión)
-                \Filament\Tables\Actions\ActionGroup::make([
+                ActionGroup::make([
                     EditAction::make()
+                        ->color('primary')
                         ->visible(fn(Contract $record) => $record->status === 'active'),
 
                     DeleteAction::make()
@@ -297,18 +421,6 @@ class ContractsRelationManager extends RelationManager
                 ])
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->tooltip('Más acciones'),
-            ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make()
-                        ->before(function ($records) {
-                            foreach ($records as $record) {
-                                if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
-                                    Storage::disk('public')->delete($record->document_path);
-                                }
-                            }
-                        }),
-                ]),
             ])
             ->defaultSort('start_date', 'desc')
             ->emptyStateHeading('No hay contratos')

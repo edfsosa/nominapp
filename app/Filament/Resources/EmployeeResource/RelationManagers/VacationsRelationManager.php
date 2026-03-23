@@ -23,6 +23,7 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 
+/** Gestiona las solicitudes de vacaciones del empleado desde su vista de detalle. */
 class VacationsRelationManager extends RelationManager
 {
     protected static string $relationship = 'vacations';
@@ -30,6 +31,12 @@ class VacationsRelationManager extends RelationManager
     protected static ?string $modelLabel = 'Vacación';
     protected static ?string $pluralModelLabel = 'Vacaciones';
 
+    /**
+     * Define el formulario para solicitar y editar vacaciones.
+     *
+     * @param  Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
@@ -42,7 +49,7 @@ class VacationsRelationManager extends RelationManager
                     ->required()
                     ->maxDate(fn(Get $get) => $get('end_date'))
                     ->helperText('Selecciona la fecha de inicio de las vacaciones')
-                    ->reactive(),
+                    ->live(),
 
                 DatePicker::make('end_date')
                     ->label('Fecha de fin')
@@ -52,7 +59,7 @@ class VacationsRelationManager extends RelationManager
                     ->required()
                     ->minDate(fn(Get $get) => $get('start_date') ?: now())
                     ->helperText('Selecciona la fecha de fin de las vacaciones')
-                    ->reactive(),
+                    ->live(),
 
                 Select::make('type')
                     ->label('Tipo de vacación')
@@ -83,6 +90,12 @@ class VacationsRelationManager extends RelationManager
             ->columns(3);
     }
 
+    /**
+     * Define la tabla de vacaciones con columnas, filtros y acciones.
+     *
+     * @param  Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
@@ -166,6 +179,7 @@ class VacationsRelationManager extends RelationManager
                         'Se aprobarán ' . $record->days_description .
                             ' de vacaciones del ' . $record->period_formatted
                     )
+                    ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Vacation $record) {
                         VacationService::approve($record);
 
@@ -184,6 +198,7 @@ class VacationsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar solicitud de vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas rechazar esta solicitud de vacaciones?')
+                    ->modalSubmitActionLabel('Sí, rechazar')
                     ->action(function (Vacation $record) {
                         VacationService::reject($record);
 
@@ -214,6 +229,7 @@ class VacationsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar vacaciones')
                         ->modalDescription('Se aprobarán las vacaciones seleccionadas que estén en estado pendiente.')
+                        ->modalSubmitActionLabel('Sí, aprobar')
                         ->action(function ($records) {
                             $approved = 0;
                             $skipped = 0;
@@ -242,6 +258,7 @@ class VacationsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Rechazar vacaciones')
                         ->modalDescription('Se rechazarán las vacaciones seleccionadas que estén en estado pendiente.')
+                        ->modalSubmitActionLabel('Sí, rechazar')
                         ->action(function ($records) {
                             $rejected = 0;
                             $skipped = 0;

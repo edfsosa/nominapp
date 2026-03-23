@@ -2,10 +2,15 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
+use App\Models\Contract;
 use App\Models\Employee;
+use App\Models\Schedule;
+use App\Services\ScheduleAssignmentService;
+use Carbon\Carbon;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\EmployeeResource;
+use Illuminate\Support\Facades\Auth;
 
 class CreateEmployee extends CreateRecord
 {
@@ -23,25 +28,69 @@ class CreateEmployee extends CreateRecord
     }
 
     /**
-     * Personaliza la notificación que se muestra después de crear el registro.
+     * Obtiene la URL de redirección después de crear el registro.
      *
+     * @return string
+     */
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    /**
+     * Obtiene la notificación que se muestra después de crear el registro.
      * @return Notification
      */
     protected function getCreatedNotification(): Notification
     {
         return Notification::make()
             ->success()
-            ->title('Empleado registrado exitosamente')
-            ->body('El empleado ' . $this->record->full_name . ' ha sido creado correctamente.')
-            ->duration(5000)
-            ->send();
+            ->title('Empleado registrado')
+            ->body('El empleado ' . $this->record->full_name . ' ha sido creado correctamente.');
     }
 
     /**
      * Muestra un aviso persistente si el empleado fue creado sin contrato.
+     * @return void
      */
     protected function afterCreate(): void
     {
+        $state = $this->data;
+
+        // Crear contrato inicial si se completaron los campos mínimos
+        if (filled($state['ic_salary'] ?? null) && filled($state['ic_position_id'] ?? null)) {
+            Contract::create([
+                'employee_id'     => $this->record->id,
+                'type'            => $state['ic_type']           ?? 'indefinido',
+                'start_date'      => $state['ic_start_date']     ?? today(),
+                'end_date'        => $state['ic_end_date']       ?? null,
+                'trial_days'      => $state['ic_trial_days']     ?? 30,
+                'salary_type'     => $state['ic_salary_type']    ?? 'mensual',
+                'salary'          => $state['ic_salary'],
+                'payroll_type'    => $state['ic_payroll_type']   ?? 'monthly',
+                'position_id'     => $state['ic_position_id'],
+                'department_id'   => $state['ic_department_id']  ?? null,
+                'work_modality'   => $state['ic_work_modality']  ?? 'presencial',
+                'payment_method'  => $state['ic_payment_method'] ?? 'debit',
+                'status'          => 'active',
+                'created_by_id'   => Auth::id(),
+            ]);
+        }
+
+        // Asignar horario inicial si se eligió
+        $scheduleId = $state['initial_schedule_id'] ?? null;
+        if ($scheduleId) {
+            $schedule = Schedule::find($scheduleId);
+            if ($schedule) {
+                ScheduleAssignmentService::assign(
+                    employee:  $this->record,
+                    schedule:  $schedule,
+                    validFrom: Carbon::today(),
+                );
+            }
+        }
+
+        // Advertir si quedó sin contrato
         if ($this->record->contracts()->doesntExist()) {
             Notification::make()
                 ->warning()

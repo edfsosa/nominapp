@@ -2,15 +2,16 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
-use Filament\Resources\Components\Tab;
-use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Resources\EmployeeResource;
+use App\Exports\EmployeesExport;
 use App\Models\Employee;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
+use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
-use Maatwebsite\Excel\Excel;
-use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Filament\Resources\EmployeeResource;
 
 class ListEmployees extends ListRecords
 {
@@ -24,22 +25,30 @@ class ListEmployees extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('export_excel')
+                ->label('Exportar')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('¿Exportar Empleados a Excel?')
+                ->modalDescription('Se exportarán todos los empleados con sus datos personales y de contrato activo.')
+                ->modalSubmitActionLabel('Sí, exportar')
+                ->action(function () {
+                    Notification::make()
+                        ->success()
+                        ->title('Exportación lista')
+                        ->body('El listado de empleados se está descargando.')
+                        ->send();
+
+                    return Excel::download(
+                        new EmployeesExport(),
+                        'empleados_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                    );
+                }),
+
             CreateAction::make()
                 ->label('Nuevo Empleado')
                 ->icon('heroicon-o-plus'),
-
-            ExportAction::make()
-                ->exports([
-                    ExcelExport::make()
-                        ->fromTable()
-                        ->except(['photo', 'face_descriptor', 'has_face'])
-                        ->withFilename(fn() => 'empleados_' . now()->format('d_m_Y_H_i_s'))
-                        ->withWriterType(Excel::XLSX)
-                ])
-                ->label('Exportar a Excel')
-                ->color('info')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->tooltip('Exportar listado de empleados'),
         ];
     }
 
@@ -55,46 +64,34 @@ class ListEmployees extends ListRecords
 
         return [
             'all' => Tab::make('Todos')
-                ->badge($counts['all'])
+                ->badge($counts['all'] ?: null)
                 ->badgeColor('gray')
                 ->icon('heroicon-o-users'),
 
             'active' => Tab::make($statusOptions['active'])
                 ->modifyQueryUsing(fn(Builder $query) => $query->active())
-                ->badge($counts['active'])
+                ->badge($counts['active'] ?: null)
                 ->badgeColor('success')
                 ->icon('heroicon-o-check-circle'),
 
             'inactive' => Tab::make($statusOptions['inactive'])
                 ->modifyQueryUsing(fn(Builder $query) => $query->inactive())
-                ->badge($counts['inactive'])
+                ->badge($counts['inactive'] ?: null)
                 ->badgeColor('danger')
                 ->icon('heroicon-o-x-circle'),
 
             'suspended' => Tab::make($statusOptions['suspended'])
                 ->modifyQueryUsing(fn(Builder $query) => $query->suspended())
-                ->badge($counts['suspended'])
+                ->badge($counts['suspended'] ?: null)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-pause-circle'),
-
-            'with_face' => Tab::make('Con Rostro')
-                ->modifyQueryUsing(fn(Builder $query) => $query->withFace())
-                ->badge($counts['with_face'])
-                ->badgeColor('success')
-                ->icon('heroicon-o-check-badge'),
-
-            'without_face' => Tab::make('Sin Rostro')
-                ->modifyQueryUsing(fn(Builder $query) => $query->withoutFace())
-                ->badge($counts['without_face'])
-                ->badgeColor('warning')
-                ->icon('heroicon-o-exclamation-triangle'),
         ];
     }
 
     /**
      * Define la pestaña activa por defecto.
      *
-     * @return void
+     * @return string|int|null
      */
     public function getDefaultActiveTab(): string | int | null
     {

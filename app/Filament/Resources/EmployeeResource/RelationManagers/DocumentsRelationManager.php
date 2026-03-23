@@ -18,6 +18,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
 
+/** Gestiona los documentos adjuntos del empleado desde su vista de detalle. */
 class DocumentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'documents';
@@ -26,6 +27,12 @@ class DocumentsRelationManager extends RelationManager
     protected static ?string $modelLabel = 'Documento';
     protected static ?string $pluralModelLabel = 'Documentos';
 
+    /**
+     * Define el formulario para subir y editar documentos.
+     *
+     * @param  Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
@@ -52,6 +59,12 @@ class DocumentsRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * Define la tabla de documentos con columnas, filtros y acciones.
+     *
+     * @param  Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
