@@ -11,6 +11,7 @@ use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\VacationDocumentController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -119,6 +120,9 @@ Route::middleware(['auth'])->group(function () {
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');
+
+    // Legajo del empleado
+    Route::get('/empleados/{employee}/legajo', [EmployeeController::class, 'legajo'])->name('employees.legajo');
 
     // Administración de horarios
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])

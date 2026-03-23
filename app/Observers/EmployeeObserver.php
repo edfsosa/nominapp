@@ -3,6 +3,8 @@
 namespace App\Observers;
 
 use App\Models\Employee;
+use App\Services\ScheduleAssignmentService;
+use Carbon\Carbon;
 
 class EmployeeObserver
 {
@@ -23,6 +25,7 @@ class EmployeeObserver
         } elseif ($employee->status === 'inactive') {
             $employee->activeEmployeePerceptions->each->deactivate();
             $employee->activeEmployeeDeductions->each->deactivate();
+            ScheduleAssignmentService::closeActive($employee, Carbon::today());
         } elseif ($employee->status === 'active') {
             $employee->employeePerceptions()
                 ->where('deactivated_by_system', true)

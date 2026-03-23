@@ -22,8 +22,9 @@ class ContractController extends Controller
         $logoPath    = $company?->logo ?? $settings->company_logo;
         $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
 
-        // Datos del horario del empleado
-        $schedule    = $contract->employee?->schedule;
+        // Datos del horario del empleado vigente en la fecha de inicio del contrato
+        $schedule    = $contract->employee?->getScheduleForDate($contract->start_date);
+        $schedule?->loadMissing('days.breaks');
         $scheduleDays = $schedule ? $schedule->days : collect();
 
         $weekdayDay  = $scheduleDays->filter(fn($d) => $d->day_of_week >= 1 && $d->day_of_week <= 5)->first();

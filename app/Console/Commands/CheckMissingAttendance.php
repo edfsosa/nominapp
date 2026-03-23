@@ -50,10 +50,12 @@ class CheckMissingAttendance extends Command
         $thresholdMinutes = config('attendance.absence_threshold_minutes', 30);
         $this->info("⏱️  Umbral configurado: {$thresholdMinutes} minutos después de la hora de entrada");
 
-        // Obtener empleados activos con horario asignado
+        // Obtener empleados activos con horario vigente (asignación nueva o campo legacy)
         $employees = Employee::where('status', 'active')
-            ->whereNotNull('schedule_id')
-            ->with(['schedule.days'])
+            ->where(fn($q) => $q
+                ->whereHas('scheduleAssignments', fn($q) => $q->forDate($date->toDate()))
+                ->orWhereNotNull('schedule_id')
+            )
             ->get();
 
         // Mostrar cantidad de empleados encontrados
@@ -109,7 +111,7 @@ class CheckMissingAttendance extends Command
 
         // Obtener el horario del empleado para el día de la semana actual
         $dayOfWeek = $date->dayOfWeekIso; // 1=Lunes, 7=Domingo
-        $scheduleDay = $employee->schedule?->days->firstWhere('day_of_week', $dayOfWeek);
+        $scheduleDay = $employee->getScheduleForDate($date)?->days()->where('day_of_week', $dayOfWeek)->first();
 
         // Verificar si es día libre o no tiene horario
         if (!$scheduleDay) {
