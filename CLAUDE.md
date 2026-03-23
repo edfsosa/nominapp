@@ -66,6 +66,58 @@ Business logic lives in `app/Services/`. Each domain has a `*Service` for orches
 - Pages: `app/Filament/Pages/` — `ManageGeneralSettings`, `ManagePayrollSettings`
 - Widgets: `app/Filament/Widgets/` — dashboard stats, attendance today, expiring contracts
 
+#### Convenciones de RelationManagers en EmployeeResource
+
+`app/Filament/Resources/EmployeeResource/RelationManagers/` — cada RM sigue esta estructura:
+
+**`form()`**
+- Layout con `->columns(1)` en el root; cada grupo lógico es un `Section::make(...)->compact()->icon(...)->columns(N)`
+- Secciones estándar en `ContractsRelationManager`:
+  - *Contrato* (3 cols): `[type ── span 2 ──] [work_modality]` / `[start_date] [end_date*] [trial_days]`
+  - *Remuneración* (2 cols): `[salary_type] [salary]`
+  - *Cargo* (2 cols): `[department_id] [position_id]`
+  - `Textarea notes` al root sin section, `->columnSpanFull()`
+- Select encadenado `department_id → position_id`: department con `->live()->afterStateUpdated(fn(Set $set) => $set('position_id', null))`; position filtra opciones por `$get('department_id')`
+- Ambos selects tienen `->createOptionForm()` + `->createOptionUsing()` para crear inline; el select de departamento en el form de posición va `->disabled()->dehydrated()`
+
+**`table()`**
+- Columnas: `type` (badge), `start_date` / `end_date` (toggleable hidden), `position.name`, `status` (badge)
+- Acciones de fila:
+  - `generate_pdf` → `->url(route(...))->openUrlInNewTab()` (nunca `->action()` para binarios)
+  - `upload_signed` → acción con `->form([FileUpload...])` para subir PDF firmado
+  - `download_signed` → `->action(fn() => response()->download(...))` — válido acá porque es un archivo ya en disco (no generado en tiempo real)
+  - `ActionGroup` con `EditAction` (solo `status === active`) + `DeleteAction` (limpia `document_path` del disco antes)
+
+**`headerActions()`**
+- `CreateAction` con `->before()` para validar reglas de negocio (ej: no crear si ya hay contrato activo) — usar `$action->halt()` para cancelar con notificación de error
+- `->mutateFormDataUsing()` para inyectar campos del sistema (`created_by_id`, limpiar `end_date` si indefinido)
+
+#### Convenciones de Pages en Resources Filament
+
+Cada Resource tiene sus Pages en `app/Filament/Resources/{Resource}Resource/Pages/`. Seguir estas convenciones:
+
+**`ListRecords` (index)**
+- `getHeaderActions()`: acción export Excel (con confirmación modal) **antes** de `CreateAction`
+- El export usa `Action::make('export_excel')` con `->requiresConfirmation()`, dispara `Notification` de éxito y retorna `Excel::download(new FooExport(), 'foo_' . now()->format('Y_m_d_H_i_s') . '.xlsx')`
+- Tabs opcionales (`getTabs()`) para filtrar por estado; usar caché en propiedad (`?array $fooCounts`) para evitar N+1
+
+**`CreateRecord`**
+- `mutateFormDataBeforeCreate()`: capitalizar `name` con `preg_replace_callback('/(?:^|\s)\S/u', fn($m) => mb_strtoupper($m[0], 'UTF-8'), $data['name'])`
+- `getCreatedNotification()`: retornar `Notification::make()->success()->title('...')->body('...')` — **NO llamar `->send()`**, Filament lo llama automáticamente
+
+**`EditRecord`**
+- `getHeaderActions()`: `[ViewAction::make()->icon('heroicon-o-eye')->color('primary'), DeleteAction::make()->label('Eliminar')->icon('heroicon-o-trash')->color('danger')->modalHeading(...)->modalDescription(...)->modalSubmitActionLabel('Sí, eliminar')->successNotificationTitle(...)->successRedirectUrl(index)]`
+- `mutateFormDataBeforeSave()`: misma capitalización que en Create
+- `getRedirectUrl()`: redirigir a `view` del record
+- `getSavedNotification()`: retornar `Notification::make()->success()->title('...')->body('...')` — **NO llamar `->send()`**, Filament lo llama automáticamente
+
+**`ViewRecord`**
+- `getHeaderActions()`: solo `EditAction::make()->icon('heroicon-o-pencil-square')`
+
+**Acciones en tabla (`->actions([])`)**
+- No agregar `ViewAction` ni `EditAction` en las filas de la tabla: el clic sobre el registro ya navega a `ViewRecord` por defecto, y el usuario accede a edición desde el `EditAction` en el encabezado de `ViewRecord`
+- Solo agregar acciones de fila para operaciones específicas del dominio (ej: `view_map`, `download`, `approve`)
+
 ### Public Routes (no auth)
 Kiosk/terminal marking and face enrollment run on public routes, served by their own JS entry points:
 - `resources/js/attendances/mark.js` — facial clock-in
@@ -81,6 +133,269 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 - `config/payroll.php` — vacation tiers, payroll rules
 - `config/attendance.php` — `ABSENCE_THRESHOLD_MINUTES`, face recognition settings
 - `app/Settings/` — runtime settings via Filament Settings plugin (`GeneralSettings`, `PayrollSettings`)
+
+### Convenciones de Validación de Campos
+
+**Teléfonos Paraguay**
+- Guardar **con `0` inicial**, sin prefijo `+595`, sin espacios ni guiones
+- `->maxLength(10)->regex('/^0\d{8,9}$/')` — cubre móviles (`09XXXXXXXX`, 10 dígitos) y fijos (`021XXXXXX` / `0XXXXXXXX`, 9 dígitos)
+- `->validationMessages(['regex' => 'Ingrese un número válido de Paraguay: móvil (09XXXXXXXX) o fijo (021XXXXXX / 0XXXXXXXX).'])`
+- `->helperText('Número sin espacios ni guiones. Ej: 0981123456')`
+- No usar `->prefix('+595')` ni `->minLength()`
+
+**RUC**
+- Formato: número base + guion + dígito verificador. Ej: `80012345-6` o `1234567-1`
+- `->maxLength(20)->regex('/^\d{1,8}-\d$/')`
+
+**CI (Cédula de Identidad)**
+- Solo dígitos, sin puntos ni guiones, 1–8 dígitos
+- `->integer()->minValue(1)->maxValue(99999999)`
+
+**Número Patronal IPS**
+- Solo dígitos, hasta 8 dígitos
+- `->integer()->minValue(1)->maxValue(99999999)`
+
+### Convenciones de Documentación
+
+Todos los archivos del proyecto deben tener sus clases, métodos y propiedades documentados con **PHPDoc** (PHP) o **JSDoc** (JS). Esto aplica a:
+
+- **PHP:** Resources, Pages, RelationManagers, Models, Services, Observers, Exports, Controllers, Rules, Settings, Providers, Commands
+- **JS/Vue:** archivos en `resources/js/` (funciones, componentes, props, eventos)
+- **Blade:** comentarios `{{-- Descripción de la sección --}}` en bloques relevantes
+- **CSS:** comentarios de sección en archivos de estilos
+
+**PHP — PHPDoc mínimo por tipo:**
+```php
+// Clase
+/** Gestiona la exportación de sucursales a Excel. */
+class BranchesExport { ... }
+
+// Método (siempre con @param y @return)
+/**
+ * Retorna los encabezados de columna para el archivo Excel.
+ *
+ * @return array<int, string>
+ */
+public function headings(): array { ... }
+
+/**
+ * Capitaliza el nombre y limpia el teléfono antes de crear el registro.
+ *
+ * @param  array<string, mixed> $data
+ * @return array<string, mixed>
+ */
+protected function mutateFormDataBeforeCreate(array $data): array { ... }
+
+// Propiedad
+/** @var int|null ID de la empresa para filtrar sucursales. */
+protected ?int $companyId;
+```
+
+**JS — JSDoc mínimo:**
+```js
+/**
+ * Inicializa el componente de captura facial.
+ * @param {HTMLElement} container - Contenedor del video
+ */
+function initCapture(container) { ... }
+```
+
+No agregar comentarios redundantes que repitan lo que el nombre ya dice. El objetivo es explicar el **propósito** o comportamiento no obvio.
+
+### Coordenadas GPS (sucursales)
+
+- Almacenar como JSON `{lat, lng}` en columna `coordinates` con cast `'coordinates' => 'array'` en el modelo
+- Usar el campo `Map` de `cheesegrits/filament-google-maps` (v4.0.2, compatible PHP 8.2)
+- Configuración estándar del campo:
+  ```php
+  Map::make('coordinates')
+      ->defaultLocation([-25.2867, -57.6478]) // Asunción, Paraguay
+      ->draggable()->clickable()
+      ->autocomplete('address')->autocompleteReverse(true)
+      ->reverseGeocode(['address' => '%n %S', 'city' => '%L'])
+      ->geolocate()->height('400px')
+  ```
+- El campo `city` debe ser `->readOnly()` — se completa automáticamente via `reverseGeocode`
+- Para mostrar en Google Maps desde una action: `sprintf('https://www.google.com/maps?q=%s,%s', $record->coordinates['lat'], $record->coordinates['lng'])` con `->visible(fn($r) => isset($r->coordinates['lat'], $r->coordinates['lng']))`
+
+### Colores semánticos en Filament
+
+- Usar `'gray'` en lugar de `'secondary'` — `'secondary'` no es un color semántico válido en Filament 3
+- Colores válidos: `'primary'`, `'success'`, `'warning'`, `'danger'`, `'info'`, `'gray'`
+- También inválidos: `'pink'`, `'blue'`, `'red'`, `'green'` — solo los 6 de arriba
+
+### Evitar hardcoding de labels, colores y opciones
+
+Los labels, colores y opciones de campos enum/select deben centralizarse en el modelo correspondiente, nunca hardcodearse en Resources, Pages o RelationManagers. Esto facilita el mantenimiento: si se agrega un nuevo valor, se toca un solo lugar.
+
+**Patrón en el modelo:**
+```php
+public static function getShiftTypeOptions(): array  // para Select en formularios (puede incluir descripción)
+{
+    return ['diurno' => 'Diurno (06:00 - 20:00)', ...];
+}
+
+public static function getShiftTypeLabels(): array   // para badges/columnas (label corto)
+{
+    return ['diurno' => 'Diurno', 'nocturno' => 'Nocturno', 'mixto' => 'Mixto'];
+}
+
+public static function getShiftTypeColors(): array   // para colores de badges
+{
+    return ['diurno' => 'success', 'nocturno' => 'info', 'mixto' => 'warning'];
+}
+```
+
+**Uso en Resource/Page:**
+```php
+->formatStateUsing(fn($state) => Schedule::getShiftTypeLabels()[$state] ?? $state)
+->color(fn($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray')
+```
+
+### Descargas de archivos desde acciones Filament
+
+Las acciones Filament corren via Livewire (AJAX) y **no pueden retornar respuestas binarias** desde `->action()` — causa `Malformed UTF-8` al serializar a JSON.
+
+**Patrón correcto para PDFs y descargas:**
+1. Crear una ruta autenticada en `routes/web.php` dentro del grupo `auth`
+2. Crear (o agregar a) un controller en `app/Http/Controllers/`
+3. El generator devuelve `response($pdf->output(), 200, ['Content-Type' => 'application/pdf', ...])`
+4. La action usa `->url(fn() => route('foo.bar', $record))->openUrlInNewTab()`
+
+**PDFs on-demand vs almacenados:**
+- On-demand (ej. legajo): `response()` directo, sin `Storage::put()` — no hay necesidad de persistirlo
+- Almacenados (ej. recibo de nómina): `Storage::disk('public')->put($fileName, $pdf->output())` y se guarda la ruta en BD para re-descargar después
+
+**`inline` vs `attachment` en Content-Disposition:**
+- Usar `inline` cuando la action tiene `->openUrlInNewTab()` — el navegador renderiza el PDF en la pestaña
+- Usar `attachment` solo cuando se quiere forzar la descarga al disco (sin abrir en el navegador)
+- Regla general del proyecto: **los PDFs se abren en nueva pestaña** (`inline`)
+
+### Select dependiente (parent → child)
+
+Patrón estándar para campos encadenados (ej. Departamento → Cargo):
+
+```php
+// 1. Parent primero, con ->live() y limpiar el hijo al cambiar
+Select::make('department_id')
+    ->live()
+    ->afterStateUpdated(fn(Set $set) => $set('position_id', null))
+    ...
+
+// 2. Hijo filtra por el parent; si no hay parent seleccionado, muestra todos
+Select::make('position_id')
+    ->options(function (Get $get) {
+        $deptId = $get('department_id');
+        return $deptId
+            ? Position::where('department_id', $deptId)->orderBy('name')->pluck('name', 'id')->toArray()
+            : Position::getOptionsWithDepartment();
+    })
+    ...
+```
+
+### `createOptionForm` en Select
+
+Permite crear registros inline desde un campo Select usando `->createOptionForm()` + `->createOptionUsing()`.
+
+**Acceso al record padre en RelationManagers:** usar `$this->getOwnerRecord()` directamente en los closures (PHP enlaza `$this` automáticamente en closures de métodos de clase).
+
+```php
+->createOptionUsing(function (array $data) {
+    return Department::create([
+        'name'       => $data['name'],
+        'company_id' => $this->getOwnerRecord()->branch?->company_id, // inyectado, no expuesto en el form
+    ])->id;
+})
+```
+
+**Regla `unique` cuando el campo de scope no está en el form** (ej. `company_id` no es un input visible):
+
+```php
+->unique(
+    table: Department::class,
+    column: 'name',
+    modifyRuleUsing: fn($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+)
+->validationMessages(['unique' => 'Ya existe un departamento con ese nombre en esta empresa.'])
+```
+
+**Mensajes de validación personalizados:** `->validationMessages(['rule' => 'mensaje'])` — la clave es el nombre de la regla Laravel (`unique`, `required`, `max`, `regex`, etc.).
+
+### Campos virtuales en formularios de creación (`->dehydrated(false)`)
+
+Para campos que no mapean a columnas del modelo pero disparan lógica post-creación (ej. contrato inicial, horario inicial), usar `->dehydrated(false)` para que Filament no intente guardarlos en la BD.
+
+**Gotcha crítico:** `$this->form->getState()` **excluye** los campos con `->dehydrated(false)`. Para leerlos en `afterCreate()` o `afterSave()`, usar `$this->data` (propiedad Livewire con el estado raw completo del form):
+
+```php
+// ❌ No funciona para campos ->dehydrated(false)
+$state = $this->form->getState();
+
+// ✅ Correcto
+$state = $this->data;
+```
+
+**Patrón completo para lógica post-creación con campos virtuales:**
+
+```php
+// En el form: prefijo para evitar colisiones con columnas reales
+Select::make('initial_schedule_id')
+    ->dehydrated(false)
+    ->visibleOn('create')
+    ...
+
+// En afterCreate(): usar $this->data
+protected function afterCreate(): void
+{
+    $state = $this->data;
+
+    if (filled($state['initial_schedule_id'] ?? null)) {
+        ScheduleAssignmentService::assign($this->record, Schedule::find($state['initial_schedule_id']), Carbon::today());
+    }
+}
+```
+
+**Convención de prefijos para campos virtuales:** usar `ic_` para "initial contract", `initial_` para otros — así es obvio que no son columnas reales y evitan colisiones con campos del modelo.
+
+### Secciones opcionales en `CreateRecord`
+
+Para secciones que solo tienen sentido en creación (ej. contrato inicial, horario inicial):
+- `->visibleOn('create')` en la Section — desaparece en edit sin lógica extra
+- `->collapsible()->collapsed()` — no abruma al usuario; solo la expande quien quiere usarla
+- La lógica de creación va en `afterCreate()` con una condición mínima: si los campos clave están vacíos, no hacer nada (el usuario no expandió la sección)
+
+```php
+// Condición mínima — no crear si campos esenciales están vacíos
+if (filled($state['ic_salary'] ?? null) && filled($state['ic_position_id'] ?? null)) {
+    Contract::create([...]);
+}
+```
+
+### Filament Forms — convenciones adicionales
+
+**`->live()` en lugar de `->reactive()`**
+`->reactive()` está deprecado en Filament 3. Siempre usar `->live()`.
+
+**`Section::columns()` no acepta Closure**
+El método `->columns()` en `Section` (form e infolist) solo acepta `int|array|null`. Para layouts condicionales por operación (create vs edit), la única alternativa sin duplicar campos es aceptar un layout fijo o usar `Grid` interno.
+
+**Grid en Infolists: namespace diferente al de Forms**
+En un `infolist()`, usar `Filament\Infolists\Components\Grid` — no `Filament\Forms\Components\Grid`. Convención: importar como alias para evitar conflictos:
+```php
+use Filament\Infolists\Components\Grid as InfoGrid;
+```
+
+**`modalSubmitActionLabel` obligatorio en acciones con confirmación**
+Toda acción con `->requiresConfirmation()` — tanto en filas como en `BulkAction` — debe tener `->modalSubmitActionLabel('Sí, [verbo]')`. El botón genérico "OK" de Filament no es suficiente.
+
+**BulkActions de cambio de estado deben filtrar antes de actualizar**
+Nunca hacer `$records->each->update([...])` sin verificar el estado esperado. Siempre filtrar:
+```php
+->action(fn($records) => $records->each(
+    fn($record) => $record->status === 'pending' && $record->update(['status' => 'approved'])
+))
+```
+Para lógica más compleja, iterar con `foreach` y contar procesados/omitidos para reportar en la notificación.
 
 ### Important Notes
 - Monetary values use `decimal:2` cast
