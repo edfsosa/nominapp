@@ -294,6 +294,12 @@ class FaceEnrollment extends Model
      */
     public static function createForEmployee(Employee $employee, int $generatedById, int $expiryHours): self
     {
+        // Invalidar enlaces pendientes anteriores para que solo exista uno activo a la vez
+        static::where('employee_id', $employee->id)
+            ->whereIn('status', ['pending_capture', 'pending_approval'])
+            ->where('expires_at', '>', now())
+            ->update(['status' => 'expired', 'expires_at' => now()]);
+
         return static::create([
             'employee_id' => $employee->id,
             'token' => Str::random(64),

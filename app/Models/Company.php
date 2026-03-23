@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
+use Illuminate\Support\Facades\DB;
 
 class Company extends Model
 {
@@ -30,14 +31,46 @@ class Company extends Model
         'founded_at' => 'date',
     ];
 
+    /**
+     * Tipos societarios legales permitidos
+     */
     public static array $legalTypes = [
+        'EAS'         => 'Empresa por Acciones Simplificadas (EAS)',
         'SA'          => 'Sociedad Anónima (SA)',
         'SRL'         => 'Sociedad de Resp. Limitada (SRL)',
         'SACI'        => 'Sociedad Anónima de Cap. e Industria (SACI)',
         'SC'          => 'Sociedad Colectiva (SC)',
         'EU'          => 'Empresa Unipersonal',
         'Cooperativa' => 'Cooperativa',
+        'Consorcio'    => 'Consorcio',
         'Fundacion'   => 'Fundación',
+        'Asociacion'   => 'Asociación',
+    ];
+
+    /**
+     * Ciudades disponibles (pueden ser ampliadas según necesidades)
+     */
+    public static array $cities = [
+        'Asunción',
+        'Areguá',
+        'Capiatá',
+        'Fernando de la Mora',
+        'Guarambaré',
+        'Itá',
+        'Itauguá',
+        'J. Augusto Saldívar',
+        'Lambaré',
+        'Limpio',
+        'Luque',
+        'Mariano Roque Alonso',
+        'Nueva Italia',
+        'Ñemby',
+        'San Antonio',
+        'San Lorenzo',
+        'Villa Elisa',
+        'Villeta',
+        'Ypacaraí',
+        'Ypané',
     ];
 
     /**
@@ -73,12 +106,43 @@ class Company extends Model
     }
 
     /**
+     * Opciones de ciudades para selects (nombre como clave y valor)
+     */
+    public static function citiesOptions(): array
+    {
+        return array_combine(static::$cities, static::$cities);
+    }
+
+    /**
+     * Label de la ciudad
+     */
+    public function getCityLabelAttribute(): ?string
+    {
+        return $this->city ?? null;
+    }
+
+    /**
+     * Resumen de empleados activos y total en una sola query
+     */
+    public function getEmployeesSummary(): string
+    {
+        $result = DB::table('employees')
+            ->join('branches', 'branches.id', '=', 'employees.branch_id')
+            ->where('branches.company_id', $this->id)
+            ->selectRaw('COUNT(*) as total, SUM(employees.status = "active") as active_count')
+            ->first();
+
+        return ($result?->active_count ?? 0) . ' / ' . ($result?->total ?? 0);
+    }
+
+    /**
      * Contratos activos de todos los empleados de la empresa
      */
     public function activeContractsCount(): int
     {
         return Contract::whereIn(
-            'employee_id', $this->employees()->select('employees.id')
+            'employee_id',
+            $this->employees()->select('employees.id')
         )->where('status', 'active')->count();
     }
 
@@ -88,11 +152,12 @@ class Company extends Model
     public function expiringSoonContractsCount(int $days = 30): int
     {
         return Contract::whereIn(
-            'employee_id', $this->employees()->select('employees.id')
+            'employee_id',
+            $this->employees()->select('employees.id')
         )->where('status', 'active')
-         ->whereNotNull('end_date')
-         ->where('end_date', '<=', now()->addDays($days))
-         ->count();
+            ->whereNotNull('end_date')
+            ->where('end_date', '<=', now()->addDays($days))
+            ->count();
     }
 
     /**

@@ -12,8 +12,13 @@ class ScheduleDay extends Model
     protected $fillable = [
         'schedule_id',
         'day_of_week',
+        'is_active',
         'start_time',
-        'end_time'
+        'end_time',
+    ];
+
+    protected $casts = [
+        'is_active' => 'boolean',
     ];
 
     // Relación con el horario al que pertenece este día
@@ -28,20 +33,32 @@ class ScheduleDay extends Model
         return $this->hasMany(ScheduleBreak::class);
     }
 
-    // Accesor para obtener el nombre del día de la semana
-    public function getDayOfWeekNameAttribute(): string
+    /**
+     * Retorna el mapeo de número de día a nombre en español.
+     *
+     * @return array<int, string>
+     */
+    public static function getDayOptions(): array
     {
-        $days = [
+        return [
             1 => 'Lunes',
             2 => 'Martes',
             3 => 'Miércoles',
             4 => 'Jueves',
             5 => 'Viernes',
             6 => 'Sábado',
-            7 => 'Domingo'
+            7 => 'Domingo',
         ];
+    }
 
-        return $days[$this->day_of_week] ?? 'Desconocido';
+    /**
+     * Accesor para obtener el nombre del día de la semana.
+     *
+     * @return string
+     */
+    public function getDayOfWeekNameAttribute(): string
+    {
+        return static::getDayOptions()[$this->day_of_week] ?? 'Desconocido';
     }
 
     // Calcular las horas programadas para este día

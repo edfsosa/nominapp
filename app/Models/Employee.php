@@ -23,6 +23,7 @@ class Employee extends Model
         'maternity_protection_until',
         'phone',
         'email',
+        'gender',
         'branch_id',
         'schedule_id',
         'status',
@@ -242,11 +243,42 @@ class Employee extends Model
     }
 
     /**
-     * Relación con el modelo ScheduleType, un empleado puede tener un horario asignado
+     * Horario asignado directamente al empleado (campo legacy, usar getScheduleForDate()).
      */
     public function schedule(): BelongsTo
     {
         return $this->belongsTo(Schedule::class);
+    }
+
+    /**
+     * Historial completo de asignaciones de horario del empleado.
+     */
+    public function scheduleAssignments(): HasMany
+    {
+        return $this->hasMany(EmployeeScheduleAssignment::class);
+    }
+
+    /**
+     * Retorna el horario vigente del empleado para una fecha dada.
+     * Prioriza la tabla de asignaciones; si no existe, cae al campo legacy schedule_id.
+     *
+     * @param  Carbon|null  $date  Fecha de consulta (por defecto hoy).
+     * @return Schedule|null
+     */
+    public function getScheduleForDate(?Carbon $date = null): ?Schedule
+    {
+        $date ??= Carbon::today();
+
+        $assignment = $this->scheduleAssignments()
+            ->where('valid_from', '<=', $date)
+            ->where(fn($q) => $q
+                ->whereNull('valid_until')
+                ->orWhere('valid_until', '>=', $date)
+            )
+            ->latest('valid_from')
+            ->first();
+
+        return $assignment?->schedule ?? $this->schedule;
     }
 
     /**
@@ -309,41 +341,26 @@ class Employee extends Model
 
     public function getTodayScheduledCheckInAttribute()
     {
-        $today = Carbon::now()->dayOfWeekIso;
+        $today       = Carbon::now()->dayOfWeekIso;
+        $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
-        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
-
-        if ($scheduleDay) {
-            return $scheduleDay->start_time;
-        }
-
-        return null;
+        return $scheduleDay?->start_time;
     }
 
     public function getTodayScheduledCheckOutAttribute()
     {
-        $today = Carbon::now()->dayOfWeekIso;
+        $today       = Carbon::now()->dayOfWeekIso;
+        $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
-        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
-
-        if ($scheduleDay) {
-            return $scheduleDay->end_time;
-        }
-
-        return null;
+        return $scheduleDay?->end_time;
     }
 
     public function getTodayExpectedBreakMinutesAttribute()
     {
-        $today = Carbon::now()->dayOfWeekIso;
+        $today       = Carbon::now()->dayOfWeekIso;
+        $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
-        $scheduleDay = $this->schedule?->days->firstWhere('day_of_week', $today);
-
-        if ($scheduleDay) {
-            return $scheduleDay->total_break_minutes;
-        }
-
-        return null;
+        return $scheduleDay?->total_break_minutes;
     }
 
     public function scopeWithPayrollTypeAndSalary($query, string $type)
@@ -538,6 +555,61 @@ class Employee extends Model
     }
 
     /**
+     * Obtiene las opciones de género para filtros y selects.
+     *
+     * @return array<string, string>
+     */
+    public static function getGenderOptions(): array
+    {
+        return [
+            'masculino' => 'Masculino',
+            'femenino'  => 'Femenino',
+        ];
+    }
+
+    /**
+     * Obtiene los colores de badge por género.
+     *
+     * @return array<string, string>
+     */
+    public static function getGenderColors(): array
+    {
+        return [
+            'masculino' => 'info',
+            'femenino'  => 'primary',
+        ];
+    }
+
+    /**
+     * Obtiene los íconos por género.
+     *
+     * @return array<string, string>
+     */
+    public static function getGenderIcons(): array
+    {
+        return [
+            'masculino' => 'heroicon-o-user',
+            'femenino'  => 'heroicon-o-user',
+        ];
+    }
+
+    /**
+     * Obtiene la etiqueta formateada del género del empleado.
+     */
+    public function getGenderLabelAttribute(): ?string
+    {
+        return self::getGenderOptions()[$this->gender] ?? null;
+    }
+
+    /**
+     * Obtiene el color del badge para el género del empleado.
+     */
+    public function getGenderColorAttribute(): string
+    {
+        return self::getGenderColors()[$this->gender] ?? 'gray';
+    }
+
+    /**
      * Obtiene las opciones de meses para filtros
      */
     public static function getMonthOptions(): array
@@ -585,7 +657,7 @@ class Employee extends Model
     /**
      * Obtiene la etiqueta formateada del tipo de empleo
      */
-    public function getEmploymentTypeLabelAttribute(): string
+    public function getEmploymentTypeLabelAttribute(): ?string
     {
         return self::getEmploymentTypeOptions()[$this->employment_type] ?? $this->employment_type;
     }
@@ -619,9 +691,9 @@ class Employee extends Model
     /**
      * Obtiene la etiqueta formateada del tipo de nómina
      */
-    public function getPayrollTypeLabelAttribute(): string
+    public function getPayrollTypeLabelAttribute(): ?string
     {
-        return self::getPayrollTypeOptions()[$this->payroll_type] ?? $this->payroll_type ?? '-';
+        return self::getPayrollTypeOptions()[$this->payroll_type] ?? $this->payroll_type;
     }
 
     /**
@@ -664,7 +736,7 @@ class Employee extends Model
     public function getContactUrlAttribute(): ?string
     {
         if ($this->phone) {
-            return 'https://api.whatsapp.com/send?phone=595' . $this->phone;
+            return 'https://api.whatsapp.com/send?phone=595' . ltrim($this->phone, '0');
         }
 
         if ($this->email) {
@@ -818,7 +890,7 @@ class Employee extends Model
     /**
      * Obtiene la etiqueta formateada del método de pago
      */
-    public function getPaymentMethodLabelAttribute(): string
+    public function getPaymentMethodLabelAttribute(): ?string
     {
         return self::getPaymentMethodOptions()[$this->payment_method] ?? $this->payment_method;
     }
@@ -879,10 +951,10 @@ class Employee extends Model
             $data['ci'] = ltrim(str_replace(' ', '', $data['ci']), '0') ?: '0';
         }
 
-        // Limpiar teléfono: eliminar espacios, guiones y ceros a la izquierda
+        // Limpiar teléfono: eliminar espacios y guiones; conservar el 0 inicial (formato Paraguay)
         if (isset($data['phone'])) {
-            $cleaned = str_replace([' ', '-', '+595'], '', $data['phone']);
-            $data['phone'] = ltrim($cleaned, '0') ?: null;
+            $cleaned = preg_replace('/[\s\-]/', '', $data['phone'] ?? '');
+            $data['phone'] = $cleaned !== '' ? $cleaned : null;
         }
 
         // Si es creación, asegurar que face_descriptor sea null
