@@ -4,15 +4,15 @@ namespace Database\Seeders;
 
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
-use App\Models\Company;
 
+/** Siembra departamentos y cargos demo asociados a la primera empresa existente. */
 class DepartmentSeeder extends Seeder
 {
     public function run(): void
     {
         DB::transaction(function () {
-            $now = now();
-            $companyId = Company::first()->id;
+            $now       = now();
+            $companyId = DB::table('companies')->value('id');
 
             $departments = [
                 ['company_id' => $companyId, 'name' => 'Recursos Humanos',    'created_at' => $now, 'updated_at' => $now],
@@ -29,7 +29,10 @@ class DepartmentSeeder extends Seeder
 
             DB::table('departments')->insert($departments);
 
-            $dept = DB::table('departments')->pluck('id', 'name');
+            // Acotar por company_id para evitar colisiones si hubiera departamentos de otra empresa
+            $dept = DB::table('departments')
+                ->where('company_id', $companyId)
+                ->pluck('id', 'name');
 
             $positions = [
                 // Recursos Humanos
@@ -47,7 +50,7 @@ class DepartmentSeeder extends Seeder
 
                 // Marketing
                 ['name' => 'Especialista en Marketing',   'department_id' => $dept['Marketing']],
-                ['name' => 'Diseñador/a Gráfico/a',      'department_id' => $dept['Marketing']],
+                ['name' => 'Diseñador/a Gráfico/a',       'department_id' => $dept['Marketing']],
 
                 // Ventas
                 ['name' => 'Ejecutivo/a de Ventas',       'department_id' => $dept['Ventas']],

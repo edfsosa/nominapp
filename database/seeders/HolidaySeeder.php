@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/** Siembra los feriados nacionales oficiales de Paraguay para el año en curso. */
 class HolidaySeeder extends Seeder
 {
     public function run(): void
@@ -17,6 +18,7 @@ class HolidaySeeder extends Seeder
 
         $holidays = [
             ['date' => "$year-01-01", 'name' => 'Año Nuevo'],
+            ['date' => "$year-02-03", 'name' => 'San Blas — Patrono del Paraguay'],
             ['date' => "$year-03-01", 'name' => 'Día de los Héroes'],
             ['date' => $easter->copy()->subDays(3)->toDateString(), 'name' => 'Jueves Santo'],
             ['date' => $easter->copy()->subDays(2)->toDateString(), 'name' => 'Viernes Santo'],

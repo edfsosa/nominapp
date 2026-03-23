@@ -3,7 +3,6 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -13,8 +12,7 @@ use Illuminate\Support\Str;
  *
  * Solo siembra datos reales/obligatorios:
  *   - Usuario administrador (configurable vía .env)
- *   - Deducciones legalmente obligatorias (IPS, IRP)
- *   - Feriados nacionales del año en curso (Paraguay)
+ *   - Deducciones legalmente obligatorias (IPS)
  *
  * Es idempotente: se puede correr múltiples veces sin duplicar registros.
  * NO trunca tablas ni inserta datos demo.
@@ -33,7 +31,6 @@ class ProductionSeeder extends Seeder
     {
         $this->createAdminUser();
         $this->seedDeductions();
-        $this->seedHolidays();
         $this->printChecklist();
     }
 
@@ -77,17 +74,6 @@ class ProductionSeeder extends Seeder
                 'amount'       => null,
                 'percent'      => 9.00,
                 'is_mandatory' => true,
-                'affects_irp'  => false,
-                'is_active'    => true,
-            ],
-            [
-                'name'         => 'Impuesto a la Renta Personal (IRP)',
-                'code'         => 'IRP001',
-                'description'  => 'Deducción de impuesto sobre la renta según la ley vigente',
-                'calculation'  => 'percentage',
-                'amount'       => null,
-                'percent'      => 8.00,
-                'is_mandatory' => true,
                 'affects_irp'  => true,
                 'is_active'    => true,
             ],
@@ -103,43 +89,7 @@ class ProductionSeeder extends Seeder
             );
         }
 
-        $this->command->info('Deducciones obligatorias sembradas: IPS (9%), IRP (8%).');
-    }
-
-    private function seedHolidays(): void
-    {
-        $now  = now();
-        $year = (int) date('Y');
-
-        $base   = Carbon::createFromDate($year, 3, 21);
-        $easter = $base->addDays(easter_days($year));
-
-        $holidays = [
-            ['date' => "$year-01-01", 'name' => 'Año Nuevo'],
-            ['date' => "$year-03-01", 'name' => 'Día de los Héroes'],
-            ['date' => $easter->copy()->subDays(3)->toDateString(), 'name' => 'Jueves Santo'],
-            ['date' => $easter->copy()->subDays(2)->toDateString(), 'name' => 'Viernes Santo'],
-            ['date' => "$year-05-01", 'name' => 'Día del Trabajador'],
-            ['date' => "$year-05-14", 'name' => 'Independencia Nacional (día 1)'],
-            ['date' => "$year-05-15", 'name' => 'Independencia Nacional (día 2)'],
-            ['date' => "$year-06-12", 'name' => 'Paz del Chaco'],
-            ['date' => "$year-08-15", 'name' => 'Fundación de Asunción'],
-            ['date' => "$year-09-29", 'name' => 'Victoria de Boquerón'],
-            ['date' => "$year-12-08", 'name' => 'Virgen de Caacupé'],
-            ['date' => "$year-12-25", 'name' => 'Navidad'],
-        ];
-
-        foreach ($holidays as $holiday) {
-            DB::table('holidays')->updateOrInsert(
-                ['date' => $holiday['date']],
-                array_merge($holiday, [
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ])
-            );
-        }
-
-        $this->command->info("Feriados $year sembrados/actualizados (" . count($holidays) . ' registros).');
+        $this->command->info('Deducción obligatoria sembrada: IPS (9%).');
     }
 
     private function printChecklist(): void
@@ -161,6 +111,10 @@ class ProductionSeeder extends Seeder
         $this->command->line('  [ ] Nómina (Ajustes → Nómina):');
         $this->command->line('        - Revisar multiplicadores de horas extra');
         $this->command->line('        - Revisar parámetros de vacaciones y liquidación');
+        $this->command->line('');
+        $this->command->line('  [ ] Feriados nacionales (Panel → Feriados):');
+        $this->command->line('        - Cargar los feriados del año en curso');
+        $this->command->line('        - Repetir al inicio de cada año calendario');
         $this->command->line('');
         $this->command->line('  [ ] Catálogos opcionales:');
         $this->command->line('        - Agregar deducciones adicionales (seguros, sindicato, etc.)');

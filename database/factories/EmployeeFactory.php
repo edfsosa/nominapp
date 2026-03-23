@@ -28,7 +28,7 @@ class EmployeeFactory extends Factory
             'last_name'       => $this->faker->lastName,
             'ci'              => (string) $this->faker->unique()->numberBetween(1000000, 12000000),
             'birth_date'      => $birthDate->format('Y-m-d'),
-            'phone'           => $this->faker->numerify('(09##) ###-###'),
+            'phone'           => $this->faker->numerify('09########'),
             'email'           => $this->faker->unique()->safeEmail,
             'branch_id'       => !empty(static::$branchIds) ? $this->faker->randomElement(static::$branchIds) : null,
             'schedule_id'     => !empty(static::$scheduleIds) ? $this->faker->randomElement(static::$scheduleIds) : null,

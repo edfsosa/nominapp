@@ -7,13 +7,22 @@ use Carbon\Carbon;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Siembra liquidaciones de ejemplo para empleados inactivos/suspendidos.
+ *
+ * Usa los datos reales del último contrato del empleado (salario, fecha de ingreso,
+ * tipo de salario) en lugar de valores aleatorios.
+ * Calcula haberes según el Código Laboral Paraguayo (Ley 213/93).
+ */
 class LiquidacionSeeder extends Seeder
 {
     public function run(): void
     {
-        // Solo empleados inactivos o suspendidos (desvinculados)
-        $employees = Employee::whereIn('status', ['inactive', 'suspended'])->take(2)->get();
-        $adminId = DB::table('users')->where('email', 'admin@example.com')->value('id');
+        $employees = Employee::whereIn('status', ['inactive', 'suspended'])
+            ->with(['contracts' => fn($q) => $q->orderByDesc('start_date')])
+            ->get();
+
+        $adminId = DB::table('users')->value('id');
 
         if ($employees->isEmpty()) {
             $this->command->warn('No hay empleados inactivos/suspendidos para generar liquidaciones.');
@@ -21,102 +30,117 @@ class LiquidacionSeeder extends Seeder
         }
 
         DB::transaction(function () use ($employees, $adminId) {
-            $now = now();
-            $liquidaciones = [];
-            $items = [];
-
+            $now              = now();
+            $liquidaciones    = [];
+            $items            = [];
             $terminationTypes = ['unjustified_dismissal', 'resignation'];
 
             foreach ($employees as $index => $employee) {
-                $hireDate = Carbon::now()->subYears(rand(1, 8))->subMonths(rand(0, 11));
-                $terminationDate = Carbon::now()->subDays(rand(10, 60));
-                $baseSalary = rand(2_500_000, 6_000_000);
-                $dailySalary = round($baseSalary / 30);
+                // Usar datos reales del último contrato
+                $contract        = $employee->contracts->first();
+                $baseSalary      = $contract ? (int) $contract->salary : 3000000;
+                $salaryType      = $contract?->salary_type ?? 'mensual';
+                $hireDate        = Carbon::parse($contract?->start_date ?? now()->subYears(3));
+                $terminationDate = Carbon::now()->subDays(15 + ($index * 20));
                 $terminationType = $terminationTypes[$index % count($terminationTypes)];
 
-                $yearsOfService = $hireDate->diffInYears($terminationDate);
+                $dailySalary     = $salaryType === 'jornal' ? $baseSalary : (int) round($baseSalary / 30);
+                $yearsOfService  = $hireDate->diffInYears($terminationDate);
                 $monthsOfService = $hireDate->diffInMonths($terminationDate) % 12;
-                $daysOfService = (int) $hireDate->copy()->addYears($yearsOfService)->addMonths($monthsOfService)->diffInDays($terminationDate);
+                $daysOfService   = (int) $hireDate->copy()
+                    ->addYears($yearsOfService)
+                    ->addMonths($monthsOfService)
+                    ->diffInDays($terminationDate);
 
-                // Promedio de salario últimos 6 meses (simulado)
-                $avgSalary6m = round($baseSalary * (1 + rand(0, 10) / 100));
+                // Promedio salarial últimos 6 meses (5% sobre base para demo)
+                $avgSalary6m = (int) round($baseSalary * 1.05);
 
-                // Preaviso: 30-90 días según antigüedad
-                $preavisoDays = match (true) {
+                // Preaviso (Art. 87 CLT): 30/60/90 días según antigüedad
+                $preavisoDays    = match (true) {
                     $yearsOfService >= 10 => 90,
                     $yearsOfService >= 5  => 60,
                     default               => 30,
                 };
-                $preavisoOtorgado = $terminationType === 'resignation';
-                $preavisoAmount = $preavisoOtorgado ? 0 : round($dailySalary * $preavisoDays);
+                $preavisoOtorgado = ($terminationType === 'resignation');
+                $preavisoAmount   = $preavisoOtorgado ? 0 : (int) round($dailySalary * $preavisoDays);
 
-                // Indemnización: 15 días por año (despido injustificado)
+                // Indemnización (Art. 92 CLT): 15 días/año en despido injustificado
                 $indemnizacionAmount = $terminationType === 'unjustified_dismissal'
-                    ? round($dailySalary * 15 * max(1, $yearsOfService))
+                    ? (int) round($dailySalary * 15 * max(1, $yearsOfService))
                     : 0;
 
-                // Vacaciones proporcionales
-                $entitledDays = $yearsOfService >= 10 ? 30 : ($yearsOfService >= 5 ? 18 : 12);
-                $vacacionesDays = round($entitledDays * $monthsOfService / 12);
-                $vacacionesAmount = round($dailySalary * $vacacionesDays);
+                // Indemnización por estabilidad (Art. 96 CLT): aplica con 10+ años de servicio
+                $indemnizacionEstabilidadAmount = ($yearsOfService >= 10 && $terminationType === 'unjustified_dismissal')
+                    ? (int) round($dailySalary * 15 * $yearsOfService)
+                    : 0;
 
-                // Aguinaldo proporcional
-                $monthsInYear = $terminationDate->month;
-                $aguinaldoAmount = round($baseSalary * $monthsInYear / 12);
+                // Vacaciones proporcionales: días según tramo de antigüedad, proporcional a meses
+                $entitledDays    = match (true) {
+                    $yearsOfService >= 10 => 30,
+                    $yearsOfService >= 5  => 18,
+                    default               => 12,
+                };
+                $vacacionesDays   = (int) round($entitledDays * ($terminationDate->month) / 12);
+                $vacacionesAmount = (int) round($dailySalary * $vacacionesDays);
 
-                // Salario pendiente
-                $salarioPendienteDays = $terminationDate->day;
-                $salarioPendienteAmount = round($dailySalary * $salarioPendienteDays);
+                // Aguinaldo proporcional: salario × meses transcurridos en el año / 12
+                $aguinaldoAmount = (int) round($baseSalary * $terminationDate->month / 12);
+
+                // Salario pendiente: días trabajados en el mes de desvinculación
+                $salarioPendienteDays   = $terminationDate->day;
+                $salarioPendienteAmount = (int) round($dailySalary * $salarioPendienteDays);
 
                 // Deducciones
-                $ipsDeduction = round(($salarioPendienteAmount + $preavisoAmount) * 0.09);
-                $loanDeduction = 0;
+                $ipsBase      = $salarioPendienteAmount + $preavisoAmount;
+                $ipsDeduction = (int) round($ipsBase * 0.09);
 
-                $totalHaberes = $preavisoAmount + $indemnizacionAmount + $vacacionesAmount + $aguinaldoAmount + $salarioPendienteAmount;
-                $totalDeductions = $ipsDeduction + $loanDeduction;
-                $netAmount = $totalHaberes - $totalDeductions;
+                $totalHaberes     = $preavisoAmount + $indemnizacionAmount + $indemnizacionEstabilidadAmount
+                    + $vacacionesAmount + $aguinaldoAmount + $salarioPendienteAmount;
+                $totalDeductions  = $ipsDeduction;
+                $netAmount        = $totalHaberes - $totalDeductions;
 
                 $liquidaciones[] = [
-                    'employee_id'                   => $employee->id,
-                    'termination_date'              => $terminationDate->toDateString(),
-                    'termination_type'              => $terminationType,
-                    'termination_reason'            => $terminationType === 'unjustified_dismissal'
+                    'employee_id'                        => $employee->id,
+                    'termination_date'                   => $terminationDate->toDateString(),
+                    'termination_type'                   => $terminationType,
+                    'termination_reason'                 => $terminationType === 'unjustified_dismissal'
                         ? 'Reestructuración organizacional'
                         : 'Renuncia voluntaria del trabajador',
-                    'preaviso_otorgado'             => $preavisoOtorgado,
-                    'hire_date'                     => $hireDate->toDateString(),
-                    'base_salary'                   => $baseSalary,
-                    'daily_salary'                  => $dailySalary,
-                    'years_of_service'              => $yearsOfService,
-                    'months_of_service'             => $monthsOfService,
-                    'days_of_service'               => $daysOfService,
-                    'average_salary_6m'             => $avgSalary6m,
-                    'preaviso_days'                 => $preavisoOtorgado ? 0 : $preavisoDays,
-                    'preaviso_amount'               => $preavisoAmount,
-                    'indemnizacion_amount'          => $indemnizacionAmount,
-                    'vacaciones_days'               => $vacacionesDays,
-                    'vacaciones_amount'             => $vacacionesAmount,
-                    'aguinaldo_proporcional_amount' => $aguinaldoAmount,
-                    'salario_pendiente_days'        => $salarioPendienteDays,
-                    'salario_pendiente_amount'      => $salarioPendienteAmount,
-                    'ips_deduction'                 => $ipsDeduction,
-                    'loan_deduction'                => $loanDeduction,
-                    'other_deductions'              => 0,
-                    'total_haberes'                 => $totalHaberes,
-                    'total_deductions'              => $totalDeductions,
-                    'net_amount'                    => $netAmount,
-                    'status'                        => 'calculated',
-                    'calculated_at'                 => $now,
-                    'created_by_id'                 => $adminId,
-                    'notes'                         => 'Liquidación generada por seeder de datos demo',
-                    'created_at'                    => $now,
-                    'updated_at'                    => $now,
+                    'preaviso_otorgado'                  => $preavisoOtorgado,
+                    'hire_date'                          => $hireDate->toDateString(),
+                    'base_salary'                        => $baseSalary,
+                    'daily_salary'                       => $dailySalary,
+                    'salary_type'                        => $salaryType,
+                    'years_of_service'                   => $yearsOfService,
+                    'months_of_service'                  => $monthsOfService,
+                    'days_of_service'                    => $daysOfService,
+                    'average_salary_6m'                  => $avgSalary6m,
+                    'preaviso_days'                      => $preavisoOtorgado ? 0 : $preavisoDays,
+                    'preaviso_amount'                    => $preavisoAmount,
+                    'indemnizacion_amount'               => $indemnizacionAmount,
+                    'indemnizacion_estabilidad_amount'   => $indemnizacionEstabilidadAmount,
+                    'vacaciones_days'                    => $vacacionesDays,
+                    'vacaciones_amount'                  => $vacacionesAmount,
+                    'aguinaldo_proporcional_amount'      => $aguinaldoAmount,
+                    'salario_pendiente_days'             => $salarioPendienteDays,
+                    'salario_pendiente_amount'           => $salarioPendienteAmount,
+                    'ips_deduction'                      => $ipsDeduction,
+                    'loan_deduction'                     => 0,
+                    'other_deductions'                   => 0,
+                    'total_haberes'                      => $totalHaberes,
+                    'total_deductions'                   => $totalDeductions,
+                    'net_amount'                         => $netAmount,
+                    'status'                             => 'calculated',
+                    'calculated_at'                      => $now,
+                    'created_by_id'                      => $adminId,
+                    'notes'                              => 'Liquidación generada por seeder de datos demo',
+                    'created_at'                         => $now,
+                    'updated_at'                         => $now,
                 ];
             }
 
             DB::table('liquidaciones')->insert($liquidaciones);
 
-            // Obtener IDs de liquidaciones insertadas
             $liquidacionIds = DB::table('liquidaciones')
                 ->whereIn('employee_id', $employees->pluck('id'))
                 ->orderBy('id')
@@ -124,11 +148,10 @@ class LiquidacionSeeder extends Seeder
 
             foreach ($employees as $index => $employee) {
                 $liqId = $liquidacionIds[$employee->id] ?? null;
-                if (!$liqId) continue;
+                if (! $liqId) continue;
 
                 $liq = $liquidaciones[$index];
 
-                // Haberes
                 if ($liq['preaviso_amount'] > 0) {
                     $items[] = [
                         'liquidacion_id' => $liqId,
@@ -146,8 +169,20 @@ class LiquidacionSeeder extends Seeder
                         'liquidacion_id' => $liqId,
                         'type'           => 'haber',
                         'category'       => 'indemnizacion',
-                        'description'    => "Indemnización ({$liq['years_of_service']} años)",
+                        'description'    => "Indemnización ({$liq['years_of_service']} año(s) × 15 días)",
                         'amount'         => $liq['indemnizacion_amount'],
+                        'created_at'     => $now,
+                        'updated_at'     => $now,
+                    ];
+                }
+
+                if ($liq['indemnizacion_estabilidad_amount'] > 0) {
+                    $items[] = [
+                        'liquidacion_id' => $liqId,
+                        'type'           => 'haber',
+                        'category'       => 'indemnizacion_estabilidad',
+                        'description'    => 'Indemnización por estabilidad laboral (Art. 96 CLT)',
+                        'amount'         => $liq['indemnizacion_estabilidad_amount'],
                         'created_at'     => $now,
                         'updated_at'     => $now,
                     ];
@@ -163,11 +198,12 @@ class LiquidacionSeeder extends Seeder
                     'updated_at'     => $now,
                 ];
 
+                $termMonth = Carbon::parse($liq['termination_date'])->month;
                 $items[] = [
                     'liquidacion_id' => $liqId,
                     'type'           => 'haber',
                     'category'       => 'aguinaldo',
-                    'description'    => 'Aguinaldo proporcional',
+                    'description'    => "Aguinaldo proporcional ($termMonth meses)",
                     'amount'         => $liq['aguinaldo_proporcional_amount'],
                     'created_at'     => $now,
                     'updated_at'     => $now,
@@ -183,7 +219,6 @@ class LiquidacionSeeder extends Seeder
                     'updated_at'     => $now,
                 ];
 
-                // Deducciones
                 if ($liq['ips_deduction'] > 0) {
                     $items[] = [
                         'liquidacion_id' => $liqId,

@@ -6,19 +6,36 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 
-class DatabaseSeeder extends Seeder
+/**
+ * Seeder para entorno de demostración.
+ *
+ * Limpia la base de datos, crea el usuario administrador y siembra
+ * todos los datos de ejemplo (empresa, sucursales, empleados, nómina, etc.).
+ *
+ * Es seguro correrlo múltiples veces: trunca las tablas antes de insertar.
+ * NO usar en producción — contiene datos ficticios.
+ *
+ * Uso:
+ *   php artisan db:seed --class=DemoSeeder
+ *
+ * Variables de entorno opcionales (mismas que ProductionSeeder):
+ *   ADMIN_NAME     Nombre del usuario admin     (default: "Administrador")
+ *   ADMIN_EMAIL    Email del usuario admin      (default: "admin@example.com")
+ *   ADMIN_PASSWORD Contraseña del usuario admin (default: "password")
+ */
+class DemoSeeder extends Seeder
 {
     public function run(): void
     {
         $this->truncateTables();
-
-        User::factory()->create([
-            'name' => 'Admin',
-            'email' => 'admin@example.com',
-        ]);
+        $this->createAdminUser();
 
         $this->call([
+            // Configuración del sistema (debe ir primero: muchos servicios leen settings al iniciar)
+            SettingsSeeder::class,
+
             // Estructura organizacional
             CompanySeeder::class,
             ScheduleSeeder::class,
@@ -31,12 +48,14 @@ class DatabaseSeeder extends Seeder
 
             // Empleados y asignaciones
             EmployeeSeeder::class,
+            ScheduleAssignmentSeeder::class,
             EmployeePerceptionSeeder::class,
             DocumentSeeder::class,
 
             // Asistencia y calendario
             HolidaySeeder::class,
             AttendanceDayWithEventsSeeder::class,
+            AbsenceSeeder::class,
 
             // Vacaciones y permisos
             VacationSeeder::class,
@@ -44,12 +63,35 @@ class DatabaseSeeder extends Seeder
 
             // Nómina y períodos
             PayrollPeriodSeeder::class,
+            PayrollSeeder::class,
             LoanSeeder::class,
 
             // Procesos anuales e históricos
             AguinaldoSeeder::class,
             LiquidacionSeeder::class,
         ]);
+
+        $this->command->newLine();
+        $this->command->line('<fg=green>✔</> Demo lista.</fg=green>');
+        $this->command->newLine();
+    }
+
+    /** Crea el usuario administrador usando las mismas variables de entorno que ProductionSeeder. */
+    private function createAdminUser(): void
+    {
+        $email    = env('ADMIN_EMAIL', 'admin@example.com');
+        $name     = env('ADMIN_NAME', 'Administrador');
+        $password = env('ADMIN_PASSWORD') ?: 'password';
+
+        User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name'     => $name,
+                'password' => bcrypt($password),
+            ]
+        );
+
+        $this->command->info("Usuario admin: $email / $password");
     }
 
     /**
@@ -78,6 +120,7 @@ class DatabaseSeeder extends Seeder
             'payroll_items',
             'payrolls',
             'payroll_periods',
+            'face_enrollments',
             'employee_deductions',
             'employee_perceptions',
             'employee_schedule_assignments',
@@ -93,6 +136,7 @@ class DatabaseSeeder extends Seeder
             'deductions',
             'perceptions',
             'holidays',
+            'settings',
             'users',
         ];
 

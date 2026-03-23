@@ -6,35 +6,47 @@ use App\Models\Employee;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 
+/**
+ * Siembra documentos de ejemplo para empleados activos.
+ *
+ * A cada empleado se le asigna un subconjunto determinista de los tres
+ * tipos de documento disponibles (sin rand()), lo que garantiza
+ * reproducibilidad entre ejecuciones.
+ *
+ * Los documentos son registros de referencia: las rutas apuntan a archivos
+ * de ejemplo que no existen físicamente en storage (solo datos demo).
+ */
 class DocumentSeeder extends Seeder
 {
     public function run(): void
     {
-        $employees = Employee::all();
+        $employees = Employee::where('status', 'active')->get();
 
         if ($employees->isEmpty()) {
-            $this->command->warn('No hay empleados para generar documentos.');
+            $this->command->warn('No hay empleados activos para generar documentos.');
             return;
         }
 
         $now = now();
-        $documents = [];
 
-        $documentTypes = [
-            ['name' => 'Contrato de Trabajo',      'path' => 'documents/{ci}/contrato.pdf'],
-            ['name' => 'Cédula de Identidad',       'path' => 'documents/{ci}/cedula.pdf'],
-            ['name' => 'Certificado de Antecedentes', 'path' => 'documents/{ci}/antecedentes.pdf'],
+        $allDocTypes = [
+            ['name' => 'Contrato de Trabajo',          'slug' => 'contrato'],
+            ['name' => 'Cédula de Identidad',           'slug' => 'cedula'],
+            ['name' => 'Certificado de Antecedentes',   'slug' => 'antecedentes'],
         ];
 
-        foreach ($employees as $employee) {
-            // Cada empleado tiene al menos contrato y cédula
-            $typesToAssign = array_slice($documentTypes, 0, rand(2, count($documentTypes)));
+        $documents = [];
 
-            foreach ($typesToAssign as $docType) {
+        foreach ($employees as $index => $employee) {
+            // Determinista: todos tienen contrato y cédula; uno de cada tres
+            // también tiene antecedentes (según índice par/impar).
+            $count = ($index % 3 === 0) ? 3 : 2;
+
+            foreach (array_slice($allDocTypes, 0, $count) as $docType) {
                 $documents[] = [
                     'employee_id' => $employee->id,
                     'name'        => $docType['name'],
-                    'file_path'   => str_replace('{ci}', $employee->ci, $docType['path']),
+                    'file_path'   => "documents/{$employee->ci}/{$docType['slug']}.pdf",
                     'created_at'  => $now,
                     'updated_at'  => $now,
                 ];
