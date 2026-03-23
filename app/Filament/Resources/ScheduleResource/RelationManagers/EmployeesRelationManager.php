@@ -2,73 +2,59 @@
 
 namespace App\Filament\Resources\ScheduleResource\RelationManagers;
 
-use Filament\Forms\Form;
-use Filament\Tables\Table;
 use App\Models\Branch;
 use App\Models\Employee;
-use Filament\Tables\Actions\Action;
+use App\Services\ScheduleAssignmentService;
+use Carbon\Carbon;
 use Filament\Forms\Components\Select;
-use Filament\Tables\Actions\BulkAction;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Form;
 use Filament\Notifications\Notification;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Tables\Actions\CreateAction;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Filters\SelectFilter;
-use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Resources\RelationManagers\RelationManager;
+use App\Exports\ScheduleEmployeesExport;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkAction;
+use Maatwebsite\Excel\Facades\Excel;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
+/** Muestra y gestiona los empleados con asignación activa al horario, usando el sistema de employee_schedule_assignments. */
 class EmployeesRelationManager extends RelationManager
 {
-    protected static string $relationship = 'employees';
+    protected static string $relationship = 'currentEmployees';
     protected static ?string $title = 'Empleados Asignados';
     protected static ?string $modelLabel = 'empleado';
     protected static ?string $pluralModelLabel = 'empleados';
 
+    /**
+     * Formulario para asignar un empleado activo al horario, con filtro opcional por sucursal.
+     *
+     * @param  Form  $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
             ->schema([
-                Select::make('filter_status')
-                    ->label('Filtrar por Estado')
-                    ->options([
-                        'all' => 'Todos',
-                        'active' => 'Activos',
-                        'inactive' => 'Inactivos',
-                        'suspended' => 'Suspendidos',
-                    ])
-                    ->default('active')
-                    ->native(false)
-                    ->live()
-                    ->afterStateUpdated(fn(callable $set) => $set('employee_id', null))
-                    ->columnSpan(1),
-
                 Select::make('filter_branch')
                     ->label('Filtrar por Sucursal')
-                    ->options(function () {
-                        return Branch::pluck('name', 'id');
-                    })
+                    ->options(fn() => Branch::pluck('name', 'id'))
                     ->searchable()
                     ->preload()
                     ->native(false)
                     ->live()
-                    ->afterStateUpdated(fn(callable $set) => $set('employee_id', null))
-                    ->columnSpan(1),
+                    ->afterStateUpdated(fn(callable $set) => $set('employee_ids', []))
+                    ->columnSpanFull(),
 
-                Select::make('employee_id')
-                    ->label('Empleado')
+                Select::make('employee_ids')
+                    ->label('Empleados')
                     ->options(function (callable $get) {
-                        $query = Employee::query()
-                            ->with('schedule')
-                            ->where(function ($q) {
-                                $q->whereNull('schedule_id')
-                                    ->orWhere('schedule_id', '!=', $this->getOwnerRecord()->id);
-                            });
+                        $scheduleId = $this->getOwnerRecord()->id;
+                        $today      = Carbon::today();
 
-                        $filterStatus = $get('filter_status');
-                        if ($filterStatus && $filterStatus !== 'all') {
-                            $query->where('status', $filterStatus);
-                        }
+                        $query = Employee::query()->where('status', 'active');
 
                         $filterBranch = $get('filter_branch');
                         if ($filterBranch) {
@@ -79,16 +65,23 @@ class EmployeesRelationManager extends RelationManager
                             ->orderBy('first_name')
                             ->orderBy('last_name')
                             ->get()
-                            ->mapWithKeys(function ($employee) {
-                                $label = "{$employee->full_name} - CI: {$employee->ci}";
+                            ->mapWithKeys(function (Employee $employee) use ($scheduleId, $today) {
+                                $current = $employee->getScheduleForDate($today);
 
-                                if ($employee->schedule_id && $employee->schedule) {
-                                    $label .= " ⚠ (Horario actual: {$employee->schedule->name})";
+                                if ($current?->id === $scheduleId) {
+                                    return [];
+                                }
+
+                                $label = "{$employee->full_name} - CI: {$employee->ci}";
+                                if ($current) {
+                                    $label .= " ⚠ (Horario actual: {$current->name})";
                                 }
 
                                 return [$employee->id => $label];
-                            });
+                            })
+                            ->filter();
                     })
+                    ->multiple()
                     ->searchable()
                     ->required()
                     ->native(false)
@@ -97,12 +90,24 @@ class EmployeesRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * Tabla de empleados asignados actualmente al horario, con acciones para asignar y remover.
+     *
+     * @param  Table  $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
             ->recordTitleAttribute('first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['activeContract.position', 'branch']))
-            ->defaultSort('first_name')
+            ->modifyQueryUsing(fn(Builder $query) => $query
+                ->addSelect([
+                    'employees.*',
+                    'employee_schedule_assignments.valid_from as assignment_start_date',
+                    'users.name as assignment_created_by',
+                ])
+                ->leftJoin('users', 'users.id', '=', 'employee_schedule_assignments.created_by')
+                ->with(['activeContract.position.department', 'branch']))
             ->columns([
                 ImageColumn::make('photo')
                     ->label('Foto')
@@ -110,63 +115,48 @@ class EmployeesRelationManager extends RelationManager
                     ->defaultImageUrl(fn($record) => $record->avatar_url),
 
                 TextColumn::make('full_name')
-                    ->label('Nombre Completo')
-                    ->state(fn($record) => $record->first_name . ' ' . $record->last_name)
-                    ->searchable(['first_name', 'last_name'])
-                    ->sortable(['first_name', 'last_name'])
-                    ->weight('bold'),
-
-                TextColumn::make('ci')
-                    ->label('CI')
-                    ->searchable()
+                    ->label('Nombre completo')
+                    ->getStateUsing(fn(Employee $record) => $record->first_name . ' ' . $record->last_name)
+                    ->description(fn(Employee $record) => 'CI: ' . $record->ci)
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->sortable()
-                    ->badge()
-                    ->color('gray'),
+                    ->weight('medium'),
 
                 TextColumn::make('activeContract.position.name')
                     ->label('Cargo')
+                    ->icon('heroicon-o-briefcase')
                     ->default('-')
                     ->badge()
                     ->color('info'),
 
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
+                    ->icon('heroicon-o-building-storefront')
                     ->default('-')
                     ->badge()
                     ->color('success'),
 
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                        default => $state
-                    })
+                TextColumn::make('branch.company.name')
+                    ->label('Empresa')
+                    ->icon('heroicon-o-building-office-2')
+                    ->default('-')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'active' => 'success',
-                        'inactive' => 'danger',
-                        'suspended' => 'warning',
-                        default => 'gray'
-                    })
-                    ->sortable(),
+                    ->color('primary'),
 
-                TextColumn::make('hire_date')
-                    ->label('Fecha de Contratación')
+                TextColumn::make('assignment_start_date')
+                    ->label('Vigente desde')
+                    ->description(fn($record) => Carbon::parse($record->assignment_start_date)->diffForHumans())
                     ->date('d/m/Y')
-                    ->toggleable(),
+                    ->sortable()
+                    ->alignCenter(),
+
+                TextColumn::make('assignment_created_by')
+                    ->label('Asignado por')
+                    ->icon('heroicon-o-user')
+                    ->placeholder('—')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options([
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                    ])
-                    ->native(false),
-
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
                     ->relationship('branch', 'name')
@@ -175,84 +165,124 @@ class EmployeesRelationManager extends RelationManager
                     ->native(false),
             ])
             ->headerActions([
-                CreateAction::make()
-                    ->label('Asignar Empleado')
+                Action::make('export')
+                    ->label('Exportar')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('¿Exportar empleados del horario?')
+                    ->modalDescription('Se exportarán todos los empleados con asignación vigente a este horario.')
+                    ->modalSubmitActionLabel('Sí, exportar')
+                    ->action(function () {
+                        $schedule = $this->getOwnerRecord();
+
+                        Notification::make()
+                            ->success()
+                            ->title('Exportación lista')
+                            ->body('El listado de empleados se está descargando.')
+                            ->send();
+
+                        return Excel::download(
+                            new ScheduleEmployeesExport($schedule->id),
+                            'empleados_' . str($schedule->name)->slug() . '_' . now()->format('Y_m_d') . '.xlsx'
+                        );
+                    }),
+
+                Action::make('assign')
+                    ->label('Asignar')
                     ->icon('heroicon-o-user-plus')
-                    ->modalHeading('Asignar Empleado al Horario')
+                    ->color('primary')
+                    ->modalHeading('Asignar Empleados al Horario')
+                    ->modalSubmitActionLabel('Asignar')
                     ->modalWidth('2xl')
-                    ->using(function (array $data) {
-                        $employee = Employee::with('schedule')->find($data['employee_id']);
+                    ->form(fn() => $this->form($this->makeForm())->getComponents())
+                    ->action(function (array $data) {
+                        $schedule  = $this->getOwnerRecord();
+                        $employees = Employee::whereIn('id', $data['employee_ids'])->get();
+                        $assigned  = 0;
+                        $errors    = [];
 
-                        if ($employee) {
-                            $previousSchedule = $employee->schedule;
-                            $employee->update(['schedule_id' => $this->getOwnerRecord()->id]);
-
-                            // Notificación personalizada según si cambió o no de horario
-                            if ($previousSchedule) {
-                                Notification::make()
-                                    ->success()
-                                    ->title('Empleado asignado exitosamente')
-                                    ->body("El empleado {$employee->full_name} cambió del horario \"{$previousSchedule->name}\" a \"{$this->getOwnerRecord()->name}\".")
-                                    ->send();
-                            } else {
-                                Notification::make()
-                                    ->success()
-                                    ->title('Empleado asignado exitosamente')
-                                    ->body("El empleado {$employee->full_name} fue asignado al horario \"{$this->getOwnerRecord()->name}\".")
-                                    ->send();
+                        foreach ($employees as $employee) {
+                            try {
+                                ScheduleAssignmentService::assign(
+                                    employee: $employee,
+                                    schedule: $schedule,
+                                    validFrom: Carbon::today(),
+                                );
+                                $assigned++;
+                            } catch (\Exception $e) {
+                                $errors[] = $employee->full_name;
                             }
-
-                            return $employee;
                         }
 
-                        return null;
-                    })
-                    ->successNotification(null), // Desactivar notificación por defecto
+                        if ($assigned > 0) {
+                            Notification::make()
+                                ->success()
+                                ->title('Empleados asignados')
+                                ->body("Se asignó \"{$schedule->name}\" a {$assigned} empleado(s) a partir de hoy.")
+                                ->send();
+                        }
+
+                        if (!empty($errors)) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Algunos empleados no pudieron asignarse')
+                                ->body('Revisar solapamientos en: ' . implode(', ', $errors))
+                                ->persistent()
+                                ->send();
+                        }
+                    }),
             ])
             ->actions([
+                Action::make('view_employee')
+                    ->label('Ver Empleado')
+                    ->icon('heroicon-o-user')
+                    ->color('gray')
+                    ->url(fn(Employee $record) => \App\Filament\Resources\EmployeeResource::getUrl('edit', ['record' => $record]))
+                    ->openUrlInNewTab(),
+
                 Action::make('remove')
                     ->label('Remover')
                     ->icon('heroicon-o-x-circle')
-                    ->color('warning')
+                    ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('Remover Empleado del Horario')
                     ->modalDescription(fn($record) => "¿Está seguro de que desea remover a {$record->full_name} de este horario?")
                     ->modalSubmitActionLabel('Sí, remover')
                     ->action(function (Employee $record) {
-                        $record->update(['schedule_id' => null]);
+                        ScheduleAssignmentService::closeActive($record, Carbon::today());
 
                         Notification::make()
                             ->success()
-                            ->title('Empleado removido exitosamente')
-                            ->body("El empleado {$record->full_name} ha sido removido del horario.")
+                            ->title('Empleado removido')
+                            ->body("Se cerró la asignación de {$record->full_name} con fecha de hoy.")
                             ->send();
                     }),
             ])
             ->bulkActions([
-                BulkActionGroup::make([
-                    BulkAction::make('remove')
-                        ->label('Remover seleccionados')
-                        ->icon('heroicon-o-x-circle')
-                        ->color('warning')
-                        ->requiresConfirmation()
-                        ->modalHeading('Remover Empleados del Horario')
-                        ->modalDescription('¿Está seguro de que desea remover los empleados seleccionados de este horario?')
-                        ->modalSubmitActionLabel('Sí, remover')
-                        ->action(function ($records) {
-                            $count = $records->count();
+                BulkAction::make('remove')
+                    ->label('Remover seleccionados')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->modalHeading('Remover Empleados del Horario')
+                    ->modalDescription('¿Está seguro de que desea remover los empleados seleccionados de este horario?')
+                    ->modalSubmitActionLabel('Sí, remover')
+                    ->action(function ($records) {
+                        $count = $records->count();
 
-                            foreach ($records as $record) {
-                                $record->update(['schedule_id' => null]);
-                            }
+                        foreach ($records as $record) {
+                            ScheduleAssignmentService::closeActive($record, Carbon::today());
+                        }
 
-                            Notification::make()
-                                ->success()
-                                ->title('Empleados removidos exitosamente')
-                                ->body("{$count} empleado(s) removido(s) del horario.")
-                                ->send();
-                        }),
-                ]),
+                        Notification::make()
+                            ->success()
+                            ->title('Empleados removidos')
+                            ->body("Se cerró la asignación de {$count} empleado(s) con fecha de hoy.")
+                            ->send();
+                    }),
             ])
+            ->defaultSort('assignment_start_date', 'desc')
             ->emptyStateHeading('No hay empleados asignados')
             ->emptyStateDescription('Comience asignando empleados a este horario.')
             ->emptyStateIcon('heroicon-o-user-group');
