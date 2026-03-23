@@ -45,7 +45,7 @@ class ExtraHourCalculator
                 return $emptyResult;
             }
 
-            $monthlyHours = $employee->schedule?->getMonthlyHours()
+            $monthlyHours = $employee->getScheduleForDate($period->start_date)?->getMonthlyHours()
                 ?? $settings->monthly_hours;
 
             if ($monthlyHours <= 0) {

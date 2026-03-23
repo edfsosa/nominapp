@@ -158,12 +158,14 @@ class VacationService
      */
     public static function isWorkDay(Employee $employee, Carbon $date): bool
     {
-        if (!$employee->schedule) {
+        $schedule = $employee->getScheduleForDate($date);
+
+        if (!$schedule) {
             $dayOfWeek = $date->dayOfWeekIso;
             return $dayOfWeek >= 1 && $dayOfWeek <= 6;
         }
 
-        return !$employee->schedule->isDayOff($date->dayOfWeekIso);
+        return !$schedule->isDayOff($date->dayOfWeekIso);
     }
 
     /**

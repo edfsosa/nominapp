@@ -300,7 +300,7 @@ class AttendanceCalculator
         if ($scheduledCheckIn && $actualCheckIn) {
             $expected = Carbon::parse($scheduledCheckIn);
             $actual = Carbon::parse($actualCheckIn);
-            return $actual->greaterThan($expected) ? $expected->diffInMinutes($actual) : 0;
+            return $actual->greaterThan($expected) ? $expected->diffInMinutes($actual, true) : 0;
         }
         return null;
     }
@@ -313,7 +313,7 @@ class AttendanceCalculator
         if ($scheduledCheckOut && $actualCheckOut) {
             $expected = Carbon::parse($scheduledCheckOut);
             $actual = Carbon::parse($actualCheckOut);
-            return $actual->lessThan($expected) ? $expected->diffInMinutes($actual) : 0;
+            return $actual->lessThan($expected) ? $expected->diffInMinutes($actual, true) : 0;
         }
         return null;
     }
