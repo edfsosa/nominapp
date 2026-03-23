@@ -3,11 +3,15 @@
 namespace App\Filament\Resources;
 
 use App\Models\Contract;
+use App\Models\Employee;
 use App\Models\Position;
 use App\Services\ContractService;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Forms\Form;
+use Filament\Infolists\Infolist;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Tables\Table;
 use Filament\Resources\Resource;
 use App\Settings\GeneralSettings;
@@ -17,21 +21,19 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Columns\TextColumn;
-use Illuminate\Database\Eloquent\Model;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Placeholder;
 use Filament\Notifications\Notification;
+use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\Placeholder;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
+use Illuminate\Support\Facades\Storage;
 use App\Filament\Resources\ContractResource\Pages;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use Illuminate\Database\Eloquent\Model;
 
 class ContractResource extends Resource
 {
@@ -281,6 +283,132 @@ class ContractResource extends Resource
     }
 
     /**
+     * Define el infolist para mostrar el detalle de un contrato.
+     *
+     * @param  Infolist $infolist
+     * @return Infolist
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfoSection::make('Contrato')
+                ->description('Datos generales del contrato laboral')
+                ->icon('heroicon-o-document-text')
+                ->schema([
+                    TextEntry::make('employee.full_name')
+                        ->label('Empleado')
+                        ->weight('bold')
+                        ->columnSpan(2),
+
+                    TextEntry::make('type')
+                        ->label('Tipo')
+                        ->badge()
+                        ->formatStateUsing(fn($state) => Contract::getTypeLabel($state))
+                        ->color(fn($state) => Contract::getTypeColor($state))
+                        ->icon(fn($state) => Contract::getTypeIcon($state)),
+
+                    TextEntry::make('status')
+                        ->label('Estado')
+                        ->badge()
+                        ->formatStateUsing(fn($state) => Contract::getStatusLabel($state))
+                        ->color(fn($state) => Contract::getStatusColor($state))
+                        ->icon(fn($state) => Contract::getStatusIcon($state)),
+                ])
+                ->columns(4),
+
+            InfoSection::make('Período')
+                ->description('Fechas y duración del contrato')
+                ->icon('heroicon-o-calendar')
+                ->schema([
+                    TextEntry::make('start_date')
+                        ->label('Fecha de Inicio')
+                        ->date('d/m/Y'),
+
+                    TextEntry::make('end_date')
+                        ->label('Fecha de Finalización')
+                        ->date('d/m/Y')
+                        ->placeholder('Indefinido'),
+
+                    TextEntry::make('trial_days')
+                        ->label('Días de Prueba')
+                        ->suffix(' días'),
+
+                    TextEntry::make('duration_description')
+                        ->label('Duración'),
+
+                    TextEntry::make('expiration_description')
+                        ->label('Vencimiento')
+                        ->placeholder('—'),
+                ])
+                ->columns(3),
+
+            InfoSection::make('Condiciones Laborales')
+                ->description('Salario, cargo y modalidad de trabajo')
+                ->icon('heroicon-o-briefcase')
+                ->schema([
+                    TextEntry::make('formatted_salary')
+                        ->label('Salario'),
+
+                    TextEntry::make('salary_type')
+                        ->label('Tipo de Remuneración')
+                        ->badge()
+                        ->formatStateUsing(fn($state) => Contract::getSalaryTypeLabel($state))
+                        ->color(fn($state) => Contract::getSalaryTypeColor($state))
+                        ->icon(fn($state) => Contract::getSalaryTypeIcon($state)),
+
+                    TextEntry::make('work_modality')
+                        ->label('Modalidad')
+                        ->badge()
+                        ->formatStateUsing(fn($state) => Contract::getWorkModalityLabel($state))
+                        ->color(fn($state) => Contract::getWorkModalityColor($state))
+                        ->icon(fn($state) => Contract::getWorkModalityIcon($state)),
+
+                    TextEntry::make('position.name')
+                        ->label('Cargo'),
+
+                    TextEntry::make('department.name')
+                        ->label('Departamento'),
+
+                    TextEntry::make('payroll_type')
+                        ->label('Tipo de Nómina')
+                        ->formatStateUsing(fn($state) => Employee::getPayrollTypeOptions()[$state] ?? $state),
+
+                    TextEntry::make('payment_method')
+                        ->label('Método de Pago')
+                        ->formatStateUsing(fn($state) => Employee::getPaymentMethodOptions()[$state] ?? $state),
+                ])
+                ->columns(3),
+
+            InfoSection::make('Notas')
+                ->schema([
+                    TextEntry::make('notes')
+                        ->label('')
+                        ->placeholder('Sin notas')
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn(Contract $record) => !empty($record->notes)),
+
+            InfoSection::make('Registro')
+                ->icon('heroicon-o-information-circle')
+                ->collapsible()
+                ->collapsed()
+                ->schema([
+                    TextEntry::make('createdBy.name')
+                        ->label('Creado por'),
+
+                    TextEntry::make('created_at')
+                        ->label('Creado')
+                        ->dateTime('d/m/Y H:i'),
+
+                    TextEntry::make('updated_at')
+                        ->label('Actualizado')
+                        ->dateTime('d/m/Y H:i'),
+                ])
+                ->columns(3),
+        ]);
+    }
+
+    /**
      * Definición de la tabla para listar contratos
      *
      * @param Table $table
@@ -304,7 +432,6 @@ class ContractResource extends Resource
                     ->label('CI')
                     ->sortable()
                     ->searchable()
-                    ->toggleable()
                     ->badge()
                     ->color('gray')
                     ->copyable()
@@ -319,12 +446,6 @@ class ContractResource extends Resource
                     ->icon(fn(string $state): string => Contract::getTypeIcon($state))
                     ->sortable(),
 
-                TextColumn::make('salary')
-                    ->label('Salario')
-                    ->formatStateUsing(fn(Contract $record) => $record->formatted_salary)
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 TextColumn::make('position.name')
                     ->label('Cargo')
                     ->sortable()
@@ -336,7 +457,7 @@ class ContractResource extends Resource
                     ->label('Departamento')
                     ->sortable()
                     ->searchable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
 
                 TextColumn::make('work_modality')
                     ->label('Modalidad')
@@ -345,30 +466,6 @@ class ContractResource extends Resource
                     ->color(fn(string $state): string => Contract::getWorkModalityColor($state))
                     ->icon(fn(string $state): string => Contract::getWorkModalityIcon($state))
                     ->toggleable(isToggledHiddenByDefault: true),
-
-                TextColumn::make('start_date')
-                    ->label('Inicio')
-                    ->date('d/m/Y')
-                    ->sortable(),
-
-                TextColumn::make('end_date')
-                    ->label('Fin')
-                    ->date('d/m/Y')
-                    ->sortable()
-                    ->placeholder('Indefinido')
-                    ->description(fn(Contract $record) => $record->expiration_description)
-                    ->color(function (Contract $record) use ($alertDays) {
-                        if (!$record->end_date || $record->status !== 'active') {
-                            return null;
-                        }
-                        if ($record->isExpired()) {
-                            return 'danger';
-                        }
-                        if ($record->isExpiringSoon($alertDays)) {
-                            return 'warning';
-                        }
-                        return null;
-                    }),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -384,7 +481,6 @@ class ContractResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('created_at', 'desc')
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo de Contrato')
@@ -446,134 +542,129 @@ class ContractResource extends Resource
                     }),
             ])
             ->actions([
-                // --- Botones directos (flujo diario) ---
-
-                Action::make('renew')
-                    ->label('Renovar')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('success')
-                    ->visible(fn(Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
-                    ->requiresConfirmation()
-                    ->modalHeading('Renovar Contrato')
-                    ->modalDescription(function (Contract $record) {
-                        $msg = "Se creará un nuevo contrato para {$record->employee->full_name} y el contrato actual pasará a estado 'Renovado'.";
-                        if ($record->wouldBecomeIndefiniteOnRenewal()) {
-                            $msg .= "\n\n⚠ Art. 53 CLT: Este contrato a plazo fijo ya fue renovado anteriormente. Al renovar nuevamente, el nuevo contrato será automáticamente de tipo INDEFINIDO.";
-                        }
-                        return $msg;
-                    })
-                    ->form([
-                        DatePicker::make('start_date')
-                            ->label('Fecha de Inicio')
-                            ->native(false)
-                            ->displayFormat('d/m/Y')
-                            ->required()
-                            ->default(fn(Contract $record) => $record->end_date ?? now())
-                            ->closeOnDateSelection(),
-
-                        DatePicker::make('end_date')
-                            ->label('Fecha de Finalización')
-                            ->native(false)
-                            ->displayFormat('d/m/Y')
-                            ->closeOnDateSelection()
-                            ->visible(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                            ->required(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                            ->helperText(fn(Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
-
-                        TextInput::make('salary')
-                            ->label(fn(Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
-                            ->numeric()
-                            ->required()
-                            ->prefix('Gs.')
-                            ->suffix(fn(Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
-                            ->default(fn(Contract $record) => $record->salary),
-
-                        Textarea::make('notes')
-                            ->label('Notas')
-                            ->placeholder('Notas sobre la renovación...')
-                            ->rows(2),
-                    ])
-                    ->action(function (Contract $record, array $data) {
-                        $oldType = $record->type;
-                        $newContract = ContractService::renew($record, $data);
-
-                        $typeMsg = $newContract->type === 'indefinido' && $oldType !== 'indefinido'
-                            ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
-                            : '';
-
-                        Notification::make()
-                            ->title('Contrato Renovado')
-                            ->body("Se creó un nuevo contrato{$typeMsg} para {$record->employee->full_name}.")
-                            ->success()
-                            ->send();
-                    }),
-
-                Action::make('generate_pdf')
-                    ->label('Generar PDF')
-                    ->icon('heroicon-o-printer')
-                    ->color('info')
-                    ->url(fn(Contract $record) => route('contracts.pdf', $record))
-                    ->openUrlInNewTab(),
-
-                Action::make('upload_signed')
-                    ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
-                    ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
-                    ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
-                    ->visible(fn(Contract $record) => $record->status === 'active')
-                    ->form([
-                        FileUpload::make('document_path')
-                            ->label('Contrato Firmado (PDF)')
-                            ->disk('public')
-                            ->directory('contracts')
-                            ->acceptedFileTypes(['application/pdf'])
-                            ->maxSize(10240)
-                            ->required()
-                            ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
-                    ])
-                    ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
-                    ->modalDescription(fn(Contract $record) => $record->document_path
-                        ? 'El documento actual será reemplazado por el nuevo archivo.'
-                        : 'Suba el contrato escaneado con las firmas correspondientes.')
-                    ->action(function (Contract $record, array $data) {
-                        if ($record->document_path && \Illuminate\Support\Facades\Storage::disk('public')->exists($record->document_path)) {
-                            \Illuminate\Support\Facades\Storage::disk('public')->delete($record->document_path);
-                        }
-
-                        $record->update(['document_path' => $data['document_path']]);
-
-                        Notification::make()
-                            ->title('Documento subido')
-                            ->body('El contrato firmado se ha guardado correctamente.')
-                            ->success()
-                            ->send();
-                    }),
-
-                Action::make('download_signed')
-                    ->label('Firmado')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('gray')
-                    ->visible(fn(Contract $record) => (bool) $record->document_path)
-                    ->action(fn(Contract $record) => response()->download(
-                        \Illuminate\Support\Facades\Storage::disk('public')->path($record->document_path),
-                        "contrato_firmado_{$record->employee->ci}_{$record->start_date->format('Y_m_d')}.pdf"
-                    )),
-
                 // --- Menú dropdown (acciones de gestión) ---
-                \Filament\Tables\Actions\ActionGroup::make([
-                    ViewAction::make(),
+                ActionGroup::make([
+                    Action::make('renew')
+                        ->label('Renovar')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('success')
+                        ->visible(fn(Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
+                        ->requiresConfirmation()
+                        ->modalHeading('Renovar Contrato')
+                        ->modalDescription(function (Contract $record) {
+                            $msg = "Se creará un nuevo contrato para {$record->employee->full_name} y el contrato actual pasará a estado 'Renovado'.";
+                            if ($record->wouldBecomeIndefiniteOnRenewal()) {
+                                $msg .= "\n\n⚠ Art. 53 CLT: Este contrato a plazo fijo ya fue renovado anteriormente. Al renovar nuevamente, el nuevo contrato será automáticamente de tipo INDEFINIDO.";
+                            }
+                            return $msg;
+                        })
+                        ->modalSubmitActionLabel('Sí, renovar')
+                        ->form([
+                            DatePicker::make('start_date')
+                                ->label('Fecha de Inicio')
+                                ->native(false)
+                                ->displayFormat('d/m/Y')
+                                ->required()
+                                ->default(fn(Contract $record) => $record->end_date ?? now())
+                                ->closeOnDateSelection(),
 
-                    EditAction::make()
-                        ->color('primary')
-                        ->visible(fn(Contract $record) => $record->status === 'active'),
+                            DatePicker::make('end_date')
+                                ->label('Fecha de Finalización')
+                                ->native(false)
+                                ->displayFormat('d/m/Y')
+                                ->closeOnDateSelection()
+                                ->visible(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
+                                ->required(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
+                                ->helperText(fn(Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
+
+                            TextInput::make('salary')
+                                ->label(fn(Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                                ->numeric()
+                                ->required()
+                                ->prefix('Gs.')
+                                ->suffix(fn(Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
+                                ->default(fn(Contract $record) => $record->salary),
+
+                            Textarea::make('notes')
+                                ->label('Notas')
+                                ->placeholder('Notas sobre la renovación...')
+                                ->rows(2),
+                        ])
+                        ->action(function (Contract $record, array $data) {
+                            $oldType = $record->type;
+                            $newContract = ContractService::renew($record, $data);
+
+                            $typeMsg = $newContract->type === 'indefinido' && $oldType !== 'indefinido'
+                                ? ' (convertido a INDEFINIDO por Art. 53 CLT)'
+                                : '';
+
+                            Notification::make()
+                                ->title('Contrato Renovado')
+                                ->body("Se creó un nuevo contrato{$typeMsg} para {$record->employee->full_name}.")
+                                ->success()
+                                ->send();
+                        }),
+
+                    Action::make('generate_pdf')
+                        ->label('Generar PDF')
+                        ->icon('heroicon-o-printer')
+                        ->color('info')
+                        ->url(fn(Contract $record) => route('contracts.pdf', $record))
+                        ->openUrlInNewTab(),
+
+                    Action::make('upload_signed')
+                        ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
+                        ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                        ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
+                        ->visible(fn(Contract $record) => $record->status === 'active')
+                        ->form([
+                            FileUpload::make('document_path')
+                                ->label('Contrato Firmado (PDF)')
+                                ->disk('public')
+                                ->directory('contracts')
+                                ->acceptedFileTypes(['application/pdf'])
+                                ->maxSize(10240)
+                                ->required()
+                                ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
+                        ])
+                        ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                        ->modalDescription(fn(Contract $record) => $record->document_path
+                            ? 'El documento actual será reemplazado por el nuevo archivo.'
+                            : 'Suba el contrato escaneado con las firmas correspondientes.')
+                        ->modalSubmitActionLabel('Subir documento')
+                        ->action(function (Contract $record, array $data) {
+                            if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
+                                Storage::disk('public')->delete($record->document_path);
+                            }
+
+                            $record->update(['document_path' => $data['document_path']]);
+
+                            Notification::make()
+                                ->title('Documento subido')
+                                ->body('El contrato firmado se ha guardado correctamente.')
+                                ->success()
+                                ->send();
+                        }),
+
+                    Action::make('download_signed')
+                        ->label('Descargar Firmado')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->color('gray')
+                        ->visible(fn(Contract $record) => (bool) $record->document_path)
+                        ->action(fn(Contract $record) => response()->download(
+                            Storage::disk('public')->path($record->document_path),
+                            "contrato_firmado_{$record->employee->ci}_{$record->start_date->format('Y_m_d')}.pdf"
+                        )),
 
                     Action::make('terminate')
-                        ->label('Terminar')
+                        ->label('Terminar Contrato')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->visible(fn(Contract $record) => $record->status === 'active')
                         ->requiresConfirmation()
                         ->modalHeading('Terminar Contrato')
                         ->modalDescription(fn(Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
+                        ->modalSubmitActionLabel('Sí, terminar')
                         ->form([
                             Textarea::make('termination_notes')
                                 ->label('Motivo de terminación')
@@ -589,7 +680,7 @@ class ContractResource extends Resource
                                 ->warning()
                                 ->persistent()
                                 ->actions([
-                                    \Filament\Notifications\Actions\Action::make('create_liquidacion')
+                                    NotificationAction::make('create_liquidacion')
                                         ->label('Crear Liquidación')
                                         ->url(route('filament.admin.resources.liquidaciones.create', [
                                             'employee_id' => $record->employee_id,
@@ -602,38 +693,22 @@ class ContractResource extends Resource
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->tooltip('Más acciones'),
             ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    ExportBulkAction::make()
-                        ->exports([
-                            ExcelExport::make()
-                                ->fromTable()
-                                ->withFilename('contratos_' . now()->format('Y_m_d_H_i_s') . '.xlsx'),
-                        ])
-                        ->label('Exportar a Excel')
-                        ->color('info')
-                        ->icon('heroicon-o-arrow-down-tray'),
-
-                    DeleteBulkAction::make()
-                        ->icon('heroicon-o-trash'),
-                ]),
-            ])
-            ->striped()
+            ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('No hay contratos registrados')
             ->emptyStateDescription('Comienza agregando el primer contrato al sistema')
             ->emptyStateIcon('heroicon-o-document-text');
     }
 
-    public static function getRelations(): array
-    {
-        return [];
-    }
-
+    /**
+     * Definición de las páginas del recurso.
+     * @return array
+     */
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListContracts::route('/'),
             'create' => Pages\CreateContract::route('/create'),
+            'view' => Pages\ViewContract::route('/{record}'),
             'edit' => Pages\EditContract::route('/{record}/edit'),
         ];
     }
