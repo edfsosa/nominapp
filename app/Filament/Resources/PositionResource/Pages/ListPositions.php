@@ -2,18 +2,27 @@
 
 namespace App\Filament\Resources\PositionResource\Pages;
 
+use App\Exports\PositionsExport;
 use App\Filament\Resources\PositionResource;
 use App\Models\Position;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Resources\Components\Tab;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ListPositions extends ListRecords
 {
     protected static string $resource = PositionResource::class;
     protected ?array $positionCounts = null;
 
+    /**
+     * Obtiene los conteos de cargos para cada categoría y los almacena en caché para evitar consultas repetidas.
+     * 
+     * @return array
+     */
     protected function getPositionCounts(): array
     {
         if ($this->positionCounts !== null) {
@@ -32,15 +41,46 @@ class ListPositions extends ListRecords
         return $this->positionCounts;
     }
 
+    /**
+     * Define las acciones disponibles en el encabezado de la página.
+     * 
+     * @return array
+     */
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('export_excel')
+                ->label('Exportar')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('¿Exportar Cargos a Excel?')
+                ->modalDescription('Se incluirán todos los cargos en un archivo Excel descargable.')
+                ->modalSubmitActionLabel('Sí, exportar')
+                ->action(function () {
+                    Notification::make()
+                        ->success()
+                        ->title('Exportación lista')
+                        ->body('El listado de cargos se está descargando.')
+                        ->send();
+
+                    return Excel::download(
+                        new PositionsExport(),
+                        'cargos_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                    );
+                }),
+
             CreateAction::make()
                 ->label('Nuevo Cargo')
                 ->icon('heroicon-o-plus'),
         ];
     }
 
+    /**
+     * Define las pestañas para filtrar los cargos según su relación con empleados.
+     * 
+     * @return array
+     */
     public function getTabs(): array
     {
         $counts = $this->getPositionCounts();

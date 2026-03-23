@@ -35,6 +35,11 @@ class PositionResource extends Resource
     protected static ?string $recordTitleAttribute = 'name';
     protected static ?int $navigationSort = 4;
 
+    /**
+     * Define el formulario para crear y editar cargos, incluyendo validaciones y relaciones.
+     * @param Form $form
+     * @return Form
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -88,6 +93,11 @@ class PositionResource extends Resource
             ]);
     }
 
+    /**
+     * Define la infolist para mostrar detalles del cargo, incluyendo conteos de empleados y cargos subordinados.
+     * @param Infolist $infolist
+     * @return Infolist
+     */
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist->schema([
@@ -141,6 +151,12 @@ class PositionResource extends Resource
         ]);
     }
 
+    /**
+     * Define la tabla para listar cargos, con columnas, filtros y acciones.
+     *
+     * @param Table $table
+     * @return Table
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -212,6 +228,10 @@ class PositionResource extends Resource
             ->emptyStateIcon('heroicon-o-briefcase');
     }
 
+    /**
+     * Define las relaciones para el recurso de cargos, permitiendo gestionar empleados asignados a cada cargo.
+     * @return array
+     */
     public static function getRelations(): array
     {
         return [
@@ -219,6 +239,10 @@ class PositionResource extends Resource
         ];
     }
 
+    /**
+     * Define las páginas para el recurso de cargos, incluyendo rutas para listar, crear, ver y editar cargos.
+     * @return array
+     */
     public static function getPages(): array
     {
         return [

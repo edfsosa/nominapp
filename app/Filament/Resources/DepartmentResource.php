@@ -61,11 +61,19 @@ class DepartmentResource extends Resource
                         ignoreRecord: true,
                         modifyRuleUsing: fn($rule, Get $get) => $rule->where('company_id', $get('company_id'))
                     )
+                    ->validationMessages(['unique' => 'Ya existe un departamento con ese nombre en esta empresa.'])
                     ->helperText('El nombre del departamento debe ser único dentro de la misma empresa.'),
 
                 TextInput::make('cost_center')
                     ->label('Centro de Costo')
                     ->placeholder('Ej: RH-001, FIN-002, IT-003...')
+                    ->unique(
+                        table: Department::class,
+                        column: 'cost_center',
+                        ignoreRecord: true,
+                        modifyRuleUsing: fn($rule, Get $get) => $rule->where('company_id', $get('company_id'))
+                    )
+                    ->validationMessages(['unique' => 'Ya existe un centro de costo con ese identificador en esta empresa.'])
                     ->maxLength(30)
                     ->nullable()
                     ->helperText('Es un identificador opcional que puede ayudarte a organizar y clasificar los departamentos.'),

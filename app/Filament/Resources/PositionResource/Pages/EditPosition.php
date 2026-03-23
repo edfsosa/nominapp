@@ -70,6 +70,7 @@ class EditPosition extends EditRecord
         return Notification::make()
             ->success()
             ->title('Cargo actualizado')
-            ->body("El cargo \"{$this->record->name}\" del departamento \"{$this->record->department->name}\" ha sido actualizado correctamente.");
+            ->body("El cargo \"{$this->record->name}\" del departamento \"{$this->record->department->name}\" ha sido actualizado correctamente.")
+            ->send();
     }
 }
