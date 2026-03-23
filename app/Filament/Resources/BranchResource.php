@@ -6,152 +6,207 @@ use App\Filament\Resources\BranchResource\Pages;
 use App\Filament\Resources\BranchResource\RelationManagers\EmployeesRelationManager;
 use App\Models\Branch;
 use App\Models\Company;
-use Filament\Forms\Components\Grid;
+use Cheesegrits\FilamentGoogleMaps\Fields\Map;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
-use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\Rules\Unique;
 
+/** Recurso Filament para la gestión de sucursales. */
 class BranchResource extends Resource
 {
     protected static ?string $model = Branch::class;
-    protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
-    protected static ?string $navigationLabel = 'Sucursales';
-    protected static ?string $label = 'Sucursal';
-    protected static ?string $pluralLabel = 'Sucursales';
-    protected static ?string $recordTitleAttribute = 'name';
-    protected static ?string $slug = 'sucursales';
+    protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
     protected static ?string $navigationGroup = 'Organización';
     protected static ?int $navigationSort = 2;
+    protected static ?string $modelLabel = 'Sucursal';
+    protected static ?string $pluralModelLabel = 'Sucursales';
+    protected static ?string $slug = 'sucursales';
+    protected static ?string $recordTitleAttribute = 'name';
 
+    /**
+     * Define el formulario de creación y edición de sucursales.
+     *
+     * @param  \Filament\Forms\Form $form
+     * @return \Filament\Forms\Form
+     */
     public static function form(Form $form): Form
     {
-        return $form
-            ->schema([
-                Section::make('Información general')
-                    ->description('Datos básicos de la sucursal')
-                    ->icon('heroicon-o-information-circle')
-                    ->collapsible()
-                    ->schema([
-                        Grid::make(2)
-                            ->schema([
-                                Select::make('company_id')
-                                    ->label('Empresa')
-                                    ->relationship('company', 'name', fn($query) => $query->active())
-                                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
-                                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
-                                    )
-                                    ->searchable()
-                                    ->preload()
-                                    ->required()
-                                    ->columnSpanFull()
-                                    ->helperText('Selecciona la empresa a la que pertenece esta sucursal'),
+        return $form->schema([
+            Section::make('Información general')
+                ->description('Datos básicos de la sucursal.')
+                ->schema([
+                    Select::make('company_id')
+                        ->label('Empresa')
+                        ->relationship('company', 'name', fn($query) => $query->active())
+                        ->getOptionLabelFromRecordUsing(
+                            fn(Company $record) =>
+                            $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                        )
+                        ->searchable()
+                        ->preload()
+                        ->required()
+                        ->helperText('Empresa a la que pertenece esta sucursal.'),
 
-                                TextInput::make('name')
-                                    ->label('Nombre de la sucursal')
-                                    ->placeholder('Ej: Sucursal Central, Sucursal Este...')
-                                    ->required()
-                                    ->maxLength(100)
-                                    ->unique(
-                                        table: Branch::class,
-                                        column: 'name',
-                                        ignoreRecord: true,
-                                        modifyRuleUsing: fn(\Illuminate\Validation\Rules\Unique $rule, \Filament\Forms\Get $get) =>
-                                            $rule->where('company_id', $get('company_id'))
-                                    )
-                                    ->autocapitalize('words')
-                                    ->columnSpanFull(),
+                    TextInput::make('name')
+                        ->label('Nombre')
+                        ->placeholder('Ej: Sucursal Central')
+                        ->required()
+                        ->maxLength(100)
+                        ->unique(
+                            table: Branch::class,
+                            column: 'name',
+                            ignoreRecord: true,
+                            modifyRuleUsing: fn(Unique $rule, Get $get) =>
+                            $rule->where('company_id', $get('company_id'))
+                        )
+                        ->helperText('El nombre debe ser único dentro de la empresa.'),
 
-                                TextInput::make('city')
-                                    ->label('Ciudad')
-                                    ->placeholder('Ej: Asunción, Ciudad del Este...')
-                                    ->maxLength(60)
-                                    ->required()
-                                    ->autocapitalize('words'),
+                    TextInput::make('phone')
+                        ->label('Teléfono')
+                        ->tel()
+                        ->placeholder('Ej: 0981123456')
+                        ->maxLength(10)
+                        ->regex('/^0\d{8,9}$/')
+                        ->validationMessages([
+                            'regex' => 'Ingrese un número válido de Paraguay: móvil (09XXXXXXXX) o fijo (021XXXXXX / 0XXXXXXXX).',
+                        ])
+                        ->helperText('Número sin espacios ni guiones. Ej: 0981123456'),
 
-                                TextInput::make('address')
-                                    ->label('Dirección')
-                                    ->placeholder('Ej: Av. España 1234 c/ Brasil')
-                                    ->maxLength(100)
-                                    ->required(),
-                            ]),
-                    ]),
+                    TextInput::make('email')
+                        ->label('Correo electrónico')
+                        ->email()
+                        ->placeholder('Ej: sucursal@empresa.com')
+                        ->maxLength(100)
+                        ->unique(Branch::class, 'email', ignoreRecord: true)
+                        ->helperText('Debe ser único entre las sucursales.'),
+                ])
+                ->columns(2)
+                ->collapsible(),
 
-                Section::make('Información de contacto')
-                    ->description('Teléfono y correo electrónico')
-                    ->icon('heroicon-o-phone')
-                    ->collapsible()
-                    ->schema([
-                        Grid::make(2)
-                            ->schema([
-                                TextInput::make('phone')
-                                    ->label('Teléfono')
-                                    ->tel()
-                                    ->prefix('+595')
-                                    ->placeholder('971123456')
-                                    ->minLength(7)
-                                    ->maxLength(30)
-                                    ->helperText('Formato: 971123456')
-                                    ->nullable(),
+            Section::make('Ubicación')
+                ->description('Dirección y coordenadas GPS de la sucursal.')
+                ->schema([
+                    TextInput::make('address')
+                        ->label('Dirección')
+                        ->maxLength(100)
+                        ->placeholder('Ej: Av. España 1234 c/ Brasil')
+                        ->helperText('Se autocompleta al mover el pin en el mapa.'),
 
-                                TextInput::make('email')
-                                    ->label('Correo electrónico')
-                                    ->email()
-                                    ->placeholder('sucursal@empresa.com')
-                                    ->maxLength(100)
-                                    ->unique(Branch::class, 'email', ignoreRecord: true)
-                                    ->nullable(),
-                            ]),
-                    ]),
+                    TextInput::make('city')
+                        ->label('Ciudad')
+                        ->readOnly()
+                        ->maxLength(100)
+                        ->helperText('Se completa automáticamente al ubicar el pin en el mapa.'),
 
-                Section::make('Ubicación geográfica')
-                    ->description('Coordenadas GPS de la sucursal')
-                    ->icon('heroicon-o-map-pin')
-                    ->collapsible()
-                    ->collapsed()
-                    ->schema([
-                        Grid::make(2)
-                            ->schema([
-                                TextInput::make('coordinates.lat')
-                                    ->label('Latitud')
-                                    ->placeholder('-25.303772')
-                                    ->numeric()
-                                    ->minValue(-90)
-                                    ->maxValue(90)
-                                    ->step(0.000001)
-                                    ->helperText('Coordenada latitud (entre -90 y 90)')
-                                    ->nullable(),
-
-                                TextInput::make('coordinates.lng')
-                                    ->label('Longitud')
-                                    ->placeholder('-57.611112')
-                                    ->numeric()
-                                    ->minValue(-180)
-                                    ->maxValue(180)
-                                    ->step(0.000001)
-                                    ->helperText('Coordenada longitud (entre -180 y 180)')
-                                    ->nullable(),
-                            ]),
-
-                        Placeholder::make('coordinates_help')
-                            ->label('¿Cómo obtener las coordenadas?')
-                            ->content('Puedes obtener las coordenadas desde Google Maps: Click derecho en el mapa → primero aparece la latitud, luego la longitud.')
-                            ->columnSpanFull(),
-                    ]),
-            ]);
+                    Map::make('coordinates')
+                        ->label('Ubicación en el mapa')
+                        ->columnSpanFull()
+                        ->defaultLocation([-25.2867, -57.6478]) // Asunción, Paraguay
+                        ->draggable()
+                        ->clickable()
+                        ->autocomplete('address')
+                        ->autocompleteReverse(true)
+                        ->reverseGeocode([
+                            'address' => '%n %S',
+                            'city'    => '%L',
+                        ])
+                        ->geolocate()
+                        ->height('400px'),
+                ])
+                ->columns(2)
+                ->collapsible(),
+        ]);
     }
 
+    /**
+     * Define la vista de detalle de una sucursal.
+     *
+     * @param  \Filament\Infolists\Infolist $infolist
+     * @return \Filament\Infolists\Infolist
+     */
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfoSection::make('Información general')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('name')
+                        ->label('Nombre de la sucursal')
+                        ->copyable()
+                        ->copyMessage('Nombre copiado'),
+
+                    TextEntry::make('active_employees')
+                        ->label('Empleados Activos / Total')
+                        ->getStateUsing(
+                            fn(Branch $record) =>
+                            $record->activeEmployees()->count() . ' / ' . $record->employees()->count()
+                        )
+                        ->badge()
+                        ->color('success')
+                        ->icon('heroicon-o-users'),
+
+                    TextEntry::make('company.name')
+                        ->label('Empresa'),
+
+                    TextEntry::make('company.trade_name')
+                        ->label('Nombre comercial')
+                        ->placeholder('Sin nombre comercial'),
+                ])
+                ->collapsible(),
+
+            InfoSection::make('Contacto y dirección')
+                ->columns(2)
+                ->schema([
+                    TextEntry::make('address')
+                        ->label('Dirección')
+                        ->icon('heroicon-o-map')
+                        ->copyable()
+                        ->copyMessage('Dirección copiada')
+                        ->placeholder('Sin dirección'),
+
+                    TextEntry::make('city')
+                        ->label('Ciudad')
+                        ->badge()
+                        ->color('info')
+                        ->placeholder('Sin ciudad'),
+
+                    TextEntry::make('phone')
+                        ->label('Teléfono')
+                        ->icon('heroicon-o-phone')
+                        ->copyable()
+                        ->copyMessage('Teléfono copiado')
+                        ->placeholder('Sin teléfono'),
+
+                    TextEntry::make('email')
+                        ->label('Correo electrónico')
+                        ->icon('heroicon-o-envelope')
+                        ->copyable()
+                        ->copyMessage('Correo copiado')
+                        ->placeholder('Sin correo'),
+                ])
+                ->collapsible(),
+        ]);
+    }
+
+    /**
+     * Define la tabla de listado de sucursales con filtros y acciones.
+     *
+     * @param  \Filament\Tables\Table $table
+     * @return \Filament\Tables\Table
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -166,15 +221,13 @@ class BranchResource extends Resource
                 TextColumn::make('name')
                     ->label('Sucursal')
                     ->description(fn($record) => $record->address)
-                    ->icon('heroicon-o-building-office-2')
+                    ->icon('heroicon-o-building-storefront')
                     ->sortable()
                     ->searchable()
-                    ->weight('medium')
-                    ->wrap(),
+                    ->weight('medium'),
 
                 TextColumn::make('city')
                     ->label('Ciudad')
-                    ->icon('heroicon-o-map-pin')
                     ->badge()
                     ->color('info')
                     ->sortable()
@@ -182,13 +235,10 @@ class BranchResource extends Resource
 
                 TextColumn::make('contact_info')
                     ->label('Contacto')
-                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin datos')
-                    ->description(fn($record) => $record->email ?: 'Sin datos')
+                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin teléfono')
+                    ->description(fn($record) => $record->email ?: null)
                     ->icon('heroicon-o-phone')
-                    ->placeholder('Sin contacto')
-                    ->copyable()
-                    ->copyMessage('Contacto copiado')
-                    ->tooltip('Haz clic para copiar'),
+                    ->placeholder('Sin contacto'),
 
                 TextColumn::make('active_employees_count')
                     ->label('Empleados Activos')
@@ -196,14 +246,27 @@ class BranchResource extends Resource
                     ->badge()
                     ->color('success')
                     ->sortable()
-                    ->alignCenter(),
+                    ->alignCenter()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('created_at')
+                    ->label('Creado')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('updated_at')
+                    ->label('Actualizado')
+                    ->dateTime('d/m/Y H:i')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('name', 'asc')
             ->filters([
                 SelectFilter::make('company_id')
                     ->label('Empresa')
                     ->relationship('company', 'name', fn($query) => $query->active())
-                    ->getOptionLabelFromRecordUsing(fn(Company $record) =>
+                    ->getOptionLabelFromRecordUsing(
+                        fn(Company $record) =>
                         $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
                     )
                     ->searchable()
@@ -212,39 +275,30 @@ class BranchResource extends Resource
 
                 SelectFilter::make('city')
                     ->label('Ciudad')
-                    ->options(function () {
-                        return Branch::query()
+                    ->options(
+                        fn() => Branch::query()
                             ->distinct()
                             ->pluck('city', 'city')
                             ->filter()
                             ->sort()
-                            ->toArray();
-                    })
+                            ->toArray()
+                    )
                     ->placeholder('Todas las ciudades')
                     ->searchable()
-                    ->native(false)
-                    ->multiple(),
-
-                Filter::make('with_employees')
-                    ->label('Con empleados')
-                    ->query(fn($query) => $query->has('employees'))
-                    ->toggle(),
-
-                Filter::make('without_employees')
-                    ->label('Sin empleados')
-                    ->query(fn($query) => $query->doesntHave('employees'))
-                    ->toggle(),
+                    ->native(false),
             ])
             ->actions([
                 Action::make('view_map')
                     ->label('Ver en mapa')
                     ->icon('heroicon-o-map')
                     ->color('info')
-                    ->url(fn($record) => $record->coordinates ? static::getGoogleMapsUrl($record->coordinates) : null)
+                    ->url(
+                        fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])
+                            ? sprintf('https://www.google.com/maps?q=%s,%s', $record->coordinates['lat'], $record->coordinates['lng'])
+                            : null
+                    )
                     ->openUrlInNewTab()
-                    ->visible(fn($record) => $record->coordinates !== null),
-
-                EditAction::make(),
+                    ->visible(fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -254,50 +308,17 @@ class BranchResource extends Resource
                         ->modalDescription('¿Estás seguro de que deseas eliminar estas sucursales? Los empleados asignados quedarán sin sucursal.'),
                 ]),
             ])
+            ->defaultSort('name')
             ->emptyStateHeading('No hay sucursales registradas')
-            ->emptyStateDescription('Comienza agregando la primera sucursal de tu empresa')
-            ->emptyStateIcon('heroicon-o-building-office-2');
+            ->emptyStateDescription('Comienza agregando la primera sucursal.')
+            ->emptyStateIcon('heroicon-o-building-storefront');
     }
 
-    // Método auxiliar para generar URL de Google Maps
-    protected static function getGoogleMapsUrl($coordinates): ?string
-    {
-        if (!$coordinates) {
-            return null;
-        }
-
-        try {
-            $coords = is_string($coordinates)
-                ? json_decode($coordinates, true)
-                : $coordinates;
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                return null;
-            }
-
-            if (isset($coords['lat']) && isset($coords['lng'])) {
-                $lat = (float) $coords['lat'];
-                $lng = (float) $coords['lng'];
-
-                // Validar que las coordenadas sean válidas
-                if ($lat >= -90 && $lat <= 90 && $lng >= -180 && $lng <= 180) {
-                    return sprintf(
-                        'https://www.google.com/maps?q=%s,%s',
-                        $lat,
-                        $lng
-                    );
-                }
-            }
-        } catch (\Exception $e) {
-            Log::warning('Error generando URL de Google Maps para sucursal', [
-                'coordinates' => $coordinates,
-                'error' => $e->getMessage()
-            ]);
-        }
-
-        return null;
-    }
-
+    /**
+     * Retorna los relation managers asociados al recurso.
+     *
+     * @return array<class-string<\Filament\Resources\RelationManagers\RelationManager>>
+     */
     public static function getRelations(): array
     {
         return [
@@ -305,12 +326,18 @@ class BranchResource extends Resource
         ];
     }
 
+    /**
+     * Retorna las páginas registradas para este recurso.
+     *
+     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     */
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListBranches::route('/'),
+            'index'  => Pages\ListBranches::route('/'),
             'create' => Pages\CreateBranch::route('/create'),
-            'edit' => Pages\EditBranch::route('/{record}/edit'),
+            'view'   => Pages\ViewBranch::route('/{record}'),
+            'edit'   => Pages\EditBranch::route('/{record}/edit'),
         ];
     }
 }

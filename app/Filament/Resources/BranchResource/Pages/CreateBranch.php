@@ -6,64 +6,50 @@ use App\Filament\Resources\BranchResource;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
+/** Página de creación de una nueva sucursal. */
 class CreateBranch extends CreateRecord
 {
     protected static string $resource = BranchResource::class;
 
+    /**
+     * Capitaliza el nombre y limpia el teléfono antes de crear el registro.
+     *
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
+     */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Convertir nombre de sucursal a mayúsculas
         if (isset($data['name'])) {
-            $data['name'] = mb_strtoupper($data['name'], 'UTF-8');
+            $data['name'] = preg_replace_callback('/(?:^|\s)\S/u', fn($m) => mb_strtoupper($m[0], 'UTF-8'), $data['name']);
         }
 
-        // Convertir ciudad a formato título (Primera Letra Mayúscula)
-        if (isset($data['city'])) {
-            $data['city'] = mb_convert_case($data['city'], MB_CASE_TITLE, 'UTF-8');
-        }
-
-        // Limpiar y formatear dirección
-        if (isset($data['address'])) {
-            $data['address'] = trim($data['address']);
-        }
-
-        // Convertir email a minúsculas y limpiar espacios
-        if (isset($data['email'])) {
-            $data['email'] = strtolower(trim($data['email']));
-        }
-
-        // Limpiar teléfono: eliminar espacios, guiones y ceros a la izquierda
         if (isset($data['phone'])) {
-            $cleaned = str_replace([' ', '-', '+595'], '', $data['phone']);
-            $data['phone'] = ltrim($cleaned, '0') ?: null;
-        }
-
-        // Procesar coordenadas
-        if (isset($data['coordinates'])) {
-            // Si ambas coordenadas están vacías, establecer coordinates como null
-            if (empty($data['coordinates']['lat']) && empty($data['coordinates']['lng'])) {
-                $data['coordinates'] = null;
-            } else {
-                // Convertir a float para precisión
-                if (isset($data['coordinates']['lat'])) {
-                    $data['coordinates']['lat'] = (float) $data['coordinates']['lat'];
-                }
-                if (isset($data['coordinates']['lng'])) {
-                    $data['coordinates']['lng'] = (float) $data['coordinates']['lng'];
-                }
-            }
+            $data['phone'] = preg_replace('/[\s\-]/', '', $data['phone']) ?: null;
         }
 
         return $data;
     }
 
+    /**
+     * Redirige a la página de detalle de la sucursal recién creada.
+     *
+     * @return string
+     */
+    protected function getRedirectUrl(): string
+    {
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    /**
+     * Notificación de éxito tras registrar la sucursal.
+     *
+     * @return \Filament\Notifications\Notification|null
+     */
     protected function getCreatedNotification(): ?Notification
     {
         return Notification::make()
             ->success()
-            ->title('Sucursal registrada exitosamente')
-            ->body('La sucursal "' . $this->record->name . '" ha sido creada correctamente.')
-            ->duration(5000)
-            ->send();
+            ->title('Sucursal registrada')
+            ->body('La sucursal "' . $this->record->name . '" ha sido creada correctamente.');
     }
 }
