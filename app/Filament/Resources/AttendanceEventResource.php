@@ -9,20 +9,21 @@ use App\Models\AttendanceEvent;
 use Filament\Resources\Resource;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Actions\ViewAction;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Components\ViewEntry;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Tables\Actions\BulkActionGroup;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
 use App\Filament\Resources\AttendanceEventResource\Pages;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Infolists\Components\Grid;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
-use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 
+/** Recurso Filament para gestionar marcaciones de asistencia. */
 class AttendanceEventResource extends Resource
 {
     protected static ?string $model = AttendanceEvent::class;
@@ -30,10 +31,16 @@ class AttendanceEventResource extends Resource
     protected static ?string $label = 'Marcación';
     protected static ?string $pluralLabel = 'Marcaciones';
     protected static ?string $slug = 'marcaciones';
-    protected static ?string $navigationIcon = 'heroicon-o-finger-print';
+    protected static ?string $navigationIcon = 'heroicon-o-hand-raised';
     protected static ?string $navigationGroup = 'Asistencias';
     protected static ?int $navigationSort = 3;
 
+    /**
+     * Define el formulario para crear y editar marcaciones.
+     *
+     * @param  Form $form
+     * @return Form
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -42,6 +49,7 @@ class AttendanceEventResource extends Resource
                     ->label('Tipo de Evento')
                     ->options(AttendanceEvent::getEventTypeOptions())
                     ->native(false)
+                    ->searchable()
                     ->required(),
 
                 DateTimePicker::make('recorded_at')
@@ -50,11 +58,17 @@ class AttendanceEventResource extends Resource
                     ->native(false)
                     ->seconds(false)
                     ->displayFormat('d/m/Y H:i')
-                    ->helperText('Modificar solo para corregir errores de registro'),
-            ])
-            ->columns(2);
+                    ->maxDate(now())
+                    ->closeOnDateSelection(),
+            ]);
     }
 
+    /**
+     * Define la tabla con columnas, filtros, tabs y acciones de fila.
+     *
+     * @param  Table $table
+     * @return Table
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -69,43 +83,32 @@ class AttendanceEventResource extends Resource
 
                 TextColumn::make('event_type')
                     ->label('Tipo de evento')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'check_in' => 'Entrada',
-                        'break_start' => 'Inicio descanso',
-                        'break_end' => 'Fin descanso',
-                        'check_out' => 'Salida',
-                        default => 'Desconocido',
-                    })
+                    ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'check_in' => 'success',
-                        'break_start' => 'warning',
-                        'break_end' => 'info',
-                        'check_out' => 'danger',
-                        default => 'gray',
-                    })
-                    ->icon(fn($state) => match ($state) {
-                        'check_in' => 'heroicon-o-arrow-right-circle',
-                        'break_start' => 'heroicon-o-pause-circle',
-                        'break_end' => 'heroicon-o-play-circle',
-                        'check_out' => 'heroicon-o-arrow-left-circle',
-                        default => 'heroicon-o-question-mark-circle',
-                    })
+                    ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
+                    ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state))
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->description(fn($record) => $record->employee_ci ? 'CI: ' . $record->employee_ci : '')
                     ->sortable()
                     ->searchable()
-                    ->weight('medium')
                     ->wrap()
                     ->placeholder('N/A'),
 
+                TextColumn::make('source')
+                    ->label('Canal')
+                    ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                    ->badge()
+                    ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                    ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('branch_name')
                     ->label('Sucursal')
-                    ->icon('heroicon-o-building-office-2')
+                    ->icon('heroicon-o-building-storefront')
                     ->badge()
                     ->color('info')
                     ->sortable()
@@ -123,7 +126,6 @@ class AttendanceEventResource extends Resource
                     ->placeholder('Sin ubicación')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('recorded_at', 'desc')
             ->filters([
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
@@ -150,12 +152,14 @@ class AttendanceEventResource extends Resource
                 SelectFilter::make('event_type')
                     ->label('Tipo de evento')
                     ->placeholder('Todos los tipos')
-                    ->options([
-                        'check_in' => 'Entrada',
-                        'break_start' => 'Inicio descanso',
-                        'break_end' => 'Fin descanso',
-                        'check_out' => 'Salida',
-                    ])
+                    ->options(AttendanceEvent::getEventTypeOptions())
+                    ->native(false)
+                    ->multiple(),
+
+                SelectFilter::make('source')
+                    ->label('Canal')
+                    ->placeholder('Todos los canales')
+                    ->options(AttendanceEvent::getSourceOptions())
                     ->native(false)
                     ->multiple(),
 
@@ -204,66 +208,70 @@ class AttendanceEventResource extends Resource
             ])
             ->actions([
                 ViewAction::make()
-                    ->tooltip('Ver detalle de ubicación y hora')
                     ->modalHeading('Detalle de Marcación')
-                    ->form([])
-                    ->modalContent(fn($record) => view('filament.resources.attendance-day.relation-managers.event-detail', [
-                        'record' => $record,
-                    ]))
+                    ->modalCancelActionLabel('Cerrar')
                     ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Cerrar'),
+                    ->infolist([
+                        Grid::make(2)->schema([
+                            TextEntry::make('event_type')
+                                ->label('Tipo de evento')
+                                ->badge()
+                                ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                                ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
+                                ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state)),
 
-                EditAction::make()
-                    ->tooltip('Corregir tipo de evento o fecha/hora')
-                    ->modalHeading('Editar Marcación')
-                    ->successNotificationTitle('Marcación actualizada exitosamente'),
+                            TextEntry::make('source')
+                                ->label('Canal')
+                                ->badge()
+                                ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                                ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                                ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
 
-                DeleteAction::make()
-                    ->tooltip('Eliminar esta marcación')
-                    ->modalHeading('Eliminar Marcación')
-                    ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
-                    ->successNotificationTitle('Marcación eliminada exitosamente'),
-            ])
-            ->bulkActions([
-                BulkActionGroup::make([
-                    ExportBulkAction::make()
-                        ->label('Exportar a Excel')
-                        ->color('info')
-                        ->icon('heroicon-o-arrow-down-tray')
-                        ->tooltip('Exportar las marcaciones seleccionadas a Excel')
-                        ->exports([
-                            ExcelExport::make()
-                                ->fromTable()
-                                ->except([
-                                    'created_at',
-                                    'updated_at',
-                                ])
-                                ->withFilename('marcaciones_' . now()->format('d_m_Y_H_i_s')),
+                            TextEntry::make('recorded_at')
+                                ->label('Fecha y hora')
+                                ->formatStateUsing(fn($state) => $state->format('d/m/Y H:i:s') . ' (' . $state->diffForHumans() . ')'),
+
+                            TextEntry::make('employee_name')
+                                ->label('Empleado')
+                                ->formatStateUsing(fn($state, $record) => $state . ($record->employee_ci ? ' — CI: ' . $record->employee_ci : '')),
+
+                            TextEntry::make('branch_name')
+                                ->label('Sucursal')
+                                ->badge()
+                                ->color('info'),
                         ]),
+
+                        ViewEntry::make('location')
+                            ->label('Ubicación')
+                            ->view('filament.resources.attendance-event.location-map'),
+                    ]),
+
+                ActionGroup::make([
+                    EditAction::make()
+                        ->color('primary')
+                        ->successNotificationTitle('Marcación actualizada'),
+
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->modalHeading('Eliminar Marcación')
+                        ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->successNotificationTitle('Marcación eliminada'),
                 ]),
             ])
+            ->defaultSort('recorded_at', 'desc')
             ->emptyStateHeading('No hay marcaciones registradas')
             ->emptyStateDescription('Las marcaciones aparecerán aquí cuando los empleados registren su asistencia')
-            ->emptyStateIcon('heroicon-o-finger-print')
+            ->emptyStateIcon('heroicon-o-hand-raised')
             ->paginated([10, 25, 50, 100])
             ->defaultPaginationPageOption(10);
     }
 
-    public static function getExcelExportAction(): ExportAction
-    {
-        return ExportAction::make('export_excel')
-            ->label('Exportar a Excel')
-            ->icon('heroicon-o-arrow-down-tray')
-            ->color('info')
-            ->tooltip('Exportar marcaciones visibles respetando filtros y tab activo')
-            ->exports([
-                ExcelExport::make()
-                    ->fromTable()
-                    ->except(['created_at', 'updated_at'])
-                    ->withFilename(fn() => 'marcaciones_' . now()->format('d_m_Y_H_i_s')),
-            ]);
-    }
-
+    /**
+     * Registra las páginas del recurso.
+     *
+     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     */
     public static function getPages(): array
     {
         return [

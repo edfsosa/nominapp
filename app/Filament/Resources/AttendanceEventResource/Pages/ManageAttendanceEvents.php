@@ -2,18 +2,27 @@
 
 namespace App\Filament\Resources\AttendanceEventResource\Pages;
 
-use Filament\Actions\Action;
-use Illuminate\Support\Facades\DB;
-use Filament\Resources\Components\Tab;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Resources\Pages\ManageRecords;
+use App\Exports\AttendanceEventsExport;
 use App\Filament\Resources\AttendanceEventResource;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
+use Filament\Resources\Components\Tab;
+use Filament\Resources\Pages\ManageRecords;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
+use Maatwebsite\Excel\Facades\Excel;
 
+/** Página única de gestión de marcaciones: listado, creación y edición en modal. */
 class ManageAttendanceEvents extends ManageRecords
 {
     protected static string $resource = AttendanceEventResource::class;
 
+    /**
+     * Acciones del encabezado: actualizar, exportar y crear marcación.
+     *
+     * @return array<\Filament\Actions\Action>
+     */
     protected function getHeaderActions(): array
     {
         return [
@@ -21,18 +30,84 @@ class ManageAttendanceEvents extends ManageRecords
                 ->label('Actualizar')
                 ->icon('heroicon-o-arrow-path')
                 ->color('gray')
-                ->action(fn() => $this->dispatch('$refresh'))
-                ->tooltip('Actualizar listado de marcaciones'),
+                ->action(fn() => $this->dispatch('$refresh')),
 
-            CreateAction::make()
-                ->label('Nueva Marcación')
-                ->icon('heroicon-o-plus')
-                ->tooltip('Registrar marcación manual'),
+            Action::make('export_excel')
+                ->label('Exportar')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('Exportar marcaciones a Excel')
+                ->modalDescription('Se exportarán las marcaciones según los filtros y tab activos en la tabla.')
+                ->modalSubmitActionLabel('Sí, exportar')
+                ->action(function () {
+                    $filters = $this->resolveExportFilters();
 
-            AttendanceEventResource::getExcelExportAction(),
+                    Notification::make()
+                        ->success()
+                        ->title('Exportación lista')
+                        ->body('El listado de marcaciones se está descargando.')
+                        ->send();
+
+                    return Excel::download(
+                        new AttendanceEventsExport(...$filters),
+                        'marcaciones_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                    );
+                }),
         ];
     }
 
+    /**
+     * Extrae y normaliza los filtros activos de la tabla para pasarlos al export.
+     * Los filtros múltiples (SelectFilter con ->multiple()) usan la clave 'values'.
+     * El tab activo puede imponer filtros adicionales (hoy / tipo de evento).
+     *
+     * @return array{
+     *   employeeIds: int[]|null,
+     *   branchIds:   int[]|null,
+     *   eventTypes:  string[]|null,
+     *   fromDate:    string|null,
+     *   toDate:      string|null,
+     *   onlyToday:   bool
+     * }
+     */
+    private function resolveExportFilters(): array
+    {
+        $f = $this->tableFilters ?? [];
+
+        $employeeIds = array_values(array_filter($f['employee_id']['values'] ?? []));
+        $branchIds   = array_values(array_filter($f['branch_id']['values']   ?? []));
+        $eventTypes  = array_values(array_filter($f['event_type']['values']  ?? []));
+        $fromDate    = $f['recorded_at']['recorded_from'] ?? null;
+        $toDate      = $f['recorded_at']['recorded_until'] ?? null;
+        $onlyToday   = false;
+
+        // El tab activo puede sobrescribir los filtros de tipo/fecha
+        $tab = $this->activeTab;
+
+        if ($tab === 'today') {
+            $onlyToday = true;
+        } elseif (in_array($tab, ['check_in', 'check_out'], true)) {
+            // Si hay tab de tipo activo, prevalece sobre el filtro de columna
+            $eventTypes = [$tab];
+        }
+
+        return [
+            'employeeIds' => $employeeIds ?: null,
+            'branchIds'   => $branchIds   ?: null,
+            'eventTypes'  => $eventTypes  ?: null,
+            'fromDate'    => $fromDate    ?: null,
+            'toDate'      => $toDate      ?: null,
+            'onlyToday'   => $onlyToday,
+        ];
+    }
+
+    /**
+     * Tabs de filtrado por tipo de evento y marcaciones de hoy.
+     * Usa una sola query agregada para evitar N+1.
+     *
+     * @return array<string, \Filament\Resources\Components\Tab>
+     */
     public function getTabs(): array
     {
         $counts = DB::table('attendance_events')
@@ -40,8 +115,6 @@ class ManageAttendanceEvents extends ManageRecords
                 COUNT(*) as all_count,
                 SUM(CASE WHEN event_type = "check_in" THEN 1 ELSE 0 END) as check_in_count,
                 SUM(CASE WHEN event_type = "check_out" THEN 1 ELSE 0 END) as check_out_count,
-                SUM(CASE WHEN event_type = "break_start" THEN 1 ELSE 0 END) as break_start_count,
-                SUM(CASE WHEN event_type = "break_end" THEN 1 ELSE 0 END) as break_end_count,
                 SUM(CASE WHEN DATE(recorded_at) = CURDATE() THEN 1 ELSE 0 END) as today_count
             ')
             ->first();
@@ -62,28 +135,21 @@ class ManageAttendanceEvents extends ManageRecords
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'check_in'))
                 ->badge($counts->check_in_count)
                 ->badgeColor('success')
-                ->icon('heroicon-o-arrow-right-circle'),
+                ->icon('heroicon-o-arrow-right-on-rectangle'),
 
             'check_out' => Tab::make('Salidas')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'check_out'))
                 ->badge($counts->check_out_count)
                 ->badgeColor('danger')
-                ->icon('heroicon-o-arrow-left-circle'),
-
-            'break_start' => Tab::make('Inicio descanso')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'break_start'))
-                ->badge($counts->break_start_count)
-                ->badgeColor('warning')
-                ->icon('heroicon-o-pause-circle'),
-
-            'break_end' => Tab::make('Fin descanso')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('event_type', 'break_end'))
-                ->badge($counts->break_end_count)
-                ->badgeColor('info')
-                ->icon('heroicon-o-play-circle'),
+                ->icon('heroicon-o-arrow-left-on-rectangle'),
         ];
     }
 
+    /**
+     * Tab activo por defecto al cargar la página.
+     *
+     * @return string|int|null
+     */
     public function getDefaultActiveTab(): string | int | null
     {
         return 'today';
