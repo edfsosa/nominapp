@@ -284,6 +284,27 @@
             text-align: center;
         }
 
+        /* Nodo de departamento */
+        .department-node {
+            display: inline-block;
+            border: 2px solid #0d9488;
+            border-radius: 6px;
+            min-width: 160px;
+            max-width: 220px;
+            text-align: center;
+        }
+
+        .department-header {
+            background: #0d9488;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px 4px 0 0;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         /* Nodo raiz (empresa) */
         .company-node {
             display: inline-block;
@@ -605,7 +626,8 @@
                     <h1>Organigrama</h1>
                     <p>{{ $company->name }}</p>
                     <div class="stats">
-                        <span class="stat">{{ count($orgData['tree']) }} cargos</span>
+                        <span class="stat">{{ count($orgData['tree']) }} departamentos</span>
+                        <span class="stat">{{ collect($orgData['tree'])->sum(fn($d) => count($d['positions'])) }} cargos</span>
                         <span class="stat">{{ $company->employees()->where('status', 'active')->count() }}
                             empleados</span>
                     </div>
@@ -646,8 +668,8 @@
                 </div>
                 <div class="tree">
                     <ul>
-                        @foreach ($orgData['tree'] as $position)
-                            @include('org-chart.partials.position-node', ['position' => $position])
+                        @foreach ($orgData['tree'] as $department)
+                            @include('org-chart.partials.department-node', ['department' => $department])
                         @endforeach
                     </ul>
                 </div>

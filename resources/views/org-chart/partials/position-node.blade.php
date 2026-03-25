@@ -1,7 +1,6 @@
 <li>
     <div class="position-node">
         <div class="position-header">{{ $position['name'] }}</div>
-        <div class="position-department">{{ $position['department'] }}</div>
         <div class="position-employees">
             @if (count($position['employees']) > 0)
                 @foreach ($position['employees'] as $employee)

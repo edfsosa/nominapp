@@ -199,6 +199,22 @@
             padding-top: 5px;
         }
 
+        .dept-section {
+            margin-bottom: 20px;
+            page-break-inside: avoid;
+        }
+
+        .dept-header {
+            background: #0d9488;
+            color: white;
+            padding: 5px 12px;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
         .empty-state {
             text-align: center;
             padding: 40px;
@@ -219,9 +235,8 @@
 
     @if (count($orgData['tree']) > 0)
         <div class="org-content">
-
             @php
-                // Aplanar el árbol por niveles
+                // Aplanar cargos de un departamento por niveles para el PDF
                 if (!function_exists('flattenByLevelPdf')) {
                     function flattenByLevelPdf($nodes, $level = 0, &$levels = [])
                     {
@@ -237,43 +252,51 @@
                         return $levels;
                     }
                 }
-                $levels = [];
-                flattenByLevelPdf($orgData['tree'], 0, $levels);
             @endphp
 
-            @foreach ($levels as $levelNum => $positions)
-                <div class="level-section">
-                    @if (count($positions) > 1)
-                        <div class="connector-horizontal"></div>
-                    @endif
+            @foreach ($orgData['tree'] as $department)
+                <div class="dept-section">
+                    <div class="dept-header">{{ $department['name'] }}</div>
 
-                    <table class="cards-table">
-                        <tr>
-                            @foreach ($positions as $position)
-                                <td>
-                                    <div class="position-card">
-                                        <div class="position-header">{{ $position['name'] }}</div>
-                                        <div class="position-dept">{{ $position['department'] }}</div>
-                                        <div class="position-body">
-                                            @if (count($position['employees']) > 0)
-                                                @foreach ($position['employees'] as $employee)
-                                                    <div class="employee-name">{{ $employee['name'] }}</div>
-                                                @endforeach
-                                            @else
-                                                <div class="no-employees">Sin empleados</div>
-                                            @endif
-                                        </div>
-                                    </div>
-                                </td>
-                            @endforeach
-                        </tr>
-                    </table>
+                    @php
+                        $levels = [];
+                        flattenByLevelPdf($department['positions'], 0, $levels);
+                    @endphp
 
-                    @if ($levelNum < count($levels) - 1)
-                        <div class="connector">
-                            <span class="connector-vertical"></span>
+                    @foreach ($levels as $levelNum => $positions)
+                        <div class="level-section">
+                            @if (count($positions) > 1)
+                                <div class="connector-horizontal"></div>
+                            @endif
+
+                            <table class="cards-table">
+                                <tr>
+                                    @foreach ($positions as $position)
+                                        <td>
+                                            <div class="position-card">
+                                                <div class="position-header">{{ $position['name'] }}</div>
+                                                <div class="position-body">
+                                                    @if (count($position['employees']) > 0)
+                                                        @foreach ($position['employees'] as $employee)
+                                                            <div class="employee-name">{{ $employee['name'] }}</div>
+                                                        @endforeach
+                                                    @else
+                                                        <div class="no-employees">Sin empleados</div>
+                                                    @endif
+                                                </div>
+                                            </div>
+                                        </td>
+                                    @endforeach
+                                </tr>
+                            </table>
+
+                            @if ($levelNum < count($levels) - 1)
+                                <div class="connector">
+                                    <span class="connector-vertical"></span>
+                                </div>
+                            @endif
                         </div>
-                    @endif
+                    @endforeach
                 </div>
             @endforeach
         </div>

@@ -7,7 +7,7 @@
     <style>
         @page {
             size: A4;
-            margin: 18mm 20mm 20mm 20mm;
+            margin: 0;
         }
 
         * {
@@ -18,30 +18,30 @@
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 10px;
-            line-height: 1.45;
-            padding: 18mm 20mm 20mm 20mm;
+            font-size: 11px;
+            line-height: 1.5;
+            padding: 15mm 20mm;
         }
 
         /* ── Encabezado empresa ── */
         .company-header {
             text-align: center;
-            margin-bottom: 12px;
-            padding-bottom: 10px;
-            border-bottom: 1.5px solid #000;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #000;
         }
 
         .company-logo {
-            max-height: 36px;
-            max-width: 110px;
-            margin-bottom: 5px;
+            max-height: 40px;
+            max-width: 120px;
+            margin-bottom: 8px;
         }
 
         .company-name {
-            font-size: 13px;
+            font-size: 14px;
             font-weight: bold;
             text-transform: uppercase;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
         }
 
         .company-info {

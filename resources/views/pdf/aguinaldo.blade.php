@@ -50,7 +50,7 @@
 
         .title {
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             text-transform: uppercase;
             margin: 20px 0 5px 0;
@@ -58,7 +58,7 @@
 
         .subtitle {
             text-align: center;
-            font-size: 11px;
+            font-size: 10px;
             margin-bottom: 20px;
         }
 

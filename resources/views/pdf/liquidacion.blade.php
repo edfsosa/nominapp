@@ -50,7 +50,7 @@
 
         .title {
             text-align: center;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: bold;
             text-transform: uppercase;
             margin: 20px 0 5px 0;
@@ -88,15 +88,14 @@
         .info-label {
             display: table-cell;
             font-weight: bold;
-            width: 200px;
-            padding: 4px 8px;
+            width: 180px;
+            padding: 5px 8px;
             border: 1px solid #000;
-            font-size: 10px;
         }
 
         .info-value {
             display: table-cell;
-            padding: 4px 8px;
+            padding: 5px 8px;
             border: 1px solid #000;
             font-size: 10px;
         }
