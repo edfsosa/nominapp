@@ -6,81 +6,73 @@ use App\Models\AttendanceDay;
 use App\Models\Branch;
 use Filament\Widgets\ChartWidget;
 
-/**
- * Widget de gráfico que muestra el estado de asistencia (presentes y ausentes) por sucursal para el día de hoy.
- */
+/** Widget de gráfico: presencias y ausencias por sucursal para el día de hoy. */
 class BranchAttendanceToday extends ChartWidget
 {
-    // Configuraciones del widget
     protected static ?string $heading = 'Presencias / Ausencias por Sucursal';
     protected static ?string $description = 'Estado de asistencia del día de hoy';
     protected int | string | array $columnSpan = 'full';
     protected static ?int $sort = 2;
 
+    /** Refresca el gráfico cada 60 segundos. */
+    protected static ?string $pollingInterval = '60s';
+
     /**
-     * Obtiene los datos para el gráfico de asistencia por sucursal del día de hoy.
+     * Obtiene los datos del gráfico agrupando presentes por sucursal en 2 queries
+     * (1 para sucursales con empleados activos, 1 para presentes del día).
      *
-     * @return array
+     * @return array<string, mixed>
      */
     protected function getData(): array
     {
-        // Obtener la fecha actual en formato Y-m-d
         $today = now()->toDateString();
 
-        // Obtener todas las sucursales con empleados activos
-        $branches = Branch::withCount(['employees' => function ($query) {
-            $query->where('status', 'active');
-        }])->having('employees_count', '>', 0)->get();
+        $branches = Branch::withCount(['employees' => fn($q) => $q->where('status', 'active')])
+            ->having('employees_count', '>', 0)
+            ->get();
 
-        // Inicializar arrays para etiquetas, presentes, ausentes y porcentajes
-        $labels = [];
+        // Una sola query agrupada por sucursal en lugar de una por branch (evita N+1)
+        $presentesPorSucursal = AttendanceDay::where('attendance_days.date', $today)
+            ->where('attendance_days.status', 'present')
+            ->join('employees', 'attendance_days.employee_id', '=', 'employees.id')
+            ->where('employees.status', 'active')
+            ->selectRaw('employees.branch_id, COUNT(*) as count')
+            ->groupBy('employees.branch_id')
+            ->pluck('count', 'branch_id')
+            ->map(fn($c) => (int) $c);
+
+        $labels    = [];
         $presentes = [];
-        $ausentes = [];
-        $porcentajes = [];
+        $ausentes  = [];
 
-        // Recorrer cada sucursal para calcular el total de empleados, presentes, ausentes y porcentaje
         foreach ($branches as $branch) {
-            // Total de empleados activos en la sucursal
-            $totalEmpleados = $branch->employees_count;
+            $total     = $branch->employees_count;
+            $presentes_branch = $presentesPorSucursal->get($branch->id, 0);
 
-            // Empleados que marcaron asistencia hoy (presentes)
-            $empleadosPresentes = AttendanceDay::where('date', $today)
-                ->where('status', 'present')
-                ->whereHas('employee', function ($query) use ($branch) {
-                    $query->where('branch_id', $branch->id)
-                        ->where('status', 'active');
-                })
-                ->count();
-
-            // Empleados ausentes (total - presentes) y porcentaje de presentes
-            $empleadosAusentes = $totalEmpleados - $empleadosPresentes;
-            $porcentajePresentes = $totalEmpleados > 0
-                ? round(($empleadosPresentes / $totalEmpleados) * 100, 1)
-                : 0;
-
-            // Agregar datos a los arrays para el gráfico
-            $labels[] = $branch->name . " ({$totalEmpleados})";
-            $presentes[] = $empleadosPresentes;
-            $ausentes[] = $empleadosAusentes;
-            $porcentajes[] = $porcentajePresentes;
+            $labels[]    = $branch->name . " ({$total})";
+            $presentes[] = $presentes_branch;
+            $ausentes[]  = max(0, $total - $presentes_branch);
         }
 
-        // Retornar los datos formateados para el gráfico, incluyendo etiquetas y datasets para presentes y ausentes
         return [
             'datasets' => [
                 [
-                    'label' => 'Presentes',
-                    'data' => $presentes,
-                    'backgroundColor' => '#10b981',
-                    'borderColor' => '#059669',
-                    'borderWidth' => 1,
+                    'label'            => 'Presentes',
+                    'data'             => $presentes,
+                    'backgroundColor'  => '#10b981',
+                    'borderColor'      => '#059669',
+                    'borderWidth'      => 1,
+                    'barPercentage'    => 0.6,
+                    'categoryPercentage' => 0.8,
                 ],
                 [
-                    'label' => 'Ausentes',
-                    'data' => $ausentes,
-                    'backgroundColor' => '#ef4444',
-                    'borderColor' => '#dc2626',
-                    'borderWidth' => 1,
+                    'label'            => 'Ausentes',
+                    'data'             => $ausentes,
+                    'backgroundColor'  => '#ef4444',
+                    'borderColor'      => '#dc2626',
+                    'borderWidth'      => 1,
+                    'barPercentage'    => 0.6,
+                    'categoryPercentage' => 0.8,
                 ],
             ],
             'labels' => $labels,
@@ -88,8 +80,6 @@ class BranchAttendanceToday extends ChartWidget
     }
 
     /**
-     * Define el tipo de gráfico a utilizar (en este caso, un gráfico de barras).
-     *
      * @return string
      */
     protected function getType(): string
@@ -98,45 +88,36 @@ class BranchAttendanceToday extends ChartWidget
     }
 
     /**
-     * Configura las opciones del gráfico, incluyendo plugins para leyenda y tooltip, así como escalas para los ejes X e Y, y opciones de responsividad.
-     *
-     * @return array
+     * @return array<string, mixed>
      */
     protected function getOptions(): array
     {
         return [
             'plugins' => [
                 'legend' => [
-                    'display' => true,
+                    'display'  => true,
                     'position' => 'top',
                 ],
                 'tooltip' => [
-                    'enabled' => true,
-                    'mode' => 'index',
+                    'enabled'   => true,
+                    'mode'      => 'index',
                     'intersect' => false,
                 ],
             ],
+            'indexAxis' => 'y',
             'scales' => [
                 'x' => [
-                    'stacked' => false,
-                    'grid' => [
-                        'display' => false,
-                    ],
+                    'stacked'     => false,
+                    'beginAtZero' => true,
+                    'ticks'       => ['stepSize' => 1, 'precision' => 0],
+                    'grid'        => ['display' => true, 'drawBorder' => false],
                 ],
                 'y' => [
                     'stacked' => false,
-                    'beginAtZero' => true,
-                    'ticks' => [
-                        'stepSize' => 1,
-                        'precision' => 0,
-                    ],
-                    'grid' => [
-                        'display' => true,
-                        'drawBorder' => false,
-                    ],
+                    'grid'    => ['display' => false],
                 ],
             ],
-            'responsive' => true,
+            'responsive'          => true,
             'maintainAspectRatio' => false,
         ];
     }

@@ -9,12 +9,17 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Widgets\TableWidget as BaseWidget;
 use Illuminate\Database\Eloquent\Builder;
 
+/** Widget de tabla: contratos activos próximos a vencer o ya vencidos. Solo visible cuando existen. */
 class ExpiringContracts extends BaseWidget
 {
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 4;
     protected static ?string $heading = 'Contratos por Vencer';
     protected int|string|array $columnSpan = 'full';
 
+    /**
+     * @param  Table $table
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         $settings = app(GeneralSettings::class);
@@ -23,7 +28,7 @@ class ExpiringContracts extends BaseWidget
         return $table
             ->query(
                 Contract::query()
-                    ->with(['employee', 'position', 'department'])
+                    ->with(['employee', 'position'])
                     ->where(function (Builder $query) use ($alertDays) {
                         // Contratos por vencer
                         $query->where('status', 'active')
@@ -72,6 +77,11 @@ class ExpiringContracts extends BaseWidget
             ->paginated(false);
     }
 
+    /**
+     * Solo muestra el widget cuando hay contratos por vencer o ya vencidos.
+     *
+     * @return bool
+     */
     public static function canView(): bool
     {
         $settings = app(GeneralSettings::class);

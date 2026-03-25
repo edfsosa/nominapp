@@ -8,23 +8,39 @@ use Carbon\Carbon;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 
+/** Widget de resumen estadístico del dashboard: empleados, asistencia y cumpleaños. */
 class StatsOverview extends BaseWidget
 {
     protected static ?int $sort = 1;
 
+    /** Refresca los datos cada 60 segundos sin recargar la página. */
+    protected static ?string $pollingInterval = '60s';
+
+    /**
+     * Retorna los stats del dashboard.
+     *
+     * @return array<int, Stat>
+     */
     protected function getStats(): array
     {
         $today = Carbon::today();
 
-        $totalEmpleados   = Employee::count();
-        $empleadosActivos = Employee::where('status', 'active')->count();
+        // Una sola query para total y activos
+        $counts = Employee::selectRaw("
+            COUNT(*) as total,
+            SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active
+        ")->first();
+
+        $totalEmpleados   = (int) $counts->total;
+        $empleadosActivos = (int) $counts->active;
 
         $presentesHoy = AttendanceDay::where('date', $today)
             ->where('status', 'present')
             ->whereHas('employee', fn($q) => $q->where('status', 'active'))
             ->count();
 
-        $ausentesHoy = $empleadosActivos - $presentesHoy;
+        // max(0, ...) por si $presentesHoy supera $empleadosActivos (reactivaciones intraday)
+        $ausentesHoy = max(0, $empleadosActivos - $presentesHoy);
 
         $porcentajeAsistencia = $empleadosActivos > 0
             ? round(($presentesHoy / $empleadosActivos) * 100, 1)
@@ -49,7 +65,8 @@ class StatsOverview extends BaseWidget
                 ->description('Faltas registradas hoy')
                 ->descriptionIcon('heroicon-o-arrow-trending-down')
                 ->color($ausentesHoy === 0 ? 'success' : 'danger')
-                ->icon('heroicon-o-user-minus'),
+                ->icon('heroicon-o-user-minus')
+                ->chart($this->getAbsenceTrend($empleadosActivos)),
 
             Stat::make('Cumpleaños del Mes', $this->getBirthdaysThisMonth())
                 ->description('Celebraciones este mes')
@@ -66,6 +83,9 @@ class StatsOverview extends BaseWidget
 
     /**
      * Tendencia de empleados activos en los últimos 7 días (2 queries en lugar de 7).
+     * Nota: usa created_at como proxy de fecha de alta; no refleja reactivaciones.
+     *
+     * @return array<int, int>
      */
     protected function getEmployeeTrend(): array
     {
@@ -96,6 +116,8 @@ class StatsOverview extends BaseWidget
 
     /**
      * Tendencia de asistencia (%) en los últimos 7 días (1 query en lugar de 7).
+     *
+     * @return array<int, int>
      */
     protected function getAttendanceTrend(int $empleadosActivos): array
     {
@@ -121,6 +143,23 @@ class StatsOverview extends BaseWidget
         return $trend;
     }
 
+    /**
+     * Tendencia de ausencias (%) en los últimos 7 días, derivada de la asistencia.
+     *
+     * @return array<int, int>
+     */
+    protected function getAbsenceTrend(int $empleadosActivos): array
+    {
+        $attendanceTrend = $this->getAttendanceTrend($empleadosActivos);
+
+        return array_map(fn(int $pct) => max(0, 100 - $pct), $attendanceTrend);
+    }
+
+    /**
+     * Cuenta empleados activos con cumpleaños en el mes actual.
+     *
+     * @return int
+     */
     protected function getBirthdaysThisMonth(): int
     {
         return Employee::where('status', 'active')

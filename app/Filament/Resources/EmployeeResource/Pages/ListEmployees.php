@@ -85,6 +85,12 @@ class ListEmployees extends ListRecords
                 ->badge($counts['suspended'] ?: null)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-pause-circle'),
+
+            'weak_face' => Tab::make('Descriptor débil')
+                ->modifyQueryUsing(fn(Builder $query) => $query->withWeakFaceDescriptor())
+                ->badge($counts['weak_face'] ?: null)
+                ->badgeColor('danger')
+                ->icon('heroicon-o-exclamation-triangle'),
         ];
     }
 
