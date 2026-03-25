@@ -450,6 +450,21 @@ class Employee extends Model
     }
 
     /**
+     * Scope para filtrar empleados enrolados con descriptor de calidad baja o sin score registrado.
+     * Identifica empleados que no tienen ningún enrollment aprobado con face_score >= 0.70.
+     * Cubre: score bajo (< 0.70), score nulo (enrolados antes de registrar la métrica) y
+     * casos sin enrollment aprobado vinculado.
+     */
+    public function scopeWithWeakFaceDescriptor($query)
+    {
+        return $query->whereNotNull('face_descriptor')
+            ->whereDoesntHave('faceEnrollments', fn ($e) => $e
+                ->where('status', 'approved')
+                ->where('face_score', '>=', 0.70)
+            );
+    }
+
+    /**
      * Obtiene los conteos de empleados por estado y rostro de forma optimizada
      */
     public static function getTabCounts(): array
@@ -472,6 +487,7 @@ class Employee extends Model
             'suspended' => $statusCounts['suspended'] ?? 0,
             'with_face' => $faceCounts->with_face ?? 0,
             'without_face' => $faceCounts->without_face ?? 0,
+            'weak_face' => static::withWeakFaceDescriptor()->count(),
         ];
     }
 

@@ -14,8 +14,9 @@ class AttendanceEvent extends Model
     protected $fillable = [
         'attendance_day_id',
         'event_type',
-        'location',
         'recorded_at',
+        'source',
+        'location',
         'employee_id',
         'employee_name',
         'employee_ci',
@@ -161,6 +162,59 @@ class AttendanceEvent extends Model
             'break_end' => 'Fin descanso',
             'check_out' => 'Salida jornada',
         ];
+    }
+
+    /**
+     * Obtiene las opciones de origen para selects.
+     *
+     * @return array<string, string>
+     */
+    public static function getSourceOptions(): array
+    {
+        return [
+            'terminal' => 'Terminal (kiosco)',
+            'mobile'   => 'Móvil',
+            'manual'   => 'Manual (admin)',
+        ];
+    }
+
+    /**
+     * Obtiene el label del origen de marcación.
+     */
+    public static function getSourceLabel(string $source): string
+    {
+        return match ($source) {
+            'terminal' => 'Terminal',
+            'mobile'   => 'Móvil',
+            'manual'   => 'Manual',
+            default    => 'Desconocido',
+        };
+    }
+
+    /**
+     * Obtiene el color del badge según el origen de marcación.
+     */
+    public static function getSourceColor(string $source): string
+    {
+        return match ($source) {
+            'terminal' => 'info',
+            'mobile'   => 'success',
+            'manual'   => 'warning',
+            default    => 'gray',
+        };
+    }
+
+    /**
+     * Obtiene el icono según el origen de marcación.
+     */
+    public static function getSourceIcon(string $source): string
+    {
+        return match ($source) {
+            'terminal' => 'heroicon-o-computer-desktop',
+            'mobile'   => 'heroicon-o-device-phone-mobile',
+            'manual'   => 'heroicon-o-pencil-square',
+            default    => 'heroicon-o-question-mark-circle',
+        };
     }
 
     /**
