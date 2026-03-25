@@ -397,6 +397,78 @@ Nunca hacer `$records->each->update([...])` sin verificar el estado esperado. Si
 ```
 Para lógica más compleja, iterar con `foreach` y contar procesados/omitidos para reportar en la notificación.
 
+### Iconos semánticos por entidad
+
+Usar siempre estos iconos para representar cada entidad en columnas, badges, infolists y acciones:
+
+| Entidad | Icono |
+|---------|-------|
+| Empresa | `heroicon-o-building-office-2` |
+| Sucursal | `heroicon-o-building-storefront` |
+| Departamento | `heroicon-o-building-library` |
+| Cargo | `heroicon-o-briefcase` |
+
+### Convenciones de PDFs (DomPDF / Blade)
+
+Todos los PDFs en `resources/views/pdf/` siguen estas reglas de estilo base:
+
+```css
+@page {
+    size: A4;
+    margin: 0;          /* SIEMPRE margin: 0 en @page */
+}
+
+body {
+    font-family: Arial, sans-serif;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 15mm 20mm; /* El margen real va en body padding */
+}
+```
+
+**Regla crítica:** `@page { margin: 0 }` + `body { padding: 15mm 20mm }`. Nunca poner margen en `@page` y padding en `body` a la vez — DomPDF los suma y duplica el margen efectivo.
+
+**Encabezado de empresa estándar** (centrado, mismo en todos los PDFs):
+```css
+.company-header { text-align: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #000; }
+.company-logo   { max-height: 40px; max-width: 120px; margin-bottom: 8px; }
+.company-name   { font-size: 14px; font-weight: bold; text-transform: uppercase; margin-bottom: 3px; }
+.company-info   { font-size: 9px; }
+```
+
+**Título del documento:**
+```css
+.title    { text-align: center; font-size: 13px; font-weight: bold; text-transform: uppercase; margin: 20px 0 5px 0; }
+.subtitle { text-align: center; font-size: 10px; margin-bottom: 20px; }
+```
+
+**Sección:**
+```css
+.section-title { font-weight: bold; font-size: 10px; text-transform: uppercase; padding: 5px 0; margin-bottom: 8px; border-bottom: 1px solid #000; }
+```
+
+**Firmas:**
+```css
+.signature-section { margin-top: 50px; display: table; width: 100%; }
+.signature-item    { display: table-cell; width: 50%; text-align: center; padding: 0 25px; }
+.signature-line    { border-top: 1px solid #000; margin-bottom: 5px; padding-top: 5px; }
+.signature-label   { font-size: 10px; font-weight: bold; }
+.signature-sublabel{ font-size: 9px; }
+```
+
+**Footer:**
+```css
+.footer { margin-top: 40px; text-align: center; font-size: 8px; border-top: 1px solid #ccc; padding-top: 10px; }
+```
+
+**Otras reglas:**
+- Sin colores de acento — documentos en blanco/negro/gris (`#000`, `#ccc`, `#f5f5f5`)
+- Labels/opciones de enums (estado, tipo) siempre desde métodos del modelo (`Model::getStatusLabel()`) — nunca arrays hardcodeados en el blade
+- Campos casteados como `datetime` ya son instancias Carbon — no usar `Carbon::parse()` sobre ellos
+- Relaciones via `activeContract.position` — nunca `employee->position` (campo legacy)
+- PDFs compactos (ej. asistencia diaria): pueden usar `padding: 12mm 15mm` y `font-size: 10px` como excepción justificada
+- Pseudo-selector `:last-child` no funciona en DomPDF — usar clase explícita (`.metric-last`, etc.)
+
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation
