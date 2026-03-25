@@ -469,6 +469,103 @@ body {
 - PDFs compactos (ej. asistencia diaria): pueden usar `padding: 12mm 15mm` y `font-size: 10px` como excepción justificada
 - Pseudo-selector `:last-child` no funciona en DomPDF — usar clase explícita (`.metric-last`, etc.)
 
+### Páginas de reporte con tabla agregada (custom Page + InteractsWithTable)
+
+Para reportes que necesitan filtros prominentes + tabla con datos agregados (ej. `AttendanceReport`):
+
+**Estructura:**
+```php
+class AttendanceReport extends Page implements HasTable
+{
+    use InteractsWithTable;
+
+    protected static string $view = 'filament.pages.attendance-report';
+
+    public function table(Table $table): Table
+    {
+        return $table
+            ->query($this->buildQuery())
+            ->columns([...])
+            ->filters([...], layout: FiltersLayout::AboveContent)
+            ->filtersFormColumns(4)
+            ->persistFiltersInSession();
+    }
+
+    private function buildQuery(): Builder { ... }
+}
+```
+
+Vista mínima (`resources/views/filament/pages/attendance-report.blade.php`):
+```blade
+<x-filament-panels::page>
+    {{ $this->table }}
+</x-filament-panels::page>
+```
+
+**`FiltersLayout::AboveContent`** — renderiza los filtros visibles sobre la tabla (sin drawer). Ideal para reportes donde el período/agrupación es el foco principal.
+
+**Acceder a filtros activos desde header actions** (ej. para pasarlos a un export):
+```php
+private function resolveActiveFilters(): array
+{
+    $f = $this->tableFilters ?? [];
+    return [
+        $f['period']['from_date'] ?? null,           // Filter con form
+        $f['company_id']['value'] ?? null,            // SelectFilter
+    ];
+}
+```
+
+### GROUP BY con MySQL ONLY_FULL_GROUP_BY
+
+MySQL en modo estricto exige que **todas las columnas no agregadas del SELECT estén en el GROUP BY**, incluso si son funcionalmente dependientes de la PK.
+
+```php
+// ❌ Falla con: 'employees.first_name' isn't in GROUP BY
+->groupBy('employees.id');
+
+// ✅ Correcto — incluir todas las columnas no agregadas del SELECT
+->groupBy('employees.id', 'employees.first_name', 'employees.last_name', 'employees.ci', 'employees.branch_id');
+```
+
+Las columnas calculadas por subquery en el SELECT (`DB::raw('(SELECT ...) AS alias')`) **no** necesitan ir en GROUP BY.
+
+### Deployment a producción
+
+**Servidor cliente:** `sedvouco@bh7104` — CentOS, cPanel, PHP 8.2 via `/opt/cpanel/ea-php82/root/usr/bin/php`, Node 16 (sin RAM suficiente para Vite build).
+
+**Limitación Node 16:** Vite 6 + Rollup requieren Node ≥18 y ~512MB RAM para compilar. El servidor falla con `RangeError: WebAssembly.instantiate(): Out of memory`. **Solución permanente: buildear en local y subir assets via rsync.**
+
+**Checklist de deployment:**
+```bash
+# En el servidor
+php artisan down
+git pull origin main
+composer install --no-dev --optimize-autoloader
+
+# En local (dev)
+npm run build
+rsync -avz --delete public/build/ sedvouco@bh7104:/ruta/nominapp/public/build/
+
+# De vuelta en el servidor
+# Si hay nuevas variables en .env, agregarlas antes de migrate
+php artisan migrate --force
+php artisan optimize:clear
+php artisan optimize
+php artisan filament:optimize
+php artisan queue:restart
+php artisan up
+```
+
+**Variables de entorno requeridas en producción:**
+- `GOOGLE_MAPS_API_KEY` — requerida por `cheesegrits/filament-google-maps` para el mapa de sucursales
+
+**Scheduler configurado** (`crontab -l`):
+```
+* * * * * cd /ruta/nominapp && /opt/cpanel/ea-php82/root/usr/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
+```
+Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora).
+
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation
