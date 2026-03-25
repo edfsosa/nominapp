@@ -45,23 +45,18 @@ class OrgChartController extends Controller
     }
 
     /**
-     * Construye la estructura de datos del organigrama como árbol jerárquico.
+     * Construye la estructura de datos del organigrama agrupada por departamento.
      */
     protected function buildOrgChartData(Company $company): array
     {
-        // Obtener todos los empleados activos de la empresa con sus relaciones
         $employees = $company->employees()
-            ->with(['position.department', 'position.parent'])
+            ->with(['activeContract.position.department', 'activeContract.position.parent'])
             ->where('status', 'active')
             ->get();
 
-        // Obtener IDs de cargos que tienen empleados en esta empresa
-        $positionIdsWithEmployees = $employees->pluck('position_id')->unique()->filter()->toArray();
-
-        // Obtener todos los cargos relevantes (los que tienen empleados + sus ancestros)
+        $positionIdsWithEmployees = $employees->pluck('activeContract.position_id')->unique()->filter()->toArray();
         $relevantPositionIds = $this->getRelevantPositionIds($positionIdsWithEmployees);
 
-        // Obtener los cargos con sus relaciones
         $positions = Position::with(['parent', 'children', 'department'])
             ->whereIn('id', $relevantPositionIds)
             ->get()
@@ -70,37 +65,44 @@ class OrgChartController extends Controller
         // Agrupar empleados por cargo
         $employeesByPosition = [];
         foreach ($employees as $employee) {
-            $posId = $employee->position_id ?? 0;
-            if (!isset($employeesByPosition[$posId])) {
-                $employeesByPosition[$posId] = [];
-            }
+            $posId = $employee->activeContract?->position_id ?? 0;
             $employeesByPosition[$posId][] = [
-                'id' => $employee->id,
-                'name' => $employee->full_name,
+                'id'    => $employee->id,
+                'name'  => $employee->full_name,
                 'photo' => $employee->photo ? asset('storage/' . $employee->photo) : null,
             ];
         }
 
-        // Construir el árbol jerárquico
-        $tree = $this->buildPositionTree($positions, $employeesByPosition);
+        // Agrupar cargos por departamento y construir el árbol dentro de cada uno
+        $byDepartment = $positions->groupBy('department_id');
+        $tree = [];
 
-        // Empleados sin cargo
-        $unassigned = $employeesByPosition[0] ?? [];
+        foreach ($byDepartment as $deptPositions) {
+            $deptPositionsKeyed = $deptPositions->keyBy('id');
+            $deptPositionIds    = $deptPositionsKeyed->keys()->toArray();
+            $department         = $deptPositions->first()->department;
+
+            $tree[] = [
+                'name'      => $department?->name ?? 'Sin Departamento',
+                'positions' => $this->buildPositionTree($deptPositionsKeyed, $deptPositionIds, $employeesByPosition),
+            ];
+        }
+
+        usort($tree, fn($a, $b) => strcmp($a['name'], $b['name']));
 
         return [
-            'tree' => $tree,
-            'unassigned' => $unassigned,
+            'tree'       => $tree,
+            'unassigned' => $employeesByPosition[0] ?? [],
         ];
     }
 
     /**
-     * Obtiene todos los IDs de cargos relevantes (con empleados + ancestros).
+     * Obtiene todos los IDs de cargos relevantes (con empleados + sus ancestros).
      */
     protected function getRelevantPositionIds(array $positionIds): array
     {
         $allIds = $positionIds;
 
-        // Agregar todos los ancestros de cada cargo
         foreach ($positionIds as $posId) {
             $position = Position::find($posId);
             while ($position && $position->parent_id) {
@@ -115,28 +117,31 @@ class OrgChartController extends Controller
     }
 
     /**
-     * Construye el árbol de cargos de forma recursiva.
+     * Construye el árbol de cargos de forma recursiva dentro de un departamento.
+     * En la llamada raíz ($parentId = null) son raíces los cargos sin padre
+     * o cuyo padre pertenece a otro departamento.
      */
-    protected function buildPositionTree($positions, array $employeesByPosition, ?int $parentId = null): array
+    protected function buildPositionTree($positions, array $deptPositionIds, array $employeesByPosition, ?int $parentId = null): array
     {
         $tree = [];
 
         foreach ($positions as $position) {
-            if ($position->parent_id === $parentId) {
-                $node = [
-                    'id' => $position->id,
-                    'name' => $position->name,
+            $isRoot = $parentId === null
+                ? (is_null($position->parent_id) || !in_array($position->parent_id, $deptPositionIds))
+                : $position->parent_id === $parentId;
+
+            if ($isRoot) {
+                $tree[] = [
+                    'id'         => $position->id,
+                    'name'       => $position->name,
                     'department' => $position->department?->name ?? 'Sin Departamento',
-                    'employees' => $employeesByPosition[$position->id] ?? [],
-                    'children' => $this->buildPositionTree($positions, $employeesByPosition, $position->id),
+                    'employees'  => $employeesByPosition[$position->id] ?? [],
+                    'children'   => $this->buildPositionTree($positions, $deptPositionIds, $employeesByPosition, $position->id),
                 ];
-                $tree[] = $node;
             }
         }
 
-        // Ordenar por nombre
         usort($tree, fn($a, $b) => strcmp($a['name'], $b['name']));
-
         return $tree;
     }
 }

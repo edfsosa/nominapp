@@ -735,7 +735,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch("/marcar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
-                body: JSON.stringify({ employee_id: employee.id, event_type: eventType }),
+                body: JSON.stringify({ employee_id: employee.id, event_type: eventType, source: "terminal" }),
             });
 
             if (response.status === 419) {

@@ -165,6 +165,7 @@ class AttendanceFaceMarkController extends Controller
             $data = $request->validate([
                 'employee_id'        => ['required', 'integer', 'exists:employees,id'],
                 'event_type'         => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
+                'source'             => ['nullable', 'string', 'in:terminal,mobile,manual'],
                 'location'           => ['nullable', 'array'],
                 'location.lat'       => ['required_with:location', 'numeric', 'between:-90,90'],
                 'location.lng'       => ['required_with:location', 'numeric', 'between:-180,180'],
@@ -330,6 +331,7 @@ class AttendanceFaceMarkController extends Controller
                 $event = $day->events()->create([
                     'event_type'  => $data['event_type'],
                     'recorded_at' => $recordedAt,
+                    'source'      => $data['source'] ?? 'manual',
                     'location'    => [
                         'lat' => $lat,
                         'lng' => $lng,

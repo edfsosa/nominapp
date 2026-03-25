@@ -1975,6 +1975,7 @@ const statusBar           = document.getElementById("statusBar");
                 const payload = {
                     employee_id: state.employee.id,
                     event_type: eventTypeEl.value,
+                    source: "mobile",
                     location: {
                         lat: state.location.lat,
                         lng: state.location.lng,
