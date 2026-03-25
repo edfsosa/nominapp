@@ -8,19 +8,22 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use App\Filament\Resources\AttendanceDayResource;
 
+/** Página de edición de un registro de asistencia diaria. */
 class EditAttendanceDay extends EditRecord
 {
     protected static string $resource = AttendanceDayResource::class;
 
     /**
-     * Funcion que define las acciones del encabezado
+     * Acciones del encabezado: ver, aprobar HE, exportar PDF, calcular y eliminar.
      *
-     * @return array
+     * @return array<\Filament\Actions\Action>
      */
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()
+                ->icon('heroicon-o-eye')
+                ->color('primary'),
 
             AttendanceDayResource::getApproveOvertimeAction(),
 
@@ -28,12 +31,20 @@ class EditAttendanceDay extends EditRecord
 
             AttendanceDayResource::getCalculateAction(),
 
-            DeleteAction::make(),
+            DeleteAction::make()
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('Eliminar registro de asistencia')
+                ->modalDescription('¿Está seguro de que desea eliminar este registro? Esta acción no se puede deshacer.')
+                ->modalSubmitActionLabel('Sí, eliminar')
+                ->successNotificationTitle('Registro eliminado')
+                ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];
     }
 
     /**
-     * Funcion que define la notificación al guardar
+     * Notificación mostrada al guardar cambios exitosamente.
      *
      * @return Notification|null
      */
@@ -47,7 +58,7 @@ class EditAttendanceDay extends EditRecord
     }
 
     /**
-     * Funcion que define la URL de redirección después de guardar
+     * Redirige al ViewRecord tras guardar.
      *
      * @return string
      */
