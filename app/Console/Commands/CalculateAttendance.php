@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\Log;
 class CalculateAttendance extends Command
 {
     // La firma del comando y su descripción.
-    protected $signature = 'app:calculate-attendance {date? : La fecha para calcular la asistencia (formato: YYYY-MM-DD)}';
+    protected $signature = 'app:calculate-attendance {--date= : La fecha para calcular la asistencia (formato: YYYY-MM-DD). Si no se especifica, usa hoy}';
     protected $description = 'Calcular horas trabajadas, descansos y registros de asistencia del día';
 
     /**
@@ -22,10 +22,14 @@ class CalculateAttendance extends Command
     public function handle()
     {
         // Obtener la fecha del argumento o usar la fecha actual
-        $date = $this->argument('date') ?? Carbon::now()->toDateString();
+        $date = $this->option('date') ?? Carbon::now()->toDateString();
         $dateFormatted = Carbon::parse($date)->format('d/m/Y');
 
         $this->info("🕒 Iniciando cálculo de asistencia para: {$dateFormatted}");
+
+        // Primero completar registros faltantes del día antes de calcular
+        $this->info("🔍 Verificando ausentes sin registro...");
+        $this->call('attendance:check-missing', ['--date' => $date]);
 
         // Contadores para estadísticas
         $stats = [
@@ -102,11 +106,10 @@ class CalculateAttendance extends Command
         // Manejo de errores
         if ($stats['failed'] > 0) {
             $this->warn("⚠️  Completado con {$stats['failed']} error(es). Revisa los logs para más detalles.");
-            return Command::FAILURE;
+        } else {
+            $this->info("✅ Cálculo de asistencia finalizado exitosamente.");
         }
 
-        // Mensaje de éxito
-        $this->info("✅ Cálculo de asistencia finalizado exitosamente.");
         return Command::SUCCESS;
     }
 }

@@ -56,6 +56,26 @@ class AttendanceEventObserver
     }
 
     /**
+     * Handle the AttendanceEvent "deleted" event.
+     * Recalcular el AttendanceDay cuando se elimina un evento para evitar datos desactualizados.
+     */
+    public function deleted(AttendanceEvent $attendanceEvent): void
+    {
+        try {
+            $day = $attendanceEvent->day;
+
+            if (!$day) {
+                return;
+            }
+
+            AttendanceCalculator::apply($day);
+            $day->save();
+        } catch (\Exception $e) {
+            Log::error("Error recalculando AttendanceDay tras eliminar evento {$attendanceEvent->id}: {$e->getMessage()}");
+        }
+    }
+
+    /**
      * Handle the AttendanceEvent "updating" event.
      * Actualizar datos desnormalizados si cambia el attendance_day_id
      */
