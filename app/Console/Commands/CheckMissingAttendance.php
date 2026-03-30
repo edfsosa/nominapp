@@ -53,7 +53,7 @@ class CheckMissingAttendance extends Command
         // Obtener empleados activos con horario vigente (asignación nueva o campo legacy)
         $employees = Employee::where('status', 'active')
             ->where(fn($q) => $q
-                ->whereHas('scheduleAssignments', fn($q) => $q->forDate($date->toDate()))
+                ->whereHas('scheduleAssignments', fn($q) => $q->forDate($date))
                 ->orWhereNotNull('schedule_id')
             )
             ->get();
