@@ -2,67 +2,117 @@
 
 ## Aguinaldo (13.° salario)
 
-El aguinaldo es el salario adicional que corresponde a cada empleado al cierre del año, proporcional al tiempo trabajado.
+El aguinaldo es el salario adicional obligatorio que corresponde a cada empleado al cierre del año, proporcional al tiempo trabajado y a los ingresos del período.
 
-### Conceptos clave
+### Fórmula de cálculo
 
-- **Período de aguinaldo:** generalmente enero–diciembre del año
-- **Ítem de aguinaldo:** monto calculado por empleado según días trabajados y salario promedio
+```
+Aguinaldo = (Total ingresos del período ÷ 12) × Meses trabajados
+```
+
+El "total de ingresos" incluye el salario base, percepciones y horas extra de cada mes trabajado. Los "meses trabajados" pueden ser decimales si el empleado ingresó o egresó durante el año.
 
 ### Flujo del aguinaldo
 
-1. Crear el **período de aguinaldo** para el año
-2. Generar el aguinaldo — el sistema calcula el monto de cada empleado activo
-3. Revisar los ítems
-4. Aprobar y emitir los recibos
+```
+Borrador → En Proceso → Cerrado
+```
 
-### Crear un período de aguinaldo
+### Paso 1 — Crear el período de aguinaldo
 
 1. Ir a **Nóminas → Períodos de Aguinaldo**
 2. Clic en **Nuevo período**
-3. Ingresar el año, fechas de inicio y fin del período
+3. Seleccionar la **empresa** y el **año**
 4. Guardar
 
-### Generar el aguinaldo
+### Paso 2 — Generar los aguinaldos individuales
 
 1. Ir a **Nóminas → Recibos Aguinaldo**
 2. Clic en **Nuevo aguinaldo**
-3. Seleccionar el período y la empresa/sucursal
-4. El sistema calcula un ítem por empleado activo
-5. Revisar montos y aprobar
+3. Seleccionar el período de aguinaldo
+4. El sistema calcula un registro por cada empleado activo con contrato vigente durante el año
+5. Revisar los montos calculados
 
-### Recibo de aguinaldo
+### Paso 3 — Emitir recibos y registrar el pago
 
-Desde la lista de ítems, clic en **Ver recibo** para descargar el recibo individual en PDF.
+- Desde la lista de aguinaldos individuales, clic en **Ver recibo** para abrir el recibo en PDF
+- Una vez pagado, marcar el aguinaldo como **Pagado**
+
+### Estados del aguinaldo individual
+
+| Estado | Descripción |
+|--------|-------------|
+| **Pendiente** | Calculado, aún sin pagar |
+| **Pagado** | Pago registrado |
+
+### Desglose mensual
+
+Cada aguinaldo individual contiene un desglose mes a mes con:
+- Salario base del mes
+- Percepciones del mes
+- Horas extra del mes
+- Total del mes
 
 ---
 
 ## Liquidaciones (Finiquito)
 
-La liquidación es el pago final al empleado cuando termina la relación laboral. Incluye salario proporcional, vacaciones pendientes, preaviso e indemnización según corresponda.
+La liquidación es el pago final al empleado cuando termina la relación laboral. El monto y los conceptos incluidos dependen del **tipo de terminación**.
+
+### Tipos de terminación y conceptos incluidos
+
+| Tipo | Preaviso | Indemnización |
+|------|----------|---------------|
+| **Despido Injustificado** | Sí | Sí |
+| **Despido Justificado** | No | No |
+| **Renuncia Voluntaria** | No | No |
+| **Mutuo Acuerdo** | No | No |
+| **Fin de Contrato** | No | No |
+
+Todos los tipos incluyen: salario pendiente proporcional, vacaciones no gozadas y aguinaldo proporcional al año.
 
 ### Crear una liquidación
 
 1. Ir a **Asistencias → Liquidaciones**
 2. Clic en **Nueva liquidación**
-3. Seleccionar el empleado y la fecha de egreso
-4. Indicar el motivo del cese: renuncia, despido, vencimiento de contrato, etc.
-5. El sistema calcula automáticamente:
-   - Salario proporcional al mes
-   - Vacaciones pendientes no gozadas
-   - Preaviso (si aplica)
-   - Indemnización (si aplica)
-6. Revisar los montos y ajustar si es necesario
-7. Guardar y generar el PDF
+3. Seleccionar el empleado y completar:
+   - **Fecha de terminación**
+   - **Tipo de terminación**
+   - **Motivo** (opcional)
+4. Guardar — el sistema calcula automáticamente todos los conceptos
 
-### Parámetros de liquidación
+### Conceptos calculados automáticamente
 
-Los días de indemnización por año y las tasas de IPS para liquidación se configuran en **Configuración de Nómina** (sección Liquidación / Finiquito).
+**Haberes (ingresos):**
+- Salario pendiente (días trabajados en el último mes)
+- Vacaciones no gozadas
+- Preaviso (solo en despido injustificado)
+- Indemnización (solo en despido injustificado)
+- Aguinaldo proporcional al año
 
-### Documento de liquidación
+**Deducciones:**
+- IPS del período
+- Cuotas de préstamos pendientes
+- Otras deducciones activas
 
-Desde la vista de la liquidación puede:
-- **Ver en PDF:** abre el documento en el navegador
-- **Descargar PDF:** descarga el recibo de finiquito firmable
+### Estados de la liquidación
 
-> Después de crear la liquidación, recuerde inactivar el contrato del empleado desde su perfil.
+| Estado | Descripción |
+|--------|-------------|
+| **Borrador** | Creada, puede editarse |
+| **Calculada** | Montos confirmados |
+| **Cerrada** | Procesada y definitiva |
+
+### Documentos de la liquidación
+
+Desde la vista de la liquidación:
+- **Ver en PDF:** abre el recibo de finiquito en el navegador
+- **Descargar PDF:** descarga el documento para firmar
+
+### Después de crear la liquidación
+
+Recuerde **cambiar el estado del contrato** del empleado a "Terminado" desde su perfil, y actualizar el **estado del empleado** a "Inactivo".
+
+### Parámetros de cálculo
+
+Los parámetros de indemnización (días por año de servicio) y las tasas de IPS se configuran en **Configuración → Configuración de Nómina**, sección **Liquidación / Finiquito**.

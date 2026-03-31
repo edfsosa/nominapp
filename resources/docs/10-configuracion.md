@@ -1,6 +1,6 @@
 # Configuración del Sistema
 
-Esta sección cubre los ajustes globales que afectan el comportamiento de todos los módulos.
+Esta sección cubre los ajustes que afectan el comportamiento global del sistema.
 
 ---
 
@@ -10,27 +10,31 @@ Acceder desde **Configuración → Configuración General**.
 
 ### Información de la empresa
 
-- **Nombre:** aparece en encabezados de PDFs
-- **Logo:** imagen que encabeza los documentos generados
-- **RUC, dirección, teléfono, email:** datos de contacto institucional
+Estos datos aparecen en los encabezados de todos los PDFs generados:
+
+- **Nombre de la empresa**
+- **Logo** (se sube desde aquí; formatos JPG, PNG, WEBP, SVG)
+- **RUC, número patronal IPS**
+- **Dirección, teléfono, email, ciudad**
+
+> Esta configuración es independiente de los datos cargados en **Organización → Empresas**. Es la información que aparece en los documentos del sistema.
 
 ### Configuración laboral
 
 - **Zona horaria:** por defecto `America/Asuncion`
-- **Horas laborales por semana:** referencia para cálculos de horas extra
+- **Horas laborales por semana:** referencia para cálculos internos (default: 40)
 
 ### Configuración de préstamos
 
-- **Monto máximo de préstamo:** límite por empleado
-- **Monto máximo de adelanto:** límite de adelanto de salario
+- **Monto máximo de préstamo:** límite por operación de préstamo
 
 ### Configuración de contratos
 
-- **Días de alerta antes de vencimiento:** el sistema notifica cuando un contrato determinado está por expirar
+- **Días de alerta antes del vencimiento:** cantidad de días de anticipación con que el sistema notifica que un contrato a plazo está por expirar
 
 ### Registro facial
 
-- **Horas de validez del registro:** tiempo antes de que el registro facial expire y deba renovarse
+- **Horas de validez del token:** tiempo que tiene el empleado para completar la captura facial desde que se genera el enlace. Al vencer el token, debe generarse uno nuevo.
 
 ---
 
@@ -38,31 +42,50 @@ Acceder desde **Configuración → Configuración General**.
 
 Acceder desde **Configuración → Configuración de Nómina**.
 
-### Horas de trabajo — Jornada diurna
+### Horas de trabajo — Jornada Diurna
 
-- **Horas mensuales:** base para calcular el valor-hora (ej: 200 horas)
-- **Horas diarias:** horas de trabajo por día (ej: 8 horas)
-- **Días por mes:** días laborales promedio por mes (ej: 25 días)
+| Parámetro | Valor por defecto |
+|-----------|-------------------|
+| Horas mensuales | 240 |
+| Horas diarias | 8 |
+| Días por mes | 30 |
 
-### Jornada nocturna y mixta
+### Horas de trabajo — Jornada Nocturna
 
-Parámetros equivalentes para turnos nocturnos y mixtos.
+| Parámetro | Valor por defecto |
+|-----------|-------------------|
+| Horas mensuales | 210 |
+| Horas diarias | 7 |
+
+### Horas de trabajo — Jornada Mixta
+
+Configurable según las necesidades de la empresa.
 
 ### Multiplicadores de horas extra
 
-- **Hora extra diurna:** factor de recargo (ej: 1.5x)
-- **Hora extra nocturna:** factor de recargo (ej: 2.0x)
-- **Hora extra en feriado:** factor de recargo (ej: 3.0x)
+| Tipo | Multiplicador por defecto |
+|------|--------------------------|
+| Hora extra diurna | 1.5× |
+| Hora extra nocturna | 1.67× |
+| Hora extra en feriado | 2.0× |
+
+Estos valores determinan el recargo pagado sobre el valor de la hora normal.
+
+### Límites de horas extra
+
+- **Máximo de horas extra diarias:** para detectar anomalías en el cálculo
 
 ### Liquidación / Finiquito
 
-- **Tasa IPS empleador y empleado:** porcentajes aplicados al calcular aportes
-- **Días de indemnización por año:** base legal para el cálculo del finiquito
+- **Tasa IPS empleado (%):** porcentaje de descuento del empleado
+- **Código IPS:** código de la deducción IPS en el sistema
+- **Días de indemnización por año de servicio:** base para el cálculo de indemnización en despido injustificado
 
 ### Vacaciones
 
-- Parámetros de acumulación y cálculo de días de vacaciones según antigüedad
-- Configuración de días hábiles de la semana
+- **Días mínimos consecutivos:** mínimo de días que debe tener una solicitud de vacaciones
+- **Antigüedad mínima:** años de servicio requeridos para tener derecho a vacaciones
+- **Días hábiles:** días de la semana que se cuentan como hábiles (típicamente lunes a viernes)
 
 ---
 
@@ -73,10 +96,10 @@ Acceder desde **Configuración → Usuarios**.
 ### Crear un usuario
 
 1. Clic en **Nuevo usuario**
-2. Completar nombre, email y contraseña
+2. Ingresar nombre, email y contraseña
 3. Guardar
 
-> Los usuarios pueden gestionar su perfil (nombre, email, contraseña, foto) desde el ícono de perfil en el panel.
+Cada usuario puede gestionar su propio perfil (nombre, email, contraseña, foto) desde el menú de perfil en la esquina del panel.
 
 ---
 
@@ -85,15 +108,31 @@ Acceder desde **Configuración → Usuarios**.
 Acceder desde **Configuración → Feriados**.
 
 Los feriados se usan para:
-- Excluir días del cálculo de vacaciones (días hábiles)
+- Excluir días no laborales del cálculo de días hábiles en vacaciones
 - Aplicar el multiplicador de horas extra en feriado
-- Evitar contar ausencias en días que no son laborables
+- Evitar generar ausencias en días que corresponden a feriado
 
-### Registrar un feriado
+### Feriados nacionales de Paraguay (referencia)
+
+| Fecha | Nombre |
+|-------|--------|
+| 01/01 | Año Nuevo |
+| 03/01 | Día de San Blas |
+| 02/25 | Día de la Identidad Paraguaya |
+| 05/01 | Día del Trabajador |
+| 06/12 | Día de la Paz del Chaco |
+| 08/15 | Fundación de Asunción |
+| 09/29 | Batalla de Boquerón |
+| 10/12 | Día de la Raza |
+| 11/01 | Día de Todos los Santos |
+| 12/08 | Virgen de la Inmaculada Concepción |
+| 12/25 | Navidad |
+| Semana Santa | Jueves y Viernes Santos (fecha variable) |
+
+### Cargar feriados
 
 1. Clic en **Nuevo feriado**
 2. Ingresar nombre y fecha
-3. Indicar si es feriado nacional o solo de la empresa
-4. Guardar
+3. Guardar
 
 > Se recomienda cargar los feriados del año completo al inicio de cada año.

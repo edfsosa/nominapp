@@ -4,48 +4,42 @@ Bienvenido al sistema de Gestión de Recursos Humanos. Esta guía explica cómo 
 
 ## ¿Qué puede hacer el sistema?
 
-El sistema cubre el ciclo completo de gestión de empleados:
+El sistema cubre el ciclo completo de gestión del personal:
 
 - **Organización:** estructura jerárquica de empresa, sucursales, departamentos y cargos
-- **Empleados:** registro completo con contratos, documentos y legajo
-- **Asistencias:** marcaciones por reconocimiento facial o terminal compartida
-- **Nóminas:** liquidación mensual, percepciones, deducciones y recibos en PDF
-- **Vacaciones y ausencias:** solicitudes, aprobaciones y saldo de días
-- **Préstamos y adelantos:** gestión de cuotas y descuentos automáticos en nómina
+- **Empleados:** registro completo con contratos y documentos
+- **Asistencias:** marcaciones por reconocimiento facial (terminal compartida o celular)
+- **Nóminas:** liquidación mensual/quincenal/semanal con percepciones, deducciones y recibos en PDF
+- **Vacaciones y permisos:** solicitudes, aprobaciones y saldo de días por año
+- **Ausencias:** registro y justificación de inasistencias con descuento automático
+- **Préstamos y adelantos:** gestión de cuotas con descuento automático en nómina
 - **Aguinaldo:** cálculo y emisión del 13.° salario
-- **Liquidaciones:** finiquito al término de contratos
+- **Liquidaciones:** finiquito al término de la relación laboral
 - **Configuración:** usuarios, feriados y parámetros del sistema
-
-## Acceso al panel
-
-El panel de administración está disponible en la URL principal del sistema. Ingrese con su usuario y contraseña. Según su rol, verá solo los módulos que tiene habilitados.
 
 ## Jerarquía de datos
 
-Comprender la jerarquía facilita el uso del sistema:
+Dos ejes independientes que se unen en el Contrato:
 
 ```
-Empresa
- └── Sucursal
-      └── Empleado
-           └── Contrato (salario, cargo, fecha inicio)
-
-Empresa
- └── Departamento
-      └── Cargo
+Empresa → Sucursal → Empleado
+Empresa → Departamento → Cargo
 ```
 
-> **Importante:** El salario activo, el cargo y la fecha de ingreso del empleado siempre se leen desde el **contrato activo**, no desde el perfil del empleado directamente.
+El empleado pertenece a una **Sucursal**. Su salario, cargo y fecha de ingreso están en el **Contrato activo**, no en el perfil del empleado directamente.
 
-## Flujo de trabajo típico
+> **Importante:** Siempre use el contrato activo como fuente de verdad del cargo y salario. El campo de cargo en el perfil del empleado es un campo histórico.
 
-1. Crear la **empresa** y sus **sucursales**
-2. Definir **departamentos** y **cargos**
-3. Configurar **horarios** de trabajo
-4. Registrar **empleados** y crear sus **contratos**
-5. Asignar un **horario** a cada empleado
-6. Registrar **feriados** del año
-7. Habilitar **marcaciones** (terminal o facial)
-8. Cada período: generar **nómina**, revisar y aprobar
-9. Gestionar **vacaciones**, **ausencias** y **préstamos** según necesidad
-10. Al cierre de año: emitir **aguinaldo**
+## Flujo de trabajo inicial recomendado
+
+1. Crear la **empresa** con sus datos legales y logo
+2. Crear las **sucursales** de la empresa
+3. Definir **departamentos** y **cargos** (con jerarquía si corresponde)
+4. Configurar los **horarios** de trabajo con días y descansos
+5. Registrar los **empleados** y crear sus **contratos** iniciales
+6. Asignar un **horario** a cada empleado
+7. Cargar los **feriados** del año
+8. Habilitar las **marcaciones** (terminal o celular con reconocimiento facial)
+9. Cada período: generar **nómina**, revisar y aprobar
+10. Gestionar **vacaciones**, **ausencias** y **préstamos** según necesidad
+11. Al cierre de año: calcular y emitir el **aguinaldo**
