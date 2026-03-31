@@ -11,7 +11,7 @@ return new class extends Migration
         Schema::create('attendance_mark_failures', function (Blueprint $table) {
             $table->id();
             $table->enum('mode', ['terminal', 'mobile', 'unknown'])->default('unknown');
-            $table->string('failure_type');                              // face_no_match, invalid_event_sequence, etc.
+            $table->string('failure_type', 50);                          // face_no_match, invalid_event_sequence, etc.
             $table->foreignId('employee_id')->nullable()->constrained()->nullOnDelete();
             $table->foreignId('branch_id')->nullable()->constrained()->nullOnDelete();
             $table->enum('attempted_event_type', ['check_in', 'break_start', 'break_end', 'check_out'])->nullable();
