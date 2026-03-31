@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "b0509de1458a6f3373e181495dbf193c",
+    "content-hash": "01a354b34b24a8c560542ab8637ef7be",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -1609,6 +1609,75 @@
                 }
             ],
             "time": "2025-03-06T22:45:56+00:00"
+        },
+        {
+            "name": "eightynine/filament-docs",
+            "version": "3.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/eighty9nine/filament-docs.git",
+                "reference": "25a070f16a210d1283fa6edd275c0a4871526996"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/eighty9nine/filament-docs/zipball/25a070f16a210d1283fa6edd275c0a4871526996",
+                "reference": "25a070f16a210d1283fa6edd275c0a4871526996",
+                "shasum": ""
+            },
+            "require": {
+                "barryvdh/laravel-dompdf": "^3.0",
+                "filament/filament": "^3.0",
+                "illuminate/contracts": "^10.0|^11.0|^12.0",
+                "league/commonmark": "^2.4",
+                "php": "^8.2",
+                "spatie/laravel-package-tools": "^1.15.0"
+            },
+            "require-dev": {
+                "nunomaduro/collision": "^7.9|^8.0",
+                "orchestra/testbench": "^8.0|^9.0|^10.0",
+                "pestphp/pest": "^2.0|^3.0",
+                "pestphp/pest-plugin-arch": "^2.0|^3.0",
+                "pestphp/pest-plugin-laravel": "^2.0|^3.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "EightyNine\\FilamentDocs\\FilamentDocsServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "EightyNine\\FilamentDocs\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Eighty Nine",
+                    "email": "eighty9nine@gmail.com",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Elegant documentation system for your Filament application with search, navigation, and markdown support",
+            "homepage": "https://github.com/eightynine/filament-docs",
+            "keywords": [
+                "documentation",
+                "eightynine",
+                "filament",
+                "laravel",
+                "markdown",
+                "search"
+            ],
+            "support": {
+                "issues": "https://github.com/eightynine/filament-docs/issues",
+                "source": "https://github.com/eightynine/filament-docs"
+            },
+            "time": "2025-06-24T06:22:22+00:00"
         },
         {
             "name": "ezyang/htmlpurifier",

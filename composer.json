@@ -9,6 +9,7 @@
         "php": "^8.2",
         "barryvdh/laravel-dompdf": "^3.1",
         "cheesegrits/filament-google-maps": "^4.0",
+        "eightynine/filament-docs": "^3.0",
         "filament/filament": "3.3",
         "filament/spatie-laravel-settings-plugin": "^3.2",
         "laravel/framework": "^12.0",
