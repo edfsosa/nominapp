@@ -1276,7 +1276,7 @@ const statusBar           = document.getElementById("statusBar");
                     Accept: "application/json",
                     "X-CSRF-TOKEN": CSRF,
                 },
-                body: JSON.stringify({ face_descriptor: descriptor }),
+                body: JSON.stringify({ face_descriptor: descriptor, source: "mobile" }),
             });
 
             if (resp.status === 419) throw Object.assign(new Error("session_expired"), { is419: true });

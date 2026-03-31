@@ -45,6 +45,17 @@ Schedule::command('attendance:check-missing')
     });
 
 /**
+ * Limpiar registros de fallos de marcación con más de 30 días
+ * Se ejecuta diariamente a las 02:00 para evitar crecimiento indefinido de la tabla
+ */
+Schedule::call(function () {
+    $deleted = \App\Models\AttendanceMarkFailure::where('occurred_at', '<', now()->subDays(30))->delete();
+    if ($deleted > 0) {
+        Log::info("Limpieza de fallos de marcación: {$deleted} registros eliminados");
+    }
+})->dailyAt('02:00')->name('cleanup-mark-failures')->withoutOverlapping();
+
+/**
  * Expirar enrollments faciales vencidos
  * Se ejecuta cada hora para marcar como 'expired' los registros
  * en estado pending_capture cuyo expires_at ya pasó

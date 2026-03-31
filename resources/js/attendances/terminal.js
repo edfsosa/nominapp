@@ -594,7 +594,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch("/marcar/identificar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
-                body: JSON.stringify({ face_descriptor: descriptor }),
+                body: JSON.stringify({ face_descriptor: descriptor, source: "terminal" }),
             });
             if (response.status === 419) return { ok: false, is419: true };
             return await response.json();

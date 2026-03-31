@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
+use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
 use App\Rules\FaceDescriptor;
 use Carbon\Carbon;
@@ -93,11 +94,23 @@ class AttendanceFaceMarkController extends Controller
             }
 
             if (!$employee) {
+                $failureType = match($reason) {
+                    'ambiguous'      => 'face_ambiguous',
+                    'no_match'       => 'face_no_match',
+                    'no_candidates'  => 'face_no_candidates',
+                    default          => 'internal_error',
+                };
+
                 $message = match($reason) {
                     'ambiguous' => 'Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.',
-                    'no_match' => 'No se pudo identificar el rostro. Intente nuevamente.',
-                    default => 'Error al procesar el rostro.',
+                    'no_match'  => 'No se pudo identificar el rostro. Intente nuevamente.',
+                    default     => 'Error al procesar el rostro.',
                 };
+
+                $this->recordFailure($request, $failureType, $message, [
+                    'best_distance' => $distance !== INF ? round($distance, 4) : null,
+                    'reason'        => $reason,
+                ]);
 
                 return response()->json([
                     'ok'      => false,
@@ -197,6 +210,10 @@ class AttendanceFaceMarkController extends Controller
                 'ip' => $request->ip(),
             ]);
 
+            $this->recordFailure($request, 'employee_not_found', 'Empleado no encontrado o inactivo.', [
+                'employee_id' => $data['employee_id'],
+            ]);
+
             return response()->json([
                 'ok' => false,
                 'message' => 'Empleado no encontrado o inactivo.',
@@ -212,6 +229,8 @@ class AttendanceFaceMarkController extends Controller
                     'employee_name' => "{$employee->first_name} {$employee->last_name}",
                     'employee_ci' => $employee->ci,
                 ]);
+
+                $this->recordFailure($request, 'employee_no_branch', 'El empleado no tiene una sucursal asignada.', [], $employee);
 
                 return response()->json([
                     'ok' => false,
@@ -229,6 +248,11 @@ class AttendanceFaceMarkController extends Controller
                     'branch_id' => $employee->branch->id,
                     'branch_name' => $employee->branch->name,
                 ]);
+
+                $this->recordFailure($request, 'branch_no_coordinates', 'Sucursal sin coordenadas configuradas.', [
+                    'branch_id'   => $employee->branch->id,
+                    'branch_name' => $employee->branch->name,
+                ], $employee, $employee->branch);
 
                 return response()->json([
                     'ok' => false,
@@ -256,8 +280,13 @@ class AttendanceFaceMarkController extends Controller
         // CORRECCIÓN 8: Usar timezone de la aplicación
         $today = Carbon::now(config('app.timezone'))->toDateString();
 
+        // Captura de fallos que ocurren dentro de la transacción.
+        // recordFailure() NO puede llamarse dentro de DB::transaction() porque el INSERT
+        // quedaría incluido en el rollback cuando se lanza ValidationException.
+        $pendingFailure = null;
+
         try {
-            $result = DB::transaction(function () use ($employee, $today, $data, $location) {
+            $result = DB::transaction(function () use ($employee, $today, $data, $location, &$pendingFailure) {
                 // Asegurar AttendanceDay del día (firstOrCreate es atómico)
                 $day = AttendanceDay::firstOrCreate(
                     ['employee_id' => $employee->id, 'date' => $today],
@@ -285,6 +314,20 @@ class AttendanceFaceMarkController extends Controller
                         'last_event' => $last?->event_type,
                         'allowed_events' => $allowed,
                     ]);
+
+                    // Guardar para persistir fuera de la transacción (evitar rollback del INSERT)
+                    $pendingFailure = [
+                        'type'      => 'invalid_event_sequence',
+                        'message'   => 'Secuencia de evento no permitida.',
+                        'metadata'  => [
+                            'attempted_event' => $data['event_type'],
+                            'last_event'      => $last?->event_type,
+                            'allowed_events'  => $allowed,
+                        ],
+                        'employee'  => $employee,
+                        'branch'    => $employee->branch,
+                        'eventType' => $data['event_type'],
+                    ];
 
                     // CORRECCIÓN 9: Mensaje más descriptivo del error con traducciones en español
                     $eventTypeNames = $this->getEventTypeNames();
@@ -318,6 +361,17 @@ class AttendanceFaceMarkController extends Controller
                         'employee_name' => "{$employee->first_name} {$employee->last_name}",
                         'event_type' => $data['event_type'],
                     ]);
+
+                    // Guardar para persistir fuera de la transacción (evitar rollback del INSERT)
+                    $pendingFailure = [
+                        'type'      => 'invalid_location',
+                        'message'   => 'Ubicación 0,0 detectada.',
+                        'metadata'  => ['event_type' => $data['event_type']],
+                        'employee'  => $employee,
+                        'branch'    => $employee->branch,
+                        'eventType' => $data['event_type'],
+                        'location'  => ['lat' => $lat, 'lng' => $lng],
+                    ];
 
                     throw ValidationException::withMessages([
                         'location' => 'La ubicación proporcionada no es válida.',
@@ -379,6 +433,20 @@ class AttendanceFaceMarkController extends Controller
                 ],
             ]);
         } catch (ValidationException $ve) {
+            // Persistir el fallo ahora que la transacción ya hizo rollback
+            if ($pendingFailure !== null) {
+                $this->recordFailure(
+                    $request,
+                    $pendingFailure['type'],
+                    $pendingFailure['message'],
+                    $pendingFailure['metadata'] ?? [],
+                    $pendingFailure['employee'] ?? null,
+                    $pendingFailure['branch'] ?? null,
+                    $pendingFailure['eventType'] ?? null,
+                    $pendingFailure['location'] ?? null,
+                );
+            }
+
             // Errores de negocio/reglas (422)
             return response()->json([
                 'ok' => false,
@@ -568,10 +636,57 @@ class AttendanceFaceMarkController extends Controller
     protected function getEventTypeNames(): array
     {
         return [
-            'check_in' => 'Entrada',
+            'check_in'    => 'Entrada',
             'break_start' => 'Inicio de descanso',
-            'break_end' => 'Fin de descanso',
-            'check_out' => 'Salida',
+            'break_end'   => 'Fin de descanso',
+            'check_out'   => 'Salida',
         ];
+    }
+
+    /**
+     * Persiste un intento fallido de marcación en la base de datos.
+     *
+     * @param  Request              $request
+     * @param  string               $failureType  Constante del tipo de fallo (ej. 'face_no_match')
+     * @param  string               $message      Mensaje descriptivo del fallo
+     * @param  array<string, mixed> $metadata     Datos adicionales de contexto
+     * @param  Employee|null        $employee     Empleado identificado (si aplica)
+     * @param  mixed|null           $branch       Sucursal (si aplica)
+     * @param  string|null          $eventType    Tipo de evento intentado (si aplica)
+     * @param  array|null           $location     Coordenadas GPS (si aplica)
+     * @return void
+     */
+    protected function recordFailure(
+        Request  $request,
+        string   $failureType,
+        string   $message,
+        array    $metadata    = [],
+        ?Employee $employee   = null,
+        mixed    $branch      = null,
+        ?string  $eventType   = null,
+        ?array   $location    = null,
+    ): void {
+        try {
+            $source = $request->input('source', 'unknown');
+            $mode   = in_array($source, ['terminal', 'mobile'], true) ? $source : 'unknown';
+
+            AttendanceMarkFailure::record([
+                'mode'                  => $mode,
+                'failure_type'          => $failureType,
+                'employee_id'           => $employee?->id,
+                'branch_id'             => $branch?->id,
+                'attempted_event_type'  => $eventType,
+                'failure_message'       => $message,
+                'metadata'              => !empty($metadata) ? $metadata : null,
+                'ip_address'            => $request->ip(),
+                'location'              => $location,
+            ]);
+        } catch (\Throwable $e) {
+            // No interrumpir el flujo principal si falla el registro del error
+            Log::error('No se pudo persistir el fallo de marcación', [
+                'failure_type' => $failureType,
+                'error'        => $e->getMessage(),
+            ]);
+        }
     }
 }
