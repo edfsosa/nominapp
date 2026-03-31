@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -19,7 +20,10 @@ return new class extends Migration
             $table->enum('type', ['paid', 'unpaid'])->default('paid'); // p. ej. remuneradas o no
             $table->text('reason')->nullable();
             $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
-            $table->integer('days_requested')->virtualAs("DATEDIFF(end_date, start_date) + 1"); // crea un campo calculado (MySQL) para número de días
+            $daysExpr = DB::connection()->getDriverName() === 'sqlite'
+                ? "(julianday(end_date) - julianday(start_date) + 1)"
+                : "DATEDIFF(end_date, start_date) + 1";
+            $table->integer('days_requested')->virtualAs($daysExpr); // crea un campo calculado para número de días
             $table->timestamps();
             $table->unique(['employee_id', 'start_date', 'end_date'], 'vac_unique_emp_period');
         });

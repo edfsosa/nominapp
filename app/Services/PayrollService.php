@@ -79,6 +79,7 @@ class PayrollService
                             'employee_id' => $employee->id,
                             'period_id' => $period->id,
                         ]);
+                        DB::rollBack();
                         continue;
                     }
 

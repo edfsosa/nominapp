@@ -25,14 +25,8 @@ return new class extends Migration
             );
         }
 
-        $hasFk = count(DB::select("
-            SELECT CONSTRAINT_NAME
-            FROM information_schema.TABLE_CONSTRAINTS
-            WHERE TABLE_SCHEMA = DATABASE()
-              AND TABLE_NAME = 'branches'
-              AND CONSTRAINT_TYPE = 'FOREIGN KEY'
-              AND CONSTRAINT_NAME = 'branches_company_id_foreign'
-        ")) > 0;
+        $hasFk = collect(Schema::getForeignKeys('branches'))
+            ->contains(fn($fk) => $fk['name'] === 'branches_company_id_foreign');
 
         Schema::table('branches', function (Blueprint $table) use ($hasFk) {
             if ($hasFk) {

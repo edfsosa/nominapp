@@ -11,24 +11,21 @@ return new class extends Migration
     {
         // 1. Copiar payroll_type de employees a sus contratos activos existentes
         //    (cubre a los empleados que ya tenían contrato antes de esta migración).
-        DB::table('contracts')
-            ->join('employees', 'contracts.employee_id', '=', 'employees.id')
-            ->where('contracts.status', 'active')
-            ->whereNotNull('employees.payroll_type')
-            ->update(['contracts.payroll_type' => DB::raw('employees.payroll_type')]);
+        //    Saltado en SQLite: UPDATE ... JOIN no es compatible; en tests no hay datos que migrar.
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::table('contracts')
+                ->join('employees', 'contracts.employee_id', '=', 'employees.id')
+                ->where('contracts.status', 'active')
+                ->whereNotNull('employees.payroll_type')
+                ->update(['contracts.payroll_type' => DB::raw('employees.payroll_type')]);
+        }
 
         // 3. Eliminar columnas que ahora viven en contracts.
         //    Se verifica si la FK existe antes de intentar eliminarla, ya que
         //    el nombre puede diferir entre entornos o puede no haberse creado.
         Schema::table('employees', function (Blueprint $table) {
-            $foreignKeyExists = collect(DB::select("
-                SELECT CONSTRAINT_NAME
-                FROM information_schema.KEY_COLUMN_USAGE
-                WHERE TABLE_SCHEMA = DATABASE()
-                  AND TABLE_NAME = 'employees'
-                  AND COLUMN_NAME = 'position_id'
-                  AND REFERENCED_TABLE_NAME IS NOT NULL
-            "))->isNotEmpty();
+            $foreignKeyExists = collect(Schema::getForeignKeys('employees'))
+                ->contains(fn($fk) => in_array('position_id', $fk['columns']));
 
             if ($foreignKeyExists) {
                 $table->dropForeign(['position_id']);

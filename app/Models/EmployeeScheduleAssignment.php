@@ -19,6 +19,9 @@ class EmployeeScheduleAssignment extends Model
         'created_by',
     ];
 
+    /** Forzar formato Y-m-d para que SQLite almacene solo la fecha (sin tiempo). */
+    protected $dateFormat = 'Y-m-d';
+
     protected $casts = [
         'valid_from'  => 'date',
         'valid_until' => 'date',

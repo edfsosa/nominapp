@@ -79,7 +79,7 @@ function makeAguPeriod(Company $company, int $year = 2025): AguinaldoPeriod
     ]);
 }
 
-function makePayPeriod(int $year, int $month): PayrollPeriod
+function makeAguinaldoPayPeriod(int $year, int $month): PayrollPeriod
 {
     $start = Carbon::create($year, $month, 1);
     return PayrollPeriod::create([
@@ -133,7 +133,7 @@ it('genera aguinaldo correctamente para un empleado con nóminas', function () {
     $period   = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
-    $payPeriod = makePayPeriod(2025, 6);
+    $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     makePayroll($employee, $payPeriod, 2_550_000);
 
     $count = makeAguService()->generateForPeriod($period);
@@ -154,7 +154,7 @@ it('calcula aguinaldo_amount como total_earned dividido 12', function () {
 
     // 3 nóminas: 2,550,000 + 200,000 perceptions cada una
     foreach ([1, 2, 3] as $month) {
-        $payPeriod = makePayPeriod(2025, $month);
+        $payPeriod = makeAguinaldoPayPeriod(2025, $month);
         makePayroll($employee, $payPeriod, 2_550_000, 200_000);
     }
 
@@ -174,7 +174,7 @@ it('crea un AguinaldoItem por cada nómina del año', function () {
     $employee = makeAguEmployee($company);
 
     foreach ([1, 2, 3, 4] as $month) {
-        makePayroll($employee, makePayPeriod(2025, $month), 2_550_000);
+        makePayroll($employee, makeAguinaldoPayPeriod(2025, $month), 2_550_000);
     }
 
     makeAguService()->generateForPeriod($period);
@@ -187,7 +187,7 @@ it('no duplica aguinaldo si el empleado ya tiene uno en el período', function (
     $period   = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
-    makePayroll($employee, makePayPeriod(2025, 6), 2_550_000);
+    makePayroll($employee, makeAguinaldoPayPeriod(2025, 6), 2_550_000);
 
     $service = makeAguService();
     $service->generateForPeriod($period);
@@ -204,7 +204,7 @@ it('solo incluye empleados activos y suspendidos, no inactivos', function () {
     $suspended = makeAguEmployee($company, 'suspended');
     $inactive  = makeAguEmployee($company, 'inactive');
 
-    $payPeriod = makePayPeriod(2025, 6);
+    $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     makePayroll($active, $payPeriod, 2_550_000);
     makePayroll($suspended, $payPeriod, 2_550_000);
     makePayroll($inactive, $payPeriod, 2_550_000);
@@ -220,8 +220,8 @@ it('solo procesa nóminas del año del período, no de otros años', function ()
     $period   = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
-    makePayroll($employee, makePayPeriod(2024, 12), 2_550_000); // año anterior
-    makePayroll($employee, makePayPeriod(2025, 6),  2_550_000); // año correcto
+    makePayroll($employee, makeAguinaldoPayPeriod(2024, 12), 2_550_000); // año anterior
+    makePayroll($employee, makeAguinaldoPayPeriod(2025, 6),  2_550_000); // año correcto
 
     makeAguService()->generateForPeriod($period);
 
@@ -236,7 +236,7 @@ it('separa horas extra de percepciones ordinarias en los items', function () {
     $period   = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
-    $payPeriod = makePayPeriod(2025, 6);
+    $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     $payroll   = makePayroll($employee, $payPeriod, 2_550_000, 350_000);
 
     // 200,000 de horas extra (contienen 'hora' en description)
@@ -277,7 +277,7 @@ it('regenera correctamente el aguinaldo con nuevos montos', function () {
     $aguPeriod = makeAguPeriod($company, 2025);
     $employee  = makeAguEmployee($company);
 
-    $payPeriod = makePayPeriod(2025, 6);
+    $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     makePayroll($employee, $payPeriod, 2_550_000);
 
     // Crear aguinaldo inicial con monto incorrecto

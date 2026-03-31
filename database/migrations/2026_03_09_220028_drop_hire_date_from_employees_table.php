@@ -17,11 +17,14 @@ return new class extends Migration
         });
 
         // 2. Copiar payment_method de cada empleado a todos sus contratos
-        DB::statement('
-            UPDATE contracts c
-            INNER JOIN employees e ON e.id = c.employee_id
-            SET c.payment_method = e.payment_method
-        ');
+        //    Saltado en SQLite: UPDATE ... JOIN no es compatible; en tests no hay datos que migrar.
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement('
+                UPDATE contracts c
+                INNER JOIN employees e ON e.id = c.employee_id
+                SET c.payment_method = e.payment_method
+            ');
+        }
 
         // 3. Eliminar hire_date y payment_method de employees
         Schema::table('employees', function (Blueprint $table) {
@@ -36,11 +39,13 @@ return new class extends Migration
             $table->enum('payment_method', ['debit', 'cash', 'check'])->default('debit')->after('hire_date');
         });
 
-        DB::statement("
-            UPDATE employees e
-            INNER JOIN contracts c ON c.employee_id = e.id AND c.status = 'active'
-            SET e.payment_method = c.payment_method
-        ");
+        if (DB::connection()->getDriverName() !== 'sqlite') {
+            DB::statement("
+                UPDATE employees e
+                INNER JOIN contracts c ON c.employee_id = e.id AND c.status = 'active'
+                SET e.payment_method = c.payment_method
+            ");
+        }
 
         Schema::table('contracts', function (Blueprint $table) {
             $table->dropColumn('payment_method');

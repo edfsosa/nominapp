@@ -49,7 +49,7 @@ function makeSchedEmployee(): Employee
     return $employee->fresh();
 }
 
-function makeSchedule(): Schedule
+function makeSchedSchedule(): Schedule
 {
     return Schedule::create(['name' => 'Horario Test', 'shift_type' => 'diurno']);
 }
@@ -78,7 +78,7 @@ function assignEmployee(Employee $employee, Schedule $schedule, string $validFro
 // ─── activeDays() ─────────────────────────────────────────────────────────────
 
 it('activeDays retorna solo los días con is_active = true', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
 
     addDay($schedule, 1, true);  // lunes activo
     addDay($schedule, 2, false); // martes inactivo
@@ -91,7 +91,7 @@ it('activeDays retorna solo los días con is_active = true', function () {
 });
 
 it('activeDays retorna vacío si no hay días activos', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
 
     addDay($schedule, 1, false);
     addDay($schedule, 7, false);
@@ -100,7 +100,7 @@ it('activeDays retorna vacío si no hay días activos', function () {
 });
 
 it('activeDays retorna los días ordenados por day_of_week', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
 
     // Insertar en orden inverso
     addDay($schedule, 5, true);
@@ -113,8 +113,8 @@ it('activeDays retorna los días ordenados por day_of_week', function () {
 });
 
 it('activeDays no incluye días de otro horario', function () {
-    $scheduleA = makeSchedule();
-    $scheduleB = makeSchedule();
+    $scheduleA = makeSchedSchedule();
+    $scheduleB = makeSchedSchedule();
 
     addDay($scheduleA, 1, true);
     addDay($scheduleB, 2, true);
@@ -126,7 +126,7 @@ it('activeDays no incluye días de otro horario', function () {
 // ─── currentEmployees() ───────────────────────────────────────────────────────
 
 it('currentEmployees retorna empleados con asignación vigente sin fecha de fin', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
     $employee = makeSchedEmployee();
 
     assignEmployee($employee, $schedule, Carbon::today()->toDateString(), null);
@@ -136,7 +136,7 @@ it('currentEmployees retorna empleados con asignación vigente sin fecha de fin'
 });
 
 it('currentEmployees retorna empleados cuya asignación aún no vence', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
     $employee = makeSchedEmployee();
 
     assignEmployee($employee, $schedule, Carbon::today()->toDateString(), Carbon::today()->addMonths(3)->toDateString());
@@ -145,7 +145,7 @@ it('currentEmployees retorna empleados cuya asignación aún no vence', function
 });
 
 it('currentEmployees excluye empleados cuya asignación aún no comenzó', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
     $employee = makeSchedEmployee();
 
     assignEmployee($employee, $schedule, Carbon::tomorrow()->toDateString(), null);
@@ -154,7 +154,7 @@ it('currentEmployees excluye empleados cuya asignación aún no comenzó', funct
 });
 
 it('currentEmployees excluye empleados cuya asignación ya venció', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
     $employee = makeSchedEmployee();
 
     assignEmployee($employee, $schedule, Carbon::today()->subMonths(3)->toDateString(), Carbon::yesterday()->toDateString());
@@ -163,7 +163,7 @@ it('currentEmployees excluye empleados cuya asignación ya venció', function ()
 });
 
 it('currentEmployees retorna múltiples empleados activos', function () {
-    $schedule  = makeSchedule();
+    $schedule  = makeSchedSchedule();
     $employee1 = makeSchedEmployee();
     $employee2 = makeSchedEmployee();
     $employee3 = makeSchedEmployee();
@@ -176,8 +176,8 @@ it('currentEmployees retorna múltiples empleados activos', function () {
 });
 
 it('currentEmployees no incluye empleados de otro horario', function () {
-    $scheduleA = makeSchedule();
-    $scheduleB = makeSchedule();
+    $scheduleA = makeSchedSchedule();
+    $scheduleB = makeSchedSchedule();
     $employee1 = makeSchedEmployee();
     $employee2 = makeSchedEmployee();
 
@@ -189,7 +189,7 @@ it('currentEmployees no incluye empleados de otro horario', function () {
 });
 
 it('currentEmployees ignora asignaciones anteriores del mismo empleado', function () {
-    $schedule = makeSchedule();
+    $schedule = makeSchedSchedule();
     $employee = makeSchedEmployee();
 
     // Asignación vencida
