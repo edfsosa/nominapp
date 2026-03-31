@@ -50,7 +50,7 @@ class CheckMissingAttendance extends Command
                 ->whereHas('scheduleAssignments', fn($q) => $q->forDate($date))
                 ->orWhereHas('schedule.days', fn($q) => $q
                     ->where('day_of_week', $date->dayOfWeekIso)
-                    ->where('is_day_off', false)
+                    ->where('is_active', true)
                 )
             )
             ->with([
@@ -124,7 +124,7 @@ class CheckMissingAttendance extends Command
         }
 
         // Verificar si es día libre
-        if ($scheduleDay->is_day_off) {
+        if (!$scheduleDay->is_active) {
             return 'skipped';
         }
 
