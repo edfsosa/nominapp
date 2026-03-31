@@ -31,7 +31,6 @@ Ambos se gestionan desde el mismo módulo.
 | `Activo` | Con cuotas en curso |
 | `Pagado` | Todas las cuotas saldadas |
 | `Cancelado` | Cancelado antes de completarse |
-| `En mora` | Con cuotas vencidas sin pagar |
 
 ## Cuotas y descuento en nómina
 
@@ -43,8 +42,8 @@ Para ver el detalle de cuotas de un préstamo, abrir el registro del préstamo y
 
 Desde la vista del préstamo puede generarse el contrato de préstamo en PDF con el botón **Ver contrato**.
 
-## Límites de préstamos
+## Límites y restricciones
 
-Los montos máximos permitidos para préstamos y adelantos se configuran en **Configuración General** (sección Configuración de Préstamos).
-
-> Un empleado puede tener más de un préstamo activo siempre que el total no supere el límite configurado.
+- **Préstamos:** el monto máximo por préstamo se configura en **Configuración General** (sección Préstamos).
+- **Adelantos:** el monto máximo se calcula por empleado: **50% del salario de referencia mensual** del contrato activo.
+- Un empleado **no puede tener más de un préstamo ni más de un adelanto** en estado pendiente o activo al mismo tiempo. Debe completarse o cancelarse el existente antes de crear uno nuevo.
