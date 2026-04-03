@@ -18,6 +18,12 @@ class ViewAguinaldoPeriod extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('provision_report')
+                ->label('Ver Provisión')
+                ->icon('heroicon-o-calculator')
+                ->color('info')
+                ->url(fn() => AguinaldoPeriodResource::getUrl('provision', ['record' => $this->record])),
+
             Action::make('generate_aguinaldos')
                 ->label('Generar')
                 ->icon('heroicon-o-document-plus')

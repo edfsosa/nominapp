@@ -319,10 +319,11 @@ class AguinaldoPeriodResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListAguinaldoPeriods::route('/'),
-            'create' => Pages\CreateAguinaldoPeriod::route('/create'),
-            'view'   => Pages\ViewAguinaldoPeriod::route('/{record}'),
-            'edit'   => Pages\EditAguinaldoPeriod::route('/{record}/edit'),
+            'index'     => Pages\ListAguinaldoPeriods::route('/'),
+            'create'    => Pages\CreateAguinaldoPeriod::route('/create'),
+            'view'      => Pages\ViewAguinaldoPeriod::route('/{record}'),
+            'edit'      => Pages\EditAguinaldoPeriod::route('/{record}/edit'),
+            'provision' => Pages\ProvisionReport::route('/{record}/provision'),
         ];
     }
 }

@@ -10,6 +10,7 @@ use App\Models\Payroll;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Database\Eloquent\Builder;
 
 class AguinaldoService
 {
@@ -154,6 +155,47 @@ class AguinaldoService
                 'error'        => $e->getMessage(),
             ]);
         }
+    }
+
+    /**
+     * Devuelve una query lista para usar en tablas Filament de provisión mensual de aguinaldo.
+     *
+     * Cada fila es un Employee con columnas virtuales calculadas por GROUP BY:
+     *   - months_worked : cantidad de nóminas en el rango
+     *   - total_earned  : sum(base_salary + ips_perceptions) hasta el mes indicado
+     *   - provision     : total_earned / 12 (redondeado a 2 decimales)
+     *
+     * @param  AguinaldoPeriod $period
+     * @param  int             $upToMonth  Mes límite incluido (1-12)
+     * @return Builder
+     */
+    public function provisionQuery(AguinaldoPeriod $period, int $upToMonth): Builder
+    {
+        return Employee::query()
+            ->select([
+                'employees.id',
+                'employees.ci',
+                'employees.first_name',
+                'employees.last_name',
+                'employees.branch_id',
+                DB::raw('COUNT(payrolls.id) AS months_worked'),
+                DB::raw('SUM(payrolls.base_salary + payrolls.ips_perceptions) AS total_earned'),
+                DB::raw('ROUND(SUM(payrolls.base_salary + payrolls.ips_perceptions) / 12, 2) AS provision'),
+            ])
+            ->join('branches', 'branches.id', '=', 'employees.branch_id')
+            ->join('payrolls', 'payrolls.employee_id', '=', 'employees.id')
+            ->join('payroll_periods', 'payroll_periods.id', '=', 'payrolls.payroll_period_id')
+            ->where('branches.company_id', $period->company_id)
+            ->whereYear('payroll_periods.start_date', $period->year)
+            ->whereMonth('payroll_periods.start_date', '<=', $upToMonth)
+            ->groupBy(
+                'employees.id',
+                'employees.ci',
+                'employees.first_name',
+                'employees.last_name',
+                'employees.branch_id',
+            )
+            ->orderBy('employees.last_name');
     }
 
     /**
