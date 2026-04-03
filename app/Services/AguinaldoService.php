@@ -166,14 +166,18 @@ class AguinaldoService
         $items = [];
 
         foreach ($payrolls as $payroll) {
+            // Base legal del aguinaldo: salario + percepciones salariales (affects_ips) + horas extra.
+            // Las percepciones no salariales (viáticos, subsidios) se excluyen via ips_perceptions.
+            $monthTotal = $payroll->base_salary + $payroll->ips_perceptions;
+            $totalEarned += $monthTotal;
+
+            // Desglose para el PDF: separar horas extra del resto de percepciones salariales
             $extraHoursAmount = $payroll->items
                 ->where('type', 'perception')
-                ->filter(fn($item) => str_contains(strtolower($item->description), 'hora'))
+                ->where('perception_type', 'extra_hours')
                 ->sum('amount');
 
-            $perceptionsWithoutExtras = $payroll->total_perceptions - $extraHoursAmount;
-            $monthTotal = $payroll->base_salary + $payroll->total_perceptions;
-            $totalEarned += $monthTotal;
+            $perceptionsWithoutExtras = $payroll->ips_perceptions - $extraHoursAmount;
 
             $items[] = [
                 'month'       => ucfirst($payroll->period->start_date->translatedFormat('F')),
