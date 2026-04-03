@@ -24,8 +24,6 @@ use Filament\Forms\Components\TextInput;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Illuminate\Support\Facades\Auth;
@@ -120,7 +118,22 @@ class ContractsRelationManager extends RelationManager
                             ->required()
                             ->minValue(1)
                             ->prefix('Gs.')
-                            ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes'),
+                            ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
+                            ->helperText('Para jornada nocturna, incluir el recargo del 30% en este monto (Art. 196 CLT).'),
+
+                        Select::make('payment_method')
+                            ->label('Método de Pago')
+                            ->options(Contract::getPaymentMethodOptions())
+                            ->native(false)
+                            ->default('debit')
+                            ->required(),
+
+                        Select::make('payroll_type')
+                            ->label('Tipo de Nómina')
+                            ->options(Contract::getPayrollTypeOptions())
+                            ->native(false)
+                            ->default('monthly')
+                            ->required(),
                     ])
                     ->columns(2),
 
@@ -333,7 +346,7 @@ class ContractsRelationManager extends RelationManager
                         }
                         return $data;
                     })
-                    ->before(function (CreateAction $action, array $data) {
+                    ->before(function (CreateAction $action) {
                         // Validar que no tenga contrato activo
                         $employeeId = $this->getOwnerRecord()->id;
                         $hasActive = Contract::where('employee_id', $employeeId)
