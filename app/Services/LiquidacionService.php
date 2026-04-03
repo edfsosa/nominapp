@@ -436,7 +436,8 @@ class LiquidacionService
             return $salarioPendienteAmount > 0 ? round($salarioPendienteAmount / 12, 0) : 0;
         }
 
-        $totalEarned = $payrolls->sum(fn($p) => (float) $p->base_salary + (float) $p->total_perceptions);
+        // Solo percepciones salariales (affects_ips) + horas extra; excluye viáticos y subsidios
+        $totalEarned = $payrolls->sum(fn($p) => (float) $p->base_salary + (float) $p->ips_perceptions);
 
         return round($totalEarned / 12, 0);
     }

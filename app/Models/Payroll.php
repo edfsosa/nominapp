@@ -21,6 +21,7 @@ class Payroll extends Model
         'gross_salary',
         'total_deductions',
         'total_perceptions',
+        'ips_perceptions',
         'net_salary',
         'pdf_path',
         'generated_at',
@@ -32,6 +33,7 @@ class Payroll extends Model
     protected $casts = [
         'base_salary' => 'decimal:2',
         'total_perceptions' => 'decimal:2',
+        'ips_perceptions'   => 'decimal:2',
         'gross_salary' => 'decimal:2',
         'total_deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',

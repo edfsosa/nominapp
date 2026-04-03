@@ -8,10 +8,21 @@ use Illuminate\Support\Facades\Log;
 
 class PerceptionCalculator
 {
+    /**
+     * Calcula las percepciones del empleado para el período dado.
+     *
+     * Retorna:
+     *   - total:     suma de todas las percepciones (base para salario neto).
+     *   - ips_total: suma solo de percepciones con affects_ips = true (base legal para IPS y aguinaldo).
+     *   - items:     desglose con descripción, monto y flag affects_ips.
+     *
+     * @return array{total: int, ips_total: int, items: array}
+     */
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
-        $items = [];
-        $total = 0;
+        $items    = [];
+        $total    = 0;
+        $ipsTotal = 0;
 
         $assignments = $employee->employeePerceptions()
             ->forPeriod($period->start_date, $period->end_date)
@@ -36,7 +47,12 @@ class PerceptionCalculator
                         'employment_type' => $employee->employment_type,
                     ]);
 
-                    $items[] = ['description' => $perception->name, 'amount' => 0];
+                    $items[] = [
+                        'description'     => $perception->name,
+                        'amount'          => 0,
+                        'affects_ips'     => $perception->affects_ips,
+                        'perception_type' => $perception->type,
+                    ];
                     continue;
                 }
             }
@@ -44,15 +60,22 @@ class PerceptionCalculator
             $amount = $perception->calculateAmount($salaryBase, $customAmount);
             $total += $amount;
 
+            if ($perception->affects_ips) {
+                $ipsTotal += $amount;
+            }
+
             $items[] = [
-                'description' => $perception->name,
-                'amount'      => $amount,
+                'description'     => $perception->name,
+                'amount'          => $amount,
+                'affects_ips'     => $perception->affects_ips,
+                'perception_type' => $perception->type,
             ];
         }
 
         return [
-            'total' => $total,
-            'items' => $items,
+            'total'     => $total,
+            'ips_total' => $ipsTotal,
+            'items'     => $items,
         ];
     }
 }

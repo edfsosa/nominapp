@@ -18,6 +18,7 @@ class PayrollService
     protected ExtraHourCalculator $extraHourCalculator;
     protected AbsencePenaltyCalculator $absencePenaltyCalculator;
     protected LoanInstallmentCalculator $loanInstallmentCalculator;
+    protected FamilyBonusCalculator $familyBonusCalculator;
     protected PayrollPDFGenerator $payrollPDFGenerator;
 
     public function __construct(
@@ -26,6 +27,7 @@ class PayrollService
         ExtraHourCalculator $extraHourCalculator,
         AbsencePenaltyCalculator $absencePenaltyCalculator,
         LoanInstallmentCalculator $loanInstallmentCalculator,
+        FamilyBonusCalculator $familyBonusCalculator,
         PayrollPDFGenerator $payrollPDFGenerator
     ) {
         $this->perceptionCalculator = $perceptionCalculator;
@@ -33,6 +35,7 @@ class PayrollService
         $this->extraHourCalculator = $extraHourCalculator;
         $this->absencePenaltyCalculator = $absencePenaltyCalculator;
         $this->loanInstallmentCalculator = $loanInstallmentCalculator;
+        $this->familyBonusCalculator = $familyBonusCalculator;
         $this->payrollPDFGenerator = $payrollPDFGenerator;
     }
 
@@ -96,35 +99,40 @@ class PayrollService
                 }
 
                 // Cálculo modular
-                $perceptions = $this->perceptionCalculator->calculate($employee, $period);
-                $deductions = $this->deductionCalculator->calculate($employee, $period);
-                $extras = $this->extraHourCalculator->calculate($employee, $period);
-                $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+                $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
+                $deductions       = $this->deductionCalculator->calculate($employee, $period);
+                $extras           = $this->extraHourCalculator->calculate($employee, $period);
+                $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
                 $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
+                $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-                $totalPerceptions = $perceptions['total'] + $extras['total'];
-                $totalDeductions = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
-                $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
+                $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
+                // Percepciones que computan para IPS y aguinaldo (salariales + HE; bonificación familiar excluida)
+                $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
+                $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+                $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
                 $payroll = Payroll::create([
-                    'employee_id' => $employee->id,
+                    'employee_id'       => $employee->id,
                     'payroll_period_id' => $period->id,
-                    'base_salary' => $baseSalary,
+                    'base_salary'       => $baseSalary,
                     'total_perceptions' => $totalPerceptions,
-                    'total_deductions' => $totalDeductions,
-                    'net_salary' => $netSalary,
-                    'gross_salary' => $baseSalary + $totalPerceptions,
-                    'generated_at' => now(),
-                    'status' => 'draft',
+                    'ips_perceptions'   => $ipsPerceptions,
+                    'total_deductions'  => $totalDeductions,
+                    'net_salary'        => $netSalary,
+                    'gross_salary'      => $baseSalary + $totalPerceptions,
+                    'generated_at'      => now(),
+                    'status'            => 'draft',
                 ]);
 
-                // Ítems: percepciones
-                foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+                // Ítems: percepciones (incluyendo bonificación familiar si aplica)
+                foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
                     PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'perception',
-                        'description' => $item['description'],
-                        'amount' => $item['amount'],
+                        'payroll_id'      => $payroll->id,
+                        'type'            => 'perception',
+                        'perception_type' => $item['perception_type'] ?? null,
+                        'description'     => $item['description'],
+                        'amount'          => $item['amount'],
                     ]);
                 }
 
@@ -222,34 +230,38 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            $perceptions     = $this->perceptionCalculator->calculate($employee, $period);
-            $deductions      = $this->deductionCalculator->calculate($employee, $period);
-            $extras          = $this->extraHourCalculator->calculate($employee, $period);
-            $absences        = $this->absencePenaltyCalculator->calculate($employee, $period);
+            $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
+            $deductions       = $this->deductionCalculator->calculate($employee, $period);
+            $extras           = $this->extraHourCalculator->calculate($employee, $period);
+            $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
+            $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'];
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
+            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
             $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
             $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
             $payroll = Payroll::create([
-                'employee_id'      => $employee->id,
+                'employee_id'       => $employee->id,
                 'payroll_period_id' => $period->id,
-                'base_salary'      => $baseSalary,
+                'base_salary'       => $baseSalary,
                 'total_perceptions' => $totalPerceptions,
-                'total_deductions' => $totalDeductions,
-                'gross_salary'     => $baseSalary + $totalPerceptions,
-                'net_salary'       => $netSalary,
-                'generated_at'     => now(),
-                'status'           => 'draft',
+                'ips_perceptions'   => $ipsPerceptions,
+                'total_deductions'  => $totalDeductions,
+                'gross_salary'      => $baseSalary + $totalPerceptions,
+                'net_salary'        => $netSalary,
+                'generated_at'      => now(),
+                'status'            => 'draft',
             ]);
 
-            foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+            foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id'  => $payroll->id,
-                    'type'        => 'perception',
-                    'description' => $item['description'],
-                    'amount'      => $item['amount'],
+                    'payroll_id'      => $payroll->id,
+                    'type'            => 'perception',
+                    'perception_type' => $item['perception_type'] ?? null,
+                    'description'     => $item['description'],
+                    'amount'          => $item['amount'],
                 ]);
             }
 
@@ -334,34 +346,38 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            // Recalcular con los 5 calculadores
-            $perceptions = $this->perceptionCalculator->calculate($employee, $period);
-            $deductions = $this->deductionCalculator->calculate($employee, $period);
-            $extras = $this->extraHourCalculator->calculate($employee, $period);
-            $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+            // Recalcular con los 6 calculadores
+            $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
+            $deductions       = $this->deductionCalculator->calculate($employee, $period);
+            $extras           = $this->extraHourCalculator->calculate($employee, $period);
+            $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
+            $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'];
-            $totalDeductions = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
-            $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
+            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
+            $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+            $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
             // Actualizar el registro existente
             $payroll->update([
-                'base_salary' => $baseSalary,
+                'base_salary'       => $baseSalary,
                 'total_perceptions' => $totalPerceptions,
-                'total_deductions' => $totalDeductions,
-                'gross_salary' => $baseSalary + $totalPerceptions,
-                'net_salary' => $netSalary,
-                'generated_at' => now(),
+                'ips_perceptions'   => $ipsPerceptions,
+                'total_deductions'  => $totalDeductions,
+                'gross_salary'      => $baseSalary + $totalPerceptions,
+                'net_salary'        => $netSalary,
+                'generated_at'      => now(),
             ]);
 
-            // Recrear ítems: percepciones
-            foreach (array_merge($perceptions['items'], $extras['items']) as $item) {
+            // Recrear ítems: percepciones (incluyendo bonificación familiar si aplica)
+            foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id' => $payroll->id,
-                    'type' => 'perception',
-                    'description' => $item['description'],
-                    'amount' => $item['amount'],
+                    'payroll_id'      => $payroll->id,
+                    'type'            => 'perception',
+                    'perception_type' => $item['perception_type'] ?? null,
+                    'description'     => $item['description'],
+                    'amount'          => $item['amount'],
                 ]);
             }
 
