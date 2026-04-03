@@ -4,12 +4,14 @@ namespace App\Services;
 
 use App\Models\Employee;
 use App\Models\Holiday;
+use App\Models\Payroll;
 use App\Models\Vacation;
 use App\Models\VacationBalance;
 use App\Settings\PayrollSettings;
 use Carbon\Carbon;
 use Carbon\CarbonPeriod;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class VacationService
 {
@@ -56,7 +58,11 @@ class VacationService
     }
 
     /**
-     * Aprueba una solicitud de vacaciones y actualiza el balance en una transacción.
+     * Aprueba una solicitud de vacaciones, calcula el monto a pagar y actualiza el balance.
+     *
+     * El monto vacacional se calcula sobre el promedio de las últimas 6 remuneraciones
+     * brutas (Art. 218 CLT). Si no hay nóminas previas, se usa el salario base del contrato.
+     * El pago físico se registra por separado con recordPayment().
      */
     public static function approve(Vacation $vacation): void
     {
@@ -64,8 +70,112 @@ class VacationService
             if ($vacation->vacation_balance_id && $vacation->vacationBalance) {
                 $vacation->vacationBalance->confirmDays($vacation->business_days ?? 0);
             }
-            $vacation->update(['status' => 'approved']);
+
+            $paymentAmount = $vacation->type === 'paid'
+                ? self::calculateVacationPay($vacation->employee, $vacation)
+                : 0.0;
+
+            $vacation->update([
+                'status'         => 'approved',
+                'payment_amount' => $paymentAmount,
+                'payment_status' => 'unpaid',
+            ]);
         });
+    }
+
+    /**
+     * Calcula el monto a pagar por vacaciones remuneradas.
+     *
+     * Fórmula (Art. 218 CLT):
+     *   promedio_mensual = sum(gross_salary de las últimas 6 nóminas) / cantidad_nóminas
+     *   tarifa_diaria    = promedio_mensual / 30
+     *   monto            = tarifa_diaria × business_days
+     *
+     * Si el empleado no tiene nóminas previas, se usa el salario base del contrato como fallback.
+     *
+     * @param  Employee $employee
+     * @param  Vacation $vacation
+     * @return float
+     */
+    public static function calculateVacationPay(Employee $employee, Vacation $vacation): float
+    {
+        if ($vacation->type !== 'paid' || ($vacation->business_days ?? 0) <= 0) {
+            return 0.0;
+        }
+
+        $refDate    = Carbon::parse($vacation->start_date);
+        $sixMonthsAgo = $refDate->copy()->subMonths(6)->startOfMonth();
+
+        $payrolls = Payroll::where('employee_id', $employee->id)
+            ->whereHas('period', fn($q) => $q
+                ->where('start_date', '>=', $sixMonthsAgo)
+                ->where('start_date', '<', $refDate)
+            )
+            ->orderByDesc('id')
+            ->limit(6)
+            ->get();
+
+        if ($payrolls->isEmpty()) {
+            $monthlySalary = (float) ($employee->base_salary ?? 0);
+            Log::info('VacationService: sin nóminas previas, usando salario base como fallback', [
+                'employee_id'   => $employee->id,
+                'vacation_id'   => $vacation->id,
+                'monthly_salary' => $monthlySalary,
+            ]);
+        } else {
+            $monthlySalary = round($payrolls->sum('gross_salary') / $payrolls->count(), 2);
+        }
+
+        if ($monthlySalary <= 0) {
+            Log::warning('VacationService: salario promedio inválido para cálculo vacacional', [
+                'employee_id' => $employee->id,
+                'vacation_id' => $vacation->id,
+            ]);
+            return 0.0;
+        }
+
+        $dailyRate = round($monthlySalary / 30, 2);
+        $amount    = round($dailyRate * $vacation->business_days, 2);
+
+        Log::info('VacationService: monto vacacional calculado', [
+            'employee_id'    => $employee->id,
+            'vacation_id'    => $vacation->id,
+            'payrolls_used'  => $payrolls->count(),
+            'monthly_avg'    => $monthlySalary,
+            'daily_rate'     => $dailyRate,
+            'business_days'  => $vacation->business_days,
+            'payment_amount' => $amount,
+        ]);
+
+        return $amount;
+    }
+
+    /**
+     * Registra el pago de la remuneración vacacional.
+     *
+     * Debe llamarse antes de la fecha de inicio de la vacación (Art. 218 CLT).
+     * Emite un warning en el log si se registra después del inicio.
+     *
+     * @param  Vacation $vacation
+     * @param  Carbon|null $paidAt  Fecha del pago (default: ahora)
+     */
+    public static function recordPayment(Vacation $vacation, ?Carbon $paidAt = null): void
+    {
+        $paidAt = $paidAt ?? Carbon::now();
+
+        if ($paidAt->greaterThan(Carbon::parse($vacation->start_date))) {
+            Log::warning('VacationService: pago vacacional registrado después del inicio — incumple Art. 218 CLT', [
+                'employee_id' => $vacation->employee_id,
+                'vacation_id' => $vacation->id,
+                'start_date'  => $vacation->start_date,
+                'paid_at'     => $paidAt,
+            ]);
+        }
+
+        $vacation->update([
+            'payment_status' => 'paid',
+            'paid_at'        => $paidAt,
+        ]);
     }
 
     /**

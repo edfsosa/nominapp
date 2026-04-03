@@ -21,13 +21,18 @@ class Vacation extends Model
         'reason',
         'status',
         'business_days',
+        'payment_amount',
+        'payment_status',
+        'paid_at',
     ];
 
     protected $casts = [
-        'start_date' => 'date',
-        'end_date' => 'date',
-        'return_date' => 'date',
-        'business_days' => 'integer',
+        'start_date'     => 'date',
+        'end_date'       => 'date',
+        'return_date'    => 'date',
+        'business_days'  => 'integer',
+        'payment_amount' => 'decimal:2',
+        'paid_at'        => 'datetime',
     ];
 
     public function employee(): BelongsTo
@@ -65,6 +70,29 @@ class Vacation extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    /**
+     * Verifica si la remuneración vacacional ya fue pagada.
+     */
+    public function isPaid(): bool
+    {
+        return $this->payment_status === 'paid';
+    }
+
+    /**
+     * Verifica si el pago está pendiente y la vacación ya comenzó o está por comenzar.
+     * La ley exige pagar antes del inicio (Art. 218 CLT).
+     *
+     * @param  int $daysThreshold  Días de anticipación mínimos para alertar (default: 0 = ya debería estar pagado)
+     */
+    public function isPaymentOverdue(int $daysThreshold = 0): bool
+    {
+        if ($this->type !== 'paid' || $this->isPaid()) {
+            return false;
+        }
+
+        return now()->greaterThanOrEqualTo($this->start_date->subDays($daysThreshold));
     }
 
     /**

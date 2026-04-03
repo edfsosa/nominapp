@@ -5,6 +5,8 @@ use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Holiday;
+use App\Models\Payroll;
+use App\Models\PayrollPeriod;
 use App\Models\Position;
 use App\Models\Contract;
 use App\Models\Schedule;
@@ -379,4 +381,209 @@ it('retorna válido con un período correcto y saldo suficiente', function () {
     expect($result['valid'])->toBeTrue()
         ->and($result['errors'])->toBeEmpty()
         ->and($result['business_days'])->toBe(5);
+});
+
+// ─── Helpers para pago vacacional ────────────────────────────────────────────
+
+function makeVacPayPeriod(int $year, int $month): PayrollPeriod
+{
+    $start = Carbon::create($year, $month, 1);
+    return PayrollPeriod::create([
+        'name'       => $start->format('F Y'),
+        'start_date' => $start->toDateString(),
+        'end_date'   => $start->endOfMonth()->toDateString(),
+        'frequency'  => 'monthly',
+        'status'     => 'closed',
+    ]);
+}
+
+function makeVacPayroll(Employee $employee, PayrollPeriod $period, float $grossSalary): Payroll
+{
+    return Payroll::create([
+        'employee_id'       => $employee->id,
+        'payroll_period_id' => $period->id,
+        'base_salary'       => $grossSalary,
+        'total_perceptions' => 0,
+        'gross_salary'      => $grossSalary,
+        'total_deductions'  => 0,
+        'net_salary'        => $grossSalary,
+        'status'            => 'approved',
+    ]);
+}
+
+function makeVacation(Employee $employee, int $businessDays = 6, string $type = 'paid'): Vacation
+{
+    $balance = VacationService::getOrCreateBalance($employee, 2026);
+    $balance->update(['entitled_days' => 30]); // suficiente saldo para los tests
+
+    return Vacation::create([
+        'employee_id'          => $employee->id,
+        'vacation_balance_id'  => $balance->id,
+        'start_date'           => '2026-05-04',
+        'end_date'             => '2026-05-09',
+        'type'                 => $type,
+        'status'               => 'pending',
+        'business_days'        => $businessDays,
+    ]);
+}
+
+// ─── calculateVacationPay ────────────────────────────────────────────────────
+
+it('calculateVacationPay calcula el monto sobre el promedio de las últimas 6 nóminas', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+
+    // 3 nóminas con gross_salary = 3.000.000 → promedio = 3.000.000
+    foreach ([1, 2, 3] as $month) {
+        $period = makeVacPayPeriod(2026, $month);
+        makeVacPayroll($employee, $period, 3_000_000);
+    }
+
+    $vacation = makeVacation($employee, businessDays: 6);
+
+    $amount = VacationService::calculateVacationPay($employee, $vacation);
+
+    // daily = 3.000.000 / 30 = 100.000 × 6 días = 600.000
+    expect($amount)->toBe(round(3_000_000 / 30 * 6, 2));
+});
+
+it('calculateVacationPay usa el salario base como fallback cuando no hay nóminas previas', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee, businessDays: 6);
+
+    $amount = VacationService::calculateVacationPay($employee, $vacation);
+
+    // Salario del contrato = 2.550.000 → daily = 85.000 × 6 = 510.000
+    expect($amount)->toBe(round(2_550_000 / 30 * 6, 2));
+});
+
+it('calculateVacationPay retorna 0 para vacaciones no remuneradas', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee, businessDays: 6, type: 'unpaid');
+
+    expect(VacationService::calculateVacationPay($employee, $vacation))->toBe(0.0);
+});
+
+it('calculateVacationPay usa máximo 6 nóminas aunque haya más en el rango', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+
+    // Vacation start: 2026-05-04 → sixMonthsAgo = 2025-11-01
+    // Creamos 8 nóminas: las primeras 2 (sep, oct 2025) quedan fuera del rango de 6 meses.
+    // Las 6 dentro del rango (nov 2025 – abr 2026) son las que debe usar, todas a 3M.
+    makeVacPayroll($employee, makeVacPayPeriod(2025, 9),  2_000_000); // fuera del rango
+    makeVacPayroll($employee, makeVacPayPeriod(2025, 10), 2_000_000); // fuera del rango
+    foreach ([11, 12] as $month) {
+        makeVacPayroll($employee, makeVacPayPeriod(2025, $month), 3_000_000);
+    }
+    foreach ([1, 2, 3, 4] as $month) {
+        makeVacPayroll($employee, makeVacPayPeriod(2026, $month), 3_000_000);
+    }
+
+    $vacation = makeVacation($employee, businessDays: 6);
+    $amount   = VacationService::calculateVacationPay($employee, $vacation);
+
+    // 6 nóminas en rango (nov 25 – abr 26), todas a 3M → avg 3M → daily 100.000 × 6 = 600.000
+    expect($amount)->toBe(round(3_000_000 / 30 * 6, 2));
+});
+
+// ─── approve — pago calculado al aprobar ─────────────────────────────────────
+
+it('approve guarda payment_amount calculado y payment_status=unpaid', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+
+    $period = makeVacPayPeriod(2026, 1);
+    makeVacPayroll($employee, $period, 3_000_000);
+
+    $vacation = makeVacation($employee, businessDays: 6);
+    VacationService::approve($vacation);
+
+    $fresh = $vacation->fresh();
+    $expected = round(3_000_000 / 30 * 6, 2);
+
+    expect((float) $fresh->payment_amount)->toBe($expected)
+        ->and($fresh->payment_status)->toBe('unpaid')
+        ->and($fresh->status)->toBe('approved');
+});
+
+it('approve guarda payment_amount=0 para vacaciones no remuneradas', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee, businessDays: 6, type: 'unpaid');
+
+    VacationService::approve($vacation);
+
+    expect((float) $vacation->fresh()->payment_amount)->toBe(0.0);
+});
+
+// ─── recordPayment ────────────────────────────────────────────────────────────
+
+it('recordPayment marca la vacación como pagada con la fecha actual', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee);
+    VacationService::approve($vacation);
+
+    VacationService::recordPayment($vacation->fresh());
+
+    $fresh = $vacation->fresh();
+    expect($fresh->payment_status)->toBe('paid')
+        ->and($fresh->paid_at)->not->toBeNull();
+});
+
+it('recordPayment acepta una fecha de pago específica', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee);
+    VacationService::approve($vacation);
+
+    $paidAt = Carbon::create(2026, 4, 28);
+    VacationService::recordPayment($vacation->fresh(), $paidAt);
+
+    expect($vacation->fresh()->paid_at->toDateString())->toBe('2026-04-28');
+});
+
+it('isPaymentOverdue retorna true si la vacación comenzó y no está pagada', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+
+    // Vacación que ya comenzó (en el pasado)
+    $balance = VacationService::getOrCreateBalance($employee, 2025);
+    $balance->update(['entitled_days' => 30]);
+
+    $vacation = Vacation::create([
+        'employee_id'         => $employee->id,
+        'vacation_balance_id' => $balance->id,
+        'start_date'          => '2025-01-06',
+        'end_date'            => '2025-01-11',
+        'type'                => 'paid',
+        'status'              => 'approved',
+        'business_days'       => 6,
+        'payment_status'      => 'unpaid',
+    ]);
+
+    expect($vacation->isPaymentOverdue())->toBeTrue();
+});
+
+it('isPaymentOverdue retorna false si la vacación ya está pagada', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
+    $vacation = makeVacation($employee);
+    VacationService::approve($vacation);
+    VacationService::recordPayment($vacation->fresh());
+
+    expect($vacation->fresh()->isPaymentOverdue())->toBeFalse();
 });
