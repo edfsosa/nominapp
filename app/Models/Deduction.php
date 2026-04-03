@@ -11,6 +11,7 @@ class Deduction extends Model
         'name',
         'code',
         'type',
+        'apply_judicial_limit',
         'description',
         'calculation',
         'amount',
@@ -21,11 +22,12 @@ class Deduction extends Model
     ];
 
     protected $casts = [
-        'amount' => 'decimal:2',
-        'percent' => 'decimal:2',
-        'is_mandatory' => 'boolean',
-        'is_active' => 'boolean',
-        'affects_irp' => 'boolean',
+        'amount'                => 'decimal:2',
+        'percent'               => 'decimal:2',
+        'is_mandatory'          => 'boolean',
+        'is_active'             => 'boolean',
+        'affects_irp'           => 'boolean',
+        'apply_judicial_limit'  => 'boolean',
     ];
 
     /**

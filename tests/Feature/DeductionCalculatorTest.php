@@ -166,7 +166,7 @@ it('retorna total 0 e items vacíos si el empleado no tiene deducciones asignada
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
+    expect((float) $result['total'])->toBe(0.0)
         ->and($result['items'])->toBeEmpty();
 });
 
@@ -246,7 +246,7 @@ it('retorna amount=0 para deducción porcentual si el empleado no tiene salario 
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
+    expect((float) $result['total'])->toBe(0.0)
         ->and($result['items'])->toHaveCount(1)
         ->and((float) $result['items'][0]['amount'])->toBe(0.0);
 });
@@ -277,7 +277,7 @@ it('excluye deducciones cuya end_date es anterior al inicio del período', funct
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
+    expect((float) $result['total'])->toBe(0.0)
         ->and($result['items'])->toBeEmpty();
 });
 
@@ -291,7 +291,7 @@ it('excluye deducciones cuya start_date es posterior al fin del período', funct
 
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
+    expect((float) $result['total'])->toBe(0.0)
         ->and($result['items'])->toBeEmpty();
 });
 
@@ -415,4 +415,126 @@ it('sin ips_base (null), IPS usa base_salary como antes', function () {
     $expected = round($salary * 9 / 100, 2); // 229,500.0
 
     expect((float) $result['total'])->toBe($expected);
+});
+
+// ─── Tope judicial Art. 245 CLT ──────────────────────────────────────────────
+
+function makeEmbargo(float $amount): Deduction
+{
+    static $code = 1;
+    return Deduction::create([
+        'name'                 => "Embargo {$code}",
+        'code'                 => 'EMB' . ($code++),
+        'type'                 => 'judicial',
+        'apply_judicial_limit' => true,
+        'calculation'          => 'fixed',
+        'amount'               => $amount,
+        'is_active'            => true,
+    ]);
+}
+
+it('embargo se limita al 25% del excedente sobre el salario mínimo', function () {
+    // ipsBase=4,000,000 | min=2,550,328 | excedente=1,449,672 | tope=362,418
+    $salary  = 4_000_000;
+    $ipsBase = (float) $salary;
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period   = makeDedPeriod();
+
+    $embargo = makeEmbargo(600_000); // supera el tope
+    assignDeduction($employee, $embargo);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    $expected = round(($salary - 2_550_328) * 0.25, 2); // 362,418.0
+
+    expect((float) $result['total'])->toBe($expected)
+        ->and((float) $result['items'][0]['amount'])->toBe($expected);
+});
+
+it('embargo es 0 cuando el salario no supera el mínimo', function () {
+    $salary  = 2_550_000; // por debajo del mínimo (2,550,328)
+    $ipsBase = (float) $salary;
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period   = makeDedPeriod();
+
+    $embargo = makeEmbargo(200_000);
+    assignDeduction($employee, $embargo);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    expect((float) $result['total'])->toBe(0.0)
+        ->and((float) $result['items'][0]['amount'])->toBe(0.0);
+});
+
+it('primer embargo cobra, segundo recibe el remanente del tope', function () {
+    // tope=362,418 | embargo1=300,000 | embargo2=200,000 → embargo2 recibe 62,418
+    $salary  = 4_000_000;
+    $ipsBase = (float) $salary;
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period   = makeDedPeriod();
+
+    $embargo1 = makeEmbargo(300_000);
+    $embargo2 = makeEmbargo(200_000);
+
+    assignDeduction($employee, $embargo1, startDate: '2025-01-01');
+    assignDeduction($employee, $embargo2, startDate: '2025-06-01');
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    $cap   = round((4_000_000 - 2_550_328) * 0.25, 2);
+    $item1 = (float) collect($result['items'])->firstWhere('description', $embargo1->name)['amount'];
+    $item2 = (float) collect($result['items'])->firstWhere('description', $embargo2->name)['amount'];
+
+    expect($item1)->toBe(300_000.0)
+        ->and($item2)->toBe(round($cap - 300_000, 2))
+        ->and((float) $result['total'])->toBe($cap);
+});
+
+it('cuando el tope está agotado el embargo posterior queda en cola con amount=0', function () {
+    $salary    = 4_000_000;
+    $ipsBase   = (float) $salary;
+    $cap       = round((4_000_000 - 2_550_328) * 0.25, 2);
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period   = makeDedPeriod();
+
+    $embargo1 = makeEmbargo($cap + 100_000); // consume todo el tope
+    $embargo2 = makeEmbargo(50_000);
+
+    assignDeduction($employee, $embargo1, startDate: '2025-01-01');
+    assignDeduction($employee, $embargo2, startDate: '2025-06-01');
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    $item1 = (float) collect($result['items'])->firstWhere('description', $embargo1->name)['amount'];
+    $item2 = (float) collect($result['items'])->firstWhere('description', $embargo2->name)['amount'];
+
+    expect($item1)->toBe($cap)
+        ->and($item2)->toBe(0.0);
+});
+
+it('alimentaria (apply_judicial_limit=false) no se limita aunque supere el tope', function () {
+    $salary  = 3_000_000;
+    $ipsBase = (float) $salary;
+
+    $employee = makeDedEmployee('mensual', $salary);
+    $period   = makeDedPeriod();
+
+    $alimentaria = Deduction::create([
+        'name'                 => 'Prestación Alimentaria',
+        'code'                 => 'ALIM01',
+        'type'                 => 'judicial',
+        'apply_judicial_limit' => false,
+        'calculation'          => 'fixed',
+        'amount'               => 800_000,
+        'is_active'            => true,
+    ]);
+    assignDeduction($employee, $alimentaria);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    expect((float) $result['total'])->toBe(800_000.0);
 });

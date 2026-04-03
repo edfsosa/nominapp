@@ -71,6 +71,12 @@ class DeductionResource extends Resource
                             ->default('legal')
                             ->native(false)
                             ->required()
+                            ->live()
+                            ->afterStateUpdated(function (string $state, Set $set) {
+                                // Al cambiar a judicial, activar el tope legal por defecto (embargo)
+                                // Al salir de judicial, limpiar el flag
+                                $set('apply_judicial_limit', $state === 'judicial');
+                            })
                             ->columnSpan(1),
 
                         Textarea::make('description')
@@ -125,6 +131,14 @@ class DeductionResource extends Resource
 
                 Section::make('Configuración Adicional')
                     ->schema([
+                        Toggle::make('apply_judicial_limit')
+                            ->label('Aplicar tope legal (Art. 245 CLT)')
+                            ->helperText('Limita el embargo al 25% del excedente del salario mínimo. Desactivar para prestaciones alimentarias.')
+                            ->default(false)
+                            ->inline(false)
+                            ->visible(fn(Get $get) => $get('type') === 'judicial')
+                            ->columnSpanFull(),
+
                         Toggle::make('is_mandatory')
                             ->label('Deducción Obligatoria')
                             ->helperText('Se aplicará automáticamente a todos los empleados')
@@ -483,6 +497,15 @@ class DeductionResource extends Resource
 
                 InfoSection::make('Configuración Adicional')
                     ->schema([
+                        IconEntry::make('apply_judicial_limit')
+                            ->label('Tope legal Art. 245 CLT')
+                            ->boolean()
+                            ->trueIcon('heroicon-o-check-circle')
+                            ->falseIcon('heroicon-o-minus-circle')
+                            ->trueColor('warning')
+                            ->falseColor('gray')
+                            ->visible(fn(Deduction $record) => $record->type === 'judicial'),
+
                         IconEntry::make('is_mandatory')
                             ->label('Deducción Obligatoria')
                             ->boolean()
