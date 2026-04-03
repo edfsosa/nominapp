@@ -98,10 +98,11 @@ class PayrollService
                     $baseSalary = $employee->base_salary;
                 }
 
-                // Cálculo modular
+                // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta
                 $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-                $deductions       = $this->deductionCalculator->calculate($employee, $period);
                 $extras           = $this->extraHourCalculator->calculate($employee, $period);
+                $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+                $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
                 $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
                 $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
                 $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
@@ -231,8 +232,9 @@ class PayrollService
             }
 
             $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-            $deductions       = $this->deductionCalculator->calculate($employee, $period);
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
+            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+            $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
@@ -346,10 +348,11 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            // Recalcular con los 6 calculadores
+            // Recalcular con los 6 calculadores — extras antes de deducciones para base IPS correcta
             $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-            $deductions       = $this->deductionCalculator->calculate($employee, $period);
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
+            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+            $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);

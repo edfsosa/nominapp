@@ -12,8 +12,42 @@ use App\Models\Position;
 use App\Services\DeductionCalculator;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 
 uses(RefreshDatabase::class);
+
+beforeEach(function () {
+    $settings = [
+        'monthly_hours'               => 240,
+        'monthly_hours_nocturno'      => 210,
+        'monthly_hours_mixto'         => 225,
+        'daily_hours'                 => 8,
+        'daily_hours_nocturno'        => 7,
+        'daily_hours_mixto'           => 7.5,
+        'days_per_month'              => 30,
+        'overtime_multiplier_diurno'           => 1.5,
+        'overtime_multiplier_nocturno'         => 2.6,
+        'overtime_multiplier_holiday'          => 2.0,
+        'overtime_multiplier_nocturno_holiday' => 2.6,
+        'overtime_max_daily_hours'    => 3,
+        'ips_employee_rate'           => 9,
+        'indemnizacion_days_per_year' => 15,
+        'vacation_min_consecutive_days' => 6,
+        'vacation_min_years_service'  => 1,
+        'vacation_business_days'      => [1, 2, 3, 4, 5, 6],
+        'ips_deduction_code'          => 'IPS001',
+        'min_salary_monthly'          => 2_550_328,
+        'min_salary_daily_jornal'     => 87_950,
+        'family_bonus_percentage'     => 5.0,
+    ];
+
+    foreach ($settings as $name => $value) {
+        DB::table('settings')->updateOrInsert(
+            ['group' => 'payroll', 'name' => $name],
+            ['payload' => json_encode($value)]
+        );
+    }
+});
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -283,4 +317,74 @@ it('incluye deducción sin fecha de fin (vigencia indefinida)', function () {
     $result = app(DeductionCalculator::class)->calculate($employee, $period);
 
     expect((float) $result['total'])->toBe(75_000.0);
+});
+
+// ─── Base IPS correcta ───────────────────────────────────────────────────────
+
+it('calcula IPS sobre ips_base (salario + ips_perceptions) cuando se identifica por código', function () {
+    // base_salary = 2,550,000 — ips_perceptions = 300,000 — ips_base = 2,850,000
+    // IPS correcto: 9% de 2,850,000 = 256,500
+    // IPS incorrecto (bug): 9% de 2,550,000 = 229,500
+    $salary  = 2_550_000;
+    $ipsBase = (float) ($salary + 300_000);
+
+    $employee  = makeDedEmployee('mensual', $salary);
+    $period    = makeDedPeriod();
+
+    $ipsDeduction = Deduction::create([
+        'name'        => 'Aporte Obrero IPS',
+        'code'        => 'IPS001', // coincide con ips_deduction_code del setting
+        'calculation' => 'percentage',
+        'percent'     => 9.00,
+        'is_active'   => true,
+    ]);
+    assignDeduction($employee, $ipsDeduction);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    $expected = round($ipsBase * 9 / 100, 2); // 256,500.0
+
+    expect((float) $result['total'])->toBe($expected)
+        ->and((float) $result['items'][0]['amount'])->toBe($expected);
+});
+
+it('usa base_salary para deducción porcentual no-IPS aunque se pase ips_base', function () {
+    // Otra deducción porcentual (no IPS) debe seguir usando base_salary
+    $salary  = 2_000_000;
+    $ipsBase = (float) ($salary + 500_000);
+
+    $employee  = makeDedEmployee('mensual', $salary);
+    $period    = makeDedPeriod();
+
+    $otherDeduction = makePercentDeduction(percent: 10.0); // code != 'IPS001'
+    assignDeduction($employee, $otherDeduction);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period, $ipsBase);
+
+    $expected = round($salary * 10 / 100, 2); // 200,000 — no 250,000
+
+    expect((float) $result['total'])->toBe($expected);
+});
+
+it('sin ips_base (null), IPS usa base_salary como antes', function () {
+    // Compatibilidad hacia atrás: si no se pasa ips_base, IPS usa base_salary
+    $salary = 2_550_000;
+
+    $employee  = makeDedEmployee('mensual', $salary);
+    $period    = makeDedPeriod();
+
+    $ipsDeduction = Deduction::create([
+        'name'        => 'Aporte Obrero IPS',
+        'code'        => 'IPS001',
+        'calculation' => 'percentage',
+        'percent'     => 9.00,
+        'is_active'   => true,
+    ]);
+    assignDeduction($employee, $ipsDeduction);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period); // sin ips_base
+
+    $expected = round($salary * 9 / 100, 2); // 229,500.0
+
+    expect((float) $result['total'])->toBe($expected);
 });
