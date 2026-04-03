@@ -41,6 +41,10 @@ class PayrollSettings extends Settings
     public int $vacation_min_years_service;
     public array $vacation_business_days;
 
+    // IRP — Impuesto a la Renta Personal (Ley 2421/04)
+    public int $irp_annual_threshold;   // Umbral anual a partir del cual aplica IRP (Gs.)
+    public float $irp_rate;             // Tasa del impuesto (%) sobre la renta gravada
+
     public static function group(): string
     {
         return 'payroll';

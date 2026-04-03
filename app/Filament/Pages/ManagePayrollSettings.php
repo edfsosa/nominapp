@@ -266,6 +266,33 @@ class ManagePayrollSettings extends SettingsPage
                     ])
                     ->collapsed(),
 
+                Section::make('IRP — Impuesto a la Renta Personal')
+                    ->description('Ley 2421/04. Aplica a empleados cuya remuneración anual supera el umbral. La empresa actúa como agente de retención.')
+                    ->icon('heroicon-o-receipt-percent')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('irp_annual_threshold')
+                                    ->label('Umbral anual gravado')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->prefix('Gs.')
+                                    ->helperText('Renta anual a partir de la cual aplica IRP. Default: 80.000.000 Gs.'),
+
+                                TextInput::make('irp_rate')
+                                    ->label('Tasa IRP')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.5)
+                                    ->required()
+                                    ->suffix('%')
+                                    ->helperText('Tasa sobre la renta gravada. Default: 10%'),
+                            ]),
+                    ])
+                    ->collapsed(),
+
                 // Nueva sección para configuración de vacaciones
                 Section::make('Vacaciones')
                     ->description('Parámetros generales de vacaciones')
