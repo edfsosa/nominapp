@@ -248,9 +248,24 @@
 <body>
     @php
         $freqLabels = ['monthly' => 'Mensual', 'biweekly' => 'Quincenal', 'weekly' => 'Semanal'];
+        $perceptionTypeLabels = ['salary' => 'Salariales', 'viaticos' => 'Viáticos', 'subsidy' => 'Subsidios', 'other' => 'Otros'];
         $perceptions = $payroll->items->where('type', 'perception');
-        $deductions = $payroll->items->where('type', 'deduction');
+        $deductions  = $payroll->items->where('type', 'deduction');
         $isDayLaborer = $payroll->employee->employment_type === 'day_laborer';
+        // Agrupar percepciones por tipo; las sin tipo (HE, bonif. familiar) van al grupo null
+        $perceptionGroups = $perceptions->groupBy('perception_type');
+        // Orden de presentación: salariales primero, luego el resto
+        $groupOrder = ['salary', 'other', 'viaticos', 'subsidy', null];
+        $sortedGroups = collect($groupOrder)
+            ->filter(fn($k) => $perceptionGroups->has($k))
+            ->mapWithKeys(fn($k) => [$k => $perceptionGroups->get($k)]);
+        // Añadir grupos con tipos no contemplados en el orden (por seguridad)
+        $perceptionGroups->each(function($items, $key) use (&$sortedGroups, $groupOrder) {
+            if (!in_array($key, $groupOrder, true)) {
+                $sortedGroups->put($key, $items);
+            }
+        });
+        $showGroups = $sortedGroups->count() > 1;
     @endphp
 
     {{-- Encabezado de la Empresa --}}
@@ -328,7 +343,7 @@
         </div>
     </div>
 
-    {{-- Percepciones --}}
+    {{-- Percepciones agrupadas por tipo --}}
     @if ($perceptions->count() > 0)
         <div class="section">
             <div class="section-title">Percepciones</div>
@@ -340,11 +355,21 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($perceptions as $item)
-                        <tr>
-                            <td>{{ $item->description }}</td>
-                            <td class="amount">{{ $item->formatted_amount }}</td>
-                        </tr>
+                    @foreach ($sortedGroups as $groupKey => $groupItems)
+                        {{-- Subencabezado de grupo solo si hay más de un tipo --}}
+                        @if ($showGroups)
+                            <tr>
+                                <td colspan="2" style="font-weight: bold; font-size: 9px; text-transform: uppercase; color: #555; padding: 6px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                    {{ $perceptionTypeLabels[$groupKey] ?? 'Otros' }}
+                                </td>
+                            </tr>
+                        @endif
+                        @foreach ($groupItems as $item)
+                            <tr>
+                                <td>{{ $item->description }}</td>
+                                <td class="amount">{{ $item->formatted_amount }}</td>
+                            </tr>
+                        @endforeach
                     @endforeach
                 </tbody>
             </table>

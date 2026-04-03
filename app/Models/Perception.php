@@ -10,6 +10,7 @@ class Perception extends Model
     protected $fillable = [
         'name',
         'code',
+        'type',
         'description',
         'calculation',
         'amount',
@@ -28,6 +29,90 @@ class Perception extends Model
         'affects_ips' => 'boolean',
         'affects_irp' => 'boolean',
     ];
+
+    /**
+     * Fuerza `affects_ips` automáticamente según el tipo al guardar.
+     * Los tipos con valor fijo no requieren input del usuario.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (Perception $perception) {
+            if ($perception->type === null) {
+                return;
+            }
+            $forced = self::getAffectsIpsForType($perception->type);
+            if ($forced !== null) {
+                $perception->affects_ips = $forced;
+            }
+        });
+    }
+
+    // -------------------------------------------------------------------------
+    // Métodos estáticos — labels, colores, opciones
+    // -------------------------------------------------------------------------
+
+    /**
+     * Retorna el valor forzado de `affects_ips` para un tipo dado.
+     * Retorna null si el tipo permite configuración libre (other).
+     *
+     * @param  string  $type
+     * @return bool|null
+     */
+    public static function getAffectsIpsForType(string $type): ?bool
+    {
+        return match ($type) {
+            'salary'   => true,
+            'viaticos' => false,
+            'subsidy'  => false,
+            'other'    => null,
+            default    => null,
+        };
+    }
+
+    /**
+     * Opciones para el Select del formulario.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeOptions(): array
+    {
+        return [
+            'salary'   => 'Salarial (bono, comisión, etc.)',
+            'viaticos' => 'Viáticos y gastos de representación',
+            'subsidy'  => 'Subsidio (alimentación, transporte, etc.)',
+            'other'    => 'Otro',
+        ];
+    }
+
+    /**
+     * Labels cortos para badges y columnas de tabla.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeLabels(): array
+    {
+        return [
+            'salary'   => 'Salarial',
+            'viaticos' => 'Viáticos',
+            'subsidy'  => 'Subsidio',
+            'other'    => 'Otro',
+        ];
+    }
+
+    /**
+     * Colores semánticos para badges de Filament.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeColors(): array
+    {
+        return [
+            'salary'   => 'success',
+            'viaticos' => 'info',
+            'subsidy'  => 'warning',
+            'other'    => 'gray',
+        ];
+    }
 
     // -------------------------------------------------------------------------
     // Relaciones

@@ -12,6 +12,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
@@ -116,16 +117,33 @@ class PerceptionResource extends Resource
 
                 Section::make('Configuración Adicional')
                     ->schema([
-                        Toggle::make('is_taxable')
-                            ->label('Gravable')
-                            ->helperText('Esta percepción está sujeta a impuestos')
-                            ->default(false)
-                            ->inline(false)
-                            ->columnSpan(1),
+                        Select::make('type')
+                            ->label('Tipo de percepción')
+                            ->options(Perception::getTypeOptions())
+                            ->default('salary')
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state) {
+                                $forced = Perception::getAffectsIpsForType($state ?? 'other');
+                                if ($forced !== null) {
+                                    $set('affects_ips', $forced);
+                                }
+                            })
+                            ->required()
+                            ->helperText('Determina automáticamente si la percepción aplica a IPS/aguinaldo.')
+                            ->columnSpanFull(),
 
                         Toggle::make('affects_ips')
                             ->label('Afecta IPS')
-                            ->helperText('Esta percepción afecta el cálculo del IPS')
+                            ->helperText('Solo editable para el tipo "Otro". Para los demás tipos se asigna automáticamente.')
+                            ->default(true)
+                            ->inline(false)
+                            ->disabled(fn(Get $get) => $get('type') !== 'other')
+                            ->columnSpan(1),
+
+                        Toggle::make('is_taxable')
+                            ->label('Gravable')
+                            ->helperText('Esta percepción está sujeta a impuestos')
                             ->default(false)
                             ->inline(false)
                             ->columnSpan(1),
@@ -171,6 +189,13 @@ class PerceptionResource extends Resource
                     ->searchable()
                     ->sortable()
                     ->wrap(),
+
+                TextColumn::make('type')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn($state) => Perception::getTypeLabels()[$state] ?? $state)
+                    ->badge()
+                    ->color(fn($state) => Perception::getTypeColors()[$state] ?? 'gray')
+                    ->sortable(),
 
                 TextColumn::make('calculation')
                     ->label('Tipo')
@@ -241,6 +266,11 @@ class PerceptionResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('type')
+                    ->label('Tipo de percepción')
+                    ->options(Perception::getTypeLabels())
+                    ->native(false),
+
                 SelectFilter::make('calculation')
                     ->label('Tipo de Cálculo')
                     ->options([
@@ -476,6 +506,12 @@ class PerceptionResource extends Resource
 
                 InfoSection::make('Configuración Adicional')
                     ->schema([
+                        TextEntry::make('type')
+                            ->label('Tipo de percepción')
+                            ->badge()
+                            ->formatStateUsing(fn($state) => Perception::getTypeLabels()[$state] ?? $state)
+                            ->color(fn($state) => Perception::getTypeColors()[$state] ?? 'gray'),
+
                         IconEntry::make('is_taxable')
                             ->label('Gravable')
                             ->boolean()

@@ -10,6 +10,7 @@ class PayrollItem extends Model
     protected $fillable = [
         'payroll_id',
         'type',
+        'perception_type',
         'description',
         'amount',
     ];
