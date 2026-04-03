@@ -19,6 +19,7 @@ class PayrollService
     protected AbsencePenaltyCalculator $absencePenaltyCalculator;
     protected LoanInstallmentCalculator $loanInstallmentCalculator;
     protected FamilyBonusCalculator $familyBonusCalculator;
+    protected RestDayCalculator $restDayCalculator;
     protected PayrollPDFGenerator $payrollPDFGenerator;
 
     public function __construct(
@@ -28,6 +29,7 @@ class PayrollService
         AbsencePenaltyCalculator $absencePenaltyCalculator,
         LoanInstallmentCalculator $loanInstallmentCalculator,
         FamilyBonusCalculator $familyBonusCalculator,
+        RestDayCalculator $restDayCalculator,
         PayrollPDFGenerator $payrollPDFGenerator
     ) {
         $this->perceptionCalculator = $perceptionCalculator;
@@ -36,6 +38,7 @@ class PayrollService
         $this->absencePenaltyCalculator = $absencePenaltyCalculator;
         $this->loanInstallmentCalculator = $loanInstallmentCalculator;
         $this->familyBonusCalculator = $familyBonusCalculator;
+        $this->restDayCalculator = $restDayCalculator;
         $this->payrollPDFGenerator = $payrollPDFGenerator;
     }
 
@@ -101,15 +104,16 @@ class PayrollService
                 // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta
                 $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
                 $extras           = $this->extraHourCalculator->calculate($employee, $period);
-                $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+                $restDay          = $this->restDayCalculator->calculate($employee, $period);
+                $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
                 $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
                 $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
                 $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
                 $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-                $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
-                // Percepciones que computan para IPS y aguinaldo (salariales + HE; bonificación familiar excluida)
-                $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
+                $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
+                // Percepciones que computan para IPS y aguinaldo (salariales + HE + descanso; bonificación familiar excluida)
+                $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
                 $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
                 $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
@@ -126,8 +130,8 @@ class PayrollService
                     'status'            => 'draft',
                 ]);
 
-                // Ítems: percepciones (incluyendo bonificación familiar si aplica)
-                foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
+                // Ítems: percepciones (incluyendo descanso remunerado y bonificación familiar si aplican)
+                foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                     PayrollItem::create([
                         'payroll_id'      => $payroll->id,
                         'type'            => 'perception',
@@ -234,14 +238,15 @@ class PayrollService
 
             $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
-            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+            $restDay          = $this->restDayCalculator->calculate($employee, $period);
+            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
-            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
+            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
             $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
@@ -258,7 +263,7 @@ class PayrollService
                 'status'            => 'draft',
             ]);
 
-            foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
+            foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
                     'payroll_id'      => $payroll->id,
                     'type'            => 'perception',
@@ -349,17 +354,18 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            // Recalcular con los 6 calculadores — extras antes de deducciones para base IPS correcta
+            // Recalcular con los 7 calculadores — extras antes de deducciones para base IPS correcta
             $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
-            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'];
+            $restDay          = $this->restDayCalculator->calculate($employee, $period);
+            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'] + $familyBonus['total'];
-            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'];
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
+            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
             $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
@@ -374,8 +380,8 @@ class PayrollService
                 'generated_at'      => now(),
             ]);
 
-            // Recrear ítems: percepciones (incluyendo bonificación familiar si aplica)
-            foreach (array_merge($perceptions['items'], $extras['items'], $familyBonus['items']) as $item) {
+            // Recrear ítems: percepciones (incluyendo descanso remunerado y bonificación familiar si aplican)
+            foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
                     'payroll_id'      => $payroll->id,
                     'type'            => 'perception',

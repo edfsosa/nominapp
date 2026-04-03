@@ -20,6 +20,7 @@ use App\Services\LoanInstallmentCalculator;
 use App\Services\PayrollPDFGenerator;
 use App\Services\PayrollService;
 use App\Services\PerceptionCalculator;
+use App\Services\RestDayCalculator;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
@@ -40,6 +41,7 @@ function makePayService(array $overrides = []): PayrollService
     $absence     = $overrides['absence']      ?? \Mockery::mock(AbsencePenaltyCalculator::class);
     $loan        = $overrides['loan']         ?? \Mockery::mock(LoanInstallmentCalculator::class);
     $family      = $overrides['family']       ?? \Mockery::mock(FamilyBonusCalculator::class);
+    $restDay     = $overrides['restDay']      ?? \Mockery::mock(RestDayCalculator::class);
     $pdf         = $overrides['pdf']          ?? \Mockery::mock(PayrollPDFGenerator::class);
 
     $emptyResult     = ['total' => 0, 'ips_total' => 0, 'items' => []];
@@ -52,9 +54,10 @@ function makePayService(array $overrides = []): PayrollService
     $loan->shouldReceive('calculate')->andReturn($emptyLoanResult)->byDefault();
     $loan->shouldReceive('markInstallmentsAsPaid')->andReturn(0)->byDefault();
     $family->shouldReceive('calculate')->andReturn(['total' => 0, 'items' => []])->byDefault();
+    $restDay->shouldReceive('calculate')->andReturn(['total' => 0.0, 'items' => []])->byDefault();
     $pdf->shouldReceive('generate')->andReturn('mock/payroll.pdf')->byDefault();
 
-    return new PayrollService($perception, $deduction, $extra, $absence, $loan, $family, $pdf);
+    return new PayrollService($perception, $deduction, $extra, $absence, $loan, $family, $restDay, $pdf);
 }
 
 function makePayEmployee(
