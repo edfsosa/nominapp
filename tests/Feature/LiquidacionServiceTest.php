@@ -428,6 +428,74 @@ it('close cancela los préstamos activos del empleado', function () {
     expect($loan->fresh()->status)->toBe('cancelled');
 });
 
+// ─── Vacaciones proporcionales — base de cálculo ─────────────────────────────
+
+it('las vacaciones proporcionales usan el promedio de 6 meses, no el salario contractual', function () {
+    seedLiqSettings();
+
+    // Empleado contratado 2024-01-01; termina 2026-03-15 → 2 años + 2 meses en el período actual
+    $hireDate        = Carbon::create(2024, 1, 1);
+    $terminationDate = Carbon::create(2026, 3, 15);
+    $employee        = makeLiqEmployee(salary: 2_000_000, startDate: $hireDate);
+
+    // 3 nóminas con gross_salary mayor al contractual (horas extra, etc.)
+    // Promedio = (3.000.000 × 3) / 3 = 3.000.000 → daily_avg = 100.000
+    foreach ([10, 11, 12] as $month) {
+        $period = makeLiqPayPeriod(2025, $month);
+        makeLiqPayroll($employee, $period, baseSalary: 2_000_000, perceptions: 1_000_000);
+    }
+
+    $liquidacion = makeLiquidacion($employee, [
+        'hire_date'         => $hireDate->toDateString(),
+        'termination_date'  => $terminationDate->toDateString(),
+        'base_salary'       => 2_000_000,
+        'daily_salary'      => round(2_000_000 / 30, 2),
+    ]);
+
+    $result  = makeLiqService()->calculate($liquidacion);
+    $vacItem = $result->items()->where('category', 'vacaciones')->firstOrFail();
+
+    $days             = (int) $vacItem->metadata['days'];
+    $dailyAvg         = round(3_000_000 / 30, 2);
+    $dailyContractual = round(2_000_000 / 30, 2);
+    $expectedWithAvg  = round($days * $dailyAvg, 0);
+
+    expect($days)->toBeGreaterThan(0)
+        ->and((float) $vacItem->amount)->toBe((float) $expectedWithAvg)
+        // El monto con promedio debe ser mayor que con la tarifa contractual
+        ->and((float) $vacItem->amount)->toBeGreaterThan(round($days * $dailyContractual, 0))
+        ->and($vacItem->metadata)->toHaveKey('average_salary_6m')
+        ->and((float) $vacItem->metadata['average_salary_6m'])->toBe(3_000_000.0);
+});
+
+it('sin nóminas previas las vacaciones proporcionales hacen fallback al salario base de la liquidación', function () {
+    seedLiqSettings();
+
+    // Contratado 2024-01-01; termina 2026-03-15 → tiene días proporcionales
+    $hireDate        = Carbon::create(2024, 1, 1);
+    $terminationDate = Carbon::create(2026, 3, 15);
+    $employee        = makeLiqEmployee(salary: 2_550_000, startDate: $hireDate);
+
+    $liquidacion = makeLiquidacion($employee, [
+        'hire_date'        => $hireDate->toDateString(),
+        'termination_date' => $terminationDate->toDateString(),
+        'base_salary'      => 2_550_000,
+        'daily_salary'     => round(2_550_000 / 30, 2),
+    ]);
+
+    $result  = makeLiqService()->calculate($liquidacion);
+    $vacItem = $result->items()->where('category', 'vacaciones')->firstOrFail();
+
+    // Sin nóminas previas, averageSalary6m = baseSalary → daily_avg = baseSalary / 30
+    $expectedDailyAvg = round(2_550_000 / 30, 2);
+    $days             = (int) $vacItem->metadata['days'];
+
+    expect($days)->toBeGreaterThan(0)
+        ->and((float) $vacItem->metadata['average_salary_6m'])->toBe(2_550_000.0)
+        ->and((float) $vacItem->metadata['daily_avg'])->toBe($expectedDailyAvg)
+        ->and((float) $vacItem->amount)->toBe((float) round($days * $expectedDailyAvg, 0));
+});
+
 afterEach(function () {
     \Mockery::close();
 });

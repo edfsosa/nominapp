@@ -118,8 +118,10 @@ class LiquidacionService
             }
 
             // ===== COMPONENTE 3: VACACIONES PROPORCIONALES =====
+            // La remuneración vacacional se calcula sobre el promedio de los últimos 6 meses (Art. 218 CLT),
+            // no sobre la tarifa contractual diaria.
             [$vacacionesDays, $vacacionesAmount] = $this->calculateVacacionesProporcionales(
-                $employee, $terminationDate, $yearsOfService, $daysOfService, $trialDays, $dailySalary
+                $employee, $terminationDate, $yearsOfService, $daysOfService, $trialDays, $averageSalary6m
             );
             if ($vacacionesAmount > 0) {
                 $totalHaberes += $vacacionesAmount;
@@ -128,7 +130,7 @@ class LiquidacionService
                     'category' => 'vacaciones',
                     'description' => "Vacaciones proporcionales: {$vacacionesDays} {$unit}",
                     'amount' => $vacacionesAmount,
-                    'metadata' => ['days' => $vacacionesDays, 'daily_salary' => $dailySalary, 'unit' => $unit],
+                    'metadata' => ['days' => $vacacionesDays, 'average_salary_6m' => $averageSalary6m, 'daily_avg' => round($averageSalary6m / 30, 2), 'unit' => $unit],
                 ];
             }
 
@@ -347,12 +349,15 @@ class LiquidacionService
         int $yearsOfService,
         int $daysOfService,
         int $trialDays,
-        float $dailySalary
+        float $averageSalary6m
     ): array {
         // Sin derecho a vacaciones dentro del período de prueba
         if ($daysOfService <= $trialDays) {
             return [0, 0];
         }
+
+        // La remuneración vacacional usa la tarifa diaria del promedio de los últimos 6 meses (Art. 218 CLT)
+        $dailyAvg = round($averageSalary6m / 30, 2);
 
         $currentYear = $terminationDate->year;
         $balance = VacationBalance::where('employee_id', $employee->id)
@@ -364,7 +369,7 @@ class LiquidacionService
             // Primer año incompleto: proporcional sobre 12 días base (1 día por mes trabajado)
             $monthsWorked = (int) $employee->hire_date->diffInMonths($terminationDate);
             $proportionalDays = max(0, $monthsWorked - $usedDays);
-            $amount = round($proportionalDays * $dailySalary, 0);
+            $amount = round($proportionalDays * $dailyAvg, 0);
 
             return [$proportionalDays, $amount];
         }
@@ -381,7 +386,7 @@ class LiquidacionService
         $proportionalDays = round(($entitledDays * $monthsInPeriod) / 12);
 
         $unusedDays = max(0, $proportionalDays - $usedDays);
-        $amount = round($unusedDays * $dailySalary, 0);
+        $amount = round($unusedDays * $dailyAvg, 0);
 
         return [$unusedDays, $amount];
     }
