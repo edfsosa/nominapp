@@ -153,6 +153,16 @@ class EmployeeResource extends Resource
                                                     ->unique(Employee::class, 'email', ignoreRecord: true)
                                                     ->nullable()
                                                     ->helperText('Si se ingresa, debe ser único en el sistema.'),
+
+                                                TextInput::make('children_count')
+                                                    ->label('Hijos a cargo')
+                                                    ->numeric()
+                                                    ->integer()
+                                                    ->minValue(0)
+                                                    ->maxValue(20)
+                                                    ->default(0)
+                                                    ->required()
+                                                    ->helperText('Para bonificación familiar (Arts. 253-262 CLT).'),
                                             ]),
                                     ])
                                     ->columnSpan(3),

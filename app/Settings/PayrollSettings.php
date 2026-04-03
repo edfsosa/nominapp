@@ -19,6 +19,7 @@ class PayrollSettings extends Settings
     public float $overtime_multiplier_diurno;
     public float $overtime_multiplier_nocturno;
     public float $overtime_multiplier_holiday;
+    public float $overtime_multiplier_nocturno_holiday;
 
     // Límites de horas extra
     public int $overtime_max_daily_hours;
@@ -27,6 +28,13 @@ class PayrollSettings extends Settings
     public float $ips_employee_rate;
     public string $ips_deduction_code;
     public int $indemnizacion_days_per_year;
+
+    // Salarios mínimos legales vigentes (Ministerio de Trabajo)
+    public int $min_salary_monthly;
+    public int $min_salary_daily_jornal;
+
+    // Bonificación familiar (Arts. 253-262 CLT)
+    public float $family_bonus_percentage;
 
     // Vacaciones
     public int $vacation_min_consecutive_days;

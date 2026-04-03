@@ -88,9 +88,10 @@ class SettingsSeeder extends Seeder
             'daily_hours_mixto'   => 7.5,
 
             // Multiplicadores de horas extra (Art. 234)
-            'overtime_multiplier_diurno'   => 1.5,
-            'overtime_multiplier_nocturno' => 2.6,
-            'overtime_multiplier_holiday'  => 2.0,
+            'overtime_multiplier_diurno'           => 1.5,  // +50% sobre hora diurna
+            'overtime_multiplier_nocturno'         => 2.6,  // 1.30 × 2.0 — sobre base diurna
+            'overtime_multiplier_holiday'          => 2.0,  // +100% sobre hora diurna
+            'overtime_multiplier_nocturno_holiday' => 2.6,  // 1.30 × 2.0 — nocturna en feriado
 
             // Límites HE (Art. 202)
             'overtime_max_daily_hours' => 3,
@@ -99,6 +100,13 @@ class SettingsSeeder extends Seeder
             'ips_employee_rate'          => 9.0,
             'ips_deduction_code'         => 'IPS001',
             'indemnizacion_days_per_year' => 15,
+
+            // Salarios mínimos legales vigentes (Resolución MT 2024)
+            'min_salary_monthly'      => 2_550_328,  // Salario mínimo mensual
+            'min_salary_daily_jornal' => 87_950,     // Salario mínimo diario para jornaleros
+
+            // Bonificación familiar (Arts. 253-262 CLT) — 5% del salario mínimo mensual por hijo
+            'family_bonus_percentage' => 5.0,
 
             // Vacaciones
             'vacation_min_consecutive_days' => 6,

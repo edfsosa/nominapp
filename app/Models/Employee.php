@@ -24,6 +24,7 @@ class Employee extends Model
         'phone',
         'email',
         'gender',
+        'children_count',
         'branch_id',
         'schedule_id',
         'status',

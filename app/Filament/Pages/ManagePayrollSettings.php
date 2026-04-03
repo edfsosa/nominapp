@@ -127,9 +127,8 @@ class ManagePayrollSettings extends SettingsPage
                     ->description('Factores de cálculo según Código del Trabajo (Art. 234)')
                     ->icon('heroicon-o-clock')
                     ->schema([
-                        Grid::make(3)
+                        Grid::make(2)
                             ->schema([
-                                // Multiplicador para horas extra diurnas con validación numérica
                                 TextInput::make('overtime_multiplier_diurno')
                                     ->label('HE Diurnas')
                                     ->numeric()
@@ -138,29 +137,37 @@ class ManagePayrollSettings extends SettingsPage
                                     ->step(0.1)
                                     ->required()
                                     ->suffix('x')
-                                    ->helperText('50% recargo → 1.5x'),
+                                    ->helperText('50% recargo sobre hora diurna → 1.5x'),
 
-                                // Multiplicador para horas extra nocturnas con validación numérica
                                 TextInput::make('overtime_multiplier_nocturno')
-                                    ->label('HE Nocturnas')
+                                    ->label('HE Nocturnas (día regular)')
                                     ->numeric()
                                     ->minValue(1)
                                     ->maxValue(10)
                                     ->step(0.1)
                                     ->required()
                                     ->suffix('x')
-                                    ->helperText('1.3 × 2.0 = 2.6x'),
+                                    ->helperText('1.30 × 2.0 sobre base diurna → 2.6x'),
 
-                                // Multiplicador para horas extra en días feriados con validación numérica
                                 TextInput::make('overtime_multiplier_holiday')
-                                    ->label('HE Feriado/Domingo')
+                                    ->label('HE Diurnas Feriado/Domingo')
                                     ->numeric()
                                     ->minValue(1)
                                     ->maxValue(10)
                                     ->step(0.1)
                                     ->required()
                                     ->suffix('x')
-                                    ->helperText('100% recargo → 2.0x'),
+                                    ->helperText('100% recargo sobre hora diurna → 2.0x'),
+
+                                TextInput::make('overtime_multiplier_nocturno_holiday')
+                                    ->label('HE Nocturnas Feriado/Domingo')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(10)
+                                    ->step(0.1)
+                                    ->required()
+                                    ->suffix('x')
+                                    ->helperText('1.30 × 2.0 sobre base diurna → 2.6x'),
                             ]),
                     ]),
 
@@ -215,6 +222,47 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('días')
                                     ->helperText('Default: 15 días/año'),
                             ]),
+                    ])
+                    ->collapsed(),
+
+                Section::make('Salarios Mínimos Legales')
+                    ->description('Montos fijados por el Ministerio de Trabajo. Actualizar ante cada resolución ministerial.')
+                    ->icon('heroicon-o-scale')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('min_salary_monthly')
+                                    ->label('Salario mínimo mensual')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->prefix('Gs.')
+                                    ->helperText('Para trabajadores mensualizados'),
+
+                                TextInput::make('min_salary_daily_jornal')
+                                    ->label('Salario mínimo diario (jornaleros)')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->prefix('Gs.')
+                                    ->helperText('Monto diario independiente para trabajadores a jornal'),
+                            ]),
+                    ])
+                    ->collapsed(),
+
+                Section::make('Bonificación Familiar')
+                    ->description('Arts. 253-262 Código del Trabajo. Aplica a empleados con hijos que ganen hasta 2 salarios mínimos.')
+                    ->icon('heroicon-o-heart')
+                    ->schema([
+                        TextInput::make('family_bonus_percentage')
+                            ->label('Porcentaje por hijo')
+                            ->numeric()
+                            ->minValue(0)
+                            ->maxValue(100)
+                            ->step(0.5)
+                            ->required()
+                            ->suffix('%')
+                            ->helperText('% del salario mínimo mensual por hijo. Default: 5%'),
                     ])
                     ->collapsed(),
 
