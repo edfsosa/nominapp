@@ -66,8 +66,9 @@ class DeductionCalculator
             $total += $amount;
 
             $items[] = [
-                'description' => $deduction->name,
-                'amount'      => $amount,
+                'description'    => $deduction->name,
+                'amount'         => $amount,
+                'deduction_type' => $deduction->type,
             ];
         }
 

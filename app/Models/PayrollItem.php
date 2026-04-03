@@ -11,6 +11,7 @@ class PayrollItem extends Model
         'payroll_id',
         'type',
         'perception_type',
+        'deduction_type',
         'description',
         'amount',
     ];

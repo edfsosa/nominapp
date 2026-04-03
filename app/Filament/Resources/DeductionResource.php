@@ -7,6 +7,7 @@ use App\Models\Deduction;
 use App\Models\Employee;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Set;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -51,27 +52,35 @@ class DeductionResource extends Resource
                     ->schema([
                         TextInput::make('name')
                             ->label('Nombre')
-                            ->placeholder('Ejemplo: Descuento por Ausentismo')
+                            ->placeholder('Ejemplo: Aporte Obrero IPS')
                             ->required()
                             ->maxLength(60)
                             ->columnSpan(1),
 
                         TextInput::make('code')
                             ->label('Código')
-                            ->placeholder('Ejemplo: DESC-AUS')
+                            ->placeholder('Ejemplo: IPS001')
                             ->required()
                             ->maxLength(10)
                             ->unique(ignoreRecord: true)
                             ->columnSpan(1),
 
+                        Select::make('type')
+                            ->label('Tipo')
+                            ->options(Deduction::getTypeOptions())
+                            ->default('legal')
+                            ->native(false)
+                            ->required()
+                            ->columnSpan(1),
+
                         Textarea::make('description')
                             ->label('Descripción')
-                            ->placeholder('Ejemplo: Descuento aplicado por cada día de ausentismo injustificado')
+                            ->placeholder('Ejemplo: Aporte del 9% del salario bruto cotizable (Art. 17 Ley 430/73)')
                             ->maxLength(255)
                             ->rows(3)
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(3),
 
                 Section::make('Configuración de Cálculo')
                     ->schema([
@@ -159,8 +168,15 @@ class DeductionResource extends Resource
                     ->sortable()
                     ->wrap(),
 
-                TextColumn::make('calculation')
+                TextColumn::make('type')
                     ->label('Tipo')
+                    ->badge()
+                    ->formatStateUsing(fn($state) => Deduction::getTypeLabels()[$state] ?? $state)
+                    ->color(fn($state) => Deduction::getTypeColors()[$state] ?? 'gray')
+                    ->sortable(),
+
+                TextColumn::make('calculation')
+                    ->label('Cálculo')
                     ->formatStateUsing(fn($state) => match ($state) {
                         'fixed'      => 'Fijo',
                         'percentage' => 'Porcentaje',
@@ -168,9 +184,9 @@ class DeductionResource extends Resource
                     })
                     ->badge()
                     ->color(fn($state) => match ($state) {
-                        'fixed' => 'primary',
-                        'percentage' => 'secondary',
-                        default => 'gray',
+                        'fixed'      => 'primary',
+                        'percentage' => 'info',
+                        default      => 'gray',
                     })
                     ->sortable(),
 
@@ -228,6 +244,11 @@ class DeductionResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('type')
+                    ->label('Tipo de Deducción')
+                    ->options(Deduction::getTypeOptions())
+                    ->native(false),
+
                 SelectFilter::make('calculation')
                     ->label('Tipo de Cálculo')
                     ->options([
@@ -418,12 +439,18 @@ class DeductionResource extends Resource
                         TextEntry::make('name')
                             ->label('Nombre'),
 
+                        TextEntry::make('type')
+                            ->label('Tipo')
+                            ->badge()
+                            ->formatStateUsing(fn($state) => Deduction::getTypeLabels()[$state] ?? $state)
+                            ->color(fn($state) => Deduction::getTypeColors()[$state] ?? 'gray'),
+
                         TextEntry::make('description')
                             ->label('Descripción')
                             ->placeholder('Sin descripción')
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(3),
 
                 InfoSection::make('Configuración de Cálculo')
                     ->schema([

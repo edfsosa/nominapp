@@ -249,6 +249,7 @@
     @php
         $freqLabels = ['monthly' => 'Mensual', 'biweekly' => 'Quincenal', 'weekly' => 'Semanal'];
         $perceptionTypeLabels = ['salary' => 'Salariales', 'viaticos' => 'Viáticos', 'subsidy' => 'Subsidios', 'other' => 'Otros'];
+        $deductionTypeLabels  = ['legal' => 'Legales', 'judicial' => 'Judiciales', 'voluntary' => 'Voluntarias'];
         $perceptions = $payroll->items->where('type', 'perception');
         $deductions  = $payroll->items->where('type', 'deduction');
         $isDayLaborer = $payroll->employee->employment_type === 'day_laborer';
@@ -266,6 +267,19 @@
             }
         });
         $showGroups = $sortedGroups->count() > 1;
+
+        // Agrupar deducciones por tipo; las sin tipo (ausentismo, cuotas de préstamo) van al grupo null
+        $deductionGroups = $deductions->groupBy('deduction_type');
+        $deductionGroupOrder = ['legal', 'judicial', 'voluntary', null];
+        $sortedDeductionGroups = collect($deductionGroupOrder)
+            ->filter(fn($k) => $deductionGroups->has($k))
+            ->mapWithKeys(fn($k) => [$k => $deductionGroups->get($k)]);
+        $deductionGroups->each(function($items, $key) use (&$sortedDeductionGroups, $deductionGroupOrder) {
+            if (!in_array($key, $deductionGroupOrder, true)) {
+                $sortedDeductionGroups->put($key, $items);
+            }
+        });
+        $showDeductionGroups = $sortedDeductionGroups->count() > 1;
     @endphp
 
     {{-- Encabezado de la Empresa --}}
@@ -376,7 +390,7 @@
         </div>
     @endif
 
-    {{-- Deducciones --}}
+    {{-- Deducciones agrupadas por tipo --}}
     @if ($deductions->count() > 0)
         <div class="section">
             <div class="section-title">Deducciones</div>
@@ -388,11 +402,20 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach ($deductions as $item)
-                        <tr>
-                            <td>{{ $item->description }}</td>
-                            <td class="amount">{{ $item->formatted_deduction }}</td>
-                        </tr>
+                    @foreach ($sortedDeductionGroups as $groupKey => $groupItems)
+                        @if ($showDeductionGroups)
+                            <tr>
+                                <td colspan="2" style="font-weight: bold; font-size: 9px; text-transform: uppercase; color: #555; padding: 6px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                    {{ $deductionTypeLabels[$groupKey] ?? 'Otras' }}
+                                </td>
+                            </tr>
+                        @endif
+                        @foreach ($groupItems as $item)
+                            <tr>
+                                <td>{{ $item->description }}</td>
+                                <td class="amount">{{ $item->formatted_deduction }}</td>
+                            </tr>
+                        @endforeach
                     @endforeach
                 </tbody>
             </table>

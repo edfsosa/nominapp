@@ -110,12 +110,13 @@ function makeDedPeriod(int $month = 3): PayrollPeriod
 /**
  * Crea una deducción de monto fijo.
  */
-function makeFixedDeduction(string $suffix = '', float $amount = 200_000): Deduction
+function makeFixedDeduction(string $suffix = '', float $amount = 200_000, string $type = 'legal'): Deduction
 {
     static $code = 1;
     return Deduction::create([
         'name'        => "Descuento fijo {$suffix}",
         'code'        => 'DF' . ($code++),
+        'type'        => $type,
         'calculation' => 'fixed',
         'amount'      => $amount,
         'is_active'   => true,
@@ -125,12 +126,13 @@ function makeFixedDeduction(string $suffix = '', float $amount = 200_000): Deduc
 /**
  * Crea una deducción por porcentaje.
  */
-function makePercentDeduction(string $suffix = '', float $percent = 9.00): Deduction
+function makePercentDeduction(string $suffix = '', float $percent = 9.00, string $type = 'legal'): Deduction
 {
     static $code = 1;
     return Deduction::create([
         'name'        => "Descuento % {$suffix}",
         'code'        => 'DP' . ($code++),
+        'type'        => $type,
         'calculation' => 'percentage',
         'percent'     => $percent,
         'is_active'   => true,
@@ -364,6 +366,32 @@ it('usa base_salary para deducción porcentual no-IPS aunque se pase ips_base', 
     $expected = round($salary * 10 / 100, 2); // 200,000 — no 250,000
 
     expect((float) $result['total'])->toBe($expected);
+});
+
+// ─── deduction_type en ítems ─────────────────────────────────────────────────
+
+it('cada ítem incluye deduction_type del modelo Deduction', function () {
+    $employee = makeDedEmployee();
+    $period   = makeDedPeriod();
+
+    $legal     = makeFixedDeduction('legal',     100_000, 'legal');
+    $judicial  = makeFixedDeduction('judicial',  150_000, 'judicial');
+    $voluntary = makeFixedDeduction('voluntary', 200_000, 'voluntary');
+
+    assignDeduction($employee, $legal);
+    assignDeduction($employee, $judicial);
+    assignDeduction($employee, $voluntary);
+
+    $result = app(DeductionCalculator::class)->calculate($employee, $period);
+
+    $byType = collect($result['items'])->keyBy('deduction_type');
+
+    expect($byType->has('legal'))->toBeTrue()
+        ->and($byType->has('judicial'))->toBeTrue()
+        ->and($byType->has('voluntary'))->toBeTrue()
+        ->and((float) $byType['legal']['amount'])->toBe(100_000.0)
+        ->and((float) $byType['judicial']['amount'])->toBe(150_000.0)
+        ->and((float) $byType['voluntary']['amount'])->toBe(200_000.0);
 });
 
 it('sin ips_base (null), IPS usa base_salary como antes', function () {

@@ -140,10 +140,11 @@ class PayrollService
                 // Ítems: deducciones (incluye cuotas de préstamos/adelantos)
                 foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
                     PayrollItem::create([
-                        'payroll_id' => $payroll->id,
-                        'type' => 'deduction',
-                        'description' => $item['description'],
-                        'amount' => $item['amount'],
+                        'payroll_id'     => $payroll->id,
+                        'type'           => 'deduction',
+                        'deduction_type' => $item['deduction_type'] ?? null,
+                        'description'    => $item['description'],
+                        'amount'         => $item['amount'],
                     ]);
                 }
 
@@ -387,10 +388,11 @@ class PayrollService
             // Recrear ítems: deducciones
             foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id' => $payroll->id,
-                    'type' => 'deduction',
-                    'description' => $item['description'],
-                    'amount' => $item['amount'],
+                    'payroll_id'     => $payroll->id,
+                    'type'           => 'deduction',
+                    'deduction_type' => $item['deduction_type'] ?? null,
+                    'description'    => $item['description'],
+                    'amount'         => $item['amount'],
                 ]);
             }
 

@@ -10,6 +10,7 @@ class Deduction extends Model
     protected $fillable = [
         'name',
         'code',
+        'type',
         'description',
         'calculation',
         'amount',
@@ -81,6 +82,52 @@ class Deduction extends Model
         return $this->hasMany(EmployeeDeduction::class)
             ->whereNotNull('end_date')
             ->where('end_date', '<', now());
+    }
+
+    // -------------------------------------------------------------------------
+    // Métodos estáticos — labels, colores, opciones
+    // -------------------------------------------------------------------------
+
+    /**
+     * Opciones para el Select del formulario.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeOptions(): array
+    {
+        return [
+            'legal'     => 'Legal (IPS, IRP)',
+            'judicial'  => 'Judicial (alimentaria, embargo)',
+            'voluntary' => 'Voluntaria (seguros, cooperativas)',
+        ];
+    }
+
+    /**
+     * Labels cortos para badges y columnas de tabla.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeLabels(): array
+    {
+        return [
+            'legal'     => 'Legal',
+            'judicial'  => 'Judicial',
+            'voluntary' => 'Voluntaria',
+        ];
+    }
+
+    /**
+     * Colores semánticos para badges de Filament.
+     *
+     * @return array<string, string>
+     */
+    public static function getTypeColors(): array
+    {
+        return [
+            'legal'     => 'danger',
+            'judicial'  => 'warning',
+            'voluntary' => 'info',
+        ];
     }
 
     // -------------------------------------------------------------------------
