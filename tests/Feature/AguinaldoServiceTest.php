@@ -98,6 +98,7 @@ function makePayroll(Employee $employee, PayrollPeriod $period, float $baseSalar
         'payroll_period_id'  => $period->id,
         'base_salary'        => $baseSalary,
         'total_perceptions'  => $perceptions,
+        'ips_perceptions'    => $perceptions,
         'gross_salary'       => $baseSalary + $perceptions,
         'total_deductions'   => 0,
         'net_salary'         => $baseSalary + $perceptions,
@@ -239,10 +240,10 @@ it('separa horas extra de percepciones ordinarias en los items', function () {
     $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     $payroll   = makePayroll($employee, $payPeriod, 2_550_000, 350_000);
 
-    // 200,000 de horas extra (contienen 'hora' en description)
-    PayrollItem::create(['payroll_id' => $payroll->id, 'type' => 'perception', 'description' => 'Horas Extras Diurnas', 'amount' => 200_000]);
-    // 150,000 de bono ordinario
-    PayrollItem::create(['payroll_id' => $payroll->id, 'type' => 'perception', 'description' => 'Bono de Productividad', 'amount' => 150_000]);
+    // 200,000 de horas extra — identificadas por perception_type, no por descripción
+    PayrollItem::create(['payroll_id' => $payroll->id, 'type' => 'perception', 'perception_type' => 'extra_hours', 'description' => 'Horas Extras Diurnas', 'amount' => 200_000]);
+    // 150,000 de bono ordinario — sin perception_type extra_hours
+    PayrollItem::create(['payroll_id' => $payroll->id, 'type' => 'perception', 'perception_type' => 'salary', 'description' => 'Bono de Productividad', 'amount' => 150_000]);
 
     makeAguService()->generateForPeriod($period);
 

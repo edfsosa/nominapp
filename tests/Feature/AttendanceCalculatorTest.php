@@ -23,10 +23,20 @@ uses(RefreshDatabase::class);
 
 function seedAttSettings(): void
 {
-    DB::table('settings')->updateOrInsert(
-        ['group' => 'payroll', 'name' => 'overtime_max_daily_hours'],
-        ['payload' => json_encode(3)]
-    );
+    $settings = [
+        'overtime_max_daily_hours'             => 3,
+        'overtime_multiplier_nocturno_holiday' => 2.6,
+        'min_salary_monthly'                   => 2_550_328,
+        'min_salary_daily_jornal'              => 87_950,
+        'family_bonus_percentage'              => 5.0,
+    ];
+
+    foreach ($settings as $name => $value) {
+        DB::table('settings')->updateOrInsert(
+            ['group' => 'payroll', 'name' => $name],
+            ['payload' => json_encode($value)]
+        );
+    }
 }
 
 function makeAttEmployee(): Employee

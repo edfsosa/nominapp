@@ -27,6 +27,10 @@ function seedPayrollSettings(): void
         'vacation_min_years_service'    => 1,
         'vacation_min_consecutive_days' => 5,
         'vacation_business_days'        => [1, 2, 3, 4, 5, 6], // lunes a sábado
+        'overtime_multiplier_nocturno_holiday' => 2.6,
+        'min_salary_monthly'                   => 2_550_328,
+        'min_salary_daily_jornal'              => 87_950,
+        'family_bonus_percentage'              => 5.0,
     ];
 
     foreach ($settings as $name => $value) {

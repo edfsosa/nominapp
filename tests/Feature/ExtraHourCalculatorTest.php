@@ -26,9 +26,10 @@ beforeEach(function () {
         'daily_hours_nocturno'        => 7,
         'daily_hours_mixto'           => 7.5,
         'days_per_month'              => 30,
-        'overtime_multiplier_diurno'  => 1.5,
-        'overtime_multiplier_nocturno' => 2.6,
-        'overtime_multiplier_holiday' => 2.0,
+        'overtime_multiplier_diurno'           => 1.5,
+        'overtime_multiplier_nocturno'         => 2.6,
+        'overtime_multiplier_holiday'          => 2.0,
+        'overtime_multiplier_nocturno_holiday' => 2.6,
         'overtime_max_daily_hours'    => 3,
         'ips_employee_rate'           => 9,
         'indemnizacion_days_per_year' => 15,
@@ -36,6 +37,9 @@ beforeEach(function () {
         'vacation_min_years_service'  => 1,
         'vacation_business_days'      => [1, 2, 3, 4, 5, 6],
         'ips_deduction_code'          => 'IPS001',
+        'min_salary_monthly'          => 2_550_328,
+        'min_salary_daily_jornal'     => 87_950,
+        'family_bonus_percentage'     => 5.0,
     ];
 
     foreach ($settings as $name => $value) {
@@ -312,6 +316,112 @@ it('calcula horas extra para jornalero con tarifa diaria', function () {
 
     expect($result['hours'])->toBe(2.0)
         ->and($result['total'])->toBe($expected);
+});
+
+it('calcula correctamente horas extra nocturnas en feriado/domingo', function () {
+    // salary=2,550,000 / 240h = 10,625/h × 2.6 × 2h = 55,250
+    $employee = makeEhcEmployee('mensual', 2_550_000);
+    $period   = makeEhcPeriod();
+
+    makeEhcDay($employee, [
+        'date'                  => '2026-03-08', // domingo
+        'extra_hours'           => 2,
+        'extra_hours_diurnas'   => 0,
+        'extra_hours_nocturnas' => 2,
+        'overtime_approved'     => true,
+        'is_weekend'            => true,
+        'is_holiday'            => false,
+    ]);
+
+    $result = (new ExtraHourCalculator())->calculate($employee, $period);
+
+    $hourlyRate = 2_550_000 / 240;
+    $expected   = round(2 * $hourlyRate * 2.6, 2);
+
+    expect($result['hours'])->toBe(2.0)
+        ->and($result['total'])->toBe($expected)
+        ->and($result['items'])->toHaveCount(1)
+        ->and($result['items'][0]['description'])->toContain('Nocturnas Feriado')
+        ->and($result['items'][0]['perception_type'])->toBe('extra_hours');
+});
+
+it('desglosa correctamente diurnas y nocturnas en feriado en el mismo día', function () {
+    // salary=2,550,000 / 240h = 10,625/h
+    // diurnas feriado: 1h × 2.0 = 21,250
+    // nocturnas feriado: 1h × 2.6 = 27,625
+    $employee = makeEhcEmployee('mensual', 2_550_000);
+    $period   = makeEhcPeriod();
+
+    makeEhcDay($employee, [
+        'date'                  => '2026-03-09', // lunes pero is_holiday
+        'extra_hours'           => 2,
+        'extra_hours_diurnas'   => 1,
+        'extra_hours_nocturnas' => 1,
+        'overtime_approved'     => true,
+        'is_holiday'            => true,
+        'is_weekend'            => false,
+    ]);
+
+    $result = (new ExtraHourCalculator())->calculate($employee, $period);
+
+    $hourlyRate    = 2_550_000 / 240;
+    $expectedDiu   = round(1 * $hourlyRate * 2.0, 2);
+    $expectedNoc   = round(1 * $hourlyRate * 2.6, 2);
+    $expectedTotal = $expectedDiu + $expectedNoc;
+
+    expect($result['hours'])->toBe(2.0)
+        ->and($result['total'])->toBe($expectedTotal)
+        ->and($result['items'])->toHaveCount(2);
+
+    $descriptions = array_column($result['items'], 'description');
+    expect(collect($descriptions)->some(fn($d) => str_contains($d, 'Feriado/Domingo') && !str_contains($d, 'Nocturnas Feriado')))->toBeTrue()
+        ->and(collect($descriptions)->some(fn($d) => str_contains($d, 'Nocturnas Feriado')))->toBeTrue();
+});
+
+it('todos los items tienen perception_type = extra_hours', function () {
+    $employee = makeEhcEmployee('mensual', 2_550_000);
+    $period   = makeEhcPeriod();
+
+    // Diurna regular
+    makeEhcDay($employee, [
+        'date'                  => '2026-03-03',
+        'extra_hours'           => 1,
+        'extra_hours_diurnas'   => 1,
+        'extra_hours_nocturnas' => 0,
+        'overtime_approved'     => true,
+    ]);
+    // Nocturna regular
+    makeEhcDay($employee, [
+        'date'                  => '2026-03-04',
+        'extra_hours'           => 1,
+        'extra_hours_diurnas'   => 0,
+        'extra_hours_nocturnas' => 1,
+        'overtime_approved'     => true,
+    ]);
+    // Feriado/domingo diurna
+    makeEhcDay($employee, [
+        'date'              => '2026-03-08',
+        'extra_hours'       => 1,
+        'extra_hours_diurnas' => 1,
+        'overtime_approved' => true,
+        'is_weekend'        => true,
+    ]);
+    // Feriado nocturna
+    makeEhcDay($employee, [
+        'date'                  => '2026-03-15',
+        'extra_hours'           => 1,
+        'extra_hours_diurnas'   => 0,
+        'extra_hours_nocturnas' => 1,
+        'overtime_approved'     => true,
+        'is_weekend'            => true,
+    ]);
+
+    $result = (new ExtraHourCalculator())->calculate($employee, $period);
+
+    expect($result['items'])->toHaveCount(4);
+    foreach ($result['items'] as $item) {
+        expect($item['perception_type'])->toBe('extra_hours');
+    }
 });
 
 it('excluye días fuera del período', function () {

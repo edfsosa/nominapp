@@ -31,9 +31,13 @@ function makeLiqService(): LiquidacionService
 function seedLiqSettings(): void
 {
     $settings = [
-        'indemnizacion_days_per_year' => 15,
-        'ips_employee_rate'           => 9,
-        'ips_deduction_code'          => 'IPS001',
+        'indemnizacion_days_per_year'           => 15,
+        'ips_employee_rate'                    => 9,
+        'ips_deduction_code'                   => 'IPS001',
+        'overtime_multiplier_nocturno_holiday' => 2.6,
+        'min_salary_monthly'                   => 2_550_328,
+        'min_salary_daily_jornal'              => 87_950,
+        'family_bonus_percentage'              => 5.0,
     ];
 
     foreach ($settings as $name => $value) {

@@ -15,6 +15,7 @@ use App\Models\Position;
 use App\Services\AbsencePenaltyCalculator;
 use App\Services\DeductionCalculator;
 use App\Services\ExtraHourCalculator;
+use App\Services\FamilyBonusCalculator;
 use App\Services\LoanInstallmentCalculator;
 use App\Services\PayrollPDFGenerator;
 use App\Services\PayrollService;
@@ -33,14 +34,15 @@ uses(RefreshDatabase::class);
  */
 function makePayService(array $overrides = []): PayrollService
 {
-    $perception  = $overrides['perception']  ?? \Mockery::mock(PerceptionCalculator::class);
-    $deduction   = $overrides['deduction']   ?? \Mockery::mock(DeductionCalculator::class);
-    $extra       = $overrides['extra']       ?? \Mockery::mock(ExtraHourCalculator::class);
-    $absence     = $overrides['absence']     ?? \Mockery::mock(AbsencePenaltyCalculator::class);
-    $loan        = $overrides['loan']        ?? \Mockery::mock(LoanInstallmentCalculator::class);
-    $pdf         = $overrides['pdf']         ?? \Mockery::mock(PayrollPDFGenerator::class);
+    $perception  = $overrides['perception']   ?? \Mockery::mock(PerceptionCalculator::class);
+    $deduction   = $overrides['deduction']    ?? \Mockery::mock(DeductionCalculator::class);
+    $extra       = $overrides['extra']        ?? \Mockery::mock(ExtraHourCalculator::class);
+    $absence     = $overrides['absence']      ?? \Mockery::mock(AbsencePenaltyCalculator::class);
+    $loan        = $overrides['loan']         ?? \Mockery::mock(LoanInstallmentCalculator::class);
+    $family      = $overrides['family']       ?? \Mockery::mock(FamilyBonusCalculator::class);
+    $pdf         = $overrides['pdf']          ?? \Mockery::mock(PayrollPDFGenerator::class);
 
-    $emptyResult     = ['total' => 0, 'items' => []];
+    $emptyResult     = ['total' => 0, 'ips_total' => 0, 'items' => []];
     $emptyLoanResult = ['total' => 0, 'items' => [], 'installments' => collect()];
 
     $perception->shouldReceive('calculate')->andReturn($emptyResult)->byDefault();
@@ -49,9 +51,10 @@ function makePayService(array $overrides = []): PayrollService
     $absence->shouldReceive('calculate')->andReturn($emptyResult)->byDefault();
     $loan->shouldReceive('calculate')->andReturn($emptyLoanResult)->byDefault();
     $loan->shouldReceive('markInstallmentsAsPaid')->andReturn(0)->byDefault();
+    $family->shouldReceive('calculate')->andReturn(['total' => 0, 'items' => []])->byDefault();
     $pdf->shouldReceive('generate')->andReturn('mock/payroll.pdf')->byDefault();
 
-    return new PayrollService($perception, $deduction, $extra, $absence, $loan, $pdf);
+    return new PayrollService($perception, $deduction, $extra, $absence, $loan, $family, $pdf);
 }
 
 function makePayEmployee(
@@ -162,7 +165,7 @@ it('generateForPeriod crea Payroll con los totales correctos', function () {
     $employee = makePayEmployee('mensual', 2_550_000);
 
     $perception = \Mockery::mock(PerceptionCalculator::class);
-    $perception->shouldReceive('calculate')->andReturn(['total' => 200_000, 'items' => [
+    $perception->shouldReceive('calculate')->andReturn(['total' => 200_000, 'ips_total' => 200_000, 'items' => [
         ['description' => 'Bono', 'amount' => 200_000],
     ]]);
 
@@ -203,7 +206,7 @@ it('generateForPeriod crea PayrollItems de tipo perception y deduction', functio
     $employee = makePayEmployee();
 
     $perception = \Mockery::mock(PerceptionCalculator::class);
-    $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'items' => [
+    $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'ips_total' => 100_000, 'items' => [
         ['description' => 'Bono A', 'amount' => 60_000],
         ['description' => 'Bono B', 'amount' => 40_000],
     ]]);
@@ -407,7 +410,7 @@ it('regenerateForEmployee elimina items previos y crea nuevos', function () {
 
     // Segunda generación con una percepción extra
     $perception = \Mockery::mock(PerceptionCalculator::class);
-    $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'items' => [
+    $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'ips_total' => 100_000, 'items' => [
         ['description' => 'Bono', 'amount' => 100_000],
     ]]);
 
