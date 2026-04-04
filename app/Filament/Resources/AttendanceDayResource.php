@@ -107,6 +107,11 @@ class AttendanceDayResource extends Resource
                             ->inline(false)
                             ->visible(fn(?AttendanceDay $record) => $record && $record->extra_hours > 0),
 
+                        Toggle::make('tardiness_deduction_approved')
+                            ->label('Aprobar descuento de tardanza')
+                            ->inline(false)
+                            ->visible(fn(?AttendanceDay $record) => $record && $record->late_minutes > 0),
+
                         Textarea::make('notes')
                             ->label('Notas')
                             ->maxLength(500)
@@ -299,6 +304,8 @@ class AttendanceDayResource extends Resource
             ->actions([
                 self::getApproveOvertimeTableAction(),
 
+                self::getApproveTardinessTableAction(),
+
                 self::getExportPdfTableAction(),
 
                 self::getCalculateTableAction(),
@@ -373,6 +380,70 @@ class AttendanceDayResource extends Resource
                             Notification::make()
                                 ->title('Revocación completada')
                                 ->body("Revocadas: {$revoked} | Omitidas (ya sin aprobar): {$skipped}")
+                                ->success()
+                                ->send();
+                        }),
+
+                    BulkAction::make('approve_tardiness')
+                        ->label('Aprobar Descuento Tardanza')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar descuento de tardanza seleccionados')
+                        ->modalDescription(function (Collection $records) {
+                            $withTardiness = $records->where('late_minutes', '>', 0);
+                            $pending = $withTardiness->where('tardiness_deduction_approved', false)->count();
+                            return "Total: {$withTardiness->count()} registro(s) con tardanza. Pendientes de aprobación: {$pending}.";
+                        })
+                        ->modalSubmitActionLabel('Sí, aprobar')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $approved = 0;
+                            $skipped  = 0;
+                            foreach ($records as $day) {
+                                if ($day->late_minutes > 0 && !$day->tardiness_deduction_approved) {
+                                    $day->tardiness_deduction_approved = true;
+                                    $day->save();
+                                    $approved++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('Aprobación completada')
+                                ->body("Aprobadas: {$approved} | Omitidas: {$skipped}")
+                                ->success()
+                                ->send();
+                        }),
+
+                    BulkAction::make('revoke_tardiness')
+                        ->label('Revocar Descuento Tardanza')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Revocar aprobación de tardanza')
+                        ->modalDescription(function (Collection $records) {
+                            $approved     = $records->where('tardiness_deduction_approved', true)->count();
+                            $totalMinutes = $records->where('tardiness_deduction_approved', true)->sum('late_minutes');
+                            return "Se revocará el descuento de {$approved} registro(s) con {$totalMinutes} min de tardanza aprobados.";
+                        })
+                        ->modalSubmitActionLabel('Sí, revocar')
+                        ->deselectRecordsAfterCompletion()
+                        ->action(function (Collection $records) {
+                            $revoked = 0;
+                            $skipped = 0;
+                            foreach ($records as $day) {
+                                if ($day->tardiness_deduction_approved) {
+                                    $day->tardiness_deduction_approved = false;
+                                    $day->save();
+                                    $revoked++;
+                                } else {
+                                    $skipped++;
+                                }
+                            }
+                            Notification::make()
+                                ->title('Revocación completada')
+                                ->body("Revocadas: {$revoked} | Omitidas: {$skipped}")
                                 ->success()
                                 ->send();
                         }),
@@ -528,6 +599,86 @@ class AttendanceDayResource extends Resource
             });
     }
 
+    /**
+     * Retorna la acción de aprobar/revocar descuento de tardanza para tabla.
+     */
+    public static function getApproveTardinessTableAction(): TableAction
+    {
+        return TableAction::make('approve_tardiness')
+            ->label(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'Revocar Tardanza' : 'Aprobar Tardanza')
+            ->icon(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'danger' : 'warning')
+            ->visible(fn(AttendanceDay $record) => $record->late_minutes > 0)
+            ->tooltip(fn(AttendanceDay $record) => $record->tardiness_deduction_approved
+                ? "Revocar descuento por {$record->late_minutes} min de tardanza"
+                : "Aprobar descuento por {$record->late_minutes} min de tardanza"
+            )
+            ->requiresConfirmation()
+            ->modalHeading(fn(AttendanceDay $record) => $record->tardiness_deduction_approved
+                ? 'Revocar descuento por tardanza'
+                : 'Aprobar descuento por tardanza'
+            )
+            ->modalDescription(fn(AttendanceDay $record) => self::buildTardinessModalDescription($record))
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'Sí, revocar' : 'Sí, aprobar')
+            ->action(function (AttendanceDay $record) {
+                $wasApproved = $record->tardiness_deduction_approved;
+                $record->tardiness_deduction_approved = !$wasApproved;
+                $record->save();
+
+                $action = $wasApproved ? 'revocado' : 'aprobado';
+                Notification::make()
+                    ->title("Descuento {$action}")
+                    ->body("El descuento por {$record->late_minutes} min de tardanza ha sido {$action}.")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Retorna la acción de aprobar/revocar descuento de tardanza para páginas (header actions).
+     */
+    public static function getApproveTardinessAction(): Action
+    {
+        return Action::make('approve_tardiness')
+            ->label(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'Revocar Descuento Tardanza' : 'Aprobar Descuento Tardanza')
+            ->icon(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'heroicon-o-x-circle' : 'heroicon-o-check-circle')
+            ->color(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'danger' : 'warning')
+            ->visible(fn(AttendanceDay $record) => $record->late_minutes > 0)
+            ->requiresConfirmation()
+            ->modalHeading(fn(AttendanceDay $record) => $record->tardiness_deduction_approved
+                ? 'Revocar descuento por tardanza'
+                : 'Aprobar descuento por tardanza'
+            )
+            ->modalDescription(fn(AttendanceDay $record) => self::buildTardinessModalDescription($record))
+            ->modalSubmitActionLabel(fn(AttendanceDay $record) => $record->tardiness_deduction_approved ? 'Sí, revocar' : 'Sí, aprobar')
+            ->action(function (AttendanceDay $record) {
+                $wasApproved = $record->tardiness_deduction_approved;
+                $record->tardiness_deduction_approved = !$wasApproved;
+                $record->save();
+
+                $action = $wasApproved ? 'revocado' : 'aprobado';
+                Notification::make()
+                    ->title("Descuento {$action}")
+                    ->body("El descuento por {$record->late_minutes} min de tardanza ha sido {$action}.")
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Construye la descripción del modal de aprobación de tardanza.
+     */
+    private static function buildTardinessModalDescription(AttendanceDay $record): string
+    {
+        $action  = $record->tardiness_deduction_approved ? 'Se revocará el descuento de' : 'Se aprobará el descuento de';
+        $settings = app(\App\Settings\PayrollSettings::class);
+        $hourlyRate = $record->employee->base_salary / max(1, $settings->monthly_hours);
+        $amount  = round(($record->late_minutes / 60) * $hourlyRate, 2);
+
+        return "{$action} {$record->late_minutes} min de tardanza para {$record->employee->full_name}"
+            . " del {$record->date->format('d/m/Y')} (Gs. " . number_format($amount, 0, ',', '.') . ").";
+    }
+
     private static function buildOvertimeModalDescription(AttendanceDay $record): string
     {
         $action = $record->overtime_approved ? 'Se revocara la aprobacion de' : 'Se aprobaran';
@@ -544,8 +695,24 @@ class AttendanceDayResource extends Resource
             $desc .= ' Desglose: ' . implode(' + ', $parts) . '.';
         }
 
-        if ($record->overtime_limit_exceeded) {
-            $desc .= ' ATENCION: Excede el limite legal de 3h/dia.';
+        // Resumen semanal
+        $settings = app(\App\Settings\PayrollSettings::class);
+        $weekStart = $record->date->startOfWeek()->toDateString();
+        $weekEnd   = $record->date->copy()->endOfWeek()->toDateString();
+        $weeklyOtherHours = \App\Models\AttendanceDay::where('employee_id', $record->employee_id)
+            ->whereBetween('date', [$weekStart, $weekEnd])
+            ->where('id', '!=', $record->id)
+            ->sum('extra_hours');
+        $weeklyTotal = (float) $weeklyOtherHours + (float) $record->extra_hours;
+        $weeklyMax   = $settings->overtime_max_weekly_hours;
+
+        $desc .= " Total semana: {$weeklyTotal}h / {$weeklyMax}h permitidas.";
+
+        if ($record->extra_hours > $settings->overtime_max_daily_hours) {
+            $desc .= " ATENCION: Excede el limite diario de {$settings->overtime_max_daily_hours}h/dia (Art. 202 CLT).";
+        }
+        if ($weeklyTotal > $weeklyMax) {
+            $desc .= " ATENCION: Excede el limite semanal de {$weeklyMax}h/semana (Art. 202 CLT).";
         }
 
         return $desc;
@@ -1057,6 +1224,14 @@ class AttendanceDayResource extends Resource
                             ->formatStateUsing(fn($state) => $state ? 'Excede 3 hrs/dia' : 'Dentro del limite')
                             ->icon(fn($state) => $state ? 'heroicon-o-exclamation-triangle' : 'heroicon-o-check-circle')
                             ->hidden(fn($record) => $record->extra_hours <= 0),
+
+                        TextEntry::make('tardiness_deduction_approved')
+                            ->label('Descuento Tardanza')
+                            ->badge()
+                            ->color(fn($state) => AttendanceDay::getBooleanColor($state, 'danger', 'gray'))
+                            ->formatStateUsing(fn($state) => $state ? 'Aprobado' : 'Sin descuento')
+                            ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-minus-circle')
+                            ->hidden(fn($record) => ($record->late_minutes ?? 0) <= 0),
                     ])->columns(3)
             ]);
     }

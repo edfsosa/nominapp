@@ -24,6 +24,8 @@ class ViewAttendanceDay extends ViewRecord
 
             AttendanceDayResource::getApproveOvertimeAction(),
 
+            AttendanceDayResource::getApproveTardinessAction(),
+
             AttendanceDayResource::getExportPdfAction(),
 
             AttendanceDayResource::getCalculateAction(),

@@ -23,6 +23,7 @@ class PayrollSettings extends Settings
 
     // Límites de horas extra
     public int $overtime_max_daily_hours;
+    public int $overtime_max_weekly_hours;
 
     // Liquidación
     public float $ips_employee_rate;

@@ -19,27 +19,28 @@ uses(RefreshDatabase::class);
 
 beforeEach(function () {
     $settings = [
-        'monthly_hours'                => 240,
-        'monthly_hours_nocturno'       => 210,
-        'monthly_hours_mixto'          => 225,
-        'daily_hours'                  => 8,
-        'daily_hours_nocturno'         => 7,
-        'daily_hours_mixto'            => 7.5,
-        'days_per_month'               => 30,
+        'monthly_hours'                        => 240,
+        'monthly_hours_nocturno'               => 210,
+        'monthly_hours_mixto'                  => 225,
+        'daily_hours'                          => 8,
+        'daily_hours_nocturno'                 => 7,
+        'daily_hours_mixto'                    => 7.5,
+        'days_per_month'                       => 30,
         'overtime_multiplier_diurno'           => 1.5,
         'overtime_multiplier_nocturno'         => 2.6,
         'overtime_multiplier_holiday'          => 2.0,
         'overtime_multiplier_nocturno_holiday' => 2.6,
-        'overtime_max_daily_hours'     => 3,
-        'ips_employee_rate'            => 9,
-        'ips_deduction_code'           => 'IPS001',
-        'indemnizacion_days_per_year'  => 15,
-        'vacation_min_consecutive_days' => 6,
-        'vacation_min_years_service'   => 1,
-        'vacation_business_days'       => [1, 2, 3, 4, 5, 6],
-        'min_salary_monthly'           => 2_550_328,
-        'min_salary_daily_jornal'      => 87_950,
-        'family_bonus_percentage'      => 5.0,
+        'overtime_max_daily_hours'             => 3,
+        'overtime_max_weekly_hours'            => 9,
+        'ips_employee_rate'                    => 9,
+        'ips_deduction_code'                   => 'IPS001',
+        'indemnizacion_days_per_year'          => 15,
+        'vacation_min_consecutive_days'        => 6,
+        'vacation_min_years_service'           => 1,
+        'vacation_business_days'               => [1, 2, 3, 4, 5, 6],
+        'min_salary_monthly'                   => 2_550_328,
+        'min_salary_daily_jornal'              => 87_950,
+        'family_bonus_percentage'              => 5.0,
     ];
 
     foreach ($settings as $name => $value) {
@@ -53,7 +54,7 @@ beforeEach(function () {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /**
- * Crea un empleado con contrato activo para tests de AbsencePenaltyCalculator.
+ * Crea un empleado mensualizado con contrato activo.
  *
  * @param  string  $salaryType  'mensual' | 'jornal'
  * @param  int     $salary      Monto del salario
@@ -109,158 +110,133 @@ function makeAbsPeriod(int $month = 3): PayrollPeriod
 }
 
 /**
- * Crea un registro de AttendanceDay para el empleado en la fecha dada.
+ * Crea un AttendanceDay con tardanza para el empleado en la fecha dada.
  */
-function makeAbsenceDay(
+function makeTardinessDay(
     Employee $employee,
     string $date,
-    string $status = 'absent',
-    bool $isHoliday = false,
-    bool $isWeekend = false,
+    int $lateMinutes,
+    bool $approved = false,
 ): AttendanceDay {
     return AttendanceDay::create([
-        'employee_id' => $employee->id,
-        'date'        => $date,
-        'status'      => $status,
-        'is_holiday'  => $isHoliday,
-        'is_weekend'  => $isWeekend,
+        'employee_id'                  => $employee->id,
+        'date'                         => $date,
+        'status'                       => 'present',
+        'late_minutes'                 => $lateMinutes,
+        'tardiness_deduction_approved' => $approved,
     ]);
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
 
-it('retorna vacío para jornaleros (su penalización ya está implícita en días trabajados)', function () {
+it('retorna vacío para jornaleros (trabajan por día, no se descuenta tardanza)', function () {
     $employee = makeAbsEmployee('jornal', 120_000);
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-10');
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 30, approved: true);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
 });
 
 it('retorna vacío si el empleado no tiene salario base válido', function () {
-    // salary=0 → base_salary attribute devuelve 0.0
     $employee = makeAbsEmployee('mensual', 0);
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-10');
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 30, approved: true);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
 });
 
-it('retorna total 0 si no hay días de ausencia en el período', function () {
+it('retorna vacío si no hay tardanzas aprobadas en el período', function () {
     $employee = makeAbsEmployee();
     $period   = makeAbsPeriod();
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
 });
 
-it('calcula correctamente la penalización por un día de ausencia', function () {
-    // salary=2_400_000, monthly_hours=240, daily_hours=8
+it('no descuenta tardanzas no aprobadas', function () {
+    $employee = makeAbsEmployee();
+    $period   = makeAbsPeriod();
+
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 45, approved: false);
+
+    $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
+
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
+});
+
+it('calcula correctamente el descuento por 30 minutos de tardanza aprobados', function () {
+    // salary=2_400_000, monthly_hours=240
     // hourlyRate = 2_400_000 / 240 = 10_000
-    // dailyRate  = 10_000 * 8   = 80_000
+    // 30 min = 0.5 hrs → 0.5 * 10_000 = 5_000
     $salary   = 2_400_000;
-    $expected = round(($salary / 240) * 8, 2); // 80_000.0
+    $expected = round((30 / 60) * ($salary / 240), 2); // 5_000.0
 
     $employee = makeAbsEmployee('mensual', $salary);
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-10');
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 30, approved: true);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
     expect((float) $result['total'])->toBe($expected)
-        ->and($result['days'])->toBe(1)
+        ->and($result['minutes'])->toBe(30)
         ->and($result['items'])->toHaveCount(1)
-        ->and($result['items'][0]['description'])->toContain('1 día');
+        ->and($result['items'][0]['description'])->toContain('30 min');
 });
 
-it('acumula correctamente múltiples días de ausencia', function () {
+it('acumula tardanzas de múltiples días aprobados', function () {
+    // 20 + 15 + 25 = 60 min = 1 hr → 1 * 10_000 = 10_000
     $salary   = 2_400_000;
-    $daily    = round(($salary / 240) * 8, 2); // 80_000.0
-    $expected = round($daily * 3, 2);           // 240_000.0
+    $expected = round((60 / 60) * ($salary / 240), 2); // 10_000.0
 
     $employee = makeAbsEmployee('mensual', $salary);
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-10');
-    makeAbsenceDay($employee, '2026-03-11');
-    makeAbsenceDay($employee, '2026-03-12');
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 20, approved: true);
+    makeTardinessDay($employee, '2026-03-11', lateMinutes: 15, approved: true);
+    makeTardinessDay($employee, '2026-03-12', lateMinutes: 25, approved: true);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
     expect((float) $result['total'])->toBe($expected)
-        ->and($result['days'])->toBe(3)
-        ->and($result['items'][0]['description'])->toContain('3 día');
+        ->and($result['minutes'])->toBe(60)
+        ->and($result['items'])->toHaveCount(1);
 });
 
-it('no penaliza ausencias en días feriados', function () {
-    $employee = makeAbsEmployee();
+it('solo descuenta días aprobados, ignora los no aprobados del mismo período', function () {
+    // Solo 30 min aprobados, los otros 45 no aprobados se ignoran
+    $salary   = 2_400_000;
+    $expected = round((30 / 60) * ($salary / 240), 2); // 5_000.0
+
+    $employee = makeAbsEmployee('mensual', $salary);
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-01', isHoliday: true);
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 30, approved: true);
+    makeTardinessDay($employee, '2026-03-11', lateMinutes: 45, approved: false);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
+    expect((float) $result['total'])->toBe($expected)
+        ->and($result['minutes'])->toBe(30);
 });
 
-it('no penaliza ausencias en fines de semana', function () {
-    $employee = makeAbsEmployee();
-    $period   = makeAbsPeriod();
-
-    makeAbsenceDay($employee, '2026-03-07', isWeekend: true); // sábado
-
-    $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
-
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
-});
-
-it('no cuenta días con status distinto de absent', function () {
-    $employee = makeAbsEmployee();
-    $period   = makeAbsPeriod();
-
-    makeAbsenceDay($employee, '2026-03-10', status: 'present');
-    makeAbsenceDay($employee, '2026-03-11', status: 'on_leave');
-
-    $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
-
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
-});
-
-it('no penaliza días de ausencia fuera del período', function () {
+it('no descuenta tardanzas fuera del período', function () {
     $employee = makeAbsEmployee();
     $period   = makeAbsPeriod(month: 3); // 2026-03-01 – 2026-03-31
 
-    makeAbsenceDay($employee, '2026-02-15'); // mes anterior
-    makeAbsenceDay($employee, '2026-04-05'); // mes siguiente
+    makeTardinessDay($employee, '2026-02-15', lateMinutes: 30, approved: true); // mes anterior
+    makeTardinessDay($employee, '2026-04-05', lateMinutes: 30, approved: true); // mes siguiente
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
-});
-
-it('penaliza solo las ausencias dentro del período, ignorando las externas', function () {
-    $salary   = 2_400_000;
-    $expected = round(($salary / 240) * 8, 2); // 80_000.0 — solo 1 día dentro del período
-
-    $employee = makeAbsEmployee('mensual', $salary);
-    $period   = makeAbsPeriod(month: 3);
-
-    makeAbsenceDay($employee, '2026-02-28'); // fuera
-    makeAbsenceDay($employee, '2026-03-15'); // dentro
-    makeAbsenceDay($employee, '2026-04-01'); // fuera
-
-    $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
-
-    expect((float) $result['total'])->toBe($expected)
-        ->and($result['days'])->toBe(1);
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
 });
 
 it('retorna vacío si monthly_hours es 0 en la configuración', function () {
@@ -272,9 +248,9 @@ it('retorna vacío si monthly_hours es 0 en la configuración', function () {
     $employee = makeAbsEmployee();
     $period   = makeAbsPeriod();
 
-    makeAbsenceDay($employee, '2026-03-10');
+    makeTardinessDay($employee, '2026-03-10', lateMinutes: 30, approved: true);
 
     $result = app(AbsencePenaltyCalculator::class)->calculate($employee, $period);
 
-    expect($result)->toMatchArray(['total' => 0, 'days' => 0, 'items' => []]);
+    expect($result)->toMatchArray(['total' => 0.0, 'minutes' => 0, 'items' => []]);
 });

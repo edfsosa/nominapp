@@ -187,7 +187,7 @@ class AttendanceCalculator
         // Calcular horas extra (basado en expected_hours guardadas)
         $day->extra_hours = self::calculateExtraHours($totalHours, $day->expected_hours);
 
-        // Desglosar horas extra en diurnas/nocturnas y verificar límite legal
+        // Desglosar horas extra en diurnas/nocturnas y verificar límites legales (diario y semanal)
         if ($day->extra_hours > 0) {
             [$diurnas, $nocturnas] = self::splitOvertimeHours(
                 $day->check_out_time,
@@ -196,7 +196,20 @@ class AttendanceCalculator
             );
             $day->extra_hours_diurnas = $diurnas;
             $day->extra_hours_nocturnas = $nocturnas;
-            $day->overtime_limit_exceeded = $day->extra_hours > app(PayrollSettings::class)->overtime_max_daily_hours;
+
+            $settings = app(PayrollSettings::class);
+            $dailyExceeded = $day->extra_hours > $settings->overtime_max_daily_hours;
+
+            // Suma de horas extra aprobadas en la misma semana ISO (excluyendo el día actual)
+            $weekStart = Carbon::parse($day->date)->startOfWeek();
+            $weekEnd   = Carbon::parse($day->date)->endOfWeek();
+            $weeklyOtherHours = AttendanceDay::where('employee_id', $day->employee_id)
+                ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+                ->where('id', '!=', $day->id ?? 0)
+                ->sum('extra_hours');
+            $weeklyExceeded = ((float) $weeklyOtherHours + (float) $day->extra_hours) > $settings->overtime_max_weekly_hours;
+
+            $day->overtime_limit_exceeded = $dailyExceeded || $weeklyExceeded;
         } else {
             $day->extra_hours_diurnas = 0;
             $day->extra_hours_nocturnas = 0;

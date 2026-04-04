@@ -211,6 +211,37 @@ class LiquidacionResource extends Resource
                             })
                             ->columnSpan(2),
 
+                        Placeholder::make('estabilidad_laboral_alert')
+                            ->label('')
+                            ->content(function (Get $get) {
+                                $employeeId = $get('employee_id');
+                                if (!$employeeId) {
+                                    return null;
+                                }
+
+                                $employee = Employee::find($employeeId);
+                                $hireDate = $employee?->hire_date ?? Carbon::parse($get('hire_date') ?? null);
+                                if (!$hireDate) {
+                                    return null;
+                                }
+
+                                $years = Carbon::parse($hireDate)->diffInYears(now());
+                                if ($years < 10) {
+                                    return null;
+                                }
+
+                                return new \Illuminate\Support\HtmlString(
+                                    '<div style="background:#fef3c7;border:1px solid #d97706;border-radius:6px;padding:10px 14px;color:#92400e;">'
+                                    . '<strong>⚠ Estabilidad Laboral Propia — Art. 95 CLT</strong><br>'
+                                    . "Este empleado cuenta con <strong>{$years} años</strong> de antigüedad. "
+                                    . 'El despido sin causa justificada probada en juicio puede ser legalmente impugnado. '
+                                    . 'De proceder la liquidación, corresponde <strong>indemnización doble</strong>.'
+                                    . '</div>'
+                                );
+                            })
+                            ->visible(fn(Get $get) => $get('termination_type') === 'unjustified_dismissal' && filled($get('employee_id')))
+                            ->columnSpan(2),
+
                         Textarea::make('termination_reason')
                             ->label('Motivo de Desvinculación')
                             ->rows(2)

@@ -173,18 +173,29 @@ class ManagePayrollSettings extends SettingsPage
 
                 // Sección para configuración de límites de horas extra
                 Section::make('Límites de Horas Extra')
-                    ->description('Límites legales de horas extraordinarias (Art. 202)')
+                    ->description('Límites legales de horas extraordinarias (Art. 202 CLT)')
                     ->icon('heroicon-o-exclamation-triangle')
                     ->schema([
-                        // Máximo horas extra por día con validación numérica
-                        TextInput::make('overtime_max_daily_hours')
-                            ->label('Máximo horas extra por día')
-                            ->numeric()
-                            ->minValue(1)
-                            ->maxValue(24)
-                            ->required()
-                            ->suffix('hrs')
-                            ->helperText('Límite legal: 3 hrs/día'),
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('overtime_max_daily_hours')
+                                    ->label('Máximo horas extra por día')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(24)
+                                    ->required()
+                                    ->suffix('hrs')
+                                    ->helperText('Límite legal: 3 hrs/día (Art. 202)'),
+
+                                TextInput::make('overtime_max_weekly_hours')
+                                    ->label('Máximo horas extra por semana')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(168)
+                                    ->required()
+                                    ->suffix('hrs')
+                                    ->helperText('Límite legal: 9 hrs/semana (Art. 202)'),
+                            ]),
                     ]),
 
                 // Sección para configuración de liquidación y finiquito
