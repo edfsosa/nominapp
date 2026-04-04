@@ -481,6 +481,7 @@ class LoanResource extends Resource
 
                         return "Se generarán {$record->installments_count} cuotas de {$amount} Gs. cada una. La primera cuota se descontará en la próxima nómina ({$payrollType}).";
                     })
+                    ->modalSubmitActionLabel('Sí, activar')
                     ->action(function (Loan $record) {
                         $result = $record->activate(Auth::id());
 
@@ -495,10 +496,11 @@ class LoanResource extends Resource
                     ->label('Cancelar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn(Loan $record) => $record->isPending() || ($record->isActive() && $record->paid_count == 0))
+                    ->visible(fn(Loan $record) => $record->isPending() || $record->isActive() || $record->isDefaulted())
                     ->requiresConfirmation()
                     ->modalHeading(fn(Loan $record) => "Cancelar {$record->type_label}")
                     ->modalDescription(fn(Loan $record) => "¿Está seguro de que desea cancelar este {$record->type_label}?")
+                    ->modalSubmitActionLabel('Sí, cancelar')
                     ->form([
                         Textarea::make('reason')
                             ->label('Motivo de cancelación')
@@ -515,11 +517,55 @@ class LoanResource extends Resource
                             ->send();
                     }),
 
+                Action::make('mark_defaulted')
+                    ->label('Marcar en Mora')
+                    ->icon('heroicon-o-exclamation-triangle')
+                    ->color('danger')
+                    ->visible(fn(Loan $record) => $record->isActive())
+                    ->requiresConfirmation()
+                    ->modalHeading(fn(Loan $record) => "Marcar {$record->type_label} como en Mora")
+                    ->modalDescription('El préstamo/adelanto quedará en estado "En Mora". Las cuotas pendientes se conservan y podrán cobrarse una vez regularizado.')
+                    ->modalSubmitActionLabel('Sí, marcar en mora')
+                    ->form([
+                        Textarea::make('reason')
+                            ->label('Motivo')
+                            ->placeholder('Ingrese el motivo...')
+                            ->rows(3),
+                    ])
+                    ->action(function (Loan $record, array $data) {
+                        $result = $record->markAsDefaulted($data['reason'] ?? null);
+
+                        Notification::make()
+                            ->title($result['success'] ? 'Marcado en Mora' : 'Error')
+                            ->body($result['message'])
+                            ->{$result['success'] ? 'warning' : 'danger'}()
+                            ->send();
+                    }),
+
+                Action::make('reactivate')
+                    ->label('Reactivar')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('success')
+                    ->visible(fn(Loan $record) => $record->isDefaulted())
+                    ->requiresConfirmation()
+                    ->modalHeading(fn(Loan $record) => "Reactivar {$record->type_label}")
+                    ->modalDescription('El préstamo/adelanto volverá a estado "Activo" y sus cuotas pendientes podrán cobrarse en la próxima nómina.')
+                    ->modalSubmitActionLabel('Sí, reactivar')
+                    ->action(function (Loan $record) {
+                        $result = $record->reactivate();
+
+                        Notification::make()
+                            ->title($result['success'] ? 'Reactivado' : 'Error')
+                            ->body($result['message'])
+                            ->{$result['success'] ? 'success' : 'danger'}()
+                            ->send();
+                    }),
+
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->visible(fn(Loan $record) => $record->isActive() || $record->isPaid())
+                    ->visible(fn(Loan $record) => $record->isActive() || $record->isPaid() || $record->isDefaulted())
                     ->url(fn(Loan $record) => route('loans.pdf', $record))
                     ->openUrlInNewTab(),
             ])
@@ -532,6 +578,7 @@ class LoanResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Activar Préstamos/Adelantos')
                         ->modalDescription('Se activarán los préstamos/adelantos seleccionados que estén en estado pendiente.')
+                        ->modalSubmitActionLabel('Sí, activar seleccionados')
                         ->action(function (Collection $records) {
                             $activated = 0;
                             $failed = 0;
@@ -563,6 +610,7 @@ class LoanResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Cancelar Préstamos/Adelantos')
                         ->modalDescription('Se cancelarán los préstamos/adelantos seleccionados que estén pendientes o activos sin cuotas pagadas.')
+                        ->modalSubmitActionLabel('Sí, cancelar seleccionados')
                         ->form([
                             Textarea::make('reason')
                                 ->label('Motivo de cancelación')
@@ -574,7 +622,7 @@ class LoanResource extends Resource
                             $skipped = 0;
 
                             foreach ($records as $record) {
-                                if ($record->isPending() || ($record->isActive() && $record->paid_count == 0)) {
+                                if ($record->isPending() || $record->isActive() || $record->isDefaulted()) {
                                     $result = $record->cancel($data['reason'] ?? null);
                                     $result['success'] ? $cancelled++ : $skipped++;
                                 } else {
@@ -584,7 +632,7 @@ class LoanResource extends Resource
 
                             $body = "Se cancelaron {$cancelled} préstamos/adelantos.";
                             if ($skipped > 0) {
-                                $body .= " {$skipped} no pudieron cancelarse (tienen cuotas pagadas o ya están en un estado final).";
+                                $body .= " {$skipped} no pudieron cancelarse (ya están en un estado final).";
                             }
 
                             Notification::make()

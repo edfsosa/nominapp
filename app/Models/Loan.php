@@ -94,43 +94,47 @@ class Loan extends Model
     public static function getStatusLabel(string $status): string
     {
         return match ($status) {
-            'pending' => 'Pendiente',
-            'active' => 'Activo',
-            'paid' => 'Pagado',
+            'pending'   => 'Pendiente',
+            'active'    => 'Activo',
+            'paid'      => 'Pagado',
             'cancelled' => 'Cancelado',
-            default => 'Desconocido',
+            'defaulted' => 'En Mora',
+            default     => 'Desconocido',
         };
     }
 
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
-            'pending' => 'warning',
-            'active' => 'info',
-            'paid' => 'success',
+            'pending'   => 'warning',
+            'active'    => 'info',
+            'paid'      => 'success',
             'cancelled' => 'gray',
-            default => 'gray',
+            'defaulted' => 'danger',
+            default     => 'gray',
         };
     }
 
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
-            'pending' => 'heroicon-o-clock',
-            'active' => 'heroicon-o-play',
-            'paid' => 'heroicon-o-check-circle',
+            'pending'   => 'heroicon-o-clock',
+            'active'    => 'heroicon-o-play',
+            'paid'      => 'heroicon-o-check-circle',
             'cancelled' => 'heroicon-o-x-circle',
-            default => 'heroicon-o-question-mark-circle',
+            'defaulted' => 'heroicon-o-exclamation-triangle',
+            default     => 'heroicon-o-question-mark-circle',
         };
     }
 
     public static function getStatusOptions(): array
     {
         return [
-            'pending' => 'Pendiente',
-            'active' => 'Activo',
-            'paid' => 'Pagado',
+            'pending'   => 'Pendiente',
+            'active'    => 'Activo',
+            'paid'      => 'Pagado',
             'cancelled' => 'Cancelado',
+            'defaulted' => 'En Mora',
         ];
     }
 
@@ -156,6 +160,11 @@ class Loan extends Model
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
+    }
+
+    public function isDefaulted(): bool
+    {
+        return $this->status === 'defaulted';
     }
 
     public function isLoan(): bool
@@ -251,6 +260,20 @@ class Loan extends Model
             }
         }
 
+        // Validar límite legal del 25% del salario (Art. 245 CLT — anticipos y deudas con el empleador)
+        $salaryBase = $this->getLoanDeductionBase();
+        if ($salaryBase > 0) {
+            $cap = round($salaryBase * 0.25, 2);
+            if ((float) $this->installment_amount > $cap) {
+                $capFormatted  = number_format($cap, 0, ',', '.');
+                $instFormatted = number_format((float) $this->installment_amount, 0, ',', '.');
+                return [
+                    'success' => false,
+                    'message' => "La cuota de Gs. {$instFormatted} supera el límite legal del 25% del salario (máximo Gs. {$capFormatted}). Reducí el monto o aumentá la cantidad de cuotas.",
+                ];
+            }
+        }
+
         // Calcular fecha de cuota
         $startDate = $this->isAdvance()
             ? $this->getCurrentPeriodEndDate()
@@ -283,7 +306,10 @@ class Loan extends Model
     }
 
     /**
-     * Cancela el préstamo/adelanto
+     * Cancela el préstamo/adelanto.
+     *
+     * Solo cancela las cuotas con estado 'pending'; las cuotas ya pagadas
+     * se conservan intactas para mantener el historial de cobros.
      */
     public function cancel(?string $reason = null): array
     {
@@ -291,13 +317,6 @@ class Loan extends Model
             return [
                 'success' => false,
                 'message' => 'No se puede cancelar un préstamo/adelanto en este estado.',
-            ];
-        }
-
-        if ($this->paid_installments_count > 0) {
-            return [
-                'success' => false,
-                'message' => 'No se puede cancelar un préstamo/adelanto con cuotas ya pagadas.',
             ];
         }
 
@@ -322,6 +341,64 @@ class Loan extends Model
     }
 
     /**
+     * Marca el préstamo/adelanto como en mora.
+     *
+     * Solo aplica a préstamos activos. Las cuotas pendientes se conservan
+     * para que puedan seguir cobrándose en nómina una vez regularizado.
+     */
+    public function markAsDefaulted(?string $reason = null): array
+    {
+        if (!$this->isActive()) {
+            return [
+                'success' => false,
+                'message' => 'Solo se pueden marcar como morosos los préstamos/adelantos activos.',
+            ];
+        }
+
+        $notes = $this->notes;
+        if ($reason) {
+            $notes = $notes ? "{$notes}\n\nMora: {$reason}" : "Mora: {$reason}";
+        }
+
+        $this->update([
+            'status' => 'defaulted',
+            'notes'  => $notes,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "El {$this->type_label} fue marcado como en mora.",
+        ];
+    }
+
+    /**
+     * Reactiva un préstamo en mora para continuar el cobro de cuotas pendientes.
+     */
+    public function reactivate(): array
+    {
+        if (!$this->isDefaulted()) {
+            return [
+                'success' => false,
+                'message' => 'Solo se pueden reactivar préstamos/adelantos en mora.',
+            ];
+        }
+
+        if ($this->pending_installments_count === 0) {
+            return [
+                'success' => false,
+                'message' => 'No hay cuotas pendientes para reactivar.',
+            ];
+        }
+
+        $this->update(['status' => 'active']);
+
+        return [
+            'success' => true,
+            'message' => "El {$this->type_label} fue reactivado. Continúa con {$this->pending_installments_count} cuota(s) pendiente(s).",
+        ];
+    }
+
+    /**
      * Verifica si todas las cuotas están pagadas y actualiza el estado
      */
     public function checkIfPaid(): void
@@ -334,6 +411,25 @@ class Loan extends Model
     // =========================================================================
     // MÉTODOS DE PERÍODO Y FECHAS
     // =========================================================================
+
+    /**
+     * Base salarial mensual para calcular el límite del 25% (Art. 245 CLT).
+     *
+     * Para mensualeros usa el salario base del contrato.
+     * Para jornaleros usa daily_rate × 30 como equivalente mensual aproximado.
+     */
+    protected function getLoanDeductionBase(): float
+    {
+        if ($this->employee->base_salary && $this->employee->base_salary > 0) {
+            return (float) $this->employee->base_salary;
+        }
+
+        if ($this->employee->daily_rate && $this->employee->daily_rate > 0) {
+            return round((float) $this->employee->daily_rate * 30, 2);
+        }
+
+        return 0.0;
+    }
 
     /**
      * Obtiene el período de nómina actual del empleado
@@ -422,21 +518,32 @@ class Loan extends Model
     }
 
     /**
-     * Genera las cuotas del préstamo
+     * Genera las cuotas del préstamo.
+     *
+     * La última cuota absorbe la diferencia de redondeo para garantizar
+     * que la suma exacta de cuotas iguale el monto total del préstamo.
      */
     protected function generateInstallments(Carbon $startDate): void
     {
         $this->installments()->delete();
 
-        $dueDate = $startDate->copy();
+        $dueDate          = $startDate->copy();
+        $count            = $this->installments_count;
+        $installmentAmount = (float) $this->installment_amount;
+        $totalAmount      = (float) $this->amount;
 
-        for ($i = 1; $i <= $this->installments_count; $i++) {
+        for ($i = 1; $i <= $count; $i++) {
+            // La última cuota = total − suma de las anteriores (cubre diferencia de redondeo)
+            $amount = $i === $count
+                ? round($totalAmount - ($installmentAmount * ($count - 1)), 2)
+                : $installmentAmount;
+
             LoanInstallment::create([
-                'loan_id' => $this->id,
+                'loan_id'            => $this->id,
                 'installment_number' => $i,
-                'amount' => $this->installment_amount,
-                'due_date' => $dueDate->copy(),
-                'status' => 'pending',
+                'amount'             => $amount,
+                'due_date'           => $dueDate->copy(),
+                'status'             => 'pending',
             ]);
 
             $dueDate->addMonth();
@@ -540,9 +647,9 @@ class Loan extends Model
             ->get();
 
         $result = [
-            'total' => 0,
-            'by_status' => ['pending' => 0, 'active' => 0, 'paid' => 0, 'cancelled' => 0],
-            'by_type' => ['loan' => 0, 'advance' => 0],
+            'total'     => 0,
+            'by_status' => ['pending' => 0, 'active' => 0, 'paid' => 0, 'cancelled' => 0, 'defaulted' => 0],
+            'by_type'   => ['loan' => 0, 'advance' => 0],
         ];
 
         foreach ($counts as $count) {

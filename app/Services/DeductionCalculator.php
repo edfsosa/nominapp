@@ -78,14 +78,15 @@ class DeductionCalculator
                         'employment_type' => $employee->employment_type,
                     ]);
 
-                    $items[] = ['description' => $deduction->name, 'amount' => 0, 'deduction_type' => $deduction->type];
+                    $items[] = ['description' => $assignment->notes ?? $deduction->name, 'amount' => 0, 'deduction_type' => $deduction->type];
                     continue;
                 }
             }
 
-            $amount  = $deduction->calculateAmount($salaryBase, $customAmount);
-            $total  += $amount;
-            $items[] = ['description' => $deduction->name, 'amount' => $amount, 'deduction_type' => $deduction->type];
+            $amount      = $deduction->calculateAmount($salaryBase, $customAmount);
+            $description = $assignment->notes ?? $deduction->name;
+            $total      += $amount;
+            $items[]     = ['description' => $description, 'amount' => $amount, 'deduction_type' => $deduction->type];
         }
 
         // ── Embargos con tope legal — en orden de start_date ───────────────
@@ -126,7 +127,7 @@ class DeductionCalculator
 
             $judicialUsed += $amount;
             $total        += $amount;
-            $items[]       = ['description' => $deduction->name, 'amount' => $amount, 'deduction_type' => $deduction->type];
+            $items[]       = ['description' => $assignment->notes ?? $deduction->name, 'amount' => $amount, 'deduction_type' => $deduction->type];
         }
 
         return [

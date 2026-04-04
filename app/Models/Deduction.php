@@ -101,6 +101,7 @@ class Deduction extends Model
             'legal'     => 'Legal (IPS, IRP)',
             'judicial'  => 'Judicial (alimentaria, embargo)',
             'voluntary' => 'Voluntaria (seguros, cooperativas)',
+            'loan'      => 'Préstamo / Adelanto',
         ];
     }
 
@@ -115,6 +116,7 @@ class Deduction extends Model
             'legal'     => 'Legal',
             'judicial'  => 'Judicial',
             'voluntary' => 'Voluntaria',
+            'loan'      => 'Préstamo/Adelanto',
         ];
     }
 
@@ -129,6 +131,7 @@ class Deduction extends Model
             'legal'     => 'danger',
             'judicial'  => 'warning',
             'voluntary' => 'info',
+            'loan'      => 'primary',
         ];
     }
 

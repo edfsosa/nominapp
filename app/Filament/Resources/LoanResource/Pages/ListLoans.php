@@ -128,13 +128,13 @@ class ListLoans extends ListRecords
                             }
 
                             Loan::create([
-                                'employee_id'       => $employeeId,
-                                'type'              => 'advance',
-                                'amount'            => $amount,
+                                'employee_id'        => $employeeId,
+                                'type'               => 'advance',
+                                'amount'             => $amount,
                                 'installments_count' => 1,
                                 'installment_amount' => $amount,
-                                'status'            => 'pending',
-                                'reason'            => $data['reason'],
+                                'status'             => 'pending',
+                                'reason'             => 'personal',
                             ]);
                             $count++;
                         }
@@ -216,10 +216,15 @@ class ListLoans extends ListRecords
                 ->badge($counts['by_status']['paid'])
                 ->badgeColor('success'),
 
+            'defaulted' => Tab::make('En Mora')
+                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'defaulted'))
+                ->badge($counts['by_status']['defaulted'] ?? 0)
+                ->badgeColor('danger'),
+
             'cancelled' => Tab::make('Cancelados')
                 ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'cancelled'))
                 ->badge($counts['by_status']['cancelled'])
-                ->badgeColor('danger'),
+                ->badgeColor('gray'),
         ];
     }
 

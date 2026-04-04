@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use App\Models\EmployeeDeduction;
 
 class Payroll extends Model
 {
@@ -48,9 +49,9 @@ class Payroll extends Model
                 throw new \Exception("No se puede eliminar una nómina con estado '{$payroll->status}'.");
             }
 
-            // Revertir cuotas de préstamo pagadas asociadas a este período/empleado
             $period = $payroll->period;
             if ($period) {
+                // Revertir cuotas de préstamo pagadas asociadas a este período/empleado
                 LoanInstallment::whereHas('loan', fn($q) => $q
                     ->where('employee_id', $payroll->employee_id)
                     ->where('status', 'active'))
@@ -58,10 +59,23 @@ class Payroll extends Model
                     ->whereBetween('due_date', [$period->start_date, $period->end_date])
                     ->update(['status' => 'pending', 'paid_at' => null]);
 
+                // Eliminar los EmployeeDeduction puntuales creados para las cuotas de este período.
+                // La FK con nullOnDelete limpia automáticamente loan_installments.employee_deduction_id.
+                $deductionIds = LoanInstallment::whereHas('loan', fn($q) => $q
+                    ->where('employee_id', $payroll->employee_id))
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->whereNotNull('employee_deduction_id')
+                    ->pluck('employee_deduction_id')
+                    ->filter();
+
+                if ($deductionIds->isNotEmpty()) {
+                    EmployeeDeduction::whereIn('id', $deductionIds)->delete();
+                }
+
                 Log::warning('Cuotas de préstamo revertidas al eliminar nómina', [
-                    'payroll_id' => $payroll->id,
+                    'payroll_id'  => $payroll->id,
                     'employee_id' => $payroll->employee_id,
-                    'period_id' => $period->id,
+                    'period_id'   => $period->id,
                 ]);
             }
         });

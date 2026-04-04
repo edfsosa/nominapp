@@ -15,6 +15,8 @@ class LoanInstallment extends Model
         'status',
         'paid_at',
         'notes',
+        'payroll_id',
+        'employee_deduction_id',
     ];
 
     protected $casts = [
@@ -30,6 +32,12 @@ class LoanInstallment extends Model
     public function loan(): BelongsTo
     {
         return $this->belongsTo(Loan::class);
+    }
+
+    /** Nómina en la que fue cobrada esta cuota (null si aún no se procesó). */
+    public function payroll(): BelongsTo
+    {
+        return $this->belongsTo(Payroll::class);
     }
 
     // =========================================================================

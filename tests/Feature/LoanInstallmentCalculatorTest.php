@@ -3,8 +3,10 @@
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Contract;
+use App\Models\Deduction;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeDeduction;
 use App\Models\Loan;
 use App\Models\LoanInstallment;
 use App\Models\PayrollPeriod;
@@ -16,6 +18,30 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/**
+ * Crea las deducciones PRE001 y ADE001 necesarias para el calculador.
+ */
+function seedLoanDeductions(): void
+{
+    Deduction::firstOrCreate(['code' => 'PRE001'], [
+        'name'        => 'Cuota de Préstamo',
+        'type'        => 'loan',
+        'calculation' => 'fixed',
+        'is_mandatory'=> false,
+        'is_active'   => true,
+        'affects_irp' => false,
+    ]);
+
+    Deduction::firstOrCreate(['code' => 'ADE001'], [
+        'name'        => 'Cuota de Adelanto',
+        'type'        => 'loan',
+        'calculation' => 'fixed',
+        'is_mandatory'=> false,
+        'is_active'   => true,
+        'affects_irp' => false,
+    ]);
+}
 
 /**
  * Crea un empleado con contrato activo para tests de LoanInstallmentCalculator.
@@ -84,13 +110,13 @@ function makeLoan(
     string $status = 'active',
 ): Loan {
     return Loan::create([
-        'employee_id'       => $employee->id,
-        'type'              => $type,
-        'amount'            => $installmentsCount * $installmentAmount,
+        'employee_id'        => $employee->id,
+        'type'               => $type,
+        'amount'             => $installmentsCount * $installmentAmount,
         'installments_count' => $installmentsCount,
         'installment_amount' => $installmentAmount,
-        'status'            => $status,
-        'granted_at'        => Carbon::now()->subMonth(),
+        'status'             => $status,
+        'granted_at'         => Carbon::now()->subMonth(),
     ]);
 }
 
@@ -115,18 +141,19 @@ function makeLoanInstallment(
 
 // ─── calculate() ─────────────────────────────────────────────────────────────
 
-it('retorna total 0 e items vacíos si el empleado no tiene préstamos activos', function () {
+it('retorna installments vacía si el empleado no tiene préstamos activos', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod();
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
-        ->and($result['items'])->toBeEmpty()
-        ->and($result['installments'])->toBeEmpty();
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('incluye cuota pendiente con due_date dentro del período', function () {
+it('crea EmployeeDeduction para cuota pendiente con due_date dentro del período', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod(month: 3);
     $loan     = makeLoan($employee);
@@ -134,35 +161,47 @@ it('incluye cuota pendiente con due_date dentro del período', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect((float) $result['total'])->toBe(500_000.0)
-        ->and($result['items'])->toHaveCount(1)
-        ->and($result['installments'])->toHaveCount(1);
+    expect($result['installments'])->toHaveCount(1);
+
+    $ed = EmployeeDeduction::first();
+    expect($ed)->not->toBeNull()
+        ->and((float) $ed->custom_amount)->toBe(500_000.0)
+        ->and($ed->start_date->toDateString())->toBe('2026-03-15')
+        ->and($ed->end_date->toDateString())->toBe('2026-03-15');
+
+    // La cuota debe referenciar el EmployeeDeduction creado
+    expect($inst->fresh()->employee_deduction_id)->toBe($ed->id);
 });
 
 it('usa descripción "Préstamo" para cuotas de tipo loan', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod();
     $loan     = makeLoan($employee, type: 'loan', installmentsCount: 3);
     makeLoanInstallment($loan, 1, '2026-03-15');
 
-    $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
+    app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['items'][0]['description'])->toContain('Préstamo')
-        ->and($result['items'][0]['description'])->toContain('1/3');
+    $ed = EmployeeDeduction::first();
+    expect($ed->notes)->toContain('Préstamo')
+        ->and($ed->notes)->toContain('1/3');
 });
 
 it('usa descripción "Adelanto" para cuotas de tipo advance', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod();
     $loan     = makeLoan($employee, type: 'advance', installmentsCount: 1);
     makeLoanInstallment($loan, 1, '2026-03-31');
 
-    $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
+    app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['items'][0]['description'])->toContain('Adelanto');
+    $ed = EmployeeDeduction::first();
+    expect($ed->notes)->toContain('Adelanto');
 });
 
 it('excluye cuotas ya pagadas', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod();
     $loan     = makeLoan($employee);
@@ -170,11 +209,12 @@ it('excluye cuotas ya pagadas', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
-        ->and($result['items'])->toBeEmpty();
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
 });
 
 it('excluye cuotas con due_date fuera del período', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod(month: 3); // 2026-03-01 – 2026-03-31
     $loan     = makeLoan($employee);
@@ -184,11 +224,12 @@ it('excluye cuotas con due_date fuera del período', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
-        ->and($result['items'])->toBeEmpty();
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
 });
 
 it('excluye cuotas de préstamos inactivos (cancelled, paid)', function () {
+    seedLoanDeductions();
     $employee  = makeLoanEmployee();
     $period    = makeLoanPeriod();
     $cancelled = makeLoan($employee, status: 'cancelled');
@@ -199,11 +240,25 @@ it('excluye cuotas de préstamos inactivos (cancelled, paid)', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['total'])->toBe(0)
-        ->and($result['items'])->toBeEmpty();
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
+});
+
+it('incluye cuotas de préstamos defaulted', function () {
+    seedLoanDeductions();
+    $employee  = makeLoanEmployee();
+    $period    = makeLoanPeriod();
+    $defaulted = makeLoan($employee, status: 'defaulted');
+    makeLoanInstallment($defaulted, 1, '2026-03-15');
+
+    $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
+
+    expect($result['installments'])->toHaveCount(1);
+    expect(EmployeeDeduction::count())->toBe(1);
 });
 
 it('excluye cuotas de préstamos de otro empleado', function () {
+    seedLoanDeductions();
     $employee1 = makeLoanEmployee();
     $employee2 = makeLoanEmployee();
     $period    = makeLoanPeriod();
@@ -212,11 +267,12 @@ it('excluye cuotas de préstamos de otro empleado', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee1, $period);
 
-    expect($result['total'])->toBe(0)
-        ->and($result['items'])->toBeEmpty();
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('acumula correctamente múltiples cuotas en el período', function () {
+it('crea un EmployeeDeduction por cuota cuando hay múltiples cuotas en el período', function () {
+    seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period   = makeLoanPeriod();
 
@@ -228,9 +284,26 @@ it('acumula correctamente múltiples cuotas en el período', function () {
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect((float) $result['total'])->toBe(500_000.0)
-        ->and($result['items'])->toHaveCount(2)
-        ->and($result['installments'])->toHaveCount(2);
+    expect($result['installments'])->toHaveCount(2);
+    expect(EmployeeDeduction::count())->toBe(2);
+
+    $amounts = EmployeeDeduction::pluck('custom_amount')->map(fn($a) => (float) $a)->sort()->values();
+    expect($amounts[0])->toBe(200_000.0)
+        ->and($amounts[1])->toBe(300_000.0);
+});
+
+it('es idempotente: una segunda llamada no duplica EmployeeDeduction', function () {
+    seedLoanDeductions();
+    $employee = makeLoanEmployee();
+    $period   = makeLoanPeriod();
+    $loan     = makeLoan($employee);
+    makeLoanInstallment($loan, 1, '2026-03-15');
+
+    $calc = app(LoanInstallmentCalculator::class);
+    $calc->calculate($employee, $period);
+    $calc->calculate($employee, $period); // segunda llamada (regeneración)
+
+    expect(EmployeeDeduction::count())->toBe(1);
 });
 
 // ─── markInstallmentsAsPaid() ────────────────────────────────────────────────
@@ -256,9 +329,9 @@ it('marca cuotas como pagadas y retorna el número de cuotas procesadas', functi
 });
 
 it('ignora cuotas que ya están pagadas al marcar', function () {
-    $employee = makeLoanEmployee();
-    $loan     = makeLoan($employee);
-    $pending  = makeLoanInstallment($loan, 1, '2026-03-15', status: 'pending');
+    $employee    = makeLoanEmployee();
+    $loan        = makeLoan($employee);
+    $pending     = makeLoanInstallment($loan, 1, '2026-03-15', status: 'pending');
     $alreadyPaid = makeLoanInstallment($loan, 2, '2026-04-15', status: 'paid');
 
     $count = app(LoanInstallmentCalculator::class)->markInstallmentsAsPaid([$pending->id, $alreadyPaid->id]);
@@ -270,7 +343,7 @@ it('ignora cuotas que ya están pagadas al marcar', function () {
 it('cierra el préstamo cuando todas sus cuotas quedan pagadas', function () {
     $employee = makeLoanEmployee();
     $loan     = makeLoan($employee, installmentsCount: 2);
-    $inst1    = makeLoanInstallment($loan, 1, '2026-02-15', status: 'paid');
+    makeLoanInstallment($loan, 1, '2026-02-15', status: 'paid');
     $inst2    = makeLoanInstallment($loan, 2, '2026-03-15', status: 'pending');
 
     app(LoanInstallmentCalculator::class)->markInstallmentsAsPaid([$inst2->id]);

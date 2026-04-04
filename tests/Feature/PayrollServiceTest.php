@@ -45,7 +45,7 @@ function makePayService(array $overrides = []): PayrollService
     $pdf         = $overrides['pdf']          ?? \Mockery::mock(PayrollPDFGenerator::class);
 
     $emptyResult     = ['total' => 0, 'ips_total' => 0, 'items' => []];
-    $emptyLoanResult = ['total' => 0, 'items' => [], 'installments' => collect()];
+    $emptyLoanResult = ['installments' => collect()];
 
     $perception->shouldReceive('calculate')->andReturn($emptyResult)->byDefault();
     $deduction->shouldReceive('calculate')->andReturn($emptyResult)->byDefault();
@@ -364,13 +364,11 @@ it('generateForEmployee marca cuotas de préstamo como pagadas', function () {
 
     $loanMock = \Mockery::mock(LoanInstallmentCalculator::class);
     $loanMock->shouldReceive('calculate')->andReturn([
-        'total'        => 200_000,
-        'items'        => [['description' => 'Cuota préstamo', 'amount' => 200_000]],
         'installments' => collect([$installment]),
     ]);
     $loanMock->shouldReceive('markInstallmentsAsPaid')
         ->once()
-        ->with([$installment->id])
+        ->withArgs(fn($ids, $payrollId) => $ids === [$installment->id] && is_int($payrollId))
         ->andReturn(1);
 
     makePayService(['loan' => $loanMock])

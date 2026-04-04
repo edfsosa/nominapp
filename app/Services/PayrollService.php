@@ -101,20 +101,22 @@ class PayrollService
                     $baseSalary = $employee->base_salary;
                 }
 
-                // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta
+                // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta.
+                // Las cuotas de préstamos se calculan ANTES de DeductionCalculator para que
+                // los EmployeeDeduction creados sean recogidos en el mismo ciclo.
                 $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
                 $extras           = $this->extraHourCalculator->calculate($employee, $period);
                 $restDay          = $this->restDayCalculator->calculate($employee, $period);
                 $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+                $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
                 $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
                 $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-                $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
                 $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
                 $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
                 // Percepciones que computan para IPS y aguinaldo (salariales + HE + descanso; bonificación familiar excluida)
                 $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-                $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+                $totalDeductions  = $deductions['total'] + $absences['total'];
                 $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
                 $payroll = Payroll::create([
@@ -141,8 +143,8 @@ class PayrollService
                     ]);
                 }
 
-                // Ítems: deducciones (incluye cuotas de préstamos/adelantos)
-                foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
+                // Ítems: deducciones (las cuotas de préstamos van incluidas en $deductions vía EmployeeDeduction)
+                foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                     PayrollItem::create([
                         'payroll_id'     => $payroll->id,
                         'type'           => 'deduction',
@@ -155,7 +157,7 @@ class PayrollService
                 // Marcar cuotas de préstamos como pagadas
                 if ($loanInstallments['installments']->isNotEmpty()) {
                     $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
-                    $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
+                    $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
                 }
 
                 // Generar PDF
@@ -240,14 +242,14 @@ class PayrollService
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
             $restDay          = $this->restDayCalculator->calculate($employee, $period);
             $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
             $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
             $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-            $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+            $totalDeductions  = $deductions['total'] + $absences['total'];
             $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
             $payroll = Payroll::create([
@@ -273,7 +275,7 @@ class PayrollService
                 ]);
             }
 
-            foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
+            foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                 PayrollItem::create([
                     'payroll_id'  => $payroll->id,
                     'type'        => 'deduction',
@@ -284,7 +286,7 @@ class PayrollService
 
             if ($loanInstallments['installments']->isNotEmpty()) {
                 $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
-                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
+                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
             }
 
             $pdfPath = $this->payrollPDFGenerator->generate($payroll);
@@ -359,14 +361,14 @@ class PayrollService
             $extras           = $this->extraHourCalculator->calculate($employee, $period);
             $restDay          = $this->restDayCalculator->calculate($employee, $period);
             $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-            $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
 
             $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
             $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-            $totalDeductions  = $deductions['total'] + $absences['total'] + $loanInstallments['total'];
+            $totalDeductions  = $deductions['total'] + $absences['total'];
             $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
 
             // Actualizar el registro existente
@@ -392,7 +394,7 @@ class PayrollService
             }
 
             // Recrear ítems: deducciones
-            foreach (array_merge($deductions['items'], $absences['items'], $loanInstallments['items']) as $item) {
+            foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                 PayrollItem::create([
                     'payroll_id'     => $payroll->id,
                     'type'           => 'deduction',
@@ -405,7 +407,7 @@ class PayrollService
             // Marcar cuotas de préstamos como pagadas
             if ($loanInstallments['installments']->isNotEmpty()) {
                 $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
-                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds);
+                $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
             }
 
             // Regenerar PDF

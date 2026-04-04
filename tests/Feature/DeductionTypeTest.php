@@ -7,26 +7,27 @@ uses(RefreshDatabase::class);
 
 // ─── getTypeOptions / Labels / Colors ────────────────────────────────────────
 
-it('getTypeOptions retorna los 3 tipos', function () {
+it('getTypeOptions retorna los 4 tipos', function () {
     $options = Deduction::getTypeOptions();
 
-    expect($options)->toHaveKeys(['legal', 'judicial', 'voluntary'])
-        ->and($options)->toHaveCount(3);
+    expect($options)->toHaveKeys(['legal', 'judicial', 'voluntary', 'loan'])
+        ->and($options)->toHaveCount(4);
 });
 
-it('getTypeLabels retorna etiquetas cortas para los 3 tipos', function () {
+it('getTypeLabels retorna etiquetas cortas para los 4 tipos', function () {
     $labels = Deduction::getTypeLabels();
 
     expect($labels['legal'])->toBe('Legal')
         ->and($labels['judicial'])->toBe('Judicial')
-        ->and($labels['voluntary'])->toBe('Voluntaria');
+        ->and($labels['voluntary'])->toBe('Voluntaria')
+        ->and($labels['loan'])->toBe('Préstamo/Adelanto');
 });
 
-it('getTypeColors retorna colores válidos de Filament para los 3 tipos', function () {
+it('getTypeColors retorna colores válidos de Filament para los 4 tipos', function () {
     $validColors = ['primary', 'success', 'warning', 'danger', 'info', 'gray'];
     $colors = Deduction::getTypeColors();
 
-    expect($colors)->toHaveCount(3);
+    expect($colors)->toHaveCount(4);
     foreach ($colors as $color) {
         expect($validColors)->toContain($color);
     }
@@ -35,7 +36,7 @@ it('getTypeColors retorna colores válidos de Filament para los 3 tipos', functi
 // ─── fillable y persistencia ──────────────────────────────────────────────────
 
 it('guarda y recupera el type correctamente', function () {
-    foreach (['legal', 'judicial', 'voluntary'] as $i => $type) {
+    foreach (['legal', 'judicial', 'voluntary', 'loan'] as $i => $type) {
         $d = Deduction::create([
             'name'        => "Deducción {$type}",
             'code'        => "T{$i}",
