@@ -6,6 +6,7 @@ use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
 use App\Models\AttendanceMarkFailure;
 use App\Models\Employee;
+use App\Models\Terminal;
 use App\Rules\FaceDescriptor;
 use Carbon\Carbon;
 use Illuminate\Contracts\View\View as ViewContract;
@@ -26,10 +27,40 @@ class AttendanceFaceMarkController extends Controller
         return view('attendances.mark', ['title' => 'Marcación Facial']);
     }
 
-    /** Muestra la página de marcación en modo terminal/kiosco */
+    /** Muestra la página de marcación en modo terminal/kiosco (legacy — URL sin código) */
     public function terminal(): ViewContract
     {
         return view('attendances.terminal', ['title' => 'Terminal de Marcación']);
+    }
+
+    /**
+     * Muestra la terminal de marcación identificada por su código único.
+     * Actualiza last_seen_at en cada carga. Si está inactiva, muestra pantalla de fuera de servicio.
+     *
+     * @param  string $code Código único de 8 caracteres de la terminal
+     * @return ViewContract
+     */
+    public function terminalByCode(string $code): ViewContract
+    {
+        $terminal = Terminal::with('branch')->where('code', $code)->first();
+
+        if (!$terminal) {
+            abort(404);
+        }
+
+        if ($terminal->isInactive()) {
+            return view('attendances.terminal-inactive', [
+                'title'    => 'Terminal fuera de servicio',
+                'terminal' => $terminal,
+            ]);
+        }
+
+        $terminal->update(['last_seen_at' => now()]);
+
+        return view('attendances.terminal', [
+            'title'    => "Terminal — {$terminal->name}",
+            'terminal' => $terminal,
+        ]);
     }
 
     /** 1) Identifica al empleado por descriptor y devuelve data + eventos permitidos */
@@ -179,6 +210,7 @@ class AttendanceFaceMarkController extends Controller
                 'employee_id'        => ['required', 'integer', 'exists:employees,id'],
                 'event_type'         => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
                 'source'             => ['nullable', 'string', 'in:terminal,mobile,manual'],
+                'terminal_code'      => ['nullable', 'string'],
                 'location'           => ['nullable', 'array'],
                 'location.lat'       => ['required_with:location', 'numeric', 'between:-90,90'],
                 'location.lng'       => ['required_with:location', 'numeric', 'between:-180,180'],
@@ -220,10 +252,18 @@ class AttendanceFaceMarkController extends Controller
             ], 422);
         }
 
-        // TERMINAL MODE: Si no se envía location, usar coordenadas de la sucursal
+        // Resolver la terminal si se envió terminal_code
+        $terminal = null;
+        if (!empty($data['terminal_code'])) {
+            $terminal = Terminal::with('branch')->where('code', $data['terminal_code'])->first();
+        }
+
+        // TERMINAL MODE: Si no se envía location, usar coordenadas de la sucursal de la terminal (o del empleado)
+        $locationBranch = $terminal?->branch ?? $employee->branch;
+
         if (empty($data['location'])) {
-            // Verificar que el empleado tenga sucursal asignada
-            if (!$employee->branch) {
+            // Verificar que exista sucursal con coordenadas
+            if (!$locationBranch) {
                 Log::warning('Marcación fallida: empleado sin sucursal asignada', [
                     'employee_id' => $employee->id,
                     'employee_name' => "{$employee->first_name} {$employee->last_name}",
@@ -238,29 +278,29 @@ class AttendanceFaceMarkController extends Controller
                 ], 422);
             }
 
-            $branchCoords = $employee->branch->coordinates;
+            $branchCoords = $locationBranch->coordinates;
 
             // Verificar que la sucursal tenga coordenadas configuradas
             if (!$branchCoords || !isset($branchCoords['lat'], $branchCoords['lng'])) {
                 Log::warning('Marcación fallida: sucursal sin coordenadas configuradas', [
                     'employee_id' => $employee->id,
                     'employee_name' => "{$employee->first_name} {$employee->last_name}",
-                    'branch_id' => $employee->branch->id,
-                    'branch_name' => $employee->branch->name,
+                    'branch_id' => $locationBranch->id,
+                    'branch_name' => $locationBranch->name,
                 ]);
 
                 $this->recordFailure($request, 'branch_no_coordinates', 'Sucursal sin coordenadas configuradas.', [
-                    'branch_id'   => $employee->branch->id,
-                    'branch_name' => $employee->branch->name,
-                ], $employee, $employee->branch);
+                    'branch_id'   => $locationBranch->id,
+                    'branch_name' => $locationBranch->name,
+                ], $employee, $locationBranch);
 
                 return response()->json([
                     'ok' => false,
-                    'message' => 'La sucursal del empleado no tiene coordenadas configuradas. Por favor, contacte al administrador.',
+                    'message' => 'La sucursal no tiene coordenadas configuradas. Por favor, contacte al administrador.',
                 ], 422);
             }
 
-            // Usar coordenadas de la sucursal
+            // Usar coordenadas de la sucursal (de la terminal si aplica, sino del empleado)
             $location = [
                 'lat' => (float) $branchCoords['lat'],
                 'lng' => (float) $branchCoords['lng'],
@@ -268,8 +308,9 @@ class AttendanceFaceMarkController extends Controller
 
             Log::info('Usando coordenadas de sucursal para marcación', [
                 'employee_id' => $employee->id,
-                'branch_id' => $employee->branch->id,
-                'branch_name' => $employee->branch->name,
+                'branch_id'   => $locationBranch->id,
+                'branch_name' => $locationBranch->name,
+                'source'      => $terminal ? 'terminal' : 'employee_branch',
                 'coordinates' => $location,
             ]);
         } else {
@@ -286,7 +327,7 @@ class AttendanceFaceMarkController extends Controller
         $pendingFailure = null;
 
         try {
-            $result = DB::transaction(function () use ($employee, $today, $data, $location, &$pendingFailure) {
+            $result = DB::transaction(function () use ($employee, $today, $data, $location, $terminal, &$pendingFailure) {
                 // Asegurar AttendanceDay del día (firstOrCreate es atómico)
                 $day = AttendanceDay::firstOrCreate(
                     ['employee_id' => $employee->id, 'date' => $today],
@@ -381,15 +422,20 @@ class AttendanceFaceMarkController extends Controller
                 // CORRECCIÓN 11: Usar timezone de la aplicación para recorded_at
                 $recordedAt = Carbon::now(config('app.timezone'));
 
+                // Detectar marcación en sucursal diferente a la del empleado
+                $branchMismatch = $terminal
+                    && $terminal->branch_id
+                    && $employee->branch_id
+                    && $terminal->branch_id !== $employee->branch_id;
+
                 // Registrar el evento de asistencia
                 $event = $day->events()->create([
-                    'event_type'  => $data['event_type'],
-                    'recorded_at' => $recordedAt,
-                    'source'      => $data['source'] ?? 'manual',
-                    'location'    => [
-                        'lat' => $lat,
-                        'lng' => $lng,
-                    ],
+                    'event_type'      => $data['event_type'],
+                    'recorded_at'     => $recordedAt,
+                    'source'          => $data['source'] ?? 'manual',
+                    'location'        => ['lat' => $lat, 'lng' => $lng],
+                    'terminal_id'     => $terminal?->id,
+                    'branch_mismatch' => $branchMismatch,
                 ]);
 
                 // CORRECCIÓN 12: Verificar que el evento se creó correctamente

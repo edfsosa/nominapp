@@ -58,6 +58,18 @@
     </div>
 
     <script defer src="{{ asset('js/face-api.min.js') }}"></script>
+    @isset($terminal)
+    {{-- Datos de la terminal identificada — disponibles en window.terminalData para el JS --}}
+    <script>
+        window.terminalData = {
+            id: {{ $terminal->id }},
+            code: @json($terminal->code),
+            name: @json($terminal->name),
+            branch_id: {{ $terminal->branch_id ?? 'null' }},
+            branch_name: @json($terminal->branch?->name),
+        };
+    </script>
+    @endisset
 </body>
 
 </html>

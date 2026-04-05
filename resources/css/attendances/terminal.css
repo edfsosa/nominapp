@@ -329,6 +329,27 @@ html[data-theme="dark"]  .theme-toggle .icon-moon { display: none; }
     text-transform: capitalize;
 }
 
+.idle-terminal-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    margin-top: var(--sp-2);
+}
+
+.idle-terminal-info #idleTerminalName {
+    font-size: clamp(.75rem, 2vw, .9375rem);
+    font-weight: 600;
+    color: var(--c-subtle);
+    letter-spacing: .02em;
+}
+
+.idle-terminal-info #idleTerminalBranch {
+    font-size: clamp(.6875rem, 1.75vw, .875rem);
+    color: var(--c-muted);
+    opacity: .7;
+}
+
 .idle-hint {
     position: absolute;
     bottom: var(--sp-8);

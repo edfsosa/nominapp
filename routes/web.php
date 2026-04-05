@@ -33,8 +33,11 @@ Route::prefix('marcar')->name('mark.')->group(function () {
     Route::post('/', [AttendanceFaceMarkController::class, 'store'])->name('store');
 });
 
-// Terminal/Kiosco mode (interfaz alternativa para marcación)
-Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.show');
+// Terminal legacy — mantener activa hasta migrar todos los dispositivos físicos
+Route::get('/terminal', [AttendanceFaceMarkController::class, 'terminal'])->name('terminal.legacy');
+
+// Terminal identificada por código — nueva arquitectura
+Route::get('/terminal/{code}', [AttendanceFaceMarkController::class, 'terminalByCode'])->name('terminal.show');
 
 /*
 |--------------------------------------------------------------------------

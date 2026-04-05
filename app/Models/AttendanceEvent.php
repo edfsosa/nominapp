@@ -22,11 +22,14 @@ class AttendanceEvent extends Model
         'employee_ci',
         'branch_id',
         'branch_name',
+        'terminal_id',
+        'branch_mismatch',
     ];
 
     protected $casts = [
-        'recorded_at' => 'datetime',
-        'location' => 'array',
+        'recorded_at'    => 'datetime',
+        'location'       => 'array',
+        'branch_mismatch'=> 'boolean',
     ];
 
     /**
@@ -51,6 +54,12 @@ class AttendanceEvent extends Model
     public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** Terminal desde la que se realizó la marcación (null si fue móvil o manual). */
+    public function terminal(): BelongsTo
+    {
+        return $this->belongsTo(Terminal::class);
     }
 
     /**

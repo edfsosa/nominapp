@@ -70,6 +70,19 @@ document.addEventListener("DOMContentLoaded", () => {
     const MODELS_URI      = "/models";
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutos sin marcaciones
 
+    /** Datos de la terminal identificada (inyectados por PHP cuando se accede via /terminal/{code}) */
+    const terminalData = window.terminalData || null;
+
+    // Poblar nombre y sucursal en la pantalla idle si hay datos de terminal
+    const idleTerminalInfo   = document.getElementById("idleTerminalInfo");
+    const idleTerminalName   = document.getElementById("idleTerminalName");
+    const idleTerminalBranch = document.getElementById("idleTerminalBranch");
+    if (terminalData && idleTerminalInfo) {
+        if (idleTerminalName)   idleTerminalName.textContent   = terminalData.name || "";
+        if (idleTerminalBranch) idleTerminalBranch.textContent = terminalData.branch_name || "";
+        idleTerminalInfo.style.display = "";
+    }
+
     // ============================================================================
     // ESTADO GLOBAL
     // ============================================================================
@@ -735,7 +748,12 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch("/marcar", {
                 method: "POST",
                 headers: { "Content-Type": "application/json", "X-CSRF-TOKEN": CSRF },
-                body: JSON.stringify({ employee_id: employee.id, event_type: eventType, source: "terminal" }),
+                body: JSON.stringify({
+                    employee_id:   employee.id,
+                    event_type:    eventType,
+                    source:        "terminal",
+                    ...(terminalData ? { terminal_code: terminalData.code } : {}),
+                }),
             });
 
             if (response.status === 419) {
