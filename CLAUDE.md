@@ -48,12 +48,27 @@ Two separate axes that converge in `Contract`:
 | Payroll | `PayrollService`, `PayrollPeriod`, `Payroll`, `PayrollItem` |
 | Perceptions | `PerceptionCalculator`, `EmployeePerception` |
 | Deductions | `DeductionCalculator`, `EmployeeDeduction` |
-| Loans & Advances | `LoanService`, `LoanInstallmentCalculator` |
+| Loans & Advances | `Loan`, `LoanInstallment`, `LoanInstallmentCalculator` |
 | Vacations | `VacationService`, `VacationBalance` |
 | Aguinaldo (13th) | `AguinaldoService`, `AguinaldoPeriod`, `AguinaldoItem` |
 | Liquidación | `LiquidacionService`, `LiquidacionItem` |
 | Attendance | `AttendanceDay`, `AttendanceEvent`, observers auto-calculate daily totals |
 | Face Recognition | TensorFlow.js (128-element descriptors), `FaceEnrollment`, `FaceCaptureApp.js` |
+
+### Módulo de Préstamos y Adelantos
+
+**Ciclo de vida:** `pending` → `activate()` → `active` → auto-`paid` (cuando todas las cuotas están pagadas). Desde `active` se puede `markAsDefaulted()` → `defaulted` → `reactivate()` → `active`. Desde cualquier estado no final: `cancel()`.
+
+**Integración con nómina — pipeline de deducción:**
+`LoanInstallmentCalculator.calculate()` se ejecuta **antes** que `DeductionCalculator` en `PayrollService`. Por cada cuota con `due_date` dentro del período y estado `pending`, crea un `EmployeeDeduction` puntual (`start_date = end_date = due_date`) usando el código `PRE001` (préstamo) o `ADE001` (adelanto). `DeductionCalculator` luego las procesa junto al resto de deducciones del empleado de forma uniforme.
+
+**Dependencia crítica:** Los registros `PRE001` y `ADE001` deben existir en la tabla `deductions`. Son sembrados por `ProductionSeeder` y `DeductionSeeder`. Sin ellos, las cuotas se omiten con un warning en el log.
+
+**Idempotencia:** Llamar a `calculate()` dos veces en el mismo período no duplica `EmployeeDeduction`. Si la cuota ya tiene `employee_deduction_id`, actualiza el registro existente.
+
+**Limpieza al eliminar nómina:** `Payroll::booted()` revierte las cuotas a `pending` y elimina los `EmployeeDeduction` asociados al período.
+
+**Adelanto automático mensual:** `contracts.advance_percent` (1–25, nullable) habilita la generación automática. El comando `advances:auto-generate` (scheduler: 1° de cada mes, 07:00) crea y activa el adelanto por ese % del salario. Soporta `--dry-run`.
 
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
@@ -74,7 +89,7 @@ Business logic lives in `app/Services/`. Each domain has a `*Service` for orches
 - Layout con `->columns(1)` en el root; cada grupo lógico es un `Section::make(...)->compact()->icon(...)->columns(N)`
 - Secciones estándar en `ContractsRelationManager`:
   - *Contrato* (3 cols): `[type ── span 2 ──] [work_modality]` / `[start_date] [end_date*] [trial_days]`
-  - *Remuneración* (2 cols): `[salary_type] [salary]`
+  - *Remuneración* (2 cols): `[salary_type] [salary]` / `[payment_method] [payroll_type]` / `[advance_percent]` (solo visible si `salary_type === 'mensual'`)
   - *Cargo* (2 cols): `[department_id] [position_id]`
   - `Textarea notes` al root sin section, `->columnSpanFull()`
 - Select encadenado `department_id → position_id`: department con `->live()->afterStateUpdated(fn(Set $set) => $set('position_id', null))`; position filtra opciones por `$get('department_id')`
@@ -564,10 +579,11 @@ php artisan up
 ```
 * * * * * cd /ruta/nominapp && /opt/cpanel/ea-php82/root/usr/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
 ```
-Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora).
+Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora), `loans:check-defaulted` (08:00 diario), `advances:auto-generate` (07:00 el 1° de cada mes).
 
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation
+- Loan installment amount cannot exceed 25% of salary (Art. 245 CLT) — validated in `Loan::activate()`. `advance_percent` on Contract is therefore capped at 25% in the UI.
 - Mobile mode is for remote employees using their own device, **not** a shared kiosk
 - Terminal/kiosk mode is a shared device per branch
