@@ -23,6 +23,7 @@ class Contract extends Model
         'department_id',
         'work_modality',
         'payment_method',
+        'advance_percent',
         'document_path',
         'status',
         'notes',
@@ -30,10 +31,11 @@ class Contract extends Model
     ];
 
     protected $casts = [
-        'start_date'  => 'date',
-        'end_date'    => 'date',
-        'trial_days'  => 'integer',
-        'salary'      => 'integer',
+        'start_date'      => 'date',
+        'end_date'        => 'date',
+        'trial_days'      => 'integer',
+        'salary'          => 'integer',
+        'advance_percent' => 'integer',
     ];
 
     // ───────────────────────────────────────────

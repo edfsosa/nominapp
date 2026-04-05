@@ -56,6 +56,21 @@ Schedule::call(function () {
 })->dailyAt('02:00')->name('cleanup-mark-failures')->withoutOverlapping();
 
 /**
+ * Generar adelantos automáticos
+ * Se ejecuta el 1° de cada mes a las 07:00 para crear y activar los adelantos
+ * de empleados con advance_percent definido en su contrato activo.
+ */
+Schedule::command('advances:auto-generate')
+    ->monthlyOn(1, '07:00')
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Generación automática de adelantos completada');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la generación automática de adelantos');
+    });
+
+/**
  * Detectar préstamos/adelantos en mora
  * Se ejecuta diariamente a las 08:00 para marcar como 'defaulted' los préstamos
  * activos con cuotas vencidas hace más de 30 días.

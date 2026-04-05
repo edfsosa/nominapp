@@ -885,6 +885,52 @@ class EmployeeResource extends Resource
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('set_advance_percent')
+                        ->label('Configurar adelanto automático')
+                        ->icon('heroicon-o-banknotes')
+                        ->color('info')
+                        ->form([
+                            Select::make('advance_percent')
+                                ->label('Porcentaje de adelanto')
+                                ->options([
+                                    ''   => 'Sin adelanto automático',
+                                    '10' => '10%',
+                                    '15' => '15%',
+                                    '20' => '20%',
+                                    '25' => '25% (máximo legal)',
+                                ])
+                                ->native(false)
+                                ->required()
+                                ->helperText('Se actualizará el contrato activo mensualizado de cada empleado seleccionado.'),
+                        ])
+                        ->requiresConfirmation()
+                        ->modalHeading('Configurar adelanto automático')
+                        ->modalDescription('El sistema generará automáticamente el adelanto el 1° de cada mes para los empleados configurados.')
+                        ->modalSubmitActionLabel('Aplicar configuración')
+                        ->action(function (Collection $records, array $data): void {
+                            $percent = $data['advance_percent'] !== '' ? (int) $data['advance_percent'] : null;
+                            $updated = 0;
+
+                            foreach ($records as $employee) {
+                                $contract = $employee->activeContract;
+                                if ($contract && $contract->salary_type === 'mensual') {
+                                    $contract->update(['advance_percent' => $percent]);
+                                    $updated++;
+                                }
+                            }
+
+                            $body = $percent
+                                ? "Adelanto del {$percent}% configurado en {$updated} contrato(s)."
+                                : "Adelanto automático desactivado en {$updated} contrato(s).";
+
+                            Notification::make()
+                                ->success()
+                                ->title('Adelanto automático actualizado')
+                                ->body($body)
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')

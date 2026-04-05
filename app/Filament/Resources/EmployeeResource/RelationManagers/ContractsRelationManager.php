@@ -134,6 +134,17 @@ class ContractsRelationManager extends RelationManager
                             ->native(false)
                             ->default('monthly')
                             ->required(),
+
+                        TextInput::make('advance_percent')
+                            ->label('Adelanto automático')
+                            ->numeric()
+                            ->minValue(1)
+                            ->maxValue(25)
+                            ->suffix('%')
+                            ->nullable()
+                            ->placeholder('Sin adelanto')
+                            ->helperText('Si se define, el sistema generará un adelanto mensual por este % del salario. Máx. 25% (Art. 245 CLT).')
+                            ->visible(fn(Get $get) => $get('salary_type') === 'mensual'),
                     ])
                     ->columns(2),
 
