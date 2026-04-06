@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AttendanceExportController;
+use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\FaceEnrollmentController;
@@ -139,5 +140,13 @@ Route::middleware(['auth'])->group(function () {
     Route::prefix('empresas/{company}')->name('org-chart.')->group(function () {
         Route::get('/organigrama', [OrgChartController::class, 'show'])->name('show');
         Route::get('/organigrama/pdf', [OrgChartController::class, 'exportPdf'])->name('pdf');
+    });
+
+    // Planificador visual de turnos rotativos
+    Route::prefix('admin/shift-planner')->name('shift-planner.')->group(function () {
+        Route::get('/data', [ShiftPlannerController::class, 'data'])->name('data');
+        Route::get('/shifts', [ShiftPlannerController::class, 'shifts'])->name('shifts');
+        Route::post('/override', [ShiftPlannerController::class, 'storeOverride'])->name('override.store');
+        Route::delete('/override', [ShiftPlannerController::class, 'destroyOverride'])->name('override.destroy');
     });
 });

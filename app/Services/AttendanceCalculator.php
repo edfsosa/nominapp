@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\AttendanceDay;
 use App\Models\Holiday;
+use App\Services\RotationService;
 use Illuminate\Support\Carbon;
 use App\Settings\PayrollSettings;
 use Illuminate\Support\Facades\DB;
@@ -50,6 +51,9 @@ class AttendanceCalculator
         // Verificar si el día es feriado o domingo
         self::checkHolidayAndWeekend($day);
 
+        // Verificar si el día es descanso planificado según rotación o horario fijo
+        $isScheduledDayOff = self::isScheduledDayOff($day);
+
         // Obtener eventos del día
         $events = $day->events()->orderBy('recorded_at')->get();
 
@@ -57,7 +61,7 @@ class AttendanceCalculator
         if ($events->isEmpty()) {
             if ($day->is_holiday) {
                 $day->status = self::STATUS_HOLIDAY;
-            } elseif ($day->is_weekend) {
+            } elseif ($day->is_weekend || $isScheduledDayOff) {
                 $day->status = self::STATUS_WEEKEND;
             } else {
                 $day->status = self::STATUS_ABSENT;
@@ -67,8 +71,8 @@ class AttendanceCalculator
             return;
         }
 
-        // Si es feriado o fin de semana CON eventos, es trabajo extraordinario
-        if ($day->is_holiday || $day->is_weekend) {
+        // Si es feriado, fin de semana o franco rotativo CON eventos, es trabajo extraordinario
+        if ($day->is_holiday || $day->is_weekend || $isScheduledDayOff) {
             $day->is_extraordinary_work = true;
         }
 
@@ -153,12 +157,14 @@ class AttendanceCalculator
      */
     private static function calculateAttendanceDetails(AttendanceDay $day, $events): void
     {
-        // Solo actualizar valores esperados en el PRIMER cálculo
-        // En recalculos, mantener los valores originales (aunque sean NULL)
+        // Solo actualizar valores esperados en el PRIMER cálculo.
+        // En recálculos, mantener los valores originales (aunque sean NULL).
+        // La jerarquía de resolución: rotación → horario fijo → legacy schedule_id.
         if (!$day->is_calculated) {
-            $day->expected_check_in = $day->employee->today_scheduled_check_in;
-            $day->expected_check_out = $day->employee->today_scheduled_check_out;
-            $day->expected_break_minutes = $day->employee->today_expected_break_minutes;
+            $shiftData = self::resolveExpectedShiftData($day);
+            $day->expected_check_in      = $shiftData['check_in'];
+            $day->expected_check_out     = $shiftData['check_out'];
+            $day->expected_break_minutes = $shiftData['break_minutes'];
             $day->expected_hours = self::calculateExpectedHours(
                 $day->expected_check_in,
                 $day->expected_check_out
@@ -375,6 +381,76 @@ class AttendanceCalculator
         $nocturnas = round($extraHours - $diurnas, 2);
 
         return [$diurnas, $nocturnas];
+    }
+
+    /**
+     * Resuelve el turno esperado para la fecha del día dado.
+     *
+     * Jerarquía:
+     *   1. Rotación activa (ShiftTemplate vía RotationService — incluye overrides)
+     *   2. Horario fijo por día de semana (sistema anterior)
+     *
+     * @return array{check_in: string|null, check_out: string|null, break_minutes: int|null}
+     */
+    private static function resolveExpectedShiftData(AttendanceDay $day): array
+    {
+        $date     = Carbon::parse($day->date);
+        $employee = $day->employee;
+
+        // 1. Sistema de rotación (override > patrón)
+        $shift = RotationService::getShiftForDate($employee, $date);
+
+        if ($shift !== null) {
+            return [
+                'check_in'      => $shift->is_day_off ? null : $shift->start_time,
+                'check_out'     => $shift->is_day_off ? null : $shift->end_time,
+                'break_minutes' => $shift->is_day_off ? 0 : $shift->break_minutes,
+            ];
+        }
+
+        // 2. Horario fijo por día de semana
+        $schedule = $employee->getScheduleForDate($date);
+
+        if ($schedule) {
+            $dayOfWeek   = $date->dayOfWeekIso; // 1=Lunes … 7=Domingo
+            $scheduleDay = $schedule->days()->where('day_of_week', $dayOfWeek)->first();
+
+            if ($scheduleDay && $scheduleDay->is_active) {
+                return [
+                    'check_in'      => $scheduleDay->start_time,
+                    'check_out'     => $scheduleDay->end_time,
+                    'break_minutes' => $scheduleDay->total_break_minutes ?? 0,
+                ];
+            }
+        }
+
+        return ['check_in' => null, 'check_out' => null, 'break_minutes' => null];
+    }
+
+    /**
+     * Retorna true si la rotación o el horario fijo indican que este día es descanso planificado.
+     * Usado para detectar trabajo extraordinario en días de franco rotativo.
+     */
+    private static function isScheduledDayOff(AttendanceDay $day): bool
+    {
+        $date     = Carbon::parse($day->date);
+        $employee = $day->employee;
+
+        // 1. Rotación: Franco explícito (is_day_off = true)
+        $shift = RotationService::getShiftForDate($employee, $date);
+
+        if ($shift !== null) {
+            return $shift->is_day_off;
+        }
+
+        // 2. Horario fijo: día de semana inactivo en el Schedule asignado
+        $schedule = $employee->getScheduleForDate($date);
+
+        if ($schedule) {
+            return $schedule->isDayOff($date->dayOfWeekIso);
+        }
+
+        return false;
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Models\Terminal;
 use Filament\Pages\Page;
 use SimpleSoftwareIO\QrCode\Facades\QrCode;
 
@@ -17,19 +18,33 @@ class AttendanceModes extends Page
 
     /**
      * Pasa las URLs y los QR codes SVG de cada modo a la vista.
+     * Las terminales se listan individualmente ya que cada una tiene su propio código.
      *
      * @return array<string, mixed>
      */
     protected function getViewData(): array
     {
-        $mobileUrl   = route('mark.show');
-        $terminalUrl = route('terminal.show');
+        $mobileUrl = route('mark.show');
+
+        $terminals = Terminal::with('branch')
+            ->where('status', 'active')
+            ->orderBy('name')
+            ->get()
+            ->map(function (Terminal $terminal) {
+                $url = route('terminal.show', $terminal->code);
+
+                return [
+                    'name'       => $terminal->name,
+                    'branch'     => $terminal->branch?->name,
+                    'url'        => $url,
+                    'qr'         => (string) QrCode::format('svg')->size(150)->margin(1)->generate($url),
+                ];
+            });
 
         return [
-            'mobileUrl'   => $mobileUrl,
-            'terminalUrl' => $terminalUrl,
-            'mobileQr'    => (string) QrCode::format('svg')->size(150)->margin(1)->generate($mobileUrl),
-            'terminalQr'  => (string) QrCode::format('svg')->size(150)->margin(1)->generate($terminalUrl),
+            'mobileUrl' => $mobileUrl,
+            'mobileQr'  => (string) QrCode::format('svg')->size(150)->margin(1)->generate($mobileUrl),
+            'terminals' => $terminals,
         ];
     }
 }

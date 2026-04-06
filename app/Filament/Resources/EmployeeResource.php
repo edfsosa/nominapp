@@ -948,6 +948,8 @@ class EmployeeResource extends Resource
         return [
             RelationManagers\ContractsRelationManager::class,
             RelationManagers\ScheduleAssignmentsRelationManager::class,
+            RelationManagers\RotationAssignmentsRelationManager::class,
+            RelationManagers\ShiftOverridesRelationManager::class,
             RelationManagers\DocumentsRelationManager::class,
             RelationManagers\VacationsRelationManager::class,
             RelationManagers\LeavesRelationManager::class,

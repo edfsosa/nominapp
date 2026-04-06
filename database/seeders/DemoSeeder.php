@@ -49,6 +49,8 @@ class DemoSeeder extends Seeder
             // Empleados y asignaciones
             EmployeeSeeder::class,
             ScheduleAssignmentSeeder::class,
+            ShiftTemplateSeeder::class,
+            RotationPatternSeeder::class,
             EmployeePerceptionSeeder::class,
             DocumentSeeder::class,
 
@@ -123,6 +125,10 @@ class DemoSeeder extends Seeder
             'face_enrollments',
             'employee_deductions',
             'employee_perceptions',
+            'shift_overrides',
+            'rotation_assignments',
+            'rotation_patterns',
+            'shift_templates',
             'employee_schedule_assignments',
             'contracts',
             'employees',

@@ -260,6 +260,22 @@ class Employee extends Model
     }
 
     /**
+     * Historial completo de asignaciones de patrón rotativo del empleado.
+     */
+    public function rotationAssignments(): HasMany
+    {
+        return $this->hasMany(RotationAssignment::class);
+    }
+
+    /**
+     * Overrides puntuales de turno del empleado.
+     */
+    public function shiftOverrides(): HasMany
+    {
+        return $this->hasMany(ShiftOverride::class);
+    }
+
+    /**
      * Retorna el horario vigente del empleado para una fecha dada.
      * Prioriza la tabla de asignaciones; si no existe, cae al campo legacy schedule_id.
      *

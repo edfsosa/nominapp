@@ -108,39 +108,62 @@
 
                     <div class="p-6 space-y-6 bg-white dark:bg-gray-900">
 
-                        {{-- URL + copiar --}}
-                        <div>
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
-                                URL de acceso
-                            </p>
-                            <div class="flex items-center gap-2">
-                                <a
-                                    href="{{ $terminalUrl }}"
-                                    target="_blank"
-                                    class="flex-1 truncate rounded-lg bg-gray-100 dark:bg-gray-800 px-3 py-2 font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline"
-                                >
-                                    {{ $terminalUrl }}
-                                </a>
-                                <button
-                                    type="button"
-                                    onclick="navigator.clipboard.writeText('{{ $terminalUrl }}').then(() => { this.textContent = '✓'; setTimeout(() => this.textContent = 'Copiar', 1500) })"
-                                    class="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
-                                >
-                                    Copiar
-                                </button>
+                        {{-- Terminales registradas --}}
+                        @if ($terminals->isEmpty())
+                            <div class="rounded-lg bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-5 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                                <p class="font-medium mb-1">Sin terminales registradas</p>
+                                <p>Registrá una terminal en <strong>Asistencias → Terminales</strong> para obtener su URL y código QR.</p>
                             </div>
-                        </div>
+                        @else
+                            {{-- Una card por terminal --}}
+                            <div class="space-y-5">
+                                @foreach ($terminals as $terminal)
+                                    <div class="rounded-lg border border-blue-100 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/20 p-4 space-y-4">
 
-                        {{-- QR --}}
-                        <div class="flex flex-col items-center gap-2">
-                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                                Código QR
-                            </p>
-                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white p-3 inline-block">
-                                {!! $terminalQr !!}
+                                        {{-- Nombre y sucursal --}}
+                                        <div>
+                                            <p class="font-semibold text-sm text-gray-800 dark:text-gray-200">{{ $terminal['name'] }}</p>
+                                            @if ($terminal['branch'])
+                                                <p class="text-xs text-gray-500 dark:text-gray-400">{{ $terminal['branch'] }}</p>
+                                            @endif
+                                        </div>
+
+                                        {{-- URL + copiar --}}
+                                        <div>
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                                                URL de acceso
+                                            </p>
+                                            <div class="flex items-center gap-2">
+                                                <a
+                                                    href="{{ $terminal['url'] }}"
+                                                    target="_blank"
+                                                    class="flex-1 truncate rounded-lg bg-gray-100 dark:bg-gray-800 px-3 py-2 font-mono text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                                                >
+                                                    {{ $terminal['url'] }}
+                                                </a>
+                                                <button
+                                                    type="button"
+                                                    onclick="navigator.clipboard.writeText('{{ $terminal['url'] }}').then(() => { this.textContent = '✓'; setTimeout(() => this.textContent = 'Copiar', 1500) })"
+                                                    class="shrink-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                                                >
+                                                    Copiar
+                                                </button>
+                                            </div>
+                                        </div>
+
+                                        {{-- QR --}}
+                                        <div class="flex flex-col items-center gap-2">
+                                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                                                Código QR
+                                            </p>
+                                            <div class="rounded-xl border border-gray-200 dark:border-gray-700 bg-white p-3 inline-block">
+                                                {!! $terminal['qr'] !!}
+                                            </div>
+                                        </div>
+                                    </div>
+                                @endforeach
                             </div>
-                            <p class="text-xs text-gray-400">Apuntá la cámara para abrir directamente</p>
-                        </div>
+                        @endif
 
                         {{-- Requisitos --}}
                         <div>

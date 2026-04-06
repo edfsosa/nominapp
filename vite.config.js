@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite';
 import laravel from 'laravel-vite-plugin';
 import tailwindcss from '@tailwindcss/vite';
+import vue from '@vitejs/plugin-vue';
 
 export default defineConfig({
     plugins: [
@@ -14,9 +15,12 @@ export default defineConfig({
                 'resources/css/attendances/terminal.css',
                 'resources/js/shared/capture-face.js',
                 'resources/css/shared/capture-face.css',
+                'resources/js/planner/planner.js',
+                'resources/css/planner/planner.css',
             ],
             refresh: true,
         }),
         tailwindcss(),
+        vue(),
     ],
 });
