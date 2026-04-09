@@ -1,6 +1,6 @@
-# Sistema RRHH - Macro Alliance SRL
+# Nominapp
 
-Sistema de gestión de recursos humanos para Macro Alliance SRL, desarrollado con Laravel y Filament.
+Sistema de gestión de recursos humanos y nómina, desarrollado con Laravel y Filament.
 
 ## Características
 
@@ -27,7 +27,7 @@ Sistema de gestión de recursos humanos para Macro Alliance SRL, desarrollado co
 1. Clonar el repositorio:
 ```bash
 git clone <url-del-repositorio>
-cd rrhh-macro
+cd nominapp
 ```
 
 2. Instalar dependencias de PHP:
