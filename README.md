@@ -16,11 +16,10 @@ Sistema de gestión de recursos humanos y nómina, desarrollado con Laravel y Fi
 
 ## Requisitos
 
-- PHP 8.2 o superior
+- PHP ^8.2 (con extensiones: PDO, mbstring, OpenSSL, JSON, BCMath, Ctype, Fileinfo, Tokenizer)
 - Composer
-- Node.js y npm
-- MySQL/PostgreSQL/SQLite
-- Extensiones PHP: PDO, mbstring, OpenSSL, JSON, BCMath, Ctype, Fileinfo, Tokenizer
+- Node.js ≥ 18
+- MySQL / PostgreSQL / SQLite
 
 ## Instalación
 
@@ -40,7 +39,7 @@ composer install
 npm install
 ```
 
-4. Configurar el archivo de entorno:
+4. Copiar el archivo de entorno:
 ```bash
 cp .env.example .env
 ```
@@ -50,48 +49,91 @@ cp .env.example .env
 php artisan key:generate
 ```
 
-6. Configurar la base de datos en el archivo `.env`:
-```
-DB_CONNECTION=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_DATABASE=nombre_base_datos
-DB_USERNAME=usuario
-DB_PASSWORD=contraseña
-```
+6. Configurar el archivo `.env`:
+
+   **Base de datos** (obligatorio):
+   ```
+   DB_CONNECTION=mysql
+   DB_HOST=127.0.0.1
+   DB_PORT=3306
+   DB_DATABASE=nombre_base_datos
+   DB_USERNAME=usuario
+   DB_PASSWORD=contraseña
+   ```
+
+   **URL de la aplicación** (ajustar según el entorno):
+   ```
+   APP_URL=http://localhost:8000
+   ```
+
+   **Google Maps** (requerido para el mapa de sucursales):
+   ```
+   GOOGLE_MAPS_API_KEY=tu_clave_aqui
+   ```
+
+   **Administrador inicial** (usado por el seeder de producción):
+   ```
+   ADMIN_NAME="Nombre Apellido"
+   ADMIN_EMAIL=admin@ejemplo.com
+   ADMIN_PASSWORD=contraseña_segura
+   ```
+   > Si `ADMIN_PASSWORD` se deja vacío, se genera una contraseña aleatoria y se muestra en consola.
+
+   > Cola de trabajos, caché y sesiones ya están configurados como `database` en `.env.example` — no requieren cambios.
 
 7. Ejecutar las migraciones:
 ```bash
 php artisan migrate
 ```
 
-8. Ejecutar los seeders (opcional, para datos de prueba):
+8. Crear el enlace simbólico de almacenamiento (requerido para PDFs y logos):
 ```bash
-php artisan db:seed
+php artisan storage:link
 ```
 
-9. Compilar los assets:
+9. Ejecutar los seeders según el entorno:
+
+   **Desarrollo** — carga datos de demostración (empleados, nóminas, etc.):
+   ```bash
+   php artisan db:seed
+   ```
+
+   **Producción / nuevo cliente** — crea el usuario administrador y los códigos de deducción obligatorios (`IPS001`, `PRE001`, `ADE001`):
+   ```bash
+   php artisan db:seed --class=ProductionSeeder
+   ```
+
+10. Compilar los assets:
 ```bash
 npm run build
 ```
 
 ## Uso
 
-Iniciar el servidor de desarrollo:
+Acceder a la aplicación en la URL configurada en `APP_URL` (por defecto `http://localhost:8000`).
+
+Para producción, optimizar antes de desplegar:
 ```bash
-php artisan serve
+php artisan optimize
+php artisan filament:optimize
 ```
 
-La aplicación estará disponible en `http://localhost:8000`
+Configurar el scheduler en cron para tareas automáticas (ausencias, vencimientos, préstamos, etc.):
+```
+* * * * * cd /ruta/al/proyecto && php artisan schedule:run >> /dev/null 2>&1
+```
 
 ## Desarrollo
 
-Para desarrollo con recarga automática:
+Iniciar el servidor de desarrollo, cola de trabajos y compilador de assets simultáneamente:
 ```bash
 composer run dev
 ```
 
-Este comando inicia simultáneamente el servidor, cola de trabajos y compilador de assets.
+Este comando ejecuta en paralelo:
+- `php artisan serve` — servidor HTTP
+- `php artisan queue:listen --tries=1` — procesador de colas
+- `npm run dev` — Vite con HMR
 
 ## Licencia
 
