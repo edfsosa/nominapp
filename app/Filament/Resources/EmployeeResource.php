@@ -2,63 +2,66 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\EmployeeResource\Pages;
+use App\Filament\Resources\EmployeeResource\RelationManagers;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Contract;
+use App\Models\Department;
 use App\Models\Employee;
 use App\Models\FaceEnrollment;
-use App\Models\Company;
-use App\Models\Department;
-use App\Models\Branch;
 use App\Models\Position;
 use App\Models\Schedule;
 use App\Settings\GeneralSettings;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-use Filament\Tables\Table;
-use Filament\Resources\Resource;
-use Illuminate\Support\Collection;
-use Filament\Forms\Components\Grid;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Auth;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Section;
-use Filament\Tables\Actions\BulkAction;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Notifications\Actions\Action as NotificationAction;
-use Filament\Tables\Columns\ImageColumn;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
-use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\Placeholder;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Infolists\Infolist;
 use Filament\Infolists\Components\Grid as InfoGrid;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
 use Filament\Infolists\Components\Section as InfoSection;
-use App\Filament\Resources\EmployeeResource\Pages;
-use App\Filament\Resources\EmployeeResource\RelationManagers;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Columns\ImageColumn;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 class EmployeeResource extends Resource
 {
     protected static ?string $model = Employee::class;
+
     protected static ?string $navigationLabel = 'Empleados';
+
     protected static ?string $label = 'empleado';
+
     protected static ?string $pluralLabel = 'empleados';
+
     protected static ?string $navigationIcon = 'heroicon-o-user-circle';
+
     protected static ?string $navigationGroup = 'Empleados';
+
     protected static ?int $navigationSort = 1;
 
     /**
      * Define el formulario para crear y editar empleados.
-     *
-     * @param Form $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -168,7 +171,6 @@ class EmployeeResource extends Resource
                                     ->columnSpan(3),
                             ]),
 
-
                     ]),
 
                 Section::make('Asignación Laboral')
@@ -179,12 +181,12 @@ class EmployeeResource extends Resource
                     ->schema([
                         Select::make('company_id')
                             ->label('Empresa')
-                            ->options(fn() => Company::orderBy('name')->pluck('name', 'id'))
+                            ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
                             ->searchable()
                             ->native(false)
                             ->live()
                             ->dehydrated(false)
-                            ->afterStateUpdated(fn(callable $set) => $set('branch_id', null))
+                            ->afterStateUpdated(fn (callable $set) => $set('branch_id', null))
                             ->helperText('Seleccioná la empresa para filtrar las sucursales.')
                             ->afterStateHydrated(function (callable $set, callable $get) {
                                 $branchId = $get('branch_id');
@@ -199,7 +201,8 @@ class EmployeeResource extends Resource
                             ->label('Sucursal')
                             ->options(function (callable $get) {
                                 $companyId = $get('company_id');
-                                return Branch::when($companyId, fn($q) => $q->where('company_id', $companyId))
+
+                                return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                     ->orderBy('name')
                                     ->pluck('name', 'id');
                             })
@@ -218,7 +221,7 @@ class EmployeeResource extends Resource
 
                         Select::make('initial_schedule_id')
                             ->label('Horario Inicial')
-                            ->options(fn() => Schedule::orderBy('name')->pluck('name', 'id'))
+                            ->options(fn () => Schedule::orderBy('name')->pluck('name', 'id'))
                             ->searchable()
                             ->native(false)
                             ->nullable()
@@ -232,7 +235,7 @@ class EmployeeResource extends Resource
                     ->icon('heroicon-o-heart')
                     ->collapsible()
                     ->collapsed()
-                    ->visible(fn(Get $get) => $get('gender') === 'femenino')
+                    ->visible(fn (Get $get) => $get('gender') === 'femenino')
                     ->schema([
                         Grid::make(2)
                             ->schema([
@@ -301,7 +304,7 @@ class EmployeeResource extends Resource
                                 ->displayFormat('d/m/Y')
                                 ->closeOnDateSelection()
                                 ->after('ic_start_date')
-                                ->visible(fn(Get $get) => Contract::requiresEndDate($get('ic_type') ?? ''))
+                                ->visible(fn (Get $get) => Contract::requiresEndDate($get('ic_type') ?? ''))
                                 ->dehydrated(false),
 
                             TextInput::make('ic_trial_days')
@@ -324,11 +327,11 @@ class EmployeeResource extends Resource
                                 ->dehydrated(false),
 
                             TextInput::make('ic_salary')
-                                ->label(fn(Get $get) => $get('ic_salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                                ->label(fn (Get $get) => $get('ic_salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                                 ->numeric()
                                 ->minValue(1)
                                 ->prefix('Gs.')
-                                ->suffix(fn(Get $get) => $get('ic_salary_type') === 'jornal' ? '/día' : '/mes')
+                                ->suffix(fn (Get $get) => $get('ic_salary_type') === 'jornal' ? '/día' : '/mes')
                                 ->dehydrated(false),
 
                             Select::make('ic_payroll_type')
@@ -342,17 +345,18 @@ class EmployeeResource extends Resource
                         Grid::make(2)->schema([
                             Select::make('ic_department_id')
                                 ->label('Departamento')
-                                ->options(fn() => Department::orderBy('name')->pluck('name', 'id'))
+                                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
                                 ->searchable()
                                 ->native(false)
                                 ->live()
-                                ->afterStateUpdated(fn(Set $set) => $set('ic_position_id', null))
+                                ->afterStateUpdated(fn (Set $set) => $set('ic_position_id', null))
                                 ->dehydrated(false),
 
                             Select::make('ic_position_id')
                                 ->label('Cargo')
                                 ->options(function (Get $get) {
                                     $deptId = $get('ic_department_id');
+
                                     return $deptId
                                         ? Position::where('department_id', $deptId)->orderBy('name')->pluck('name', 'id')->toArray()
                                         : Position::getOptionsWithDepartment();
@@ -369,9 +373,6 @@ class EmployeeResource extends Resource
 
     /**
      * Define la infolist para la vista de detalle del empleado.
-     *
-     * @param Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -384,7 +385,7 @@ class EmployeeResource extends Resource
                             ImageEntry::make('photo')
                                 ->hiddenLabel()
                                 ->circular()
-                                ->defaultImageUrl(fn(Employee $record) => $record->avatar_url)
+                                ->defaultImageUrl(fn (Employee $record) => $record->avatar_url)
                                 ->columnSpan(1),
 
                             InfoGrid::make(4)
@@ -399,21 +400,21 @@ class EmployeeResource extends Resource
 
                                     TextEntry::make('full_name')
                                         ->label('Nombre completo')
-                                        ->getStateUsing(fn(Employee $record) => $record->full_name)
+                                        ->getStateUsing(fn (Employee $record) => $record->full_name)
                                         ->icon('heroicon-o-user'),
 
                                     TextEntry::make('status')
                                         ->label('Estado')
-                                        ->getStateUsing(fn(Employee $record) => $record->status_label)
+                                        ->getStateUsing(fn (Employee $record) => $record->status_label)
                                         ->badge()
-                                        ->color(fn(Employee $record) => $record->status_color)
-                                        ->icon(fn(Employee $record) => $record->status_icon),
+                                        ->color(fn (Employee $record) => $record->status_color)
+                                        ->icon(fn (Employee $record) => $record->status_icon),
 
                                     TextEntry::make('birth_date')
                                         ->label('Fecha de nacimiento')
                                         ->getStateUsing(
-                                            fn(Employee $record) => $record->birth_date
-                                                ? $record->birth_date->format('d/m/Y') . ' · ' . $record->age_description
+                                            fn (Employee $record) => $record->birth_date
+                                                ? $record->birth_date->format('d/m/Y').' · '.$record->age_description
                                                 : null
                                         )
                                         ->icon('heroicon-o-cake')
@@ -421,23 +422,23 @@ class EmployeeResource extends Resource
 
                                     TextEntry::make('gender')
                                         ->label('Género')
-                                        ->getStateUsing(fn(Employee $record) => $record->gender_label)
+                                        ->getStateUsing(fn (Employee $record) => $record->gender_label)
                                         ->badge()
-                                        ->color(fn(Employee $record) => $record->gender_color)
+                                        ->color(fn (Employee $record) => $record->gender_color)
                                         ->placeholder('No registrado'),
 
                                     TextEntry::make('maternity_protection_until')
                                         ->label('Protección de maternidad hasta')
                                         ->date('d/m/Y')
                                         ->badge()
-                                        ->color(fn(Employee $record) => $record->isUnderMaternityProtection() ? 'danger' : 'gray')
-                                        ->hidden(fn(Employee $record) => $record->maternity_protection_until === null),
+                                        ->color(fn (Employee $record) => $record->isUnderMaternityProtection() ? 'danger' : 'gray')
+                                        ->hidden(fn (Employee $record) => $record->maternity_protection_until === null),
 
                                     TextEntry::make('phone')
                                         ->label('Teléfono')
                                         ->icon('heroicon-o-phone')
-                                        ->getStateUsing(fn(Employee $record) => $record->phone)
-                                        ->url(fn(Employee $record) => $record->phone ? $record->contact_url : null)
+                                        ->getStateUsing(fn (Employee $record) => $record->phone)
+                                        ->url(fn (Employee $record) => $record->phone ? $record->contact_url : null)
                                         ->openUrlInNewTab()
                                         ->copyable()
                                         ->copyMessage('Teléfono copiado')
@@ -462,11 +463,11 @@ class EmployeeResource extends Resource
                     // Aviso cuando no hay contrato activo
                     TextEntry::make('no_contract_notice')
                         ->hiddenLabel()
-                        ->getStateUsing(fn() => 'Este empleado no tiene un contrato activo. Creá uno desde la pestaña "Contratos".')
+                        ->getStateUsing(fn () => 'Este empleado no tiene un contrato activo. Creá uno desde la pestaña "Contratos".')
                         ->icon('heroicon-o-exclamation-triangle')
                         ->color('warning')
                         ->columnSpanFull()
-                        ->hidden(fn(Employee $record) => $record->activeContract !== null),
+                        ->hidden(fn (Employee $record) => $record->activeContract !== null),
 
                     // Campos visibles solo cuando hay contrato activo
                     TextEntry::make('activeContract.position.name')
@@ -474,23 +475,23 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-briefcase')
                         ->badge()
                         ->color('primary')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('activeContract.position.department.name')
                         ->label('Departamento')
                         ->icon('heroicon-o-building-office')
                         ->badge()
                         ->color('gray')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('hire_date')
                         ->label('Antigüedad')
                         ->getStateUsing(
-                            fn(Employee $record) => $record->hire_date
-                                ? $record->hire_date->format('d/m/Y') . ' · ' . $record->antiquity_description
+                            fn (Employee $record) => $record->hire_date
+                                ? $record->hire_date->format('d/m/Y').' · '.$record->antiquity_description
                                 : null
                         )
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('branch.company.name')
                         ->label('Empresa')
@@ -506,39 +507,39 @@ class EmployeeResource extends Resource
 
                     TextEntry::make('employment_type')
                         ->label('Tipo de empleo')
-                        ->getStateUsing(fn(Employee $record) => $record->employment_type_label)
+                        ->getStateUsing(fn (Employee $record) => $record->employment_type_label)
                         ->badge()
-                        ->color(fn(Employee $record) => $record->employment_type_color ?? 'gray')
-                        ->icon(fn(Employee $record) => $record->employment_type_icon ?? 'heroicon-o-question-mark-circle')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->color(fn (Employee $record) => $record->employment_type_color ?? 'gray')
+                        ->icon(fn (Employee $record) => $record->employment_type_icon ?? 'heroicon-o-question-mark-circle')
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('activeContract.salary')
                         ->label('Salario')
                         ->icon('heroicon-o-banknotes')
                         ->getStateUsing(
-                            fn(Employee $record) => $record->activeContract
-                                ? 'Gs. ' . number_format((int) $record->activeContract->salary, 0, ',', '.') . ($record->activeContract->salary_type === 'jornal' ? '/día' : '/mes')
+                            fn (Employee $record) => $record->activeContract
+                                ? 'Gs. '.number_format((int) $record->activeContract->salary, 0, ',', '.').($record->activeContract->salary_type === 'jornal' ? '/día' : '/mes')
                                 : null
                         )
                         ->badge()
                         ->color('success')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('activeContract.payroll_type')
                         ->label('Tipo de nómina')
-                        ->getStateUsing(fn(Employee $record) => $record->payroll_type_label)
+                        ->getStateUsing(fn (Employee $record) => $record->payroll_type_label)
                         ->badge()
-                        ->color(fn(Employee $record) => $record->payroll_type_color ?? 'gray')
-                        ->icon(fn(Employee $record) => $record->payroll_type_icon ?? 'heroicon-o-calendar')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->color(fn (Employee $record) => $record->payroll_type_color ?? 'gray')
+                        ->icon(fn (Employee $record) => $record->payroll_type_icon ?? 'heroicon-o-calendar')
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
 
                     TextEntry::make('payment_method')
                         ->label('Método de pago')
-                        ->getStateUsing(fn(Employee $record) => $record->payment_method_label)
+                        ->getStateUsing(fn (Employee $record) => $record->payment_method_label)
                         ->badge()
-                        ->color(fn(Employee $record) => $record->payment_method_color ?? 'gray')
-                        ->icon(fn(Employee $record) => $record->payment_method_icon ?? 'heroicon-o-question-mark-circle')
-                        ->hidden(fn(Employee $record) => $record->activeContract === null),
+                        ->color(fn (Employee $record) => $record->payment_method_color ?? 'gray')
+                        ->icon(fn (Employee $record) => $record->payment_method_icon ?? 'heroicon-o-question-mark-circle')
+                        ->hidden(fn (Employee $record) => $record->activeContract === null),
                 ])
                 ->collapsible(),
 
@@ -548,7 +549,7 @@ class EmployeeResource extends Resource
                 ->schema([
                     IconEntry::make('has_face')
                         ->label('Rostro registrado')
-                        ->getStateUsing(fn(Employee $record) => $record->has_face)
+                        ->getStateUsing(fn (Employee $record) => $record->has_face)
                         ->boolean()
                         ->trueIcon('heroicon-o-check-circle')
                         ->falseIcon('heroicon-o-x-circle')
@@ -557,12 +558,12 @@ class EmployeeResource extends Resource
 
                     TextEntry::make('face_tooltip')
                         ->label('Estado')
-                        ->getStateUsing(fn(Employee $record) => $record->face_tooltip)
+                        ->getStateUsing(fn (Employee $record) => $record->face_tooltip)
                         ->badge()
-                        ->color(fn(Employee $record) => $record->has_face ? 'success' : 'warning'),
+                        ->color(fn (Employee $record) => $record->has_face ? 'success' : 'warning'),
                 ])
                 ->collapsible()
-                ->collapsed(fn(Employee $record) => !$record->has_face),
+                ->collapsed(fn (Employee $record) => ! $record->has_face),
 
             InfoSection::make('Registro')
                 ->icon('heroicon-o-clock')
@@ -570,11 +571,11 @@ class EmployeeResource extends Resource
                 ->schema([
                     TextEntry::make('created_at')
                         ->label('Registrado')
-                        ->getStateUsing(fn(Employee $record) => $record->created_at->format('d/m/Y H:i') . ' · ' . $record->created_at_since),
+                        ->getStateUsing(fn (Employee $record) => $record->created_at->format('d/m/Y H:i').' · '.$record->created_at_since),
 
                     TextEntry::make('updated_at')
                         ->label('Última actualización')
-                        ->getStateUsing(fn(Employee $record) => $record->updated_at->format('d/m/Y H:i') . ' · ' . $record->updated_at_since),
+                        ->getStateUsing(fn (Employee $record) => $record->updated_at->format('d/m/Y H:i').' · '.$record->updated_at_since),
                 ])
                 ->collapsible()
                 ->collapsed(),
@@ -583,9 +584,6 @@ class EmployeeResource extends Resource
 
     /**
      * Define la tabla para listar empleados.
-     *
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -594,13 +592,13 @@ class EmployeeResource extends Resource
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('full_name')
                     ->label('Nombre')
-                    ->getStateUsing(fn(Employee $record): string => $record->full_name)
-                    ->description(fn(Employee $record): string => 'CI: ' . $record->ci)
+                    ->getStateUsing(fn (Employee $record): string => $record->full_name)
+                    ->description(fn (Employee $record): string => 'CI: '.$record->ci)
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
@@ -628,9 +626,9 @@ class EmployeeResource extends Resource
 
                 TextColumn::make('status')
                     ->label('Estado')
-                    ->icon(fn(Employee $record): string => $record->status_icon)
-                    ->color(fn(Employee $record): string => $record->status_color)
-                    ->formatStateUsing(fn(Employee $record): string => $record->status_label)
+                    ->icon(fn (Employee $record): string => $record->status_icon)
+                    ->color(fn (Employee $record): string => $record->status_color)
+                    ->formatStateUsing(fn (Employee $record): string => $record->status_label)
                     ->badge()
                     ->sortable()
                     ->toggleable(),
@@ -639,9 +637,9 @@ class EmployeeResource extends Resource
                     ->label('Contacto')
                     ->icon('heroicon-o-phone')
                     ->default('-')
-                    ->url(fn(Employee $record): ?string => $record->phone ? $record->contact_url : null)
+                    ->url(fn (Employee $record): ?string => $record->phone ? $record->contact_url : null)
                     ->openUrlInNewTab()
-                    ->tooltip(fn(Employee $record): string => $record->phone ? 'Haz clic para enviar WhatsApp' : 'Sin teléfono registrado')
+                    ->tooltip(fn (Employee $record): string => $record->phone ? 'Haz clic para enviar WhatsApp' : 'Sin teléfono registrado')
                     ->sortable()
                     ->searchable()
                     ->toggleable(),
@@ -649,7 +647,7 @@ class EmployeeResource extends Resource
                 TextColumn::make('activeContract.payroll_type')
                     ->label('Nómina')
                     ->icon('heroicon-o-calendar')
-                    ->formatStateUsing(fn($state): string => Employee::getPayrollTypeOptions()[$state] ?? 'Sin contrato')
+                    ->formatStateUsing(fn ($state): string => Employee::getPayrollTypeOptions()[$state] ?? 'Sin contrato')
                     ->badge()
                     ->color('info')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -670,9 +668,9 @@ class EmployeeResource extends Resource
                 SelectFilter::make('company_id')
                     ->label('Empresa')
                     ->options(
-                        fn() => Company::orderBy('name')
+                        fn () => Company::orderBy('name')
                             ->get()
-                            ->mapWithKeys(fn($c) => [$c->id => $c->name . ($c->trade_name ? ' — ' . $c->trade_name : '')])
+                            ->mapWithKeys(fn ($c) => [$c->id => $c->name.($c->trade_name ? ' — '.$c->trade_name : '')])
                     )
                     ->placeholder('Todas las empresas')
                     ->searchable()
@@ -681,7 +679,8 @@ class EmployeeResource extends Resource
                         if (blank($data['value'])) {
                             return $query;
                         }
-                        return $query->whereHas('branch', fn($q) => $q->where('company_id', $data['value']));
+
+                        return $query->whereHas('branch', fn ($q) => $q->where('company_id', $data['value']));
                     }),
 
                 SelectFilter::make('branch_id')
@@ -695,7 +694,7 @@ class EmployeeResource extends Resource
 
                 SelectFilter::make('department_id')
                     ->label('Departamento')
-                    ->options(fn() => Department::orderBy('name')->pluck('name', 'id'))
+                    ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
                     ->placeholder('Todos los departamentos')
                     ->searchable()
                     ->native(false)
@@ -704,7 +703,8 @@ class EmployeeResource extends Resource
                         if (blank($data['values'])) {
                             return $query;
                         }
-                        return $query->whereHas('activeContract.position', fn($q) => $q->whereIn('department_id', $data['values']));
+
+                        return $query->whereHas('activeContract.position', fn ($q) => $q->whereIn('department_id', $data['values']));
                     }),
 
                 SelectFilter::make('payroll_type')
@@ -716,7 +716,8 @@ class EmployeeResource extends Resource
                         if (blank($data['value'])) {
                             return $query;
                         }
-                        return $query->whereHas('activeContract', fn($q) => $q->where('payroll_type', $data['value']));
+
+                        return $query->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $data['value']));
                     }),
 
                 Filter::make('hire_date')
@@ -736,11 +737,11 @@ class EmployeeResource extends Resource
                         return $query
                             ->when(
                                 $data['hired_from'],
-                                fn(Builder $query, $date): Builder => $query->whereHas('activeContract', fn($q) => $q->whereDate('start_date', '>=', $date)),
+                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->whereDate('start_date', '>=', $date)),
                             )
                             ->when(
                                 $data['hired_until'],
-                                fn(Builder $query, $date): Builder => $query->whereHas('activeContract', fn($q) => $q->whereDate('start_date', '<=', $date)),
+                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->whereDate('start_date', '<=', $date)),
                             );
                     }),
 
@@ -750,30 +751,56 @@ class EmployeeResource extends Resource
                     ->trueLabel('Con rostro registrado')
                     ->falseLabel('Sin rostro registrado')
                     ->queries(
-                        true: fn(Builder $query) => $query->withFace(),
-                        false: fn(Builder $query) => $query->withoutFace(),
-                        blank: fn(Builder $query) => $query,
+                        true: fn (Builder $query) => $query->withFace(),
+                        false: fn (Builder $query) => $query->withoutFace(),
+                        blank: fn (Builder $query) => $query,
                     ),
+
+                SelectFilter::make('birthday_month')
+                    ->label('Mes de cumpleaños')
+                    ->options([
+                        1 => 'Enero',
+                        2 => 'Febrero',
+                        3 => 'Marzo',
+                        4 => 'Abril',
+                        5 => 'Mayo',
+                        6 => 'Junio',
+                        7 => 'Julio',
+                        8 => 'Agosto',
+                        9 => 'Septiembre',
+                        10 => 'Octubre',
+                        11 => 'Noviembre',
+                        12 => 'Diciembre',
+                    ])
+                    ->placeholder('Todos los meses')
+                    ->native(false)
+                    ->query(function (Builder $query, array $data): Builder {
+                        if (blank($data['value'])) {
+                            return $query;
+                        }
+
+                        return $query->whereMonth('birth_date', $data['value']);
+                    }),
 
             ])
             ->actions([
                 Action::make('capture_face')
-                    ->label(fn(Employee $record): string => $record->has_face ? 'Re-enrolar' : 'Enrolar')
+                    ->label(fn (Employee $record): string => $record->has_face ? 'Re-enrolar' : 'Enrolar')
                     ->icon('heroicon-o-camera')
-                    ->tooltip(fn(Employee $record): string => $record->has_face ? 'Re-enrolar rostro (actualmente registrado)' : 'Enrolar rostro (no se ha registrado ningún rostro)')
-                    ->url(fn(Employee $record): string => route('face.capture', $record))
-                    ->color(fn(Employee $record): string => $record->has_face ? 'warning' : 'success')
-                    ->visible(fn(Employee $record): bool => $record->status === 'active'),
+                    ->tooltip(fn (Employee $record): string => $record->has_face ? 'Re-enrolar rostro (actualmente registrado)' : 'Enrolar rostro (no se ha registrado ningún rostro)')
+                    ->url(fn (Employee $record): string => route('face.capture', $record))
+                    ->color(fn (Employee $record): string => $record->has_face ? 'warning' : 'success')
+                    ->visible(fn (Employee $record): bool => $record->status === 'active'),
 
                 Action::make('generate_enrollment')
                     ->label('Generar enlace')
                     ->icon('heroicon-o-link')
                     ->color('info')
                     ->tooltip('Generar enlace para que el empleado registre su rostro')
-                    ->visible(fn(Employee $record): bool => $record->status === 'active')
+                    ->visible(fn (Employee $record): bool => $record->status === 'active')
                     ->requiresConfirmation()
                     ->modalHeading('Generar Enlace de Registro Facial')
-                    ->modalDescription(fn(Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en " . app(GeneralSettings::class)->face_enrollment_expiry_hours . " horas.")
+                    ->modalDescription(fn (Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en ".app(GeneralSettings::class)->face_enrollment_expiry_hours.' horas.')
                     ->modalSubmitActionLabel('Generar Enlace')
                     ->action(function (Employee $record) {
                         $settings = app(GeneralSettings::class);
@@ -787,15 +814,15 @@ class EmployeeResource extends Resource
 
                         Notification::make()
                             ->success()
-                            ->title('Enlace generado — expira en ' . $settings->face_enrollment_expiry_hours . 'h')
+                            ->title('Enlace generado — expira en '.$settings->face_enrollment_expiry_hours.'h')
                             ->body($url)
                             ->persistent()
                             ->actions([
                                 NotificationAction::make('send_whatsapp')
                                     ->label('Enviar por WhatsApp')
-                                    ->url("https://api.whatsapp.com/send?phone=595" . ltrim($record->phone ?? '', '0') . "&text=" . urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
+                                    ->url('https://api.whatsapp.com/send?phone=595'.ltrim($record->phone ?? '', '0').'&text='.urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
                                     ->openUrlInNewTab()
-                                    ->visible(fn() => filled($record->phone)),
+                                    ->visible(fn () => filled($record->phone)),
                             ])
                             ->send();
                     }),
@@ -810,7 +837,7 @@ class EmployeeResource extends Resource
                         Select::make('status')
                             ->label('Nuevo estado')
                             ->options(
-                                fn(Employee $record) => collect(Employee::getStatusOptions())
+                                fn (Employee $record) => collect(Employee::getStatusOptions())
                                     ->except($record->status)
                                     ->toArray()
                             )
@@ -823,7 +850,7 @@ class EmployeeResource extends Resource
                         Notification::make()
                             ->success()
                             ->title('Estado actualizado')
-                            ->body("El estado de {$record->full_name} cambió a: " . Employee::getStatusOptions()[$data['status']])
+                            ->body("El estado de {$record->full_name} cambió a: ".Employee::getStatusOptions()[$data['status']])
                             ->send();
                     }),
             ])
@@ -835,7 +862,7 @@ class EmployeeResource extends Resource
                         ->color('success')
                         ->requiresConfirmation()
                         ->modalHeading('Activar empleados')
-                        ->modalDescription(fn(Collection $records) => "Se activarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
+                        ->modalDescription(fn (Collection $records) => "Se activarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
                         ->modalSubmitActionLabel('Sí, activar')
                         ->action(function (Collection $records): void {
                             $count = $records->count();
@@ -854,7 +881,7 @@ class EmployeeResource extends Resource
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Suspender empleados')
-                        ->modalDescription(fn(Collection $records) => "Se suspenderán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
+                        ->modalDescription(fn (Collection $records) => "Se suspenderán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
                         ->modalSubmitActionLabel('Sí, suspender')
                         ->action(function (Collection $records): void {
                             $count = $records->count();
@@ -873,7 +900,7 @@ class EmployeeResource extends Resource
                         ->color('danger')
                         ->requiresConfirmation()
                         ->modalHeading('Desactivar empleados')
-                        ->modalDescription(fn(Collection $records) => "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
+                        ->modalDescription(fn (Collection $records) => "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
                         ->modalSubmitActionLabel('Sí, desactivar')
                         ->action(function (Collection $records): void {
                             $count = $records->count();
@@ -894,7 +921,7 @@ class EmployeeResource extends Resource
                             Select::make('advance_percent')
                                 ->label('Porcentaje de adelanto')
                                 ->options([
-                                    ''   => 'Sin adelanto automático',
+                                    '' => 'Sin adelanto automático',
                                     '10' => '10%',
                                     '15' => '15%',
                                     '20' => '20%',
@@ -941,7 +968,6 @@ class EmployeeResource extends Resource
 
     /**
      * Define las relaciones para el recurso de empleado.
-     * @return array
      */
     public static function getRelations(): array
     {
@@ -960,15 +986,14 @@ class EmployeeResource extends Resource
 
     /**
      * Define las páginas para el recurso de empleado.
-     * @return array
      */
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListEmployees::route('/'),
+            'index' => Pages\ListEmployees::route('/'),
             'create' => Pages\CreateEmployee::route('/create'),
-            'view'   => Pages\ViewEmployee::route('/{record}'),
-            'edit'   => Pages\EditEmployee::route('/{record}/edit'),
+            'view' => Pages\ViewEmployee::route('/{record}'),
+            'edit' => Pages\EditEmployee::route('/{record}/edit'),
         ];
     }
 }

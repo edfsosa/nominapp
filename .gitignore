@@ -24,3 +24,5 @@ yarn-error.log
 error_log
 public/error_log
 .claude/
+.mcp.json
+boost.json
