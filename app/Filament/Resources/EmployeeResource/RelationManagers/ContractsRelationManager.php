@@ -4,28 +4,29 @@ namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\Contract;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Position;
 use App\Settings\GeneralSettings;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\CreateAction;
-use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\ActionGroup;
-use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
-use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\TextInput;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Actions\CreateAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
@@ -33,16 +34,17 @@ use Illuminate\Support\Facades\Storage;
 class ContractsRelationManager extends RelationManager
 {
     protected static string $relationship = 'contracts';
+
     protected static ?string $title = 'Contratos';
+
     protected static ?string $recordTitleAttribute = 'type';
+
     protected static ?string $modelLabel = 'Contrato';
+
     protected static ?string $pluralModelLabel = 'Contratos';
 
     /**
      * Define el formulario para crear y editar contratos.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -86,8 +88,8 @@ class ContractsRelationManager extends RelationManager
                             ->native(false)
                             ->displayFormat('d/m/Y')
                             ->closeOnDateSelection()
-                            ->visible(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
-                            ->required(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->visible(fn (Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->required(fn (Get $get) => Contract::requiresEndDate($get('type') ?? ''))
                             ->after('start_date'),
 
                         TextInput::make('trial_days')
@@ -113,24 +115,24 @@ class ContractsRelationManager extends RelationManager
                             ->live(),
 
                         TextInput::make('salary')
-                            ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                            ->label(fn (Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                             ->numeric()
                             ->required()
                             ->minValue(1)
                             ->prefix('Gs.')
-                            ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
+                            ->suffix(fn (Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
                             ->helperText('Para jornada nocturna, incluir el recargo del 30% en este monto (Art. 196 CLT).'),
 
                         Select::make('payment_method')
                             ->label('Método de Pago')
-                            ->options(Contract::getPaymentMethodOptions())
+                            ->options(Employee::getPaymentMethodOptions())
                             ->native(false)
                             ->default('debit')
                             ->required(),
 
                         Select::make('payroll_type')
                             ->label('Tipo de Nómina')
-                            ->options(Contract::getPayrollTypeOptions())
+                            ->options(Employee::getPayrollTypeOptions())
                             ->native(false)
                             ->default('monthly')
                             ->required(),
@@ -144,7 +146,7 @@ class ContractsRelationManager extends RelationManager
                             ->nullable()
                             ->placeholder('Sin adelanto')
                             ->helperText('Si se define, el sistema generará un adelanto mensual por este % del salario. Máx. 25% (Art. 245 CLT).')
-                            ->visible(fn(Get $get) => $get('salary_type') === 'mensual'),
+                            ->visible(fn (Get $get) => $get('salary_type') === 'mensual'),
                     ])
                     ->columns(2),
 
@@ -157,7 +159,7 @@ class ContractsRelationManager extends RelationManager
                             ->relationship(
                                 'department',
                                 'name',
-                                fn(Builder $query) => $query
+                                fn (Builder $query) => $query
                                     ->where('company_id', $this->getOwnerRecord()->branch?->company_id)
                                     ->orderBy('name')
                             )
@@ -166,7 +168,7 @@ class ContractsRelationManager extends RelationManager
                             ->native(false)
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn(Set $set) => $set('position_id', null))
+                            ->afterStateUpdated(fn (Set $set) => $set('position_id', null))
                             ->createOptionForm([
                                 Grid::make(2)->schema([
                                     TextInput::make('name')
@@ -178,7 +180,7 @@ class ContractsRelationManager extends RelationManager
                                             table: Department::class,
                                             column: 'name',
                                             ignoreRecord: true,
-                                            modifyRuleUsing: fn($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+                                            modifyRuleUsing: fn ($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
                                         )
                                         ->validationMessages(['unique' => 'Ya existe un departamento con ese nombre en esta empresa.'])
                                         ->helperText('El nombre debe ser único dentro de la misma empresa.'),
@@ -190,7 +192,7 @@ class ContractsRelationManager extends RelationManager
                                             table: Department::class,
                                             column: 'cost_center',
                                             ignoreRecord: true,
-                                            modifyRuleUsing: fn($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
+                                            modifyRuleUsing: fn ($rule) => $rule->where('company_id', $this->getOwnerRecord()->branch?->company_id)
                                         )
                                         ->validationMessages(['unique' => 'Ya existe un departamento con ese centro de costo en esta empresa.'])
                                         ->maxLength(30)
@@ -209,8 +211,8 @@ class ContractsRelationManager extends RelationManager
                             ])
                             ->createOptionUsing(function (array $data) {
                                 return Department::create([
-                                    'name'        => $data['name'],
-                                    'company_id'  => $this->getOwnerRecord()->branch?->company_id,
+                                    'name' => $data['name'],
+                                    'company_id' => $this->getOwnerRecord()->branch?->company_id,
                                     'cost_center' => $data['cost_center'] ?? null,
                                     'description' => $data['description'] ?? null,
                                 ])->id;
@@ -226,6 +228,7 @@ class ContractsRelationManager extends RelationManager
                                         ->pluck('name', 'id')
                                         ->toArray();
                                 }
+
                                 return Position::getOptionsWithDepartment();
                             })
                             ->searchable()
@@ -233,6 +236,7 @@ class ContractsRelationManager extends RelationManager
                             ->required()
                             ->createOptionForm(function (Get $get) {
                                 $companyId = $this->getOwnerRecord()->branch?->company_id;
+
                                 return [
                                     Select::make('department_id')
                                         ->label('Departamento')
@@ -256,7 +260,7 @@ class ContractsRelationManager extends RelationManager
                             })
                             ->createOptionUsing(function (array $data) {
                                 return Position::create([
-                                    'name'          => $data['name'],
+                                    'name' => $data['name'],
                                     'department_id' => $data['department_id'],
                                 ])->id;
                             }),
@@ -268,9 +272,6 @@ class ContractsRelationManager extends RelationManager
 
     /**
      * Define la tabla de contratos con columnas, filtros y acciones.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -279,14 +280,14 @@ class ContractsRelationManager extends RelationManager
 
         return $table
             ->recordTitleAttribute('type')
-            ->modifyQueryUsing(fn($query) => $query->with(['position', 'department'])->latest('start_date'))
+            ->modifyQueryUsing(fn ($query) => $query->with(['position', 'department'])->latest('start_date'))
             ->columns([
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Contract::getTypeLabel($state))
-                    ->color(fn(string $state): string => Contract::getTypeColor($state))
-                    ->icon(fn(string $state): string => Contract::getTypeIcon($state)),
+                    ->formatStateUsing(fn (string $state) => Contract::getTypeLabel($state))
+                    ->color(fn (string $state): string => Contract::getTypeColor($state))
+                    ->icon(fn (string $state): string => Contract::getTypeIcon($state)),
 
                 TextColumn::make('start_date')
                     ->label('Inicio')
@@ -298,9 +299,9 @@ class ContractsRelationManager extends RelationManager
                     ->label('Fin')
                     ->date('d/m/Y')
                     ->placeholder('Indefinido')
-                    ->description(fn(Contract $record) => $record->expiration_description)
+                    ->description(fn (Contract $record) => $record->expiration_description)
                     ->color(function (Contract $record) use ($alertDays) {
-                        if (!$record->end_date || $record->status !== 'active') {
+                        if (! $record->end_date || $record->status !== 'active') {
                             return null;
                         }
                         if ($record->isExpired()) {
@@ -309,6 +310,7 @@ class ContractsRelationManager extends RelationManager
                         if ($record->isExpiringSoon($alertDays)) {
                             return 'warning';
                         }
+
                         return null;
                     })
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -333,7 +335,7 @@ class ContractsRelationManager extends RelationManager
 
                 TextColumn::make('work_modality')
                     ->label('Modalidad')
-                    ->formatStateUsing(fn(string $state) => Contract::getWorkModalityLabel($state))
+                    ->formatStateUsing(fn (string $state) => Contract::getWorkModalityLabel($state))
                     ->searchable()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -341,9 +343,9 @@ class ContractsRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Contract::getStatusLabel($state))
-                    ->color(fn(string $state): string => Contract::getStatusColor($state))
-                    ->icon(fn(string $state): string => Contract::getStatusIcon($state)),
+                    ->formatStateUsing(fn (string $state) => Contract::getStatusLabel($state))
+                    ->color(fn (string $state): string => Contract::getStatusColor($state))
+                    ->icon(fn (string $state): string => Contract::getStatusIcon($state)),
             ])
             ->headerActions([
                 CreateAction::make()
@@ -355,6 +357,7 @@ class ContractsRelationManager extends RelationManager
                         if ($data['type'] === 'indefinido') {
                             $data['end_date'] = null;
                         }
+
                         return $data;
                     })
                     ->before(function (CreateAction $action) {
@@ -382,15 +385,15 @@ class ContractsRelationManager extends RelationManager
                     ->label('Generar PDF')
                     ->icon('heroicon-o-printer')
                     ->color('info')
-                    ->url(fn(Contract $record) => route('contracts.pdf', $record))
+                    ->url(fn (Contract $record) => route('contracts.pdf', $record))
                     ->openUrlInNewTab(),
 
                 // Subir documento firmado (solo contratos activos)
                 Action::make('upload_signed')
-                    ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar' : 'Subir Firmado')
-                    ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
-                    ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
-                    ->visible(fn(Contract $record) => $record->status === 'active')
+                    ->label(fn (Contract $record) => $record->document_path ? 'Reemplazar' : 'Subir Firmado')
+                    ->icon(fn (Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                    ->color(fn (Contract $record) => $record->document_path ? 'warning' : 'success')
+                    ->visible(fn (Contract $record) => $record->status === 'active')
                     ->form([
                         FileUpload::make('document_path')
                             ->label('Contrato Firmado (PDF)')
@@ -401,7 +404,7 @@ class ContractsRelationManager extends RelationManager
                             ->required()
                             ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
                     ])
-                    ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                    ->modalHeading(fn (Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
                     ->action(function (Contract $record, array $data) {
                         if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
                             Storage::disk('public')->delete($record->document_path);
@@ -421,7 +424,7 @@ class ContractsRelationManager extends RelationManager
                     ->label('Descargar Firmado')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->visible(fn(Contract $record) => (bool) $record->document_path)
+                    ->visible(fn (Contract $record) => (bool) $record->document_path)
                     ->action(function (Contract $record) {
                         $path = Storage::disk('public')->path($record->document_path);
 
@@ -434,7 +437,7 @@ class ContractsRelationManager extends RelationManager
                 ActionGroup::make([
                     EditAction::make()
                         ->color('primary')
-                        ->visible(fn(Contract $record) => $record->status === 'active'),
+                        ->visible(fn (Contract $record) => $record->status === 'active'),
 
                     DeleteAction::make()
                         ->before(function (Contract $record) {

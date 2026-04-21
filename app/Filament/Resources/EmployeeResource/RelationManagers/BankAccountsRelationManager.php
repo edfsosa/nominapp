@@ -60,8 +60,15 @@ class BankAccountsRelationManager extends RelationManager
                     ->label('Nombre del titular')
                     ->required()
                     ->maxLength(150)
-                    ->default(fn () => $this->getOwnerRecord()->full_name)
-                    ->columnSpanFull(),
+                    ->default(fn () => $this->getOwnerRecord()->full_name),
+
+                TextInput::make('holder_ci')
+                    ->label('CI del titular')
+                    ->integer()
+                    ->minValue(1)
+                    ->maxValue(99999999)
+                    ->default(fn () => $this->getOwnerRecord()->ci)
+                    ->helperText('Sin puntos ni guiones.'),
 
                 Toggle::make('is_primary')
                     ->label('Cuenta principal')
@@ -107,6 +114,7 @@ class BankAccountsRelationManager extends RelationManager
 
                 TextColumn::make('holder_name')
                     ->label('Titular')
+                    ->description(fn (EmployeeBankAccount $record) => $record->holder_ci ? "CI: {$record->holder_ci}" : null)
                     ->searchable()
                     ->toggleable(),
 

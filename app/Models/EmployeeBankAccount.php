@@ -23,6 +23,7 @@ class EmployeeBankAccount extends Model
         'account_number',
         'account_type',
         'holder_name',
+        'holder_ci',
         'is_primary',
         'status',
     ];
