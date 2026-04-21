@@ -981,6 +981,7 @@ class EmployeeResource extends Resource
             RelationManagers\LeavesRelationManager::class,
             RelationManagers\EmployeeDeductionsRelationManager::class,
             RelationManagers\EmployeePerceptionsRelationManager::class,
+            RelationManagers\BankAccountsRelationManager::class,
         ];
     }
 

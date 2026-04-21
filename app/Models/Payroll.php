@@ -28,6 +28,7 @@ class Payroll extends Model
         'status',
         'approved_by_id',
         'approved_at',
+        'bank_account_id',
     ];
 
     protected $casts = [
@@ -150,6 +151,12 @@ class Payroll extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_id');
+    }
+
+    /** Cuenta bancaria utilizada para el pago de esta nómina. */
+    public function bankAccount(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeBankAccount::class, 'bank_account_id');
     }
 
     // Accesor para mostrar nombre

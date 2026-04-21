@@ -316,6 +316,21 @@ class Employee extends Model
         return $this->hasMany(Vacation::class);
     }
 
+    /** Cuentas bancarias del empleado. */
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(EmployeeBankAccount::class);
+    }
+
+    /** Cuenta bancaria principal activa del empleado, si existe. */
+    public function primaryBankAccount(): ?EmployeeBankAccount
+    {
+        return $this->bankAccounts()
+            ->where('is_primary', true)
+            ->where('status', 'active')
+            ->first();
+    }
+
     /**
      * Relación con el modelo VacationBalance, un empleado puede tener balances por año
      */
