@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Notificacion de Usufructo de Vacaciones</title>
+    <title>Solicitud de Usufructo de Vacaciones</title>
     <style>
         @page {
             size: A4;
@@ -193,7 +193,7 @@
     </div>
 
     {{-- Titulo --}}
-    <div class="title">Notificacion de Usufructo de Vacaciones</div>
+    <div class="title">Solicitud de Usufructo de Vacaciones</div>
 
     {{-- Fecha y Lugar --}}
     <div class="date-location">

@@ -89,7 +89,7 @@ class EditVacation extends EditRecord
                         ->label('Documentos a generar')
                         ->options([
                             'communication' => 'Comunicación de Vacaciones',
-                            'usufruct' => 'Notificación de Usufructo de Vacaciones',
+                            'usufruct' => 'Solicitud de Usufructo de Vacaciones',
                             'settlement' => 'Recibo de Liquidación de Vacaciones',
                         ])
                         ->default(['communication', 'usufruct', 'settlement'])
@@ -240,7 +240,7 @@ class EditVacation extends EditRecord
             case 'usufruct':
                 return [
                     'view' => 'pdf.vacation-usufruct-notice',
-                    'filename' => "notificacion-usufructo-{$employeeNameSlug}-{$record->employee->ci}.pdf",
+                    'filename' => "solicitud-usufructo-{$employeeNameSlug}-{$record->employee->ci}.pdf",
                     'data' => [
                         'vacation' => $record,
                         'companyLogo' => $companyLogo,
