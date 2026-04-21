@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ $loan->isLoan() ? 'Contrato de Prestamo' : 'Comprobante de Adelanto' }} #{{ $loan->id }}</title>
+    <title>Contrato de Prestamo #{{ $loan->id }}</title>
     <style>
         @page {
             size: A4;
@@ -276,9 +276,7 @@
     </div>
 
     {{-- Titulo --}}
-    <div class="title">
-        {{ $loan->isLoan() ? 'Contrato de Prestamo' : 'Comprobante de Adelanto de Salario' }}
-    </div>
+    <div class="title">Contrato de Prestamo</div>
     <div class="subtitle">Documento #{{ $loan->id }}</div>
 
     {{-- Informacion del Empleado --}}
@@ -309,7 +307,7 @@
         $reasonLabels = ['personal' => 'Personal', 'medical' => 'Médico', 'education' => 'Educación', 'other' => 'Otro'];
     @endphp
     <div class="section">
-        <div class="section-title">Detalles del {{ $loan->isLoan() ? 'Prestamo' : 'Adelanto' }}</div>
+        <div class="section-title">Detalles del Prestamo</div>
         <table style="margin: 0;">
             <tbody>
                 <tr>

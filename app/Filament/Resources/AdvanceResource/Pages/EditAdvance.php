@@ -1,20 +1,23 @@
 <?php
 
-namespace App\Filament\Resources\LoanResource\Pages;
+namespace App\Filament\Resources\AdvanceResource\Pages;
 
-use App\Filament\Resources\LoanResource;
+use App\Filament\Resources\AdvanceResource;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
-class EditLoan extends EditRecord
+class EditAdvance extends EditRecord
 {
-    protected static string $resource = LoanResource::class;
+    protected static string $resource = AdvanceResource::class;
 
     protected static ?string $title = 'Editar';
 
     /**
      * Define las acciones del encabezado de la página de edición.
+     *
+     * @return array<int, mixed>
      */
     protected function getHeaderActions(): array
     {
@@ -22,7 +25,7 @@ class EditLoan extends EditRecord
             ViewAction::make()->icon('heroicon-o-eye')->color('primary'),
             DeleteAction::make()
                 ->icon('heroicon-o-trash')
-                ->visible(fn () => $this->record->isPending() || $this->record->isCancelled()),
+                ->visible(fn () => $this->record->isPending()),
         ];
     }
 
@@ -35,14 +38,12 @@ class EditLoan extends EditRecord
     }
 
     /**
-     * Título de la notificación al editar el préstamo.
-     *
-     * @return string|null
+     * Notificación de edición exitosa.
      */
-    protected function getSavedNotification(): ?\Filament\Notifications\Notification
+    protected function getSavedNotification(): ?Notification
     {
-        return \Filament\Notifications\Notification::make()
+        return Notification::make()
             ->success()
-            ->title('Préstamo actualizado');
+            ->title('Adelanto actualizado');
     }
 }

@@ -2,10 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Payroll;
-use App\Models\PayrollItem;
+use App\Models\Advance;
 use App\Models\Employee;
 use App\Models\LoanInstallment;
+use App\Models\Payroll;
+use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -14,12 +15,21 @@ use Illuminate\Support\Facades\Storage;
 class PayrollService
 {
     protected PerceptionCalculator $perceptionCalculator;
+
     protected DeductionCalculator $deductionCalculator;
+
     protected ExtraHourCalculator $extraHourCalculator;
+
     protected AbsencePenaltyCalculator $absencePenaltyCalculator;
+
     protected LoanInstallmentCalculator $loanInstallmentCalculator;
+
+    protected AdvanceCalculator $advanceCalculator;
+
     protected FamilyBonusCalculator $familyBonusCalculator;
+
     protected RestDayCalculator $restDayCalculator;
+
     protected PayrollPDFGenerator $payrollPDFGenerator;
 
     public function __construct(
@@ -28,6 +38,7 @@ class PayrollService
         ExtraHourCalculator $extraHourCalculator,
         AbsencePenaltyCalculator $absencePenaltyCalculator,
         LoanInstallmentCalculator $loanInstallmentCalculator,
+        AdvanceCalculator $advanceCalculator,
         FamilyBonusCalculator $familyBonusCalculator,
         RestDayCalculator $restDayCalculator,
         PayrollPDFGenerator $payrollPDFGenerator
@@ -37,6 +48,7 @@ class PayrollService
         $this->extraHourCalculator = $extraHourCalculator;
         $this->absencePenaltyCalculator = $absencePenaltyCalculator;
         $this->loanInstallmentCalculator = $loanInstallmentCalculator;
+        $this->advanceCalculator = $advanceCalculator;
         $this->familyBonusCalculator = $familyBonusCalculator;
         $this->restDayCalculator = $restDayCalculator;
         $this->payrollPDFGenerator = $payrollPDFGenerator;
@@ -45,7 +57,7 @@ class PayrollService
     public function generateForPeriod(PayrollPeriod $period): int
     {
         // Validar estado del período
-        if (!in_array($period->status, ['draft', 'processing'])) {
+        if (! in_array($period->status, ['draft', 'processing'])) {
             throw new \InvalidArgumentException(
                 "No se pueden generar recibos para un período con estado '{$period->status}'. Solo se permiten períodos en 'borrador' o 'en proceso'."
             );
@@ -55,8 +67,7 @@ class PayrollService
 
         $employees = Employee::query()
             ->where('status', 'active')
-            ->whereHas('activeContract', fn ($q) =>
-                $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
+            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
             )
             ->with('activeContract')
             ->get();
@@ -86,6 +97,7 @@ class PayrollService
                             'period_id' => $period->id,
                         ]);
                         DB::rollBack();
+
                         continue;
                     }
 
@@ -102,55 +114,56 @@ class PayrollService
                 }
 
                 // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta.
-                // Las cuotas de préstamos se calculan ANTES de DeductionCalculator para que
+                // Préstamos y adelantos se calculan ANTES de DeductionCalculator para que
                 // los EmployeeDeduction creados sean recogidos en el mismo ciclo.
-                $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-                $extras           = $this->extraHourCalculator->calculate($employee, $period);
-                $restDay          = $this->restDayCalculator->calculate($employee, $period);
-                $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+                $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+                $extras = $this->extraHourCalculator->calculate($employee, $period);
+                $restDay = $this->restDayCalculator->calculate($employee, $period);
+                $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
                 $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
-                $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
-                $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-                $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
+                $advances = $this->advanceCalculator->calculate($employee, $period);
+                $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
+                $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+                $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
 
                 $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
                 // Percepciones que computan para IPS y aguinaldo (salariales + HE + descanso; bonificación familiar excluida)
-                $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-                $totalDeductions  = $deductions['total'] + $absences['total'];
-                $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
+                $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+                $totalDeductions = $deductions['total'] + $absences['total'];
+                $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
                 $payroll = Payroll::create([
-                    'employee_id'       => $employee->id,
+                    'employee_id' => $employee->id,
                     'payroll_period_id' => $period->id,
-                    'base_salary'       => $baseSalary,
+                    'base_salary' => $baseSalary,
                     'total_perceptions' => $totalPerceptions,
-                    'ips_perceptions'   => $ipsPerceptions,
-                    'total_deductions'  => $totalDeductions,
-                    'net_salary'        => $netSalary,
-                    'gross_salary'      => $baseSalary + $totalPerceptions,
-                    'generated_at'      => now(),
-                    'status'            => 'draft',
+                    'ips_perceptions' => $ipsPerceptions,
+                    'total_deductions' => $totalDeductions,
+                    'net_salary' => $netSalary,
+                    'gross_salary' => $baseSalary + $totalPerceptions,
+                    'generated_at' => now(),
+                    'status' => 'draft',
                 ]);
 
                 // Ítems: percepciones (incluyendo descanso remunerado y bonificación familiar si aplican)
                 foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                     PayrollItem::create([
-                        'payroll_id'      => $payroll->id,
-                        'type'            => 'perception',
+                        'payroll_id' => $payroll->id,
+                        'type' => 'perception',
                         'perception_type' => $item['perception_type'] ?? null,
-                        'description'     => $item['description'],
-                        'amount'          => $item['amount'],
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
                     ]);
                 }
 
                 // Ítems: deducciones (las cuotas de préstamos van incluidas en $deductions vía EmployeeDeduction)
                 foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                     PayrollItem::create([
-                        'payroll_id'     => $payroll->id,
-                        'type'           => 'deduction',
+                        'payroll_id' => $payroll->id,
+                        'type' => 'deduction',
                         'deduction_type' => $item['deduction_type'] ?? null,
-                        'description'    => $item['description'],
-                        'amount'         => $item['amount'],
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
                     ]);
                 }
 
@@ -158,6 +171,12 @@ class PayrollService
                 if ($loanInstallments['installments']->isNotEmpty()) {
                     $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
                     $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
+                }
+
+                // Marcar adelantos como pagados
+                if ($advances['advances']->isNotEmpty()) {
+                    $advanceIds = $advances['advances']->pluck('id')->toArray();
+                    $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
                 }
 
                 // Generar PDF
@@ -177,19 +196,20 @@ class PayrollService
                 $count++;
             } catch (\Throwable $e) {
                 DB::rollBack();
-                Log::error('Error al generar recibo: ' . $e->getMessage(), [
+                Log::error('Error al generar recibo: '.$e->getMessage(), [
                     'employee_id' => $employee->id,
                     'period_id' => $period->id,
                     'trace' => $e->getTraceAsString(),
                 ]);
             }
         }
+
         return $count;
     }
 
     public function generateForEmployee(Employee $employee, PayrollPeriod $period): Payroll
     {
-        if (!in_array($period->status, ['draft', 'processing'])) {
+        if (! in_array($period->status, ['draft', 'processing'])) {
             throw new \InvalidArgumentException(
                 "No se pueden generar recibos para un período con estado '{$period->status}'. Solo se permiten períodos en borrador o en proceso."
             );
@@ -200,15 +220,15 @@ class PayrollService
             ->exists()
         ) {
             throw new \InvalidArgumentException(
-                "Ya existe un recibo para este empleado en el período seleccionado."
+                'Ya existe un recibo para este empleado en el período seleccionado.'
             );
         }
 
         $employee->load('activeContract');
 
-        if (!$employee->activeContract) {
+        if (! $employee->activeContract) {
             throw new \InvalidArgumentException(
-                "El empleado no tiene un contrato activo."
+                'El empleado no tiene un contrato activo.'
             );
         }
 
@@ -229,7 +249,7 @@ class PayrollService
 
                 if ($workedDays === 0) {
                     throw new \InvalidArgumentException(
-                        "El empleado jornalero no tiene días trabajados registrados en este período."
+                        'El empleado jornalero no tiene días trabajados registrados en este período.'
                     );
                 }
 
@@ -238,55 +258,61 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-            $extras           = $this->extraHourCalculator->calculate($employee, $period);
-            $restDay          = $this->restDayCalculator->calculate($employee, $period);
-            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+            $extras = $this->extraHourCalculator->calculate($employee, $period);
+            $restDay = $this->restDayCalculator->calculate($employee, $period);
+            $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
-            $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
-            $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-            $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
+            $advances = $this->advanceCalculator->calculate($employee, $period);
+            $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
+            $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+            $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
 
             $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
-            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-            $totalDeductions  = $deductions['total'] + $absences['total'];
-            $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
+            $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $totalDeductions = $deductions['total'] + $absences['total'];
+            $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
             $payroll = Payroll::create([
-                'employee_id'       => $employee->id,
+                'employee_id' => $employee->id,
                 'payroll_period_id' => $period->id,
-                'base_salary'       => $baseSalary,
+                'base_salary' => $baseSalary,
                 'total_perceptions' => $totalPerceptions,
-                'ips_perceptions'   => $ipsPerceptions,
-                'total_deductions'  => $totalDeductions,
-                'gross_salary'      => $baseSalary + $totalPerceptions,
-                'net_salary'        => $netSalary,
-                'generated_at'      => now(),
-                'status'            => 'draft',
+                'ips_perceptions' => $ipsPerceptions,
+                'total_deductions' => $totalDeductions,
+                'gross_salary' => $baseSalary + $totalPerceptions,
+                'net_salary' => $netSalary,
+                'generated_at' => now(),
+                'status' => 'draft',
             ]);
 
             foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id'      => $payroll->id,
-                    'type'            => 'perception',
+                    'payroll_id' => $payroll->id,
+                    'type' => 'perception',
                     'perception_type' => $item['perception_type'] ?? null,
-                    'description'     => $item['description'],
-                    'amount'          => $item['amount'],
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
                 ]);
             }
 
             foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id'  => $payroll->id,
-                    'type'        => 'deduction',
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
                     'description' => $item['description'],
-                    'amount'      => $item['amount'],
+                    'amount' => $item['amount'],
                 ]);
             }
 
             if ($loanInstallments['installments']->isNotEmpty()) {
                 $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
                 $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
+            }
+
+            if ($advances['advances']->isNotEmpty()) {
+                $advanceIds = $advances['advances']->pluck('id')->toArray();
+                $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
             }
 
             $pdfPath = $this->payrollPDFGenerator->generate($payroll);
@@ -297,17 +323,17 @@ class PayrollService
             Log::info('Recibo de nómina generado manualmente', [
                 'payroll_id' => $payroll->id,
                 'employee_id' => $employee->id,
-                'period_id'  => $period->id,
+                'period_id' => $period->id,
                 'net_salary' => $netSalary,
             ]);
 
             return $payroll->refresh();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error al generar recibo manualmente: ' . $e->getMessage(), [
+            Log::error('Error al generar recibo manualmente: '.$e->getMessage(), [
                 'employee_id' => $employee->id,
-                'period_id'  => $period->id,
-                'trace'      => $e->getTraceAsString(),
+                'period_id' => $period->id,
+                'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
         }
@@ -329,12 +355,20 @@ class PayrollService
 
         try {
             // Revertir cuotas de préstamo pagadas del período anterior
-            LoanInstallment::whereHas('loan', fn($q) => $q
+            LoanInstallment::whereHas('loan', fn ($q) => $q
                 ->where('employee_id', $employee->id)
                 ->where('status', 'active'))
                 ->where('status', 'paid')
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
                 ->update(['status' => 'pending', 'paid_at' => null]);
+
+            // Revertir adelantos descontados en esta nómina
+            Advance::where('employee_id', $employee->id)
+                ->where('payroll_id', $payroll->id)
+                ->update([
+                    'status' => 'approved',
+                    'payroll_id' => null,
+                ]);
 
             // Eliminar ítems existentes
             $payroll->items()->delete();
@@ -357,50 +391,51 @@ class PayrollService
             }
 
             // Recalcular con los 7 calculadores — extras antes de deducciones para base IPS correcta
-            $perceptions      = $this->perceptionCalculator->calculate($employee, $period);
-            $extras           = $this->extraHourCalculator->calculate($employee, $period);
-            $restDay          = $this->restDayCalculator->calculate($employee, $period);
-            $ipsBase          = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $perceptions = $this->perceptionCalculator->calculate($employee, $period);
+            $extras = $this->extraHourCalculator->calculate($employee, $period);
+            $restDay = $this->restDayCalculator->calculate($employee, $period);
+            $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
-            $deductions       = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
-            $absences         = $this->absencePenaltyCalculator->calculate($employee, $period);
-            $familyBonus      = $this->familyBonusCalculator->calculate($employee, $period);
+            $advances = $this->advanceCalculator->calculate($employee, $period);
+            $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
+            $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
+            $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
 
             $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
-            $ipsPerceptions   = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-            $totalDeductions  = $deductions['total'] + $absences['total'];
-            $netSalary        = $baseSalary + $totalPerceptions - $totalDeductions;
+            $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
+            $totalDeductions = $deductions['total'] + $absences['total'];
+            $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
             // Actualizar el registro existente
             $payroll->update([
-                'base_salary'       => $baseSalary,
+                'base_salary' => $baseSalary,
                 'total_perceptions' => $totalPerceptions,
-                'ips_perceptions'   => $ipsPerceptions,
-                'total_deductions'  => $totalDeductions,
-                'gross_salary'      => $baseSalary + $totalPerceptions,
-                'net_salary'        => $netSalary,
-                'generated_at'      => now(),
+                'ips_perceptions' => $ipsPerceptions,
+                'total_deductions' => $totalDeductions,
+                'gross_salary' => $baseSalary + $totalPerceptions,
+                'net_salary' => $netSalary,
+                'generated_at' => now(),
             ]);
 
             // Recrear ítems: percepciones (incluyendo descanso remunerado y bonificación familiar si aplican)
             foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id'      => $payroll->id,
-                    'type'            => 'perception',
+                    'payroll_id' => $payroll->id,
+                    'type' => 'perception',
                     'perception_type' => $item['perception_type'] ?? null,
-                    'description'     => $item['description'],
-                    'amount'          => $item['amount'],
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
                 ]);
             }
 
             // Recrear ítems: deducciones
             foreach (array_merge($deductions['items'], $absences['items']) as $item) {
                 PayrollItem::create([
-                    'payroll_id'     => $payroll->id,
-                    'type'           => 'deduction',
+                    'payroll_id' => $payroll->id,
+                    'type' => 'deduction',
                     'deduction_type' => $item['deduction_type'] ?? null,
-                    'description'    => $item['description'],
-                    'amount'         => $item['amount'],
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
                 ]);
             }
 
@@ -408,6 +443,12 @@ class PayrollService
             if ($loanInstallments['installments']->isNotEmpty()) {
                 $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
                 $this->loanInstallmentCalculator->markInstallmentsAsPaid($installmentIds, $payroll->id);
+            }
+
+            // Marcar adelantos como pagados
+            if ($advances['advances']->isNotEmpty()) {
+                $advanceIds = $advances['advances']->pluck('id')->toArray();
+                $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
             }
 
             // Regenerar PDF
@@ -426,7 +467,7 @@ class PayrollService
             return $payroll->refresh();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error al regenerar recibo: ' . $e->getMessage(), [
+            Log::error('Error al regenerar recibo: '.$e->getMessage(), [
                 'payroll_id' => $payroll->id,
                 'employee_id' => $employee->id,
                 'trace' => $e->getTraceAsString(),

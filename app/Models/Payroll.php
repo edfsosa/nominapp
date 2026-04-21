@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
-use App\Models\EmployeeDeduction;
 
 class Payroll extends Model
 {
@@ -34,7 +33,7 @@ class Payroll extends Model
     protected $casts = [
         'base_salary' => 'decimal:2',
         'total_perceptions' => 'decimal:2',
-        'ips_perceptions'   => 'decimal:2',
+        'ips_perceptions' => 'decimal:2',
         'gross_salary' => 'decimal:2',
         'total_deductions' => 'decimal:2',
         'net_salary' => 'decimal:2',
@@ -51,31 +50,71 @@ class Payroll extends Model
 
             $period = $payroll->period;
             if ($period) {
-                // Revertir cuotas de préstamo pagadas asociadas a este período/empleado
-                LoanInstallment::whereHas('loan', fn($q) => $q
-                    ->where('employee_id', $payroll->employee_id)
-                    ->where('status', 'active'))
-                    ->where('status', 'paid')
-                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
-                    ->update(['status' => 'pending', 'paid_at' => null]);
+                // --- PRÉSTAMOS: revertir cuotas pagadas en este período ---
 
-                // Eliminar los EmployeeDeduction puntuales creados para las cuotas de este período.
-                // La FK con nullOnDelete limpia automáticamente loan_installments.employee_deduction_id.
-                $deductionIds = LoanInstallment::whereHas('loan', fn($q) => $q
+                // Recopilar employee_deduction_id de cuotas a revertir antes de actualizarlas
+                $deductionIds = LoanInstallment::whereHas('loan', fn ($q) => $q
                     ->where('employee_id', $payroll->employee_id))
                     ->whereBetween('due_date', [$period->start_date, $period->end_date])
                     ->whereNotNull('employee_deduction_id')
                     ->pluck('employee_deduction_id')
                     ->filter();
 
+                LoanInstallment::whereHas('loan', fn ($q) => $q
+                    ->where('employee_id', $payroll->employee_id)
+                    ->whereIn('status', ['active', 'defaulted']))
+                    ->where('status', 'paid')
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
+
+                // Restaurar outstanding_balance en los préstamos afectados
+                LoanInstallment::whereHas('loan', fn ($q) => $q
+                    ->where('employee_id', $payroll->employee_id))
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->where('status', 'pending')
+                    ->with('loan')
+                    ->get()
+                    ->groupBy('loan_id')
+                    ->each(function ($installments) {
+                        $loan = $installments->first()->loan;
+                        if ($loan && in_array($loan->status, ['active', 'defaulted'])) {
+                            $pendingCapital = $loan->installments()
+                                ->where('status', 'pending')
+                                ->sum('capital_amount');
+                            $loan->update(['outstanding_balance' => $pendingCapital]);
+                        }
+                    });
+
+                // Eliminar EmployeeDeduction puntuales de cuotas.
+                // La FK nullOnDelete limpia automáticamente loan_installments.employee_deduction_id.
                 if ($deductionIds->isNotEmpty()) {
                     EmployeeDeduction::whereIn('id', $deductionIds)->delete();
                 }
 
-                Log::warning('Cuotas de préstamo revertidas al eliminar nómina', [
-                    'payroll_id'  => $payroll->id,
+                // --- ADELANTOS: revertir adelanto descontado en esta nómina ---
+
+                $advanceDeductionIds = Advance::where('employee_id', $payroll->employee_id)
+                    ->where('payroll_id', $payroll->id)
+                    ->whereNotNull('employee_deduction_id')
+                    ->pluck('employee_deduction_id')
+                    ->filter();
+
+                Advance::where('employee_id', $payroll->employee_id)
+                    ->where('payroll_id', $payroll->id)
+                    ->update([
+                        'status' => 'approved',
+                        'payroll_id' => null,
+                        'employee_deduction_id' => null,
+                    ]);
+
+                if ($advanceDeductionIds->isNotEmpty()) {
+                    EmployeeDeduction::whereIn('id', $advanceDeductionIds)->delete();
+                }
+
+                Log::warning('Cuotas de préstamo y adelantos revertidos al eliminar nómina', [
+                    'payroll_id' => $payroll->id,
                     'employee_id' => $payroll->employee_id,
-                    'period_id'   => $period->id,
+                    'period_id' => $period->id,
                 ]);
             }
         });
@@ -116,7 +155,7 @@ class Payroll extends Model
     // Accesor para mostrar nombre
     public function getTitleAttribute(): string
     {
-        return 'Nómina de ' . ($this->employee?->first_name ?? '') . ' ' . ($this->employee?->last_name ?? '') . ' - ' . ($this->period?->name ?? 'Sin período');
+        return 'Nómina de '.($this->employee?->first_name ?? '').' '.($this->employee?->last_name ?? '').' - '.($this->period?->name ?? 'Sin período');
     }
 
     /**
@@ -129,7 +168,7 @@ class Payroll extends Model
             return 'Gs. 0';
         }
 
-        return 'Gs. ' . number_format($amount, 0, ',', '.');
+        return 'Gs. '.number_format($amount, 0, ',', '.');
     }
 
     /**
@@ -145,7 +184,7 @@ class Payroll extends Model
      */
     public function getFormattedTotalPerceptionsAttribute(): string
     {
-        return '+ ' . self::formatCurrency($this->total_perceptions);
+        return '+ '.self::formatCurrency($this->total_perceptions);
     }
 
     /**
@@ -161,7 +200,7 @@ class Payroll extends Model
      */
     public function getFormattedTotalDeductionsAttribute(): string
     {
-        return '- ' . self::formatCurrency($this->total_deductions);
+        return '- '.self::formatCurrency($this->total_deductions);
     }
 
     /**

@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\Loan;
+use App\Models\Advance;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -10,8 +10,8 @@ use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-/** Exporta préstamos a Excel, con filtro opcional por estado. */
-class LoansExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
+/** Exporta adelantos de salario a Excel, con filtro opcional por estado. */
+class AdvancesExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
      * @param  array<int, string>|null  $status  Filtro de estados (null = todos).
@@ -21,13 +21,13 @@ class LoansExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMappin
     ) {}
 
     /**
-     * Consulta base de préstamos, eager-load relaciones necesarias.
+     * Consulta base de adelantos con eager-load de relaciones necesarias.
      *
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function query()
     {
-        return Loan::with(['employee'])
+        return Advance::with(['employee', 'approvedBy'])
             ->when($this->status, fn ($q) => $q->whereIn('status', $this->status))
             ->orderBy('created_at', 'desc');
     }
@@ -42,38 +42,34 @@ class LoansExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMappin
         return [
             'Empleado',
             'CI',
+            'Monto (Gs.)',
             'Estado',
-            'Monto Total (Gs.)',
-            'Tasa Anual (%)',
-            'Cuota (Gs.)',
-            'Cuotas Total',
-            'Cuotas Pagadas',
-            'Saldo Pendiente (Gs.)',
-            'Motivo',
-            'Fecha Activación',
+            'Notas',
+            'Aprobado el',
+            'Aprobado por',
+            'Creado',
+            'Editado',
         ];
     }
 
     /**
-     * Transforma un préstamo en fila de datos para el Excel.
+     * Transforma un adelanto en fila de datos para el Excel.
      *
-     * @param  Loan  $loan
+     * @param  Advance  $advance
      * @return array<int, mixed>
      */
-    public function map($loan): array
+    public function map($advance): array
     {
         return [
-            $loan->employee->full_name,
-            $loan->employee->ci,
-            $loan->status_label,
-            $loan->amount,
-            $loan->interest_rate,
-            $loan->installment_amount,
-            $loan->installments_count,
-            $loan->paid_installments_count,
-            $loan->outstanding_balance,
-            $loan->reason ?? '',
-            $loan->granted_at?->format('d/m/Y') ?? '',
+            $advance->employee->full_name,
+            $advance->employee->ci,
+            $advance->amount,
+            Advance::getStatusLabel($advance->status),
+            $advance->notes ?? '',
+            $advance->approved_at?->format('d/m/Y H:i') ?? '',
+            $advance->approvedBy?->name ?? '',
+            $advance->created_at->format('d/m/Y H:i'),
+            $advance->updated_at->format('d/m/Y H:i'),
         ];
     }
 

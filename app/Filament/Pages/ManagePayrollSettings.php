@@ -2,29 +2,32 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Forms\Form;
-use Filament\Pages\SettingsPage;
 use App\Settings\PayrollSettings;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
-use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Pages\SettingsPage;
 
 class ManagePayrollSettings extends SettingsPage
 {
     // Configuraciones de la página
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
+
     protected static ?string $navigationLabel = 'Configuración de Nómina';
+
     protected static ?string $title = 'Configuración de Nómina';
+
     protected static ?string $navigationGroup = 'Configuración';
+
     protected static ?int $navigationSort = 4;
+
     protected static string $settings = PayrollSettings::class;
 
     /**
      * Define el formulario de configuración de nómina.
-     *
-     * @param Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -303,6 +306,83 @@ class ManagePayrollSettings extends SettingsPage
                             ]),
                     ])
                     ->collapsed(),
+
+                Section::make('Préstamos')
+                    ->description('Límites para la concesión de préstamos a empleados.')
+                    ->icon('heroicon-o-banknotes')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('loan_installment_cap_percent')
+                                    ->label('Tope de cuota (% salario)')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(100)
+                                    ->step(0.5)
+                                    ->required()
+                                    ->suffix('%')
+                                    ->helperText('% máximo del salario que puede representar la cuota mensual. Default: 25% (Art. 245 CLT)'),
+
+                                TextInput::make('loan_max_installments')
+                                    ->label('Máximo de cuotas')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(360)
+                                    ->required()
+                                    ->suffix('cuotas')
+                                    ->helperText('Cantidad máxima de cuotas al crear un préstamo. Default: 60'),
+
+                                TextInput::make('loan_max_interest_rate')
+                                    ->label('Tasa de interés máxima')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(100)
+                                    ->step(0.5)
+                                    ->required()
+                                    ->suffix('% anual')
+                                    ->helperText('Tasa de interés anual máxima permitida. Default: 100%'),
+                            ]),
+                    ]),
+
+                Section::make('Adelantos de Salario')
+                    ->description('Límites para las solicitudes de adelanto por parte de los empleados.')
+                    ->icon('heroicon-o-currency-dollar')
+                    ->schema([
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('advance_max_percent')
+                                    ->label('Porcentaje máximo por adelanto')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(100)
+                                    ->step(1)
+                                    ->required()
+                                    ->live()
+                                    ->suffix('%')
+                                    ->helperText('% del salario del empleado que se puede adelantar por solicitud. Default: 50%'),
+
+                                TextInput::make('advance_max_per_period')
+                                    ->label('Máximo de adelantos por período')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->maxValue(99)
+                                    ->required()
+                                    ->live()
+                                    ->suffix('adelantos')
+                                    ->helperText('Cantidad máxima por período de nómina. 0 = sin límite.')
+                                    ->rules([
+                                        fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                                            $perPeriod = (int) $value;
+                                            $percent = (int) $get('advance_max_percent');
+
+                                            if ($perPeriod > 0 && ($perPeriod * $percent) > 100) {
+                                                $total = $perPeriod * $percent;
+                                                $fail("{$perPeriod} adelantos × {$percent}% = {$total}% del salario, lo que supera el 100%. Reducí la cantidad o el porcentaje.");
+                                            }
+                                        },
+                                    ]),
+                            ]),
+                    ]),
 
                 // Nueva sección para configuración de vacaciones
                 Section::make('Vacaciones')

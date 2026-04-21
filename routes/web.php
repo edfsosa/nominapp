@@ -1,18 +1,19 @@
 <?php
 
+use App\Http\Controllers\AdvanceController;
+use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\AttendanceExportController;
-use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\AttendanceFaceMarkController;
+use App\Http\Controllers\ContractController;
+use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\FaceEnrollmentController;
-use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
-use App\Http\Controllers\ContractController;
-use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -71,7 +72,7 @@ Route::get('/api/employees', function (Request $request) {
 
     $employees = Employee::query()
         ->where('status', 'activo')
-        ->when($branchId, fn($query) => $query->where('branch_id', $branchId))
+        ->when($branchId, fn ($query) => $query->where('branch_id', $branchId))
         ->whereNotNull('face_descriptor') // Requiere rostro registrado para reconocimiento
         ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
         ->get();
@@ -121,6 +122,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Préstamos y adelantos
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
+    Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');

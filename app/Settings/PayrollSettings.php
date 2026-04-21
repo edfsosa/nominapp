@@ -8,30 +8,43 @@ class PayrollSettings extends Settings
 {
     // Horas de trabajo por tipo de jornada
     public int $monthly_hours;
+
     public int $monthly_hours_nocturno;
+
     public float $monthly_hours_mixto;
+
     public int $daily_hours;
+
     public int $daily_hours_nocturno;
+
     public float $daily_hours_mixto;
+
     public int $days_per_month;
 
     // Multiplicadores de horas extra
     public float $overtime_multiplier_diurno;
+
     public float $overtime_multiplier_nocturno;
+
     public float $overtime_multiplier_holiday;
+
     public float $overtime_multiplier_nocturno_holiday;
 
     // Límites de horas extra
     public int $overtime_max_daily_hours;
+
     public int $overtime_max_weekly_hours;
 
     // Liquidación
     public float $ips_employee_rate;
+
     public string $ips_deduction_code;
+
     public int $indemnizacion_days_per_year;
 
     // Salarios mínimos legales vigentes (Ministerio de Trabajo)
     public int $min_salary_monthly;
+
     public int $min_salary_daily_jornal;
 
     // Bonificación familiar (Arts. 253-262 CLT)
@@ -39,12 +52,27 @@ class PayrollSettings extends Settings
 
     // Vacaciones
     public int $vacation_min_consecutive_days;
+
     public int $vacation_min_years_service;
+
     public array $vacation_business_days;
 
     // IRP — Impuesto a la Renta Personal (Ley 2421/04)
     public int $irp_annual_threshold;   // Umbral anual a partir del cual aplica IRP (Gs.)
+
     public float $irp_rate;             // Tasa del impuesto (%) sobre la renta gravada
+
+    // Préstamos
+    public float $loan_installment_cap_percent;  // % máximo del salario que puede representar la cuota mensual
+
+    public int $loan_max_installments;           // Máximo de cuotas permitidas al crear un préstamo
+
+    public float $loan_max_interest_rate;        // Tasa de interés anual máxima permitida (%)
+
+    // Adelantos de salario
+    public float $advance_max_percent;    // % máximo del salario que se puede adelantar por solicitud
+
+    public int $advance_max_per_period;   // Máximo de adelantos por período de nómina (0 = sin límite)
 
     public static function group(): string
     {

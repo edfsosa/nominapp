@@ -5,22 +5,32 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Cuota individual de un préstamo (amortización francesa).
+ *
+ * Cada cuota almacena el monto total (amount), la porción capital (capital_amount)
+ * y la porción interés (interest_amount). Con tasa 0%: capital = amount, interés = 0.
+ */
 class LoanInstallment extends Model
 {
     protected $fillable = [
         'loan_id',
         'installment_number',
         'amount',
+        'capital_amount',
+        'interest_amount',
         'due_date',
         'status',
         'paid_at',
         'notes',
-        'payroll_id',
         'employee_deduction_id',
+        'payroll_id',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
+        'capital_amount' => 'decimal:2',
+        'interest_amount' => 'decimal:2',
         'due_date' => 'date',
         'paid_at' => 'datetime',
     ];
@@ -29,6 +39,7 @@ class LoanInstallment extends Model
     // RELACIONES
     // =========================================================================
 
+    /** Préstamo al que pertenece esta cuota. */
     public function loan(): BelongsTo
     {
         return $this->belongsTo(Loan::class);
@@ -41,9 +52,12 @@ class LoanInstallment extends Model
     }
 
     // =========================================================================
-    // HELPERS ESTÁTICOS PARA ESTADOS
+    // HELPERS ESTÁTICOS — ESTADOS
     // =========================================================================
 
+    /**
+     * Retorna el label legible de un estado.
+     */
     public static function getStatusLabel(string $status): string
     {
         return match ($status) {
@@ -54,6 +68,9 @@ class LoanInstallment extends Model
         };
     }
 
+    /**
+     * Retorna el color semántico Filament para un estado.
+     */
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
@@ -64,6 +81,9 @@ class LoanInstallment extends Model
         };
     }
 
+    /**
+     * Retorna el icono heroicon para un estado.
+     */
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
@@ -74,6 +94,11 @@ class LoanInstallment extends Model
         };
     }
 
+    /**
+     * Retorna las opciones de estado para selects Filament.
+     *
+     * @return array<string, string>
+     */
     public static function getStatusOptions(): array
     {
         return [
@@ -102,6 +127,9 @@ class LoanInstallment extends Model
         return $this->status === 'cancelled';
     }
 
+    /**
+     * Indica si la cuota está vencida (pendiente y fecha pasada).
+     */
     public function isOverdue(): bool
     {
         return $this->isPending() && $this->due_date->isPast();
@@ -111,17 +139,36 @@ class LoanInstallment extends Model
     // ATRIBUTOS COMPUTADOS
     // =========================================================================
 
+    /**
+     * Descripción corta: "Cuota X/Y".
+     */
     public function getDescriptionAttribute(): string
     {
         return "Cuota {$this->installment_number}/{$this->loan->installments_count}";
     }
 
+    /**
+     * Descripción completa con desglose capital/interés cuando hay interés.
+     *
+     * Ejemplo con interés:  "Préstamo - Cuota 3/12 | Capital: Gs. 80.000 | Interés: Gs. 5.000"
+     * Ejemplo sin interés:  "Préstamo - Cuota 3/12"
+     */
     public function getFullDescriptionAttribute(): string
     {
-        $loanType = Loan::getTypeLabel($this->loan->type);
-        return "{$loanType} - Cuota {$this->installment_number}/{$this->loan->installments_count}";
+        $base = "Préstamo - Cuota {$this->installment_number}/{$this->loan->installments_count}";
+
+        if ((float) $this->interest_amount > 0) {
+            $capital = number_format((float) $this->capital_amount, 0, ',', '.');
+            $interest = number_format((float) $this->interest_amount, 0, ',', '.');
+            $base .= " | Capital: Gs. {$capital} | Interés: Gs. {$interest}";
+        }
+
+        return $base;
     }
 
+    /**
+     * Retorna el label del estado actual.
+     */
     public function getStatusLabelAttribute(): string
     {
         return self::getStatusLabel($this->status);
@@ -131,40 +178,83 @@ class LoanInstallment extends Model
     // SCOPES
     // =========================================================================
 
+    /**
+     * Filtra por estado.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeByStatus($query, string $status)
     {
         return $query->where('status', $status);
     }
 
+    /**
+     * Filtra cuotas pendientes.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopePending($query)
     {
         return $query->where('status', 'pending');
     }
 
+    /**
+     * Filtra cuotas pagadas.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopePaid($query)
     {
         return $query->where('status', 'paid');
     }
 
+    /**
+     * Filtra cuotas vencidas (pendientes con due_date pasada).
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeOverdue($query)
     {
-        return $query->where('status', 'pending')
-            ->where('due_date', '<', now());
+        return $query->where('status', 'pending')->where('due_date', '<', now());
     }
 
+    /**
+     * Filtra cuotas del mes actual.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeCurrentMonth($query)
     {
         return $query->whereMonth('due_date', now()->month)
             ->whereYear('due_date', now()->year);
     }
 
+    /**
+     * Filtra cuotas con due_date dentro de un rango de fechas.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @param  mixed  $startDate
+     * @param  mixed  $endDate
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeBetweenDates($query, $startDate, $endDate)
     {
         return $query->whereBetween('due_date', [$startDate, $endDate]);
     }
 
+    /**
+     * Filtra cuotas de préstamos activos.
+     *
+     * @param  \Illuminate\Database\Eloquent\Builder  $query
+     * @return \Illuminate\Database\Eloquent\Builder
+     */
     public function scopeForActiveLoan($query)
     {
-        return $query->whereHas('loan', fn($q) => $q->where('status', 'active'));
+        return $query->whereHas('loan', fn ($q) => $q->where('status', 'active'));
     }
 }

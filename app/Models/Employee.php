@@ -32,9 +32,9 @@ class Employee extends Model
     ];
 
     protected $casts = [
-        'birth_date'                 => 'date',
+        'birth_date' => 'date',
         'maternity_protection_until' => 'date',
-        'face_descriptor'            => 'array',
+        'face_descriptor' => 'array',
     ];
 
     // ───────────────────────────────────────────
@@ -65,12 +65,14 @@ class Employee extends Model
     public function getBaseSalaryAttribute(): ?float
     {
         $c = $this->activeContract;
+
         return ($c && $c->salary_type === 'mensual') ? (float) $c->salary : null;
     }
 
     public function getDailyRateAttribute(): ?float
     {
         $c = $this->activeContract;
+
         return ($c && $c->salary_type === 'jornal') ? (float) $c->salary : null;
     }
 
@@ -82,6 +84,7 @@ class Employee extends Model
     public function getEmploymentTypeAttribute(): ?string
     {
         $st = $this->activeContract?->salary_type;
+
         return $st ? ($st === 'jornal' ? 'day_laborer' : 'full_time') : null;
     }
 
@@ -133,7 +136,7 @@ class Employee extends Model
             ->withPivot('start_date', 'end_date', 'custom_amount', 'notes')
             ->withTimestamps()
             ->wherePivot('start_date', '<=', now())
-            ->where(fn($q) => $q
+            ->where(fn ($q) => $q
                 ->whereNull('employee_perceptions.end_date')
                 ->orWhere('employee_perceptions.end_date', '>=', now())
             );
@@ -154,7 +157,7 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeeDeduction::class)
             ->where('start_date', '<=', now())
-            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
@@ -182,7 +185,7 @@ class Employee extends Model
     {
         return $this->hasMany(EmployeePerception::class)
             ->where('start_date', '<=', now())
-            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
@@ -280,7 +283,6 @@ class Employee extends Model
      * Prioriza la tabla de asignaciones; si no existe, cae al campo legacy schedule_id.
      *
      * @param  Carbon|null  $date  Fecha de consulta (por defecto hoy).
-     * @return Schedule|null
      */
     public function getScheduleForDate(?Carbon $date = null): ?Schedule
     {
@@ -288,7 +290,7 @@ class Employee extends Model
 
         $assignment = $this->scheduleAssignments()
             ->where('valid_from', '<=', $date)
-            ->where(fn($q) => $q
+            ->where(fn ($q) => $q
                 ->whereNull('valid_until')
                 ->orWhere('valid_until', '>=', $date)
             )
@@ -358,7 +360,7 @@ class Employee extends Model
 
     public function getTodayScheduledCheckInAttribute()
     {
-        $today       = Carbon::now()->dayOfWeekIso;
+        $today = Carbon::now()->dayOfWeekIso;
         $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
         return $scheduleDay?->start_time;
@@ -366,7 +368,7 @@ class Employee extends Model
 
     public function getTodayScheduledCheckOutAttribute()
     {
-        $today       = Carbon::now()->dayOfWeekIso;
+        $today = Carbon::now()->dayOfWeekIso;
         $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
         return $scheduleDay?->end_time;
@@ -374,7 +376,7 @@ class Employee extends Model
 
     public function getTodayExpectedBreakMinutesAttribute()
     {
-        $today       = Carbon::now()->dayOfWeekIso;
+        $today = Carbon::now()->dayOfWeekIso;
         $scheduleDay = $this->getScheduleForDate(Carbon::today())?->days()->where('day_of_week', $today)->first();
 
         return $scheduleDay?->total_break_minutes;
@@ -382,8 +384,7 @@ class Employee extends Model
 
     public function scopeWithPayrollTypeAndSalary($query, string $type)
     {
-        return $query->whereHas('activeContract', fn ($q) =>
-            $q->where('payroll_type', $type)->whereNotNull('salary')
+        return $query->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $type)->whereNotNull('salary')
         );
     }
 
@@ -432,7 +433,7 @@ class Employee extends Model
      */
     public function getAvatarUrlAttribute(): string
     {
-        return 'https://ui-avatars.com/api/?name=' . urlencode($this->full_name);
+        return 'https://ui-avatars.com/api/?name='.urlencode($this->full_name);
     }
 
     /**
@@ -596,7 +597,7 @@ class Employee extends Model
     {
         return [
             'masculino' => 'Masculino',
-            'femenino'  => 'Femenino',
+            'femenino' => 'Femenino',
         ];
     }
 
@@ -609,7 +610,7 @@ class Employee extends Model
     {
         return [
             'masculino' => 'info',
-            'femenino'  => 'primary',
+            'femenino' => 'primary',
         ];
     }
 
@@ -622,7 +623,7 @@ class Employee extends Model
     {
         return [
             'masculino' => 'heroicon-o-user',
-            'femenino'  => 'heroicon-o-user',
+            'femenino' => 'heroicon-o-user',
         ];
     }
 
@@ -648,15 +649,15 @@ class Employee extends Model
     public static function getMonthOptions(): array
     {
         return [
-            1  => 'Enero',
-            2  => 'Febrero',
-            3  => 'Marzo',
-            4  => 'Abril',
-            5  => 'Mayo',
-            6  => 'Junio',
-            7  => 'Julio',
-            8  => 'Agosto',
-            9  => 'Septiembre',
+            1 => 'Enero',
+            2 => 'Febrero',
+            3 => 'Marzo',
+            4 => 'Abril',
+            5 => 'Mayo',
+            6 => 'Junio',
+            7 => 'Julio',
+            8 => 'Agosto',
+            9 => 'Septiembre',
             10 => 'Octubre',
             11 => 'Noviembre',
             12 => 'Diciembre',
@@ -769,11 +770,11 @@ class Employee extends Model
     public function getContactUrlAttribute(): ?string
     {
         if ($this->phone) {
-            return 'https://api.whatsapp.com/send?phone=595' . ltrim($this->phone, '0');
+            return 'https://api.whatsapp.com/send?phone=595'.ltrim($this->phone, '0');
         }
 
         if ($this->email) {
-            return 'mailto:' . $this->email;
+            return 'mailto:'.$this->email;
         }
 
         return null;
@@ -809,7 +810,7 @@ class Employee extends Model
     public function getAntiquityDescriptionAttribute(): string
     {
         return $this->hire_date
-            ? $this->hire_date->diffForHumans(null, true) . ' en la empresa'
+            ? $this->hire_date->diffForHumans(null, true).' en la empresa'
             : 'Sin fecha de ingreso';
     }
 
@@ -818,7 +819,7 @@ class Employee extends Model
      */
     public function getAgeDescriptionAttribute(): string
     {
-        return $this->birth_date ? $this->birth_date->age . ' años' : '';
+        return $this->birth_date ? $this->birth_date->age.' años' : '';
     }
 
     /**
@@ -851,7 +852,7 @@ class Employee extends Model
                 ->where('end_date', '>=', $now)
                 ->first();
 
-            if (!$period) {
+            if (! $period) {
                 return null;
             }
 
@@ -867,12 +868,21 @@ class Employee extends Model
     }
 
     /**
-     * Calcula el monto máximo de adelanto (50% del salario de referencia mensual)
+     * Calcula el monto máximo de adelanto según el porcentaje configurado en PayrollSettings.
+     *
+     * @return float|null Monto máximo en Gs., o null si el empleado no tiene salario definido.
      */
     public function getMaxAdvanceAmount(): ?float
     {
         $reference = $this->getAdvanceReferenceSalary();
-        return $reference ? $reference / 2 : null;
+
+        if (! $reference) {
+            return null;
+        }
+
+        $percent = app(\App\Settings\PayrollSettings::class)->advance_max_percent;
+
+        return round($reference * $percent / 100, 2);
     }
 
     /**
@@ -881,7 +891,7 @@ class Employee extends Model
     public function canRequestAdvance(): bool
     {
         // Debe tener salario de referencia definido (mensual o jornalero)
-        if (!$this->getAdvanceReferenceSalary()) {
+        if (! $this->getAdvanceReferenceSalary()) {
             return false;
         }
 
@@ -1016,7 +1026,7 @@ class Employee extends Model
         $alreadyActiveIds = $this->employeeDeductions()
             ->whereIn('deduction_id', $mandatoryIds)
             ->where('start_date', '<=', now())
-            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
             ->pluck('deduction_id');
 
         $toAssignIds = $mandatoryIds->diff($alreadyActiveIds);
@@ -1025,7 +1035,7 @@ class Employee extends Model
             return 0;
         }
 
-        $now   = now();
+        $now = now();
         $today = $now->toDateString();
 
         // Reactivar registros que ya tienen start_date=hoy (evita violar el unique key)
@@ -1046,15 +1056,15 @@ class Employee extends Model
 
         if ($newIds->isNotEmpty()) {
             $this->employeeDeductions()->insert(
-                $newIds->map(fn($id) => [
-                    'employee_id'   => $this->id,
-                    'deduction_id'  => $id,
-                    'start_date'    => $today,
-                    'end_date'      => null,
+                $newIds->map(fn ($id) => [
+                    'employee_id' => $this->id,
+                    'deduction_id' => $id,
+                    'start_date' => $today,
+                    'end_date' => null,
                     'custom_amount' => null,
-                    'notes'         => 'Deducción obligatoria asignada automáticamente',
-                    'created_at'    => $now,
-                    'updated_at'    => $now,
+                    'notes' => 'Deducción obligatoria asignada automáticamente',
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ])->values()->toArray()
             );
         }

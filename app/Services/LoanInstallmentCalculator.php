@@ -11,34 +11,42 @@ use App\Models\PayrollPeriod;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Calcula y registra las cuotas de préstamos/adelantos que vencen en el período.
+ * Calcula y registra las cuotas de préstamos que vencen en el período de nómina.
  *
  * Por cada cuota encontrada crea (o actualiza) un registro en `employee_deductions`
- * usando el código PRE001 (préstamo) o ADE001 (adelanto), de modo que
- * DeductionCalculator las procese junto al resto de deducciones del empleado.
+ * usando el código PRE001, de modo que DeductionCalculator las procese junto al
+ * resto de deducciones del empleado.
+ *
+ * Los adelantos de salario son manejados por AdvanceCalculator.
  */
 class LoanInstallmentCalculator
 {
-    /** @var int|null ID de la deducción PRE001 (Cuota de Préstamo) */
+    /** @var int|null ID de la deducción PRE001 (Cuota de Préstamo), cacheado por instancia. */
     private ?int $loanDeductionId = null;
 
-    /** @var int|null ID de la deducción ADE001 (Cuota de Adelanto) */
-    private ?int $advanceDeductionId = null;
-
     /**
-     * Identifica cuotas vencidas en el período, crea sus EmployeeDeduction y
-     * retorna la colección de instancias para trazabilidad posterior.
+     * Identifica cuotas de préstamos vencidas en el período, crea sus EmployeeDeduction
+     * y retorna la colección de instancias para trazabilidad posterior.
      *
-     * @param  Employee      $employee
-     * @param  PayrollPeriod $period
      * @return array{installments: \Illuminate\Support\Collection}
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
         $processedInstallments = collect();
 
+        $deductionId = $this->getLoanDeductionId();
+
+        if ($deductionId === null) {
+            Log::warning('LoanInstallmentCalculator: deducción PRE001 no encontrada. Verificá el seeder.', [
+                'employee_id' => $employee->id,
+                'period_id' => $period->id,
+            ]);
+
+            return ['installments' => $processedInstallments];
+        }
+
         $installments = LoanInstallment::query()
-            ->whereHas('loan', fn($q) => $q
+            ->whereHas('loan', fn ($q) => $q
                 ->where('employee_id', $employee->id)
                 ->whereIn('status', ['active', 'defaulted']))
             ->where('status', 'pending')
@@ -48,19 +56,7 @@ class LoanInstallmentCalculator
             ->get();
 
         foreach ($installments as $installment) {
-            $deductionId = $installment->loan->isAdvance()
-                ? $this->getAdvanceDeductionId()
-                : $this->getLoanDeductionId();
-
-            if ($deductionId === null) {
-                Log::warning('LoanInstallmentCalculator: deducción PRE001/ADE001 no encontrada. Verificá el seeder.', [
-                    'installment_id' => $installment->id,
-                    'loan_type'      => $installment->loan->type,
-                ]);
-                continue;
-            }
-
-            $notes = $this->buildDescription($installment);
+            $notes = "Préstamo - Cuota {$installment->installment_number}/{$installment->loan->installments_count}";
 
             // Idempotente: si ya tiene EmployeeDeduction del ciclo anterior (regeneración),
             // actualiza el monto; si no, crea uno nuevo.
@@ -70,7 +66,7 @@ class LoanInstallmentCalculator
                 if ($employeeDeduction) {
                     $employeeDeduction->update([
                         'custom_amount' => (float) $installment->amount,
-                        'notes'         => $notes,
+                        'notes' => $notes,
                     ]);
                 } else {
                     // El registro fue eliminado (payroll previo borrado); crear uno nuevo
@@ -84,7 +80,6 @@ class LoanInstallmentCalculator
                 );
             }
 
-            // Guardar referencia en la cuota
             $installment->update(['employee_deduction_id' => $employeeDeduction->id]);
 
             $processedInstallments->push($installment);
@@ -94,11 +89,13 @@ class LoanInstallmentCalculator
     }
 
     /**
-     * Marca las cuotas como pagadas después de que la nómina pasa a estado 'paid'.
+     * Marca las cuotas como pagadas y actualiza outstanding_balance del préstamo.
      *
-     * @param  array    $installmentIds IDs de las cuotas a marcar como pagadas
-     * @param  int|null $payrollId      ID de la nómina que cubre estas cuotas
-     * @return int Número de cuotas marcadas como pagadas
+     * Llamado por PayrollService después de crear la nómina.
+     *
+     * @param  array  $installmentIds  IDs de las cuotas a marcar como pagadas.
+     * @param  int|null  $payrollId  ID de la nómina que cubre estas cuotas.
+     * @return int Número de cuotas marcadas como pagadas.
      */
     public function markInstallmentsAsPaid(array $installmentIds, ?int $payrollId = null): int
     {
@@ -108,26 +105,32 @@ class LoanInstallmentCalculator
 
         $installments = LoanInstallment::whereIn('id', $installmentIds)
             ->where('status', 'pending')
+            ->with('loan')
             ->get();
 
         $now = now();
 
         foreach ($installments as $installment) {
-            $notes = ($installment->notes ? $installment->notes . "\n" : '') .
-                'Pagado automáticamente vía nómina.';
+            $notes = ($installment->notes ? $installment->notes."\n" : '')
+                .'Pagado automáticamente vía nómina.';
 
             $installment->update([
-                'status'     => 'paid',
-                'paid_at'    => $now,
-                'notes'      => $notes,
+                'status' => 'paid',
+                'paid_at' => $now,
+                'notes' => $notes,
                 'payroll_id' => $payrollId,
             ]);
+
+            // Decrementar outstanding_balance por el capital pagado en esta cuota
+            if ($installment->loan && in_array($installment->loan->status, ['active', 'defaulted'])) {
+                $installment->loan->decrement('outstanding_balance', (float) $installment->capital_amount);
+            }
         }
 
-        // Verificar una sola vez por préstamo único si ya está completamente pagado
-        $installments->pluck('loan_id')->unique()->each(function (int $loanId) {
-            \App\Models\Loan::find($loanId)?->checkIfPaid();
-        });
+        // Verificar una sola vez por préstamo si ya está completamente pagado
+        $installments->pluck('loan_id')->unique()->each(
+            fn (int $loanId) => Loan::find($loanId)?->checkIfPaid()
+        );
 
         return $installments->count();
     }
@@ -137,8 +140,8 @@ class LoanInstallmentCalculator
     // =========================================================================
 
     /**
-     * Crea un registro EmployeeDeduction puntual (start_date = end_date = due_date)
-     * para que DeductionCalculator lo recoja en ese período específico.
+     * Crea un EmployeeDeduction puntual (start_date = end_date = due_date)
+     * para que DeductionCalculator lo procese en ese período específico.
      */
     private function createEmployeeDeduction(
         int $employeeId,
@@ -147,23 +150,13 @@ class LoanInstallmentCalculator
         string $notes,
     ): EmployeeDeduction {
         return EmployeeDeduction::create([
-            'employee_id'  => $employeeId,
+            'employee_id' => $employeeId,
             'deduction_id' => $deductionId,
-            'start_date'   => $installment->due_date,
-            'end_date'     => $installment->due_date,
-            'custom_amount'=> (float) $installment->amount,
-            'notes'        => $notes,
+            'start_date' => $installment->due_date,
+            'end_date' => $installment->due_date,
+            'custom_amount' => (float) $installment->amount,
+            'notes' => $notes,
         ]);
-    }
-
-    /**
-     * Construye la descripción que aparecerá en el recibo de nómina.
-     * Ejemplo: "Préstamo - Cuota 3/10"
-     */
-    private function buildDescription(LoanInstallment $installment): string
-    {
-        $loanType = $installment->loan->isAdvance() ? 'Adelanto' : 'Préstamo';
-        return "{$loanType} - Cuota {$installment->installment_number}/{$installment->loan->installments_count}";
     }
 
     /**
@@ -174,17 +167,7 @@ class LoanInstallmentCalculator
         if ($this->loanDeductionId === null) {
             $this->loanDeductionId = Deduction::where('code', 'PRE001')->value('id');
         }
-        return $this->loanDeductionId;
-    }
 
-    /**
-     * Retorna el ID de la deducción ADE001, cacheado para el ciclo de nómina.
-     */
-    private function getAdvanceDeductionId(): ?int
-    {
-        if ($this->advanceDeductionId === null) {
-            $this->advanceDeductionId = Deduction::where('code', 'ADE001')->value('id');
-        }
-        return $this->advanceDeductionId;
+        return $this->loanDeductionId;
     }
 }

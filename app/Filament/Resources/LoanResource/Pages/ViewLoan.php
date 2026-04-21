@@ -3,9 +3,7 @@
 namespace App\Filament\Resources\LoanResource\Pages;
 
 use App\Filament\Resources\LoanResource;
-use App\Models\Loan;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -18,8 +16,6 @@ class ViewLoan extends ViewRecord
 
     /**
      * Define las acciones del encabezado de la página de detalle del préstamo.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -28,18 +24,13 @@ class ViewLoan extends ViewRecord
                 ->label('Activar')
                 ->icon('heroicon-o-play')
                 ->color('success')
-                ->visible(fn() => $this->record->isPending())
+                ->visible(fn () => $this->record->isPending())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => "Activar {$this->record->type_label}")
+                ->modalHeading('Activar Préstamo')
                 ->modalDescription(function () {
-                    $amount      = number_format($this->record->installment_amount, 0, ',', '.');
                     $payrollType = $this->record->employee->payroll_type_label;
 
-                    if ($this->record->isAdvance()) {
-                        return "Se generará 1 cuota de {$amount} Gs. que se descontará automáticamente en la nómina actual ({$payrollType}).";
-                    }
-
-                    return "Se generarán {$this->record->installments_count} cuotas de {$amount} Gs. cada una. La primera cuota se descontará en la próxima nómina ({$payrollType}).";
+                    return "Se generarán {$this->record->installments_count} cuotas. La primera se descontará en la próxima nómina ({$payrollType}).";
                 })
                 ->modalSubmitActionLabel('Sí, activar')
                 ->action(function () {
@@ -48,7 +39,7 @@ class ViewLoan extends ViewRecord
                     if ($result['success']) {
                         Notification::make()
                             ->success()
-                            ->title("{$this->record->type_label} Activado")
+                            ->title('Préstamo Activado')
                             ->body($result['message'])
                             ->send();
 
@@ -66,10 +57,10 @@ class ViewLoan extends ViewRecord
                 ->label('Marcar en Mora')
                 ->icon('heroicon-o-exclamation-triangle')
                 ->color('danger')
-                ->visible(fn() => $this->record->isActive())
+                ->visible(fn () => $this->record->isActive())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => "Marcar {$this->record->type_label} como en Mora")
-                ->modalDescription('El préstamo/adelanto quedará en estado "En Mora". Las cuotas pendientes se conservan y podrán cobrarse una vez regularizado.')
+                ->modalHeading('Marcar Préstamo como en Mora')
+                ->modalDescription('El préstamo quedará en estado "En Mora". Las cuotas pendientes se conservan y podrán cobrarse una vez regularizado.')
                 ->modalSubmitActionLabel('Sí, marcar en mora')
                 ->form([
                     Textarea::make('reason')
@@ -101,10 +92,10 @@ class ViewLoan extends ViewRecord
                 ->label('Reactivar')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
-                ->visible(fn() => $this->record->isDefaulted())
+                ->visible(fn () => $this->record->isDefaulted())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => "Reactivar {$this->record->type_label}")
-                ->modalDescription('El préstamo/adelanto volverá a estado "Activo" y sus cuotas pendientes podrán cobrarse en la próxima nómina.')
+                ->modalHeading('Reactivar Préstamo')
+                ->modalDescription('El préstamo volverá a estado "Activo" y sus cuotas pendientes podrán cobrarse en la próxima nómina.')
                 ->modalSubmitActionLabel('Sí, reactivar')
                 ->action(function () {
                     $result = $this->record->reactivate();
@@ -130,19 +121,17 @@ class ViewLoan extends ViewRecord
                 ->label('Cancelar')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn() => $this->record->isPending() || $this->record->isActive() || $this->record->isDefaulted())
+                ->visible(fn () => $this->record->isPending() || $this->record->isActive() || $this->record->isDefaulted())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => "Cancelar {$this->record->type_label}")
+                ->modalHeading('Cancelar Préstamo')
                 ->modalDescription(function () {
-                    $type = strtolower($this->record->type_label);
-
                     if ($this->record->isActive() || $this->record->isDefaulted()) {
-                        $pendingCount  = $this->record->pending_installments_count;
-                        $pendingAmount = $this->record->pending_amount;
-                        return "¿Está seguro de que desea cancelar este {$type}? Se cancelarán {$pendingCount} cuota(s) pendiente(s) por un total de " . number_format($pendingAmount, 0, ',', '.') . " Gs.";
+                        $pendingCount = $this->record->pending_installments_count;
+
+                        return "¿Está seguro de que desea cancelar este préstamo? Se cancelarán {$pendingCount} cuota(s) pendiente(s).";
                     }
 
-                    return "¿Está seguro de que desea cancelar este {$type}?";
+                    return '¿Está seguro de que desea cancelar este préstamo?';
                 })
                 ->modalSubmitActionLabel('Sí, cancelar')
                 ->form([
@@ -157,7 +146,7 @@ class ViewLoan extends ViewRecord
                     if ($result['success']) {
                         Notification::make()
                             ->success()
-                            ->title("{$this->record->type_label} Cancelado")
+                            ->title('Préstamo Cancelado')
                             ->body($result['message'])
                             ->send();
 
@@ -175,17 +164,13 @@ class ViewLoan extends ViewRecord
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->visible(fn() => $this->record->isActive() || $this->record->isPaid() || $this->record->isDefaulted())
-                ->url(fn() => route('loans.pdf', $this->record))
+                ->visible(fn () => $this->record->isActive() || $this->record->isPaid() || $this->record->isDefaulted())
+                ->url(fn () => route('loans.pdf', $this->record))
                 ->openUrlInNewTab(),
 
             EditAction::make()
                 ->icon('heroicon-o-pencil-square')
-                ->visible(fn() => $this->record->isPending()),
-
-            DeleteAction::make()
-                ->icon('heroicon-o-trash')
-                ->visible(fn() => $this->record->isPending() || $this->record->isCancelled()),
+                ->visible(fn () => $this->record->isPending()),
         ];
     }
 }
