@@ -48,7 +48,7 @@ class LoanInstallmentCalculator
         $installments = LoanInstallment::query()
             ->whereHas('loan', fn ($q) => $q
                 ->where('employee_id', $employee->id)
-                ->whereIn('status', ['active', 'defaulted']))
+                ->where('status', 'approved'))
             ->where('status', 'pending')
             ->whereBetween('due_date', [$period->start_date, $period->end_date])
             ->with('loan')
@@ -122,7 +122,7 @@ class LoanInstallmentCalculator
             ]);
 
             // Decrementar outstanding_balance por el capital pagado en esta cuota
-            if ($installment->loan && in_array($installment->loan->status, ['active', 'defaulted'])) {
+            if ($installment->loan && $installment->loan->status === 'approved') {
                 $installment->loan->decrement('outstanding_balance', (float) $installment->capital_amount);
             }
         }

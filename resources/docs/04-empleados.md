@@ -103,6 +103,12 @@ Cada asignación tiene fecha de inicio, fecha de fin opcional y monto personaliz
 
 ---
 
+## Amonestaciones del empleado
+
+Desde la pestaña **Amonestaciones** en el perfil del empleado se pueden ver y registrar todas las amonestaciones emitidas a ese empleado. Ver el capítulo **Amonestaciones** para el detalle completo del módulo.
+
+---
+
 ## Legajo del empleado
 
 El legajo es un resumen completo del empleado en PDF. Para generarlo:

@@ -233,6 +233,12 @@ class Employee extends Model
         return $this->hasMany(Liquidacion::class);
     }
 
+    /** Amonestaciones laborales emitidas al empleado. */
+    public function warnings(): HasMany
+    {
+        return $this->hasMany(Warning::class);
+    }
+
     // Obtener todos los eventos de asistencia a través de los días
     public function attendanceEvents(): HasManyThrough
     {

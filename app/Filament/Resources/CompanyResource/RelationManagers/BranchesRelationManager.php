@@ -5,31 +5,38 @@ namespace App\Filament\Resources\CompanyResource\RelationManagers;
 use App\Exports\BranchesExport;
 use App\Models\Branch;
 use Cheesegrits\FilamentGoogleMaps\Fields\Map;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\CreateAction;
-use Filament\Notifications\Notification;
-use Maatwebsite\Excel\Facades\Excel;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Validation\Rules\Unique;
+use Maatwebsite\Excel\Facades\Excel;
 
 class BranchesRelationManager extends RelationManager
 {
     protected static string $relationship = 'branches';
+
     protected static ?string $title = 'Sucursales';
+
     protected static ?string $recordTitleAttribute = 'name';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Define el formulario para crear y editar sucursales.
      *
-     * @param Form $form The form instance to configure.
+     * @param  Form  $form  The form instance to configure.
      * @return Form The configured form instance.
      */
     public function form(Form $form): Form
@@ -44,8 +51,7 @@ class BranchesRelationManager extends RelationManager
                         table: Branch::class,
                         column: 'name',
                         ignoreRecord: true,
-                        modifyRuleUsing: fn(Unique $rule) =>
-                        $rule->where('company_id', $this->ownerRecord->id)
+                        modifyRuleUsing: fn (Unique $rule) => $rule->where('company_id', $this->ownerRecord->id)
                     )
                     ->helperText('Debe ser único en esta empresa.'),
 
@@ -94,7 +100,7 @@ class BranchesRelationManager extends RelationManager
                     ->autocompleteReverse(true)
                     ->reverseGeocode([
                         'address' => '%n %S',
-                        'city'    => '%L',
+                        'city' => '%L',
                     ])
                     ->geolocate()
                     ->height('300px'),
@@ -106,7 +112,6 @@ class BranchesRelationManager extends RelationManager
      * Define la tabla para listar las sucursales.
      *
      * @param Table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -114,7 +119,7 @@ class BranchesRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('name')
                     ->label('Nombre')
-                    ->description(fn($record) => $record->address)
+                    ->description(fn ($record) => $record->address)
                     ->searchable()
                     ->sortable()
                     ->weight('medium'),
@@ -127,8 +132,8 @@ class BranchesRelationManager extends RelationManager
 
                 TextColumn::make('contact_info')
                     ->label('Contacto')
-                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin teléfono')
-                    ->description(fn($record) => $record->email ?: null)
+                    ->getStateUsing(fn ($record) => $record->phone ?: 'Sin teléfono')
+                    ->description(fn ($record) => $record->email ?: null)
                     ->icon('heroicon-o-phone')
                     ->placeholder('Sin contacto'),
 
@@ -157,7 +162,7 @@ class BranchesRelationManager extends RelationManager
 
                         return Excel::download(
                             new BranchesExport($this->ownerRecord->id),
-                            'sucursales_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                            'sucursales_'.now()->format('Y_m_d_H_i_s').'.xlsx'
                         );
                     }),
 
@@ -172,19 +177,19 @@ class BranchesRelationManager extends RelationManager
                     ->icon('heroicon-o-map')
                     ->color('info')
                     ->url(
-                        fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])
+                        fn ($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])
                             ? sprintf('https://www.google.com/maps?q=%s,%s', $record->coordinates['lat'], $record->coordinates['lng'])
                             : null
                     )
                     ->openUrlInNewTab()
-                    ->visible(fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
+                    ->visible(fn ($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
 
                 EditAction::make(),
 
                 DeleteAction::make()
                     ->label('Eliminar')
                     ->modalHeading('Eliminar sucursal')
-                    ->modalDescription(fn($record) => "¿Estás seguro de que deseas eliminar la sucursal \"{$record->name}\"? Los empleados asignados quedarán sin sucursal."),
+                    ->modalDescription(fn ($record) => "¿Estás seguro de que deseas eliminar la sucursal \"{$record->name}\"? Los empleados asignados quedarán sin sucursal."),
             ])
             ->bulkActions([
                 DeleteBulkAction::make()

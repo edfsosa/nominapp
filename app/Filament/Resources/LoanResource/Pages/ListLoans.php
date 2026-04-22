@@ -7,7 +7,6 @@ use App\Filament\Resources\LoanResource;
 use App\Models\Loan;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
@@ -58,16 +57,9 @@ class ListLoans extends ListRecords
                 ->color('info')
                 ->requiresConfirmation()
                 ->modalHeading('Exportar Préstamos')
+                ->modalDescription('Se exportarán todos los préstamos a un archivo Excel.')
                 ->modalSubmitActionLabel('Exportar')
-                ->form([
-                    Select::make('status')
-                        ->label('Estado')
-                        ->options(Loan::getStatusOptions())
-                        ->placeholder('Todos los estados')
-                        ->multiple()
-                        ->native(false),
-                ])
-                ->action(function (array $data) {
+                ->action(function () {
                     Notification::make()
                         ->title('Exportación iniciada')
                         ->body('El archivo se descargará en un momento.')
@@ -75,7 +67,7 @@ class ListLoans extends ListRecords
                         ->send();
 
                     return Excel::download(
-                        new LoansExport($data['status'] ?? null),
+                        new LoansExport(null),
                         'prestamos_'.now()->format('Y_m_d_H_i_s').'.xlsx'
                     );
                 }),
@@ -105,9 +97,9 @@ class ListLoans extends ListRecords
                 ->badge($byStatus['pending'] ?? 0)
                 ->badgeColor('warning'),
 
-            'active' => Tab::make('Activos')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'active'))
-                ->badge($byStatus['active'] ?? 0)
+            'approved' => Tab::make('Aprobados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
+                ->badge($byStatus['approved'] ?? 0)
                 ->badgeColor('info'),
 
             'paid' => Tab::make('Pagados')
@@ -115,9 +107,9 @@ class ListLoans extends ListRecords
                 ->badge($byStatus['paid'] ?? 0)
                 ->badgeColor('success'),
 
-            'defaulted' => Tab::make('En Mora')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'defaulted'))
-                ->badge($byStatus['defaulted'] ?? 0)
+            'rejected' => Tab::make('Rechazados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected'))
+                ->badge($byStatus['rejected'] ?? 0)
                 ->badgeColor('danger'),
 
             'cancelled' => Tab::make('Cancelados')
@@ -132,6 +124,6 @@ class ListLoans extends ListRecords
      */
     public function getDefaultActiveTab(): string|int|null
     {
-        return 'pending';
+        return 'all';
     }
 }

@@ -10,11 +10,13 @@ use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\FaceEnrollmentController;
 use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\MerchandiseWithdrawalController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
+use App\Http\Controllers\WarningController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -120,8 +122,12 @@ Route::middleware(['auth'])->group(function () {
         Route::get('/view', [LiquidacionController::class, 'view'])->name('view');
     });
 
+    // Amonestaciones
+    Route::get('/amonestaciones/{warning}/pdf', [WarningController::class, 'show'])->name('warnings.pdf');
+
     // Préstamos y adelantos
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
+    Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 
     // Contratos laborales

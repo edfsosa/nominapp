@@ -27,17 +27,23 @@ use Filament\Tables\Table;
 class CompanyResource extends Resource
 {
     protected static ?string $model = Company::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
+
     protected static ?string $navigationGroup = 'Organización';
+
     protected static ?int $navigationSort = 1;
+
     protected static ?string $modelLabel = 'Empresa';
+
     protected static ?string $pluralModelLabel = 'Empresas';
+
     protected static ?string $slug = 'empresas';
+
     protected static ?string $recordTitleAttribute = 'trade_name';
 
     /**
      * Define el formulario para crear y editar empresas, organizado en secciones para mejorar la usabilidad.
-     * @param Form $form
      */
     public static function form(Form $form): Form
     {
@@ -147,7 +153,7 @@ class CompanyResource extends Resource
                                 'regex' => 'Ingrese un número válido de Paraguay: móvil (09XXXXXXXX) o fijo (021XXXXXX / 0XXXXXXXX).',
                             ])
                             ->helperText('Número de teléfono movil o fijo de la empresa.'),
-                            
+
                         TextInput::make('email')
                             ->label('Correo Electrónico')
                             ->placeholder('Ej: contacto@empresa.com')
@@ -182,8 +188,6 @@ class CompanyResource extends Resource
 
     /**
      * Define la infolist para mostrar detalles de la empresa en la vista de registro, organizada en secciones para mejorar la legibilidad.
-     * @param Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -193,30 +197,30 @@ class CompanyResource extends Resource
                 ->schema([
                     TextEntry::make('branches_count')
                         ->label('Sucursales')
-                        ->getStateUsing(fn(Company $record) => $record->branches()->count())
+                        ->getStateUsing(fn (Company $record) => $record->branches()->count())
                         ->badge()
                         ->color('info')
                         ->icon('heroicon-o-building-office-2'),
 
                     TextEntry::make('active_employees')
                         ->label('Empleados Activos / Total')
-                        ->getStateUsing(fn(Company $record) => $record->getEmployeesSummary())
+                        ->getStateUsing(fn (Company $record) => $record->getEmployeesSummary())
                         ->badge()
                         ->color('success')
                         ->icon('heroicon-o-users'),
 
                     TextEntry::make('active_contracts')
                         ->label('Contratos Activos')
-                        ->getStateUsing(fn(Company $record) => $record->activeContractsCount())
+                        ->getStateUsing(fn (Company $record) => $record->activeContractsCount())
                         ->badge()
                         ->color('primary')
                         ->icon('heroicon-o-document-text'),
 
                     TextEntry::make('expiring_contracts')
                         ->label('Por Vencer (30 días)')
-                        ->getStateUsing(fn(Company $record) => $record->expiringSoonContractsCount(30))
+                        ->getStateUsing(fn (Company $record) => $record->expiringSoonContractsCount(30))
                         ->badge()
-                        ->color(fn(string $state) => (int) $state > 0 ? 'warning' : 'gray')
+                        ->color(fn (string $state) => (int) $state > 0 ? 'warning' : 'gray')
                         ->icon('heroicon-o-clock'),
                 ])
                 ->collapsible(),
@@ -256,7 +260,7 @@ class CompanyResource extends Resource
                 ->schema([
                     TextEntry::make('legal_type')
                         ->label('Tipo Societario')
-                        ->getStateUsing(fn(Company $record) => $record->legal_type_label)
+                        ->getStateUsing(fn (Company $record) => $record->legal_type_label)
                         ->badge()
                         ->color('info')
                         ->placeholder('No especificado'),
@@ -322,9 +326,9 @@ class CompanyResource extends Resource
 
                     TextEntry::make('is_active')
                         ->label('Estado')
-                        ->formatStateUsing(fn(string $state) => $state ? 'Activa' : 'Inactiva')
+                        ->formatStateUsing(fn (string $state) => $state ? 'Activa' : 'Inactiva')
                         ->badge()
-                        ->color(fn(string $state) => $state ? 'success' : 'danger'),
+                        ->color(fn (string $state) => $state ? 'success' : 'danger'),
                 ])
                 ->collapsible(),
         ]);
@@ -332,8 +336,6 @@ class CompanyResource extends Resource
 
     /**
      * Define la tabla para listar las empresas, con columnas clave, filtros y acciones para una gestión eficiente.
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -431,7 +433,7 @@ class CompanyResource extends Resource
                     ->label('Organigrama')
                     ->icon('heroicon-o-rectangle-group')
                     ->color('info')
-                    ->url(fn(Company $record) => route('org-chart.show', $record))
+                    ->url(fn (Company $record) => route('org-chart.show', $record))
                     ->openUrlInNewTab(),
             ])
             ->defaultSort('name')
@@ -442,18 +444,17 @@ class CompanyResource extends Resource
 
     /**
      * Define las relaciones para la empresa.
-     * @return array
      */
     public static function getRelations(): array
     {
         return [
             RelationManagers\BranchesRelationManager::class,
+            RelationManagers\BankAccountsRelationManager::class,
         ];
     }
 
     /**
      * Define las páginas para la gestión de empresas.
-     * @return array
      */
     public static function getPages(): array
     {

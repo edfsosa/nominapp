@@ -1,8 +1,8 @@
 <?php
 
-use Illuminate\Support\Facades\Log;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schedule;
 
 /**
@@ -54,21 +54,6 @@ Schedule::call(function () {
         Log::info("Limpieza de fallos de marcación: {$deleted} registros eliminados");
     }
 })->dailyAt('02:00')->name('cleanup-mark-failures')->withoutOverlapping();
-
-/**
- * Detectar préstamos/adelantos en mora
- * Se ejecuta diariamente a las 08:00 para marcar como 'defaulted' los préstamos
- * activos con cuotas vencidas hace más de 30 días.
- */
-Schedule::command('loans:check-defaulted')
-    ->dailyAt('08:00')
-    ->withoutOverlapping()
-    ->onSuccess(function () {
-        Log::info('Verificación de préstamos en mora completada');
-    })
-    ->onFailure(function () {
-        Log::error('Falló la verificación de préstamos en mora');
-    });
 
 /**
  * Expirar enrollments faciales vencidos

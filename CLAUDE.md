@@ -48,13 +48,40 @@ Two separate axes that converge in `Contract`:
 | Payroll | `PayrollService`, `PayrollPeriod`, `Payroll`, `PayrollItem` |
 | Perceptions | `PerceptionCalculator`, `EmployeePerception` |
 | Deductions | `DeductionCalculator`, `EmployeeDeduction` |
+| Extra hours | `ExtraHourCalculator` |
+| Rest day | `RestDayCalculator` — pago del día de descanso semanal remunerado |
+| Absence penalty | `AbsencePenaltyCalculator` — descuentos por ausencias injustificadas |
+| Family bonus | `FamilyBonusCalculator` — bonificación familiar IPS |
 | Loans | `Loan`, `LoanInstallment`, `LoanInstallmentCalculator` |
 | Advances | `Advance`, `AdvanceCalculator` |
+| Merchandise withdrawals | `MerchandiseWithdrawal`, `MerchandiseWithdrawalItem`, `MerchandiseWithdrawalInstallment`, `MerchandiseInstallmentCalculator` |
 | Vacations | `VacationService`, `VacationBalance` |
 | Aguinaldo (13th) | `AguinaldoService`, `AguinaldoPeriod`, `AguinaldoItem` |
 | Liquidación | `LiquidacionService`, `LiquidacionItem` |
+| Contracts | `ContractService` — renovación y terminación de contratos |
+| Schedules | `ScheduleAssignmentService` — asignación de horarios fijos con vigencia por fechas |
+| Rotations | `RotationService` — asignación de patrones rotativos y resolución de turno efectivo por fecha |
 | Attendance | `AttendanceDay`, `AttendanceEvent`, observers auto-calculate daily totals |
 | Face Recognition | TensorFlow.js (128-element descriptors), `FaceEnrollment`, `FaceCaptureApp.js` |
+| Warnings | `Warning` — registro documental de amonestaciones laborales (sin impacto en nómina por ahora) |
+
+### Pipeline de cálculo de nómina (`PayrollService`)
+
+El orden de ejecución de calculadoras dentro de `generateForPeriod()` / `generateForEmployee()` es fijo y tiene dependencias:
+
+```
+1. perceptionCalculator           — percepciones (salario base, bonos configurados)
+2. extraHourCalculator            — horas extras del período
+3. restDayCalculator              — pago del día de descanso semanal
+4. loanInstallmentCalculator      — cuotas de préstamos → genera EmployeeDeductions (PRE001)
+5. advanceCalculator              — adelantos aprobados → genera EmployeeDeductions (ADE001)
+6. merchandiseInstallmentCalculator — cuotas de retiros de mercadería → genera EmployeeDeductions (MER001)
+7. deductionCalculator            — todas las deducciones (incluye las recién creadas por 4, 5 y 6)
+8. absencePenaltyCalculator       — penalidades por ausencias
+9. familyBonusCalculator          — bonificación familiar IPS
+```
+
+Los pasos 4, 5 y 6 deben correr **antes** que el paso 7 porque crean los `EmployeeDeduction` puntuales que `DeductionCalculator` luego procesa de forma uniforme.
 
 ### Módulo de Préstamos
 
@@ -123,6 +150,95 @@ No existe generación automática por scheduler. El usuario genera adelantos de 
 **Bulk actions:** `approveBulk` (`success`), `rejectBulk` (`warning`) — ambas filtran internamente a `pending` y reportan conteo de procesados/ignorados/fallidos.
 
 **Export Excel:** header action en `ListAdvances` → `AdvancesExport` (columnas: Empleado, CI, Monto, Estado, Notas, Aprobado el, Aprobado por, Creado, Editado).
+
+### Módulo de Retiro de Mercaderías
+
+Compra a crédito de productos del catálogo del empleador, con descuento automático en cuotas mensuales. Un empleado puede tener múltiples retiros activos simultáneamente. No tiene interés.
+
+**Modelos:**
+- `MerchandiseWithdrawal` — cabecera: empleado, total, cuotas, saldo pendiente, estado
+- `MerchandiseWithdrawalItem` — ítems del retiro (código libre, nombre, descripción, precio, cantidad, subtotal)
+- `MerchandiseWithdrawalInstallment` — cuotas generadas al aprobar el retiro
+
+**Ciclo de vida:** `pending` → `approve()` → `approved` → auto-`paid` (cuando todas las cuotas están pagadas). Desde cualquier estado no final: `cancel()`.
+
+**Integración con nómina — pipeline de deducción:**
+`MerchandiseInstallmentCalculator.calculate()` se ejecuta antes que `DeductionCalculator` en `PayrollService`. Por cada cuota con `due_date` dentro del período y estado `pending`, crea un `EmployeeDeduction` puntual usando el código `MER001`. `DeductionCalculator` luego las procesa de forma uniforme.
+
+**Dependencia crítica:** El registro `MER001` debe existir en la tabla `deductions`. Sembrado por `ProductionSeeder` y `DeductionSeeder`. Sin él, las cuotas se omiten con un warning en el log.
+
+**Idempotencia:** Llamar a `calculate()` dos veces en el mismo período no duplica `EmployeeDeduction`. Si la cuota ya tiene `employee_deduction_id`, actualiza el registro existente.
+
+**Limpieza al eliminar nómina:** `Payroll::booted()` revierte las cuotas a `pending` y elimina los `EmployeeDeduction` asociados al período.
+
+**Generación de cuotas:** Al aprobar (`approve()`), el modelo genera automáticamente las cuotas con `due_date` a partir de `approved_at` + 30 días (primera cuota), incrementando de a 30 días.
+
+**Configuración en `PayrollSettings`:**
+- `merchandise_max_amount`: monto máximo por retiro (Gs.)
+- `merchandise_max_installments`: cantidad máxima de cuotas permitidas
+
+**UI — acciones disponibles según estado:**
+- `pending`: Aprobar, Cancelar, Editar.
+- `approved`: Cancelar, Descargar PDF.
+- `paid`: Descargar PDF. Sin acciones de mutación.
+- `cancelled`: sin acciones disponibles.
+
+**RelationManagers:**
+- `ItemsRelationManager` — CRUD de productos; editable solo si el retiro está `pending`; recalcula `total_amount` tras cada cambio.
+- `InstallmentsRelationManager` — solo lectura; exportable a Excel; filtrable por estado.
+
+### Módulo de Amonestaciones
+
+Registro documental de amonestaciones laborales emitidas a empleados. **Sin integración con nómina por ahora** — es un módulo puramente documental.
+
+**Modelo:** `Warning` — campos: `employee_id`, `type` (verbal/written/severe), `reason` (categoría predefinida), `description`, `issued_at`, `issued_by_id`, `notes`, `document_path` (PDF firmado subido opcionalmente).
+
+**Sin ciclo de vida:** una amonestación creada existe como registro permanente. Se edita si hay error, se elimina si fue incorrecta.
+
+**Deuda técnica — integración futura con nómina:**
+La opción acordada es **suspensión disciplinaria**: agregar `suspension_days int default 0` a `warnings`. Al guardar una amonestación con suspensión > 0, crear registros de `Absence` para esos días. `AbsencePenaltyCalculator` los procesa en nómina sin cambios en el pipeline.
+
+**Formulario de creación:** `issued_at` e `issued_by_id` se inyectan automáticamente en `CreateWarning::mutateFormDataBeforeCreate()` — no aparecen en el form de create, sí en edit. La sección "Documento Firmado" también es `->visibleOn('edit')`.
+
+**UI:**
+- Resource: `WarningResource` en grupo `Empleados` — listado con tabs por tipo (Verbal/Escrita/Grave), filtros por tipo, motivo, empleado y rango de fechas
+- RelationManager: `WarningsRelationManager` en `EmployeeResource`
+- PDF: `WarningController@show` → `pdf.warning` → ruta `warnings.pdf`
+- Export Excel: `WarningsExport` — header action en `ListWarnings`
+
+**Helpers en el modelo:**
+- `Warning::getTypeOptions/Label/Color/Icon()` — tipo de amonestación
+- `Warning::getReasonOptions/Label()` — motivo predefinido
+
+### Módulo de Liquidación
+
+Liquidación de haberes por desvinculación del empleado. Se calcula manualmente desde `LiquidacionResource`.
+
+**Ciclo de vida:** `draft` → `calculate()` → `calculated` → `close()` → `closed`
+
+- `calculate()`: calcula todos los ítems (preaviso, indemnización, vacaciones proporcionales, aguinaldo proporcional, salario pendiente, descuentos por ausencias, préstamos pendientes) y persiste en `LiquidacionItem`. El empleado sigue activo.
+- `close()`: marca la liquidación como cerrada, el contrato como `terminated` y el empleado como `inactive`. También cancela todos los préstamos pendientes.
+
+**Cálculos incluidos:**
+- Preaviso (días según años de servicio, Art. CLT)
+- Indemnización (proporcional a años y salario promedio de los últimos 6 meses)
+- Vacaciones proporcionales al período trabajado
+- Aguinaldo proporcional al año en curso
+- Salario pendiente (días trabajados en el último período sin nómina generada)
+- Descuentos por ausencias injustificadas
+- Saldo de préstamos activos (se cancelan al cerrar)
+
+### Módulo de Aguinaldo
+
+Salario del mes 13, pagadero en diciembre. Se gestiona por `AguinaldoPeriod` (un período por año/empresa).
+
+**Ciclo de vida del período:** `draft` → `processing` → `closed`
+
+**Ciclo de vida de cada `Aguinaldo`:** `pending` → `paid` (vía `markAsPaid()`)
+
+**Generación:** `AguinaldoService::generateForPeriod()` recorre los empleados activos o suspendidos de la empresa, suma los salarios de las nóminas pagadas en el año del período (`paid`) y calcula el proporcional. Se puede regenerar para un empleado individual con `regenerateForEmployee()`.
+
+**Provisión mensual:** `AguinaldoService::provisionQuery()` retorna una query agregada para mostrar el monto acumulado hasta el mes indicado — útil para reportes contables.
 
 ### Service Layer
 Business logic lives in `app/Services/`. Each domain has a `*Service` for orchestration and a `*Calculator` for isolated math. PDF generation is handled by dedicated generator classes in the same directory.
@@ -199,6 +315,11 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 - Payroll: `draft` → `processing` → `approved` → `paid`
 - Loans: `pending` → `active` → `paid` / `defaulted` / `cancelled`
 - Advances: `pending` → `approved` → `paid` / `rejected` / `cancelled`
+- Merchandise withdrawals: `pending` → `approved` → `paid` / `cancelled`
+- Liquidación: `draft` → `calculated` → `closed`
+- Aguinaldo (item): `pending` → `paid`
+- AguinaldoPeriod: `draft` → `processing` → `closed`
+- Warnings: sin ciclo de vida (registro documental permanente)
 
 ### Key Config Files
 - `config/payroll.php` — vacation tiers, payroll rules
@@ -635,7 +756,7 @@ php artisan up
 ```
 * * * * * cd /ruta/nominapp && /opt/cpanel/ea-php82/root/usr/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
 ```
-Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora), `loans:check-defaulted` (08:00 diario).
+Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora).
 
 ### Important Notes
 - Monetary values use `decimal:2` cast

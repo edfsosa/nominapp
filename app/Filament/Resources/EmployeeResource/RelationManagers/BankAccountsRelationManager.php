@@ -29,6 +29,11 @@ class BankAccountsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'cuentas bancarias';
 
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     /**
      * Define el formulario para crear y editar cuentas bancarias.
      */

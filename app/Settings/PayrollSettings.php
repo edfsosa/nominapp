@@ -63,16 +63,25 @@ class PayrollSettings extends Settings
     public float $irp_rate;             // Tasa del impuesto (%) sobre la renta gravada
 
     // Préstamos
-    public float $loan_installment_cap_percent;  // % máximo del salario que puede representar la cuota mensual
+    public float $loan_installment_cap_percent;   // % máximo del salario que puede representar la cuota mensual
 
-    public int $loan_max_installments;           // Máximo de cuotas permitidas al crear un préstamo
+    public int $loan_max_installments;            // Máximo de cuotas permitidas al crear un préstamo
 
-    public float $loan_max_interest_rate;        // Tasa de interés anual máxima permitida (%)
+    public float $loan_max_interest_rate;         // Tasa de interés anual máxima permitida (%)
+
+    public int $loan_first_installment_days;      // Días desde la aprobación hasta el vencimiento de la primera cuota
 
     // Adelantos de salario
     public float $advance_max_percent;    // % máximo del salario que se puede adelantar por solicitud
 
     public int $advance_max_per_period;   // Máximo de adelantos por período de nómina (0 = sin límite)
+
+    // Retiros de mercadería
+    public int $merchandise_max_amount;           // Monto máximo por retiro (Gs.)
+
+    public int $merchandise_max_installments;     // Cantidad máxima de cuotas permitidas
+
+    public int $merchandise_first_installment_days; // Días desde la aprobación hasta el vencimiento de la primera cuota
 
     public static function group(): string
     {

@@ -26,8 +26,8 @@
 
         .company-header {
             text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 10px;
+            padding-bottom: 8px;
             border-bottom: 1px solid #000;
         }
 
@@ -53,13 +53,13 @@
             font-size: 13px;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 20px 0 5px 0;
+            margin: 10px 0 3px 0;
         }
 
         .subtitle {
             text-align: center;
             font-size: 10px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .section {
@@ -97,39 +97,6 @@
             display: table-cell;
             padding: 5px 8px;
             border: 1px solid #000;
-        }
-
-        .summary-section {
-            margin: 15px 0;
-            padding: 12px;
-            border: 1px solid #000;
-        }
-
-        .summary-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-            text-transform: uppercase;
-            font-size: 10px;
-        }
-
-        .summary-grid {
-            display: table;
-            width: 100%;
-        }
-
-        .summary-row {
-            display: table-row;
-        }
-
-        .summary-item {
-            display: table-cell;
-            padding: 3px 0;
-        }
-
-        .summary-label {
-            font-weight: bold;
-            width: 160px;
-            display: inline-block;
         }
 
         table {
@@ -279,96 +246,88 @@
     <div class="title">Contrato de Prestamo</div>
     <div class="subtitle">Documento #{{ $loan->id }}</div>
 
-    {{-- Informacion del Empleado --}}
-    <div class="section">
-        <div class="section-title">Informacion del Empleado</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $loan->employee->full_name }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cedula de Identidad:</div>
-                <div class="info-value">{{ $loan->employee->ci }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $loan->employee->activeContract?->position?->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $loan->employee->activeContract?->position?->department?->name ?? 'N/A' }}</div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Detalles del Prestamo/Adelanto --}}
+    {{-- Informacion del Empleado y Detalles del Prestamo (lado a lado) --}}
     @php
         $reasonLabels = ['personal' => 'Personal', 'medical' => 'Médico', 'education' => 'Educación', 'other' => 'Otro'];
     @endphp
-    <div class="section">
-        <div class="section-title">Detalles del Prestamo</div>
-        <table style="margin: 0;">
-            <tbody>
-                <tr>
-                    <td class="text-left" style="width: 25%; font-weight: bold;">Monto Total</td>
-                    <td class="text-left" style="width: 25%;"><strong>Gs. {{ number_format($loan->amount, 0, ',', '.') }}</strong></td>
-                    <td class="text-left" style="width: 25%; font-weight: bold;">Monto por Cuota</td>
-                    <td class="text-left" style="width: 25%;">Gs. {{ number_format($loan->installment_amount, 0, ',', '.') }}</td>
-                </tr>
-                <tr>
-                    <td class="text-left" style="font-weight: bold;">Cantidad de Cuotas</td>
-                    <td class="text-left;">{{ $loan->installments_count }}</td>
-                    <td class="text-left" style="font-weight: bold;">Motivo</td>
-                    <td class="text-left">{{ $reasonLabels[$loan->reason] ?? $loan->reason ?? '-' }}</td>
-                </tr>
-                @if ($loan->granted_at)
-                <tr>
-                    <td class="text-left" style="font-weight: bold;">Fecha de Otorgamiento</td>
-                    <td class="text-left" colspan="3">{{ $loan->granted_at->format('d/m/Y') }}</td>
-                </tr>
-                @endif
-            </tbody>
-        </table>
-    </div>
-
-    {{-- Progreso de Pago (solo si esta activo o pagado) --}}
-    @if ($loan->isActive() || $loan->isPaid())
-        <div class="summary-section">
-            <div class="summary-title">Progreso de Pago</div>
-            <table style="margin: 0;">
-                <thead>
-                    <tr>
-                        <th>Cuotas Pagadas</th>
-                        <th>Monto Pagado</th>
-                        <th>Monto Pendiente</th>
-                        <th>Progreso</th>
-                    </tr>
-                </thead>
+    <div style="display: table; width: 100%; margin-bottom: 12px; border-collapse: collapse;">
+        {{-- Columna izquierda: Empleado --}}
+        <div style="display: table-cell; width: 48%; vertical-align: top; padding-right: 8px;">
+            <div class="section-title">Información del Empleado</div>
+            <table style="margin: 0; width: 100%;">
                 <tbody>
                     <tr>
-                        <td>{{ $loan->paid_installments_count }} de {{ $loan->installments_count }}</td>
-                        <td class="amount">Gs. {{ number_format($loan->paid_amount, 0, ',', '.') }}</td>
-                        <td class="amount">Gs. {{ number_format($loan->pending_amount, 0, ',', '.') }}</td>
-                        <td><strong>{{ $loan->progress_percentage }}%</strong></td>
+                        <td class="text-left" style="width: 45%; font-weight: bold;">Nombre:</td>
+                        <td class="text-left">{{ $loan->employee->full_name }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">C.I.:</td>
+                        <td class="text-left">{{ $loan->employee->ci }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Cargo:</td>
+                        <td class="text-left">{{ $loan->employee->activeContract?->position?->name ?? 'N/A' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Departamento:</td>
+                        <td class="text-left">{{ $loan->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
                     </tr>
                 </tbody>
             </table>
         </div>
-    @endif
+        {{-- Columna derecha: Préstamo --}}
+        <div style="display: table-cell; width: 52%; vertical-align: top; padding-left: 8px;">
+            <div class="section-title">Detalles del Préstamo</div>
+            <table style="margin: 0; width: 100%;">
+                <tbody>
+                    <tr>
+                        <td class="text-left" style="width: 45%; font-weight: bold;">Monto Total:</td>
+                        <td class="text-left"><strong>Gs. {{ number_format($loan->amount, 0, ',', '.') }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Monto por Cuota:</td>
+                        <td class="text-left">Gs. {{ number_format($loan->installment_amount, 0, ',', '.') }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Cantidad de Cuotas:</td>
+                        <td class="text-left">{{ $loan->installments_count }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Tasa de Interés Anual:</td>
+                        <td class="text-left">{{ $loan->hasInterest() ? number_format((float) $loan->interest_rate, 2, ',', '.') . '%' : 'Sin interés' }}</td>
+                    </tr>
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Motivo:</td>
+                        <td class="text-left">{{ $reasonLabels[$loan->reason] ?? $loan->reason ?? '-' }}</td>
+                    </tr>
+                    @if ($loan->granted_at)
+                    <tr>
+                        <td class="text-left" style="font-weight: bold;">Fecha de Otorgamiento:</td>
+                        <td class="text-left">{{ $loan->granted_at->format('d/m/Y') }}</td>
+                    </tr>
+                    @endif
+                </tbody>
+            </table>
+        </div>
+    </div>
 
     {{-- Detalle de Cuotas --}}
     @if ($loan->installments->count() > 0)
+        @php $hasInterest = $loan->hasInterest(); @endphp
         <div class="section">
             <div class="section-title">Detalle de Cuotas</div>
             <table>
                 <thead>
                     <tr>
-                        <th style="width: 10%;">#</th>
-                        <th style="width: 25%;">Vencimiento</th>
-                        <th style="width: 25%;">Monto</th>
-                        <th style="width: 20%;">Estado</th>
-                        <th style="width: 20%;">Fecha de Pago</th>
+                        <th style="width: 8%;">#</th>
+                        <th style="width: {{ $hasInterest ? '18%' : '24%' }};">Vencimiento</th>
+                        @if ($hasInterest)
+                            <th style="width: 16%;">Capital</th>
+                            <th style="width: 14%;">Interés</th>
+                        @endif
+                        <th style="width: {{ $hasInterest ? '16%' : '24%' }};">Total Cuota</th>
+                        <th style="width: {{ $hasInterest ? '14%' : '22%' }};">Estado</th>
+                        <th style="width: {{ $hasInterest ? '14%' : '22%' }};">Fecha de Pago</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -378,22 +337,38 @@
                             <td class="{{ $installment->isOverdue() ? 'overdue' : '' }}">
                                 {{ $installment->due_date->format('d/m/Y') }}
                             </td>
-                            <td class="amount">Gs. {{ number_format($installment->amount, 0, ',', '.') }}</td>
+                            @if ($hasInterest)
+                                <td class="amount">Gs. {{ number_format((float) $installment->capital_amount, 0, ',', '.') }}</td>
+                                <td class="amount">Gs. {{ number_format((float) $installment->interest_amount, 0, ',', '.') }}</td>
+                            @endif
+                            <td class="amount">Gs. {{ number_format((float) $installment->amount, 0, ',', '.') }}</td>
                             <td>
                                 <span class="status-{{ $installment->status }}">
                                     {{ \App\Models\LoanInstallment::getStatusLabel($installment->status) }}
                                 </span>
                             </td>
                             <td>
-                                @if ($installment->paid_at)
-                                    {{ $installment->paid_at->format('d/m/Y') }}
-                                @else
-                                    -
-                                @endif
+                                {{ $installment->paid_at ? $installment->paid_at->format('d/m/Y') : '-' }}
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
+                @if ($hasInterest)
+                    @php
+                        $totalCapital = $loan->installments->sum('capital_amount');
+                        $totalInterest = $loan->installments->sum('interest_amount');
+                        $totalAmount = $loan->installments->sum('amount');
+                    @endphp
+                    <tfoot>
+                        <tr class="total-row">
+                            <td colspan="2" class="text-right">Total:</td>
+                            <td class="amount">Gs. {{ number_format($totalCapital, 0, ',', '.') }}</td>
+                            <td class="amount">Gs. {{ number_format($totalInterest, 0, ',', '.') }}</td>
+                            <td class="amount">Gs. {{ number_format($totalAmount, 0, ',', '.') }}</td>
+                            <td colspan="2"></td>
+                        </tr>
+                    </tfoot>
+                @endif
             </table>
         </div>
     @endif

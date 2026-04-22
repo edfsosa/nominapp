@@ -63,7 +63,7 @@ class Payroll extends Model
 
                 LoanInstallment::whereHas('loan', fn ($q) => $q
                     ->where('employee_id', $payroll->employee_id)
-                    ->whereIn('status', ['active', 'defaulted']))
+                    ->where('status', 'approved'))
                     ->where('status', 'paid')
                     ->whereBetween('due_date', [$period->start_date, $period->end_date])
                     ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
@@ -78,7 +78,7 @@ class Payroll extends Model
                     ->groupBy('loan_id')
                     ->each(function ($installments) {
                         $loan = $installments->first()->loan;
-                        if ($loan && in_array($loan->status, ['active', 'defaulted'])) {
+                        if ($loan && $loan->status === 'approved') {
                             $pendingCapital = $loan->installments()
                                 ->where('status', 'pending')
                                 ->sum('capital_amount');
@@ -112,7 +112,27 @@ class Payroll extends Model
                     EmployeeDeduction::whereIn('id', $advanceDeductionIds)->delete();
                 }
 
-                Log::warning('Cuotas de préstamo y adelantos revertidos al eliminar nómina', [
+                // --- MERCADERÍA: revertir cuotas descontadas en esta nómina ---
+
+                $merchandiseDeductionIds = MerchandiseWithdrawalInstallment::whereHas('withdrawal', fn ($q) => $q
+                    ->where('employee_id', $payroll->employee_id))
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->whereNotNull('employee_deduction_id')
+                    ->pluck('employee_deduction_id')
+                    ->filter();
+
+                MerchandiseWithdrawalInstallment::whereHas('withdrawal', fn ($q) => $q
+                    ->where('employee_id', $payroll->employee_id)
+                    ->where('status', 'approved'))
+                    ->where('status', 'paid')
+                    ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                    ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
+
+                if ($merchandiseDeductionIds->isNotEmpty()) {
+                    EmployeeDeduction::whereIn('id', $merchandiseDeductionIds)->delete();
+                }
+
+                Log::warning('Cuotas de préstamo, adelantos y mercadería revertidos al eliminar nómina', [
                     'payroll_id' => $payroll->id,
                     'employee_id' => $payroll->employee_id,
                     'period_id' => $period->id,

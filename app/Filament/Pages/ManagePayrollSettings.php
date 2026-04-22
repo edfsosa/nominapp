@@ -122,8 +122,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('hrs')
                                     ->helperText('Default: 7.5 hrs (Art. 197)'),
                             ]),
-                    ])
-                    ->collapsed(),
+                    ]),
 
                 // Sección para configuración de horas de trabajo en días feriados
                 Section::make('Multiplicadores de Horas Extra')
@@ -236,8 +235,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('días')
                                     ->helperText('Default: 15 días/año'),
                             ]),
-                    ])
-                    ->collapsed(),
+                    ]),
 
                 Section::make('Salarios Mínimos Legales')
                     ->description('Montos fijados por el Ministerio de Trabajo. Actualizar ante cada resolución ministerial.')
@@ -261,8 +259,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->prefix('Gs.')
                                     ->helperText('Monto diario independiente para trabajadores a jornal'),
                             ]),
-                    ])
-                    ->collapsed(),
+                    ]),
 
                 Section::make('Bonificación Familiar')
                     ->description('Arts. 253-262 Código del Trabajo. Aplica a empleados con hijos que ganen hasta 2 salarios mínimos.')
@@ -277,8 +274,7 @@ class ManagePayrollSettings extends SettingsPage
                             ->required()
                             ->suffix('%')
                             ->helperText('% del salario mínimo mensual por hijo. Default: 5%'),
-                    ])
-                    ->collapsed(),
+                    ]),
 
                 Section::make('IRP — Impuesto a la Renta Personal')
                     ->description('Ley 2421/04. Aplica a empleados cuya remuneración anual supera el umbral. La empresa actúa como agente de retención.')
@@ -304,8 +300,7 @@ class ManagePayrollSettings extends SettingsPage
                                     ->suffix('%')
                                     ->helperText('Tasa sobre la renta gravada. Default: 10%'),
                             ]),
-                    ])
-                    ->collapsed(),
+                    ]),
 
                 Section::make('Préstamos')
                     ->description('Límites para la concesión de préstamos a empleados.')
@@ -341,6 +336,15 @@ class ManagePayrollSettings extends SettingsPage
                                     ->required()
                                     ->suffix('% anual')
                                     ->helperText('Tasa de interés anual máxima permitida. Default: 100%'),
+
+                                TextInput::make('loan_first_installment_days')
+                                    ->label('Días hasta primera cuota (default)')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(365)
+                                    ->required()
+                                    ->suffix('días')
+                                    ->helperText('Días desde la aprobación hasta el vencimiento de la primera cuota. Se usa como valor por defecto al crear un préstamo.'),
                             ]),
                     ]),
 
@@ -384,6 +388,40 @@ class ManagePayrollSettings extends SettingsPage
                             ]),
                     ]),
 
+                Section::make('Retiros de Mercadería')
+                    ->description('Límites para los retiros de mercadería a crédito.')
+                    ->icon('heroicon-o-shopping-bag')
+                    ->schema([
+                        Grid::make(3)
+                            ->schema([
+                                TextInput::make('merchandise_max_amount')
+                                    ->label('Monto máximo por retiro')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->required()
+                                    ->prefix('Gs.')
+                                    ->helperText('Monto total máximo permitido por retiro. Default: 10.000.000 Gs.'),
+
+                                TextInput::make('merchandise_max_installments')
+                                    ->label('Máximo de cuotas')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(120)
+                                    ->required()
+                                    ->suffix('cuotas')
+                                    ->helperText('Cantidad máxima de cuotas al crear un retiro. Default: 24.'),
+
+                                TextInput::make('merchandise_first_installment_days')
+                                    ->label('Días hasta primera cuota')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->maxValue(365)
+                                    ->required()
+                                    ->suffix('días')
+                                    ->helperText('Días desde la aprobación hasta el vencimiento de la primera cuota. Default: 30.'),
+                            ]),
+                    ]),
+
                 // Nueva sección para configuración de vacaciones
                 Section::make('Vacaciones')
                     ->description('Parámetros generales de vacaciones')
@@ -424,8 +462,7 @@ class ManagePayrollSettings extends SettingsPage
                             ])
                             ->columns(7)
                             ->required(),
-                    ])
-                    ->collapsed(),
+                    ]),
             ]);
     }
 }

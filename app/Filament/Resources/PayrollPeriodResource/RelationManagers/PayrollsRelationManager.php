@@ -35,15 +35,23 @@ use pxlrbt\FilamentExcel\Exports\ExcelExport;
 class PayrollsRelationManager extends RelationManager
 {
     protected static string $relationship = 'payrolls';
+
     protected static ?string $title = 'Recibos de Nómina';
+
     protected static ?string $modelLabel = 'recibo';
+
     protected static ?string $pluralModelLabel = 'recibos';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitle(fn(Payroll $record): string => "Recibo de {$record->employee->full_name}")
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.activeContract.position', 'approvedBy']))
+            ->recordTitle(fn (Payroll $record): string => "Recibo de {$record->employee->full_name}")
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['employee.activeContract.position', 'approvedBy']))
             ->columns([
                 TextColumn::make('employee.ci')
                     ->label('CI')
@@ -68,17 +76,17 @@ class PayrollsRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'draft'    => 'gray',
+                    ->color(fn (string $state): string => match ($state) {
+                        'draft' => 'gray',
                         'approved' => 'success',
-                        'paid'     => 'info',
-                        default    => 'gray',
+                        'paid' => 'info',
+                        default => 'gray',
                     })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'draft'    => 'Borrador',
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'draft' => 'Borrador',
                         'approved' => 'Aprobado',
-                        'paid'     => 'Pagado',
-                        default    => $state,
+                        'paid' => 'Pagado',
+                        default => $state,
                     })
                     ->sortable(),
 
@@ -86,7 +94,7 @@ class PayrollsRelationManager extends RelationManager
                     ->label('Salario Base / Jornal')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->description(fn(Payroll $record): ?string => $record->employee->employment_type === 'day_laborer'
+                    ->description(fn (Payroll $record): ?string => $record->employee->employment_type === 'day_laborer'
                         ? 'Jornal'
                         : null)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -148,7 +156,7 @@ class PayrollsRelationManager extends RelationManager
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => $record->full_name)
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                     ->searchable(['first_name', 'last_name'])
                     ->preload()
                     ->native(false),
@@ -172,9 +180,9 @@ class PayrollsRelationManager extends RelationManager
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options([
-                        'draft'    => 'Borrador',
+                        'draft' => 'Borrador',
                         'approved' => 'Aprobado',
-                        'paid'     => 'Pagado',
+                        'paid' => 'Pagado',
                     ])
                     ->native(false),
 
@@ -195,11 +203,11 @@ class PayrollsRelationManager extends RelationManager
                         return $query
                             ->when(
                                 $data['generated_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('generated_at', '>=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('generated_at', '>=', $date),
                             )
                             ->when(
                                 $data['generated_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('generated_at', '<=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('generated_at', '<=', $date),
                             );
                     }),
 
@@ -222,11 +230,11 @@ class PayrollsRelationManager extends RelationManager
                         return $query
                             ->when(
                                 $data['net_salary_from'],
-                                fn(Builder $query, $amount): Builder => $query->where('net_salary', '>=', $amount),
+                                fn (Builder $query, $amount): Builder => $query->where('net_salary', '>=', $amount),
                             )
                             ->when(
                                 $data['net_salary_to'],
-                                fn(Builder $query, $amount): Builder => $query->where('net_salary', '<=', $amount),
+                                fn (Builder $query, $amount): Builder => $query->where('net_salary', '<=', $amount),
                             );
                     }),
             ])
@@ -239,6 +247,7 @@ class PayrollsRelationManager extends RelationManager
                     ->modalHeading('Aprobar Todos los Recibos')
                     ->modalDescription(function () {
                         $count = $this->getOwnerRecord()->payrolls()->where('status', 'draft')->count();
+
                         return "Se aprobarán {$count} recibos en estado Borrador. ¿Desea continuar?";
                     })
                     ->action(function () {
@@ -255,7 +264,7 @@ class PayrollsRelationManager extends RelationManager
                             ->title("{$count} recibos aprobados")
                             ->send();
                     })
-                    ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'
+                    ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
                         && $this->getOwnerRecord()->payrolls()->where('status', 'draft')->exists()),
 
                 Action::make('mark_all_paid')
@@ -266,6 +275,7 @@ class PayrollsRelationManager extends RelationManager
                     ->modalHeading('Marcar Todos como Pagados')
                     ->modalDescription(function () {
                         $count = $this->getOwnerRecord()->payrolls()->where('status', 'approved')->count();
+
                         return "Se marcarán {$count} recibos aprobados como pagados. ¿Desea continuar?";
                     })
                     ->action(function () {
@@ -278,14 +288,14 @@ class PayrollsRelationManager extends RelationManager
                             ->title("{$count} recibos marcados como pagados")
                             ->send();
                     })
-                    ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'
+                    ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
                         && $this->getOwnerRecord()->payrolls()->where('status', 'approved')->exists()),
 
                 ExportAction::make()
                     ->exports([
                         ExcelExport::make()
                             ->fromTable()
-                            ->withFilename(fn() => 'recibos_' . str_replace(' ', '_', $this->getOwnerRecord()->name) . '_' . now()->format('d_m_Y_H_i_s'))
+                            ->withFilename(fn () => 'recibos_'.str_replace(' ', '_', $this->getOwnerRecord()->name).'_'.now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
                     ->label('Exportar a Excel')
@@ -294,14 +304,14 @@ class PayrollsRelationManager extends RelationManager
             ])
             ->actions([
                 ViewAction::make()
-                    ->url(fn(Payroll $record) => route('filament.admin.resources.recibos.view', ['record' => $record]))
+                    ->url(fn (Payroll $record) => route('filament.admin.resources.recibos.view', ['record' => $record]))
                     ->openUrlInNewTab(),
 
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn(Payroll $record) => route('payrolls.download', $record))
+                    ->url(fn (Payroll $record) => route('payrolls.download', $record))
                     ->openUrlInNewTab(),
 
                 Action::make('approve')
@@ -310,7 +320,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "¿Aprobar el recibo de {$record->employee->full_name} por " . Payroll::formatCurrency($record->net_salary) . "?")
+                    ->modalDescription(fn (Payroll $record) => "¿Aprobar el recibo de {$record->employee->full_name} por ".Payroll::formatCurrency($record->net_salary).'?')
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'approved',
@@ -323,7 +333,7 @@ class PayrollsRelationManager extends RelationManager
                             ->title('Recibo aprobado')
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
 
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
@@ -331,7 +341,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('primary')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
-                    ->modalDescription(fn(Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'paid']);
 
@@ -340,7 +350,7 @@ class PayrollsRelationManager extends RelationManager
                             ->title('Recibo marcado como pagado')
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
 
                 Action::make('revert_paid')
                     ->label('Revertir Pago')
@@ -348,7 +358,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Revertir Pago')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'approved']);
 
@@ -358,7 +368,7 @@ class PayrollsRelationManager extends RelationManager
                             ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'paid' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $record->status === 'paid' && $this->getOwnerRecord()->status !== 'closed'),
 
                 Action::make('unapprove')
                     ->label('Desaprobar')
@@ -366,7 +376,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Desaprobar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'draft',
@@ -380,7 +390,7 @@ class PayrollsRelationManager extends RelationManager
                             ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Borrador.")
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
 
                 Action::make('regenerate')
                     ->label('Regenerar')
@@ -388,7 +398,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Regenerar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->modalDescription(fn (Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
                     ->action(function (Payroll $record, PayrollService $payrollService) {
                         try {
                             $payrollService->regenerateForEmployee($record);
@@ -402,14 +412,14 @@ class PayrollsRelationManager extends RelationManager
                             Notification::make()
                                 ->danger()
                                 ->title('Error al regenerar')
-                                ->body('Ocurrió un error al regenerar el recibo: ' . $e->getMessage())
+                                ->body('Ocurrió un error al regenerar el recibo: '.$e->getMessage())
                                 ->send();
                         }
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
 
                 DeleteAction::make()
-                    ->visible(fn(Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status === 'draft')
+                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status === 'draft')
                     ->successNotificationTitle('Recibo eliminado exitosamente'),
             ])
             ->bulkActions([
@@ -440,7 +450,7 @@ class PayrollsRelationManager extends RelationManager
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion()
-                        ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'),
+                        ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
 
                     BulkAction::make('mark_paid_selected')
                         ->label('Marcar Pagados')
@@ -487,7 +497,7 @@ class PayrollsRelationManager extends RelationManager
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion()
-                        ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'),
+                        ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
 
                     BulkAction::make('unapprove_selected')
                         ->label('Desaprobar Seleccionados')
@@ -515,7 +525,7 @@ class PayrollsRelationManager extends RelationManager
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion()
-                        ->visible(fn() => $this->getOwnerRecord()->status !== 'closed'),
+                        ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
 
                     BulkAction::make('download_pdfs')
                         ->label('Descargar PDFs')
@@ -524,7 +534,7 @@ class PayrollsRelationManager extends RelationManager
                         ->action(function (Collection $records) {
                             $records->load('employee');
                             $validRecords = $records->filter(
-                                fn(Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
+                                fn (Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
                             );
 
                             if ($validRecords->isEmpty()) {
@@ -533,16 +543,17 @@ class PayrollsRelationManager extends RelationManager
                                     ->title('Sin PDFs disponibles')
                                     ->body('Ninguno de los recibos seleccionados tiene PDF generado.')
                                     ->send();
+
                                 return;
                             }
 
                             $tempDir = storage_path('app/public/temp');
-                            if (!is_dir($tempDir)) {
+                            if (! is_dir($tempDir)) {
                                 mkdir($tempDir, 0755, true);
                             }
 
                             // Limpiar archivos temporales de más de 1 hora
-                            foreach (glob($tempDir . '/*.{pdf,zip}', GLOB_BRACE) as $file) {
+                            foreach (glob($tempDir.'/*.{pdf,zip}', GLOB_BRACE) as $file) {
                                 if (is_file($file) && (time() - filemtime($file)) > 3600) {
                                     @unlink($file);
                                 }
@@ -552,22 +563,22 @@ class PayrollsRelationManager extends RelationManager
 
                             if ($validRecords->count() === 1) {
                                 $record = $validRecords->first();
-                                $filename = $uniqueId . '_recibo_' . $record->employee->ci . '.pdf';
-                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir . '/' . $filename);
+                                $filename = $uniqueId.'_recibo_'.$record->employee->ci.'.pdf';
+                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir.'/'.$filename);
                             } else {
-                                $filename = $uniqueId . '_recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
-                                $zip = new \ZipArchive();
-                                $zip->open($tempDir . '/' . $filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+                                $filename = $uniqueId.'_recibos_'.now()->format('d_m_Y_H_i_s').'.zip';
+                                $zip = new \ZipArchive;
+                                $zip->open($tempDir.'/'.$filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
                                 foreach ($validRecords as $record) {
                                     $zip->addFromString(
-                                        'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
+                                        'recibo_'.$record->employee->ci.'_'.$record->id.'.pdf',
                                         Storage::disk('public')->get($record->pdf_path)
                                     );
                                 }
                                 $zip->close();
                             }
 
-                            $this->js("window.open('" . route('payrolls.download.temp', ['filename' => $filename]) . "', '_blank')");
+                            $this->js("window.open('".route('payrolls.download.temp', ['filename' => $filename])."', '_blank')");
 
                             Notification::make()
                                 ->success()
@@ -581,12 +592,12 @@ class PayrollsRelationManager extends RelationManager
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()
-                                ->withFilename(fn() => 'recibos_seleccionados_' . now()->format('d_m_Y_H_i_s'))
+                                ->withFilename(fn () => 'recibos_seleccionados_'.now()->format('d_m_Y_H_i_s'))
                                 ->withWriterType(Excel::XLSX),
                         ]),
 
                     DeleteBulkAction::make()
-                        ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
+                        ->visible(fn () => $this->getOwnerRecord()->status === 'draft'),
                 ]),
             ])
             ->emptyStateHeading('No hay recibos generados')
@@ -631,7 +642,7 @@ class PayrollsRelationManager extends RelationManager
                     ->schema([
                         Group::make([
                             TextEntry::make('base_salary')
-                                ->label(fn(Payroll $record): string => $record->employee->employment_type === 'day_laborer'
+                                ->label(fn (Payroll $record): string => $record->employee->employment_type === 'day_laborer'
                                     ? 'Jornal del Período'
                                     : 'Salario Base')
                                 ->money('PYG', locale: 'es_PY')
@@ -672,17 +683,17 @@ class PayrollsRelationManager extends RelationManager
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
-                                    'draft'    => 'gray',
+                                ->color(fn (string $state): string => match ($state) {
+                                    'draft' => 'gray',
                                     'approved' => 'success',
-                                    'paid'     => 'info',
-                                    default    => 'gray',
+                                    'paid' => 'info',
+                                    default => 'gray',
                                 })
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'draft'    => 'Borrador',
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
+                                    'draft' => 'Borrador',
                                     'approved' => 'Aprobado',
-                                    'paid'     => 'Pagado',
-                                    default    => $state,
+                                    'paid' => 'Pagado',
+                                    default => $state,
                                 }),
 
                             TextEntry::make('approvedBy.name')
@@ -700,10 +711,10 @@ class PayrollsRelationManager extends RelationManager
 
                         TextEntry::make('pdf_path')
                             ->label('PDF Generado')
-                            ->formatStateUsing(fn($state) => $state ? 'Disponible' : 'No generado')
+                            ->formatStateUsing(fn ($state) => $state ? 'Disponible' : 'No generado')
                             ->badge()
-                            ->color(fn($state) => $state ? 'success' : 'gray')
-                            ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+                            ->color(fn ($state) => $state ? 'success' : 'gray')
+                            ->icon(fn ($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
                     ])
                     ->columns(2)
                     ->collapsed(),

@@ -8,6 +8,7 @@ use App\Models\Loan;
 use App\Settings\GeneralSettings;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -25,7 +26,6 @@ use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
@@ -67,6 +67,7 @@ class LoanResource extends Resource
         $payrollSettings = app(PayrollSettings::class);
         $maxInstallments = $payrollSettings->loan_max_installments;
         $maxInterestRate = $payrollSettings->loan_max_interest_rate;
+        $defaultFirstInstallmentDays = $payrollSettings->loan_first_installment_days;
 
         return $form
             ->schema([
@@ -115,9 +116,10 @@ class LoanResource extends Resource
                             ->prefix('Gs.')
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, Get $get, Set $set) {
-                                $installments = $get('installments_count');
+                                $installments = (int) $get('installments_count');
+                                $rate = (float) $get('interest_rate');
                                 if ($state && $installments) {
-                                    $set('installment_amount', round($state / $installments, 0));
+                                    $set('installment_amount', Loan::computePmt((float) $state, $installments, $rate));
                                 }
                             })
                             ->helperText('Máximo: '.number_format($maxLoanAmount, 0, ',', '.').' Gs.')
@@ -132,9 +134,10 @@ class LoanResource extends Resource
                             ->default(12)
                             ->live(onBlur: true)
                             ->afterStateUpdated(function ($state, Get $get, Set $set) {
-                                $amount = $get('amount');
+                                $amount = (float) $get('amount');
+                                $rate = (float) $get('interest_rate');
                                 if ($amount && $state) {
-                                    $set('installment_amount', round($amount / $state, 0));
+                                    $set('installment_amount', Loan::computePmt($amount, (int) $state, $rate));
                                 }
                             })
                             ->disabled(fn (string $operation) => $operation === 'edit'),
@@ -147,22 +150,43 @@ class LoanResource extends Resource
                             ->default(0)
                             ->suffix('%')
                             ->step(0.01)
+                            ->live(onBlur: true)
+                            ->afterStateUpdated(function ($state, Get $get, Set $set) {
+                                $amount = (float) $get('amount');
+                                $installments = (int) $get('installments_count');
+                                if ($amount && $installments) {
+                                    $set('installment_amount', Loan::computePmt($amount, $installments, (float) $state));
+                                }
+                            })
                             ->helperText('Ingrese 0 para préstamos sin interés. Máximo: '.$maxInterestRate.'%')
                             ->disabled(fn (string $operation) => $operation === 'edit'),
 
                         TextInput::make('installment_amount')
-                            ->label('Cuota Estimada')
+                            ->label('Cuota Estimada (PMT)')
                             ->numeric()
                             ->prefix('Gs.')
                             ->disabled()
                             ->dehydrated()
-                            ->helperText('Calculada al activar el préstamo (PMT con interés).'),
+                            ->helperText('Calculada al aprobar el préstamo (PMT con interés).'),
 
-                        Textarea::make('notes')
-                            ->label('Notas')
-                            ->placeholder('Notas adicionales...')
-                            ->rows(1)
-                            ->columnSpanFull(),
+                        Grid::make(2)
+                            ->schema([
+                                TextInput::make('first_installment_days')
+                                    ->label('Días hasta primera cuota')
+                                    ->numeric()
+                                    ->required()
+                                    ->minValue(1)
+                                    ->maxValue(365)
+                                    ->default($defaultFirstInstallmentDays)
+                                    ->suffix('días')
+                                    ->helperText('Días desde la aprobación hasta el vencimiento de la primera cuota.')
+                                    ->disabled(fn (string $operation) => $operation === 'edit'),
+
+                                Textarea::make('notes')
+                                    ->label('Notas')
+                                    ->placeholder('Notas adicionales...')
+                                    ->rows(1),
+                            ]),
                     ])
                     ->columns(3),
 
@@ -225,7 +249,14 @@ class LoanResource extends Resource
                                 ->badge()
                                 ->color('info')
                                 ->placeholder('-'),
-                        ])->columns(3),
+
+                            TextEntry::make('employee.company.name')
+                                ->label('Empresa')
+                                ->icon('heroicon-o-building-office')
+                                ->badge()
+                                ->color('success')
+                                ->placeholder('-'),
+                        ])->columns(2),
                     ]),
 
                 InfolistSection::make('Datos del Préstamo')
@@ -271,14 +302,12 @@ class LoanResource extends Resource
                                 ->label('Saldo Pendiente')
                                 ->money('PYG', locale: 'es_PY')
                                 ->icon('heroicon-o-banknotes')
-                                ->visible(fn (Loan $record) => $record->isActive() || $record->isDefaulted()),
-                        ])->columns(3),
+                                ->visible(fn (Loan $record) => $record->isApproved()),
 
-                        Group::make([
                             TextEntry::make('installments_count')
                                 ->label('Progreso')
                                 ->formatStateUsing(fn (Loan $record) => $record->progress_description),
-                        ])->columns(1),
+                        ])->columns(3),
 
                         TextEntry::make('notes')
                             ->label('Notas')
@@ -301,7 +330,7 @@ class LoanResource extends Resource
                                 ->placeholder('-'),
                         ])->columns(2),
                     ])
-                    ->visible(fn (Loan $record) => $record->isActive() || $record->isPaid()),
+                    ->visible(fn (Loan $record) => $record->isApproved() || $record->isPaid()),
             ]);
     }
 
@@ -317,6 +346,11 @@ class LoanResource extends Resource
                     ->withCount(['installments as paid_count' => fn ($q) => $q->where('status', 'paid')])
             )
             ->columns([
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable()
+                    ->toggleable(),
+
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
@@ -393,6 +427,7 @@ class LoanResource extends Resource
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(Loan::getStatusOptions())
+                    ->multiple()
                     ->native(false),
 
                 SelectFilter::make('employee_id')
@@ -400,6 +435,7 @@ class LoanResource extends Resource
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
+                    ->multiple()
                     ->native(false),
 
                 Filter::make('granted_at')
@@ -425,94 +461,50 @@ class LoanResource extends Resource
             ])
             ->actions([
                 Action::make('activate')
-                    ->label('Activar')
-                    ->icon('heroicon-o-play')
+                    ->label('Aprobar')
+                    ->icon('heroicon-o-check')
                     ->color('success')
                     ->visible(fn (Loan $record) => $record->isPending())
                     ->requiresConfirmation()
-                    ->modalHeading('Activar Préstamo')
+                    ->modalHeading('Aprobar Préstamo')
                     ->modalDescription(function (Loan $record) {
                         $payrollType = $record->employee->payroll_type_label;
 
                         return "Se generarán {$record->installments_count} cuotas. La primera se descontará en la próxima nómina ({$payrollType}).";
                     })
-                    ->modalSubmitActionLabel('Sí, activar')
+                    ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Loan $record) {
                         $result = $record->activate(Auth::id());
 
                         Notification::make()
-                            ->title($result['success'] ? 'Préstamo Activado' : 'Error')
+                            ->title($result['success'] ? 'Préstamo Aprobado' : 'Error')
                             ->body($result['message'])
                             ->{$result['success'] ? 'success' : 'danger'}()
                             ->send();
                     }),
 
-                Action::make('cancel')
-                    ->label('Cancelar')
+                Action::make('reject')
+                    ->label('Rechazar')
                     ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn (Loan $record) => $record->isPending() || $record->isActive() || $record->isDefaulted())
+                    ->color('warning')
+                    ->visible(fn (Loan $record) => $record->isPending())
                     ->requiresConfirmation()
-                    ->modalHeading('Cancelar Préstamo')
-                    ->modalDescription('¿Está seguro de que desea cancelar este préstamo?')
-                    ->modalSubmitActionLabel('Sí, cancelar')
+                    ->modalHeading('Rechazar Préstamo')
+                    ->modalDescription(fn (Loan $record) => 'Se rechazará la solicitud de préstamo de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. El préstamo quedará en estado Rechazado.')
+                    ->modalSubmitActionLabel('Sí, rechazar')
                     ->form([
                         Textarea::make('reason')
-                            ->label('Motivo de cancelación')
+                            ->label('Motivo del rechazo')
                             ->placeholder('Ingrese el motivo...')
                             ->rows(3),
                     ])
                     ->action(function (Loan $record, array $data) {
-                        $result = $record->cancel($data['reason'] ?? null);
+                        $result = $record->reject($data['reason'] ?? null);
 
                         Notification::make()
-                            ->title($result['success'] ? 'Préstamo Cancelado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'success' : 'danger'}()
-                            ->send();
-                    }),
-
-                Action::make('mark_defaulted')
-                    ->label('Marcar en Mora')
-                    ->icon('heroicon-o-exclamation-triangle')
-                    ->color('danger')
-                    ->visible(fn (Loan $record) => $record->isActive())
-                    ->requiresConfirmation()
-                    ->modalHeading('Marcar Préstamo como en Mora')
-                    ->modalDescription('El préstamo quedará en estado "En Mora". Las cuotas pendientes se conservan y podrán cobrarse una vez regularizado.')
-                    ->modalSubmitActionLabel('Sí, marcar en mora')
-                    ->form([
-                        Textarea::make('reason')
-                            ->label('Motivo')
-                            ->placeholder('Ingrese el motivo...')
-                            ->rows(3),
-                    ])
-                    ->action(function (Loan $record, array $data) {
-                        $result = $record->markAsDefaulted($data['reason'] ?? null);
-
-                        Notification::make()
-                            ->title($result['success'] ? 'Marcado en Mora' : 'Error')
+                            ->title($result['success'] ? 'Préstamo Rechazado' : 'Error')
                             ->body($result['message'])
                             ->{$result['success'] ? 'warning' : 'danger'}()
-                            ->send();
-                    }),
-
-                Action::make('reactivate')
-                    ->label('Reactivar')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('success')
-                    ->visible(fn (Loan $record) => $record->isDefaulted())
-                    ->requiresConfirmation()
-                    ->modalHeading('Reactivar Préstamo')
-                    ->modalDescription('El préstamo volverá a estado "Activo" y sus cuotas pendientes podrán cobrarse en la próxima nómina.')
-                    ->modalSubmitActionLabel('Sí, reactivar')
-                    ->action(function (Loan $record) {
-                        $result = $record->reactivate();
-
-                        Notification::make()
-                            ->title($result['success'] ? 'Reactivado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'success' : 'danger'}()
                             ->send();
                     }),
 
@@ -520,81 +512,93 @@ class LoanResource extends Resource
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->visible(fn (Loan $record) => $record->isActive() || $record->isPaid() || $record->isDefaulted())
+                    ->visible(fn (Loan $record) => $record->isApproved() || $record->isPaid())
                     ->url(fn (Loan $record) => route('loans.pdf', $record))
                     ->openUrlInNewTab(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
                     BulkAction::make('activateBulk')
-                        ->label('Activar')
-                        ->icon('heroicon-o-play')
+                        ->label('Aprobar')
+                        ->icon('heroicon-o-check')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->modalHeading('Activar Préstamos')
-                        ->modalDescription('Se activarán los préstamos seleccionados que estén en estado pendiente.')
-                        ->modalSubmitActionLabel('Sí, activar seleccionados')
+                        ->modalHeading('Aprobar Préstamos')
+                        ->modalDescription('Se aprobarán los préstamos seleccionados que estén en estado Pendiente. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, aprobar seleccionados')
                         ->action(function (Collection $records) {
                             $activated = 0;
+                            $skipped = 0;
                             $failed = 0;
 
                             foreach ($records as $record) {
-                                if ($record->isPending()) {
-                                    $result = $record->activate(Auth::id());
-                                    $result['success'] ? $activated++ : $failed++;
+                                if (! $record->isPending()) {
+                                    $skipped++;
+
+                                    continue;
                                 }
+
+                                $result = $record->activate(Auth::id());
+                                $result['success'] ? $activated++ : $failed++;
                             }
 
-                            $message = "Se activaron {$activated} préstamos.";
+                            $body = "Se aprobaron {$activated} préstamos.";
+                            if ($skipped > 0) {
+                                $body .= " {$skipped} ignorados por no estar en estado Pendiente.";
+                            }
                             if ($failed > 0) {
-                                $message .= " {$failed} fallaron.";
+                                $body .= " {$failed} no pudieron aprobarse.";
                             }
 
                             Notification::make()
-                                ->title('Activación Completada')
-                                ->body($message)
-                                ->{$failed > 0 ? 'warning' : 'success'}()
-                                ->send();
+                                ->title('Aprobación Completada')
+                                ->body($body)
+                                ->{($skipped + $failed) > 0 ? 'warning' : 'success'}()
+                                ->send()
+                                ->persistent();
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    BulkAction::make('cancelBulk')
-                        ->label('Cancelar')
+                    BulkAction::make('rejectBulk')
+                        ->label('Rechazar')
                         ->icon('heroicon-o-x-circle')
-                        ->color('danger')
+                        ->color('warning')
                         ->requiresConfirmation()
-                        ->modalHeading('Cancelar Préstamos')
-                        ->modalDescription('Se cancelarán los préstamos seleccionados que estén pendientes o activos.')
-                        ->modalSubmitActionLabel('Sí, cancelar seleccionados')
+                        ->modalHeading('Rechazar Préstamos')
+                        ->modalDescription('Se rechazarán los préstamos seleccionados que estén en estado Pendiente. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, rechazar seleccionados')
                         ->form([
                             Textarea::make('reason')
-                                ->label('Motivo de cancelación')
+                                ->label('Motivo del rechazo')
                                 ->placeholder('Ingrese el motivo...')
                                 ->rows(3),
                         ])
                         ->action(function (Collection $records, array $data) {
-                            $cancelled = 0;
+                            $rejected = 0;
                             $skipped = 0;
 
                             foreach ($records as $record) {
-                                if ($record->isPending() || $record->isActive() || $record->isDefaulted()) {
-                                    $result = $record->cancel($data['reason'] ?? null);
-                                    $result['success'] ? $cancelled++ : $skipped++;
-                                } else {
+                                if (! $record->isPending()) {
                                     $skipped++;
+
+                                    continue;
                                 }
+
+                                $record->reject($data['reason'] ?? null);
+                                $rejected++;
                             }
 
-                            $body = "Se cancelaron {$cancelled} préstamos.";
+                            $body = "Se rechazaron {$rejected} préstamos.";
                             if ($skipped > 0) {
-                                $body .= " {$skipped} no pudieron cancelarse (ya están en un estado final).";
+                                $body .= " {$skipped} ignorados por no estar en estado Pendiente.";
                             }
 
                             Notification::make()
-                                ->title('Cancelación Completada')
+                                ->warning()
+                                ->title('Rechazo Completado')
                                 ->body($body)
-                                ->{$skipped > 0 ? 'warning' : 'success'}()
-                                ->send();
+                                ->send()
+                                ->persistent();
                         })
                         ->deselectRecordsAfterCompletion(),
 
@@ -607,9 +611,6 @@ class LoanResource extends Resource
                         ->label('Exportar a Excel')
                         ->color('info')
                         ->icon('heroicon-o-arrow-down-tray'),
-
-                    DeleteBulkAction::make()
-                        ->icon('heroicon-o-trash'),
                 ]),
             ])
             ->defaultSort('created_at', 'desc')

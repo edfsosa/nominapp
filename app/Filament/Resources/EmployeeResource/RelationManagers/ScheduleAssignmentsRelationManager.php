@@ -29,15 +29,20 @@ use Illuminate\Validation\ValidationException;
 class ScheduleAssignmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'scheduleAssignments';
+
     protected static ?string $title = 'Historial de Horarios';
+
     protected static ?string $modelLabel = 'Asignación';
+
     protected static ?string $pluralModelLabel = 'Asignaciones';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Define el formulario de asignación de horario.
-     *
-     * @param  Form  $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -80,14 +85,11 @@ class ScheduleAssignmentsRelationManager extends RelationManager
 
     /**
      * Define la tabla de historial de asignaciones de horario.
-     *
-     * @param  Table  $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn($query) => $query->with('schedule')->latest('valid_from'))
+            ->modifyQueryUsing(fn ($query) => $query->with('schedule')->latest('valid_from'))
             ->columns([
                 TextColumn::make('schedule.name')
                     ->label('Horario')
@@ -97,8 +99,8 @@ class ScheduleAssignmentsRelationManager extends RelationManager
                 TextColumn::make('schedule.shift_type')
                     ->label('Jornada')
                     ->badge()
-                    ->formatStateUsing(fn($state) => Schedule::getShiftTypeLabels()[$state] ?? ($state ?? '—'))
-                    ->color(fn($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray'),
+                    ->formatStateUsing(fn ($state) => Schedule::getShiftTypeLabels()[$state] ?? ($state ?? '—'))
+                    ->color(fn ($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray'),
 
                 TextColumn::make('valid_from')
                     ->label('Desde')
@@ -109,7 +111,7 @@ class ScheduleAssignmentsRelationManager extends RelationManager
                     ->label('Hasta')
                     ->date('d/m/Y')
                     ->placeholder('Vigente')
-                    ->color(fn($state) => $state === null ? 'success' : null),
+                    ->color(fn ($state) => $state === null ? 'success' : null),
 
                 TextColumn::make('notes')
                     ->label('Notas')
@@ -125,11 +127,11 @@ class ScheduleAssignmentsRelationManager extends RelationManager
                     ->using(function (array $data): EmployeeScheduleAssignment {
                         try {
                             return ScheduleAssignmentService::assign(
-                                employee:   $this->getOwnerRecord(),
-                                schedule:   Schedule::findOrFail($data['schedule_id']),
-                                validFrom:  Carbon::parse($data['valid_from']),
+                                employee: $this->getOwnerRecord(),
+                                schedule: Schedule::findOrFail($data['schedule_id']),
+                                validFrom: Carbon::parse($data['valid_from']),
                                 validUntil: isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null,
-                                notes:      $data['notes'] ?? null,
+                                notes: $data['notes'] ?? null,
                             );
                         } catch (ValidationException $e) {
                             Notification::make()
@@ -159,7 +161,7 @@ class ScheduleAssignmentsRelationManager extends RelationManager
                     ->icon('heroicon-o-x-circle')
                     ->color('warning')
                     ->tooltip('Cerrar esta asignación en la fecha de hoy')
-                    ->visible(fn(EmployeeScheduleAssignment $record) => $record->valid_until === null)
+                    ->visible(fn (EmployeeScheduleAssignment $record) => $record->valid_until === null)
                     ->requiresConfirmation()
                     ->modalHeading('Cerrar asignación')
                     ->modalDescription('Se cerrará este horario con fecha de hoy. El empleado quedará sin horario activo hasta que se le asigne uno nuevo.')

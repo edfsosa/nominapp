@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ScheduleResource\RelationManagers;
 
+use App\Exports\ScheduleEmployeesExport;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Services\ScheduleAssignmentService;
@@ -10,29 +11,33 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use App\Exports\ScheduleEmployeesExport;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
-use Maatwebsite\Excel\Facades\Excel;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Facades\Excel;
 
 /** Muestra y gestiona los empleados con asignación activa al horario, usando el sistema de employee_schedule_assignments. */
 class EmployeesRelationManager extends RelationManager
 {
     protected static string $relationship = 'currentEmployees';
+
     protected static ?string $title = 'Empleados Asignados';
+
     protected static ?string $modelLabel = 'empleado';
+
     protected static ?string $pluralModelLabel = 'empleados';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Formulario para asignar un empleado activo al horario, con filtro opcional por sucursal.
-     *
-     * @param  Form  $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -40,19 +45,19 @@ class EmployeesRelationManager extends RelationManager
             ->schema([
                 Select::make('filter_branch')
                     ->label('Filtrar por Sucursal')
-                    ->options(fn() => Branch::pluck('name', 'id'))
+                    ->options(fn () => Branch::pluck('name', 'id'))
                     ->searchable()
                     ->preload()
                     ->native(false)
                     ->live()
-                    ->afterStateUpdated(fn(callable $set) => $set('employee_ids', []))
+                    ->afterStateUpdated(fn (callable $set) => $set('employee_ids', []))
                     ->columnSpanFull(),
 
                 Select::make('employee_ids')
                     ->label('Empleados')
                     ->options(function (callable $get) {
                         $scheduleId = $this->getOwnerRecord()->id;
-                        $today      = Carbon::today();
+                        $today = Carbon::today();
 
                         $query = Employee::query()->where('status', 'active');
 
@@ -92,15 +97,12 @@ class EmployeesRelationManager extends RelationManager
 
     /**
      * Tabla de empleados asignados actualmente al horario, con acciones para asignar y remover.
-     *
-     * @param  Table  $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
             ->recordTitleAttribute('first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query
+            ->modifyQueryUsing(fn (Builder $query) => $query
                 ->addSelect([
                     'employees.*',
                     'employee_schedule_assignments.valid_from as assignment_start_date',
@@ -112,12 +114,12 @@ class EmployeesRelationManager extends RelationManager
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->avatar_url),
+                    ->defaultImageUrl(fn ($record) => $record->avatar_url),
 
                 TextColumn::make('full_name')
                     ->label('Nombre completo')
-                    ->getStateUsing(fn(Employee $record) => $record->first_name . ' ' . $record->last_name)
-                    ->description(fn(Employee $record) => 'CI: ' . $record->ci)
+                    ->getStateUsing(fn (Employee $record) => $record->first_name.' '.$record->last_name)
+                    ->description(fn (Employee $record) => 'CI: '.$record->ci)
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->sortable()
                     ->weight('medium'),
@@ -145,7 +147,7 @@ class EmployeesRelationManager extends RelationManager
 
                 TextColumn::make('assignment_start_date')
                     ->label('Vigente desde')
-                    ->description(fn($record) => Carbon::parse($record->assignment_start_date)->diffForHumans())
+                    ->description(fn ($record) => Carbon::parse($record->assignment_start_date)->diffForHumans())
                     ->date('d/m/Y')
                     ->sortable()
                     ->alignCenter(),
@@ -184,7 +186,7 @@ class EmployeesRelationManager extends RelationManager
 
                         return Excel::download(
                             new ScheduleEmployeesExport($schedule->id),
-                            'empleados_' . str($schedule->name)->slug() . '_' . now()->format('Y_m_d') . '.xlsx'
+                            'empleados_'.str($schedule->name)->slug().'_'.now()->format('Y_m_d').'.xlsx'
                         );
                     }),
 
@@ -195,12 +197,12 @@ class EmployeesRelationManager extends RelationManager
                     ->modalHeading('Asignar Empleados al Horario')
                     ->modalSubmitActionLabel('Asignar')
                     ->modalWidth('2xl')
-                    ->form(fn() => $this->form($this->makeForm())->getComponents())
+                    ->form(fn () => $this->form($this->makeForm())->getComponents())
                     ->action(function (array $data) {
-                        $schedule  = $this->getOwnerRecord();
+                        $schedule = $this->getOwnerRecord();
                         $employees = Employee::whereIn('id', $data['employee_ids'])->get();
-                        $assigned  = 0;
-                        $errors    = [];
+                        $assigned = 0;
+                        $errors = [];
 
                         foreach ($employees as $employee) {
                             try {
@@ -223,11 +225,11 @@ class EmployeesRelationManager extends RelationManager
                                 ->send();
                         }
 
-                        if (!empty($errors)) {
+                        if (! empty($errors)) {
                             Notification::make()
                                 ->warning()
                                 ->title('Algunos empleados no pudieron asignarse')
-                                ->body('Revisar solapamientos en: ' . implode(', ', $errors))
+                                ->body('Revisar solapamientos en: '.implode(', ', $errors))
                                 ->persistent()
                                 ->send();
                         }
@@ -238,7 +240,7 @@ class EmployeesRelationManager extends RelationManager
                     ->label('Ver Empleado')
                     ->icon('heroicon-o-user')
                     ->color('gray')
-                    ->url(fn(Employee $record) => \App\Filament\Resources\EmployeeResource::getUrl('edit', ['record' => $record]))
+                    ->url(fn (Employee $record) => \App\Filament\Resources\EmployeeResource::getUrl('edit', ['record' => $record]))
                     ->openUrlInNewTab(),
 
                 Action::make('remove')
@@ -247,7 +249,7 @@ class EmployeesRelationManager extends RelationManager
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('Remover Empleado del Horario')
-                    ->modalDescription(fn($record) => "¿Está seguro de que desea remover a {$record->full_name} de este horario?")
+                    ->modalDescription(fn ($record) => "¿Está seguro de que desea remover a {$record->full_name} de este horario?")
                     ->modalSubmitActionLabel('Sí, remover')
                     ->action(function (Employee $record) {
                         ScheduleAssignmentService::closeActive($record, Carbon::today());

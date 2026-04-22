@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Advance;
 use App\Models\Employee;
 use App\Models\LoanInstallment;
+use App\Models\MerchandiseWithdrawalInstallment;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
@@ -26,6 +27,8 @@ class PayrollService
 
     protected AdvanceCalculator $advanceCalculator;
 
+    protected MerchandiseInstallmentCalculator $merchandiseInstallmentCalculator;
+
     protected FamilyBonusCalculator $familyBonusCalculator;
 
     protected RestDayCalculator $restDayCalculator;
@@ -39,6 +42,7 @@ class PayrollService
         AbsencePenaltyCalculator $absencePenaltyCalculator,
         LoanInstallmentCalculator $loanInstallmentCalculator,
         AdvanceCalculator $advanceCalculator,
+        MerchandiseInstallmentCalculator $merchandiseInstallmentCalculator,
         FamilyBonusCalculator $familyBonusCalculator,
         RestDayCalculator $restDayCalculator,
         PayrollPDFGenerator $payrollPDFGenerator
@@ -49,6 +53,7 @@ class PayrollService
         $this->absencePenaltyCalculator = $absencePenaltyCalculator;
         $this->loanInstallmentCalculator = $loanInstallmentCalculator;
         $this->advanceCalculator = $advanceCalculator;
+        $this->merchandiseInstallmentCalculator = $merchandiseInstallmentCalculator;
         $this->familyBonusCalculator = $familyBonusCalculator;
         $this->restDayCalculator = $restDayCalculator;
         $this->payrollPDFGenerator = $payrollPDFGenerator;
@@ -122,6 +127,7 @@ class PayrollService
                 $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
                 $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
                 $advances = $this->advanceCalculator->calculate($employee, $period);
+                $merchandiseInstallments = $this->merchandiseInstallmentCalculator->calculate($employee, $period);
                 $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
                 $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
                 $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
@@ -177,6 +183,12 @@ class PayrollService
                 if ($advances['advances']->isNotEmpty()) {
                     $advanceIds = $advances['advances']->pluck('id')->toArray();
                     $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
+                }
+
+                // Marcar cuotas de mercadería como pagadas
+                if ($merchandiseInstallments['installments']->isNotEmpty()) {
+                    $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
+                    $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
                 }
 
                 // Generar PDF
@@ -264,6 +276,7 @@ class PayrollService
             $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $advances = $this->advanceCalculator->calculate($employee, $period);
+            $merchandiseInstallments = $this->merchandiseInstallmentCalculator->calculate($employee, $period);
             $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
             $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
@@ -315,6 +328,11 @@ class PayrollService
                 $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
             }
 
+            if ($merchandiseInstallments['installments']->isNotEmpty()) {
+                $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
+                $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
+            }
+
             $pdfPath = $this->payrollPDFGenerator->generate($payroll);
             $payroll->update(['pdf_path' => $pdfPath]);
 
@@ -357,10 +375,18 @@ class PayrollService
             // Revertir cuotas de préstamo pagadas del período anterior
             LoanInstallment::whereHas('loan', fn ($q) => $q
                 ->where('employee_id', $employee->id)
-                ->where('status', 'active'))
+                ->where('status', 'approved'))
                 ->where('status', 'paid')
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
-                ->update(['status' => 'pending', 'paid_at' => null]);
+                ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
+
+            // Revertir cuotas de mercadería pagadas del período anterior
+            MerchandiseWithdrawalInstallment::whereHas('withdrawal', fn ($q) => $q
+                ->where('employee_id', $employee->id)
+                ->where('status', 'approved'))
+                ->where('status', 'paid')
+                ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
 
             // Revertir adelantos descontados en esta nómina
             Advance::where('employee_id', $employee->id)
@@ -390,13 +416,14 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            // Recalcular con los 7 calculadores — extras antes de deducciones para base IPS correcta
+            // Recalcular con los 8 calculadores — extras antes de deducciones para base IPS correcta
             $perceptions = $this->perceptionCalculator->calculate($employee, $period);
             $extras = $this->extraHourCalculator->calculate($employee, $period);
             $restDay = $this->restDayCalculator->calculate($employee, $period);
             $ipsBase = $baseSalary + $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $loanInstallments = $this->loanInstallmentCalculator->calculate($employee, $period);
             $advances = $this->advanceCalculator->calculate($employee, $period);
+            $merchandiseInstallments = $this->merchandiseInstallmentCalculator->calculate($employee, $period);
             $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
             $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
@@ -449,6 +476,12 @@ class PayrollService
             if ($advances['advances']->isNotEmpty()) {
                 $advanceIds = $advances['advances']->pluck('id')->toArray();
                 $this->advanceCalculator->markAdvancesAsPaid($advanceIds, $payroll->id);
+            }
+
+            // Marcar cuotas de mercadería como pagadas
+            if ($merchandiseInstallments['installments']->isNotEmpty()) {
+                $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
+                $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
             }
 
             // Regenerar PDF

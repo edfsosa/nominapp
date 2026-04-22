@@ -7,12 +7,12 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -22,16 +22,22 @@ use Illuminate\Support\Facades\Storage;
 class DocumentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'documents';
+
     protected static ?string $title = 'Documentos';
+
     protected static ?string $recordTitleAttribute = 'name';
+
     protected static ?string $modelLabel = 'Documento';
+
     protected static ?string $pluralModelLabel = 'Documentos';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Define el formulario para subir y editar documentos.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -61,9 +67,6 @@ class DocumentsRelationManager extends RelationManager
 
     /**
      * Define la tabla de documentos con columnas, filtros y acciones.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -79,26 +82,26 @@ class DocumentsRelationManager extends RelationManager
 
                 TextColumn::make('file_type')
                     ->label('Tipo')
-                    ->state(fn(Document $record): string => $record->file_extension)
+                    ->state(fn (Document $record): string => $record->file_extension)
                     ->badge()
-                    ->color(fn(Document $record): string => $record->file_type_color)
-                    ->icon(fn(Document $record): string => $record->file_type_icon)
+                    ->color(fn (Document $record): string => $record->file_type_color)
+                    ->icon(fn (Document $record): string => $record->file_type_icon)
                     ->sortable(),
 
                 TextColumn::make('file_size')
                     ->label('Tamaño')
-                    ->state(fn(Document $record): string => $record->file_size_formatted)
+                    ->state(fn (Document $record): string => $record->file_size_formatted)
                     ->alignEnd(),
 
                 TextColumn::make('created_at_description')
                     ->label('Fecha de carga')
-                    ->description(fn(Document $record): string => $record->created_at_since)
+                    ->description(fn (Document $record): string => $record->created_at_since)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updated_at_description')
                     ->label('Última modificación')
-                    ->description(fn(Document $record): string => $record->updated_at_since)
+                    ->description(fn (Document $record): string => $record->updated_at_since)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -107,13 +110,14 @@ class DocumentsRelationManager extends RelationManager
                     ->label('Tipo de archivo')
                     ->options(Document::getFileTypeFilterOptions())
                     ->query(function ($query, $state) {
-                        if (!$state['value']) {
+                        if (! $state['value']) {
                             return $query;
                         }
                         $extensions = explode(',', $state['value']);
+
                         return $query->where(function ($q) use ($extensions) {
                             foreach ($extensions as $ext) {
-                                $q->orWhere('file_path', 'like', '%.' . $ext);
+                                $q->orWhere('file_path', 'like', '%.'.$ext);
                             }
                         });
                     })
@@ -132,9 +136,9 @@ class DocumentsRelationManager extends RelationManager
                     ->label('Descargar')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('success')
-                    ->action(fn(Document $record) => Storage::disk('public')->download(
+                    ->action(fn (Document $record) => Storage::disk('public')->download(
                         $record->file_path,
-                        $record->name . '.' . strtolower($record->file_extension)
+                        $record->name.'.'.strtolower($record->file_extension)
                     )),
 
                 EditAction::make(),

@@ -10,7 +10,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\ViewRecord;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
@@ -30,25 +29,20 @@ use Illuminate\Support\Carbon;
 class EmployeeDeductionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeeDeductions';
+
     protected static ?string $title = 'Empleados Asignados';
+
     protected static ?string $modelLabel = 'asignación';
+
     protected static ?string $pluralModelLabel = 'asignaciones';
 
-    /**
-     * Determina si la relación debe ser de solo lectura (sin acciones de edición o eliminación) dependiendo de la página actual.
-     *
-     * @return boolean
-     */
-    public function isReadonly(): bool
+    public function isReadOnly(): bool
     {
-        return is_a($this->getPageClass(), ViewRecord::class, true);
+        return false;
     }
 
     /**
      * Define el formulario para asignar empleados a la deducción.
-     *
-     * @param Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -59,7 +53,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->relationship(
                         'employee',
                         'first_name',
-                        fn(Builder $query) => $query
+                        fn (Builder $query) => $query
                             ->where('status', 'active')
                             ->whereDoesntHave('employeeDeductions', function ($q) {
                                 $q->where(
@@ -67,10 +61,10 @@ class EmployeeDeductionsRelationManager extends RelationManager
                                     $this->getOwnerRecord()->id
                                 )
                                     ->where('start_date', '<=', now())
-                                    ->where(fn($q2) => $q2->whereNull('end_date')->orWhere('end_date', '>=', now()));
+                                    ->where(fn ($q2) => $q2->whereNull('end_date')->orWhere('end_date', '>=', now()));
                             }),
                     )
-                    ->getOptionLabelFromRecordUsing(fn($record) => $record->first_name . ' ' . $record->last_name . ' (' . $record->ci . ')')
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->first_name.' '.$record->last_name.' ('.$record->ci.')')
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->required()
                     ->native(false)
@@ -85,7 +79,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->live()
                     ->closeOnDateSelection()
                     ->displayFormat('d/m/Y')
-                    ->maxDate(fn(Get $get) => $get('end_date') ?: null)
+                    ->maxDate(fn (Get $get) => $get('end_date') ?: null)
                     ->helperText('La deducción se considera activa desde esta fecha.'),
 
                 DatePicker::make('end_date')
@@ -95,7 +89,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->closeOnDateSelection()
                     ->displayFormat('d/m/Y')
                     ->after('start_date')
-                    ->minDate(fn(Get $get) => $get('start_date') ?: null)
+                    ->minDate(fn (Get $get) => $get('start_date') ?: null)
                     ->helperText('Dejar vacío si la deducción no tiene fecha de fin definida.'),
 
                 TextInput::make('custom_amount')
@@ -117,21 +111,18 @@ class EmployeeDeductionsRelationManager extends RelationManager
 
     /**
      * Define la tabla que muestra los empleados asignados a la deducción.
-     *
-     * @param Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
             ->recordTitleAttribute('employee.first_name')
-            ->modifyQueryUsing(fn(Builder $query) => $query->with('employee.activeContract.position'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('employee.activeContract.position'))
             ->defaultSort('start_date', 'desc')
             ->columns([
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -187,11 +178,11 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->label('Estado')
                     ->placeholder('Todos')
                     ->options([
-                        'active'   => 'Activo',
-                        'pending'  => 'Pendiente',
+                        'active' => 'Activo',
+                        'pending' => 'Pendiente',
                         'inactive' => 'Inactivo',
                     ])
-                    ->query(fn(Builder $query, array $data) => match ($data['value'] ?? null) {
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
                         'active' => $query->active(),
                         'pending' => $query->pending(),
                         'inactive' => $query->inactive(),
@@ -208,7 +199,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                         $hasActive = EmployeeDeduction::where('employee_id', $data['employee_id'])
                             ->where('deduction_id', $this->getOwnerRecord()->id)
                             ->where('start_date', '<=', now())
-                            ->where(fn($q) => $q->whereNull('end_date')
+                            ->where(fn ($q) => $q->whereNull('end_date')
                                 ->orWhere('end_date', '>=', now()))
                             ->exists();
 
@@ -229,7 +220,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->label('Remover')
                     ->icon('heroicon-o-x-circle')
                     ->color('warning')
-                    ->visible(fn($record) => !$this->isReadonly() && $record->isActive())
+                    ->visible(fn ($record) => ! $this->isReadonly() && $record->isActive())
                     ->modalHeading('Remover Empleado de la Deducción')
                     ->modalDescription('Confirmá la fecha hasta la cual aplica esta deducción para el empleado.')
                     ->modalSubmitActionLabel('Sí, remover')
@@ -264,7 +255,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->label('Reactivar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn($record) => !$this->isReadonly() && !$record->isActive())
+                    ->visible(fn ($record) => ! $this->isReadonly() && ! $record->isActive())
                     ->modalHeading('Reactivar Asignación')
                     ->modalDescription('Confirmá la fecha desde la cual se reactiva esta deducción para el empleado.')
                     ->modalSubmitActionLabel('Sí, reactivar')
@@ -290,7 +281,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                             ->where('deduction_id', $record->deduction_id)
                             ->where('id', '!=', $record->id)
                             ->where('start_date', '<=', now())
-                            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
                             ->exists();
 
                         if ($hasActive) {
@@ -299,11 +290,12 @@ class EmployeeDeductionsRelationManager extends RelationManager
                                 ->title('No se puede reactivar')
                                 ->body('Este empleado ya tiene una asignación activa para esta deducción.')
                                 ->send();
+
                             return;
                         }
 
                         $startDate = Carbon::parse($data['start_date']);
-                        $endDate   = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
+                        $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
 
                         if ($record->reactivate($startDate, $endDate)) {
                             $body = $endDate
@@ -405,14 +397,15 @@ class EmployeeDeductionsRelationManager extends RelationManager
                                 ->helperText('Opcional: dejar vacío si no tiene fecha de fin definida'),
                         ])
                         ->action(function ($records, array $data) {
-                            $startDate   = Carbon::parse($data['start_date']);
-                            $endDate     = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
+                            $startDate = Carbon::parse($data['start_date']);
+                            $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
                             $reactivated = 0;
-                            $skipped     = 0;
+                            $skipped = 0;
 
                             foreach ($records as $record) {
                                 if ($record->isActive()) {
                                     $skipped++;
+
                                     continue;
                                 }
 
@@ -420,11 +413,12 @@ class EmployeeDeductionsRelationManager extends RelationManager
                                     ->where('deduction_id', $record->deduction_id)
                                     ->where('id', '!=', $record->id)
                                     ->where('start_date', '<=', now())
-                                    ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                    ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
                                     ->exists();
 
                                 if ($hasActive) {
                                     $skipped++;
+
                                     continue;
                                 }
 

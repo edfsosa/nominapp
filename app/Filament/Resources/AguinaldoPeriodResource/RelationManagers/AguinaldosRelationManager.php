@@ -28,9 +28,17 @@ use Illuminate\Database\Eloquent\Collection;
 class AguinaldosRelationManager extends RelationManager
 {
     protected static string $relationship = 'aguinaldos';
+
     protected static ?string $title = 'Aguinaldos Generados';
+
     protected static ?string $modelLabel = 'aguinaldo';
+
     protected static ?string $pluralModelLabel = 'aguinaldos';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     public function form(Form $form): Form
     {
@@ -39,20 +47,17 @@ class AguinaldosRelationManager extends RelationManager
 
     /**
      * Configura la tabla para mostrar los aguinaldos relacionados al período.
-     *
-     * @param Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitle(fn(Aguinaldo $record): string => "Aguinaldo de {$record->employee->full_name}")
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee.activeContract.position']))
+            ->recordTitle(fn (Aguinaldo $record): string => "Aguinaldo de {$record->employee->full_name}")
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['employee.activeContract.position']))
             ->columns([
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -84,7 +89,7 @@ class AguinaldosRelationManager extends RelationManager
                 TextColumn::make('months_worked')
                     ->label('Meses')
                     ->alignCenter()
-                    ->formatStateUsing(fn($state) => number_format($state, 0))
+                    ->formatStateUsing(fn ($state) => number_format($state, 0))
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -115,9 +120,9 @@ class AguinaldosRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Aguinaldo::getStatusLabel($state))
-                    ->color(fn(string $state) => Aguinaldo::getStatusColor($state))
-                    ->icon(fn(string $state) => Aguinaldo::getStatusIcon($state))
+                    ->formatStateUsing(fn (string $state) => Aguinaldo::getStatusLabel($state))
+                    ->color(fn (string $state) => Aguinaldo::getStatusColor($state))
+                    ->icon(fn (string $state) => Aguinaldo::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('paid_at')
@@ -142,13 +147,13 @@ class AguinaldosRelationManager extends RelationManager
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => $record->full_name)
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
                     ->searchable(['first_name', 'last_name'])
                     ->native(false),
             ])
             ->actions([
                 ViewAction::make()
-                    ->url(fn(Aguinaldo $record) => AguinaldoResource::getUrl('view', ['record' => $record])),
+                    ->url(fn (Aguinaldo $record) => AguinaldoResource::getUrl('view', ['record' => $record])),
 
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
@@ -156,7 +161,7 @@ class AguinaldosRelationManager extends RelationManager
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar Aguinaldo como Pagado?')
-                    ->modalDescription(fn(Aguinaldo $record) => "¿Confirmar pago de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . "?")
+                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirmar pago de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPaid();
@@ -164,10 +169,10 @@ class AguinaldosRelationManager extends RelationManager
                         Notification::make()
                             ->success()
                             ->title('Aguinaldo marcado como pagado')
-                            ->body("El aguinaldo de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . " ha sido marcado como pagado.")
+                            ->body("El aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).' ha sido marcado como pagado.')
                             ->send();
                     })
-                    ->visible(fn(Aguinaldo $record) => $record->isPending() && $this->getOwnerRecord()->isProcessing()),
+                    ->visible(fn (Aguinaldo $record) => $record->isPending() && $this->getOwnerRecord()->isProcessing()),
 
                 Action::make('unmark_paid')
                     ->label('Marcar Pendiente')
@@ -175,7 +180,7 @@ class AguinaldosRelationManager extends RelationManager
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar Aguinaldo como Pendiente?')
-                    ->modalDescription(fn(Aguinaldo $record) => "Se revertirá el pago del aguinaldo de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . " y volverá a estado Pendiente.")
+                    ->modalDescription(fn (Aguinaldo $record) => "Se revertirá el pago del aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).' y volverá a estado Pendiente.')
                     ->modalSubmitActionLabel('Sí, marcar como pendiente')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPending();
@@ -186,7 +191,7 @@ class AguinaldosRelationManager extends RelationManager
                             ->body("El aguinaldo de {$record->employee->full_name} volvió a estado Pendiente.")
                             ->send();
                     })
-                    ->visible(fn(Aguinaldo $record) => $record->isPaid() && $this->getOwnerRecord()->isProcessing()),
+                    ->visible(fn (Aguinaldo $record) => $record->isPaid() && $this->getOwnerRecord()->isProcessing()),
 
                 Action::make('regenerate')
                     ->label('Regenerar')
@@ -213,15 +218,15 @@ class AguinaldosRelationManager extends RelationManager
                                 ->send();
                         }
                     })
-                    ->visible(fn() => $this->getOwnerRecord()->isProcessing()),
+                    ->visible(fn () => $this->getOwnerRecord()->isProcessing()),
 
                 Action::make('download_pdf')
                     ->label('Descargar PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn(Aguinaldo $record) => route('aguinaldos.download', $record))
+                    ->url(fn (Aguinaldo $record) => route('aguinaldos.download', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn(Aguinaldo $record) => (bool) $record->pdf_path),
+                    ->visible(fn (Aguinaldo $record) => (bool) $record->pdf_path),
 
                 DeleteAction::make()
                     ->label('Eliminar')
@@ -229,9 +234,9 @@ class AguinaldosRelationManager extends RelationManager
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('¿Eliminar Aguinaldo?')
-                    ->modalDescription(fn(Aguinaldo $record) => "¿Confirma que desea eliminar el aguinaldo de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . "? Esta acción no se puede deshacer.")
+                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirma que desea eliminar el aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).'? Esta acción no se puede deshacer.')
                     ->modalSubmitActionLabel('Sí, eliminar')
-                    ->visible(fn() => $this->getOwnerRecord()->isProcessing())
+                    ->visible(fn () => $this->getOwnerRecord()->isProcessing())
                     ->successNotificationTitle('Aguinaldo eliminado exitosamente'),
             ])
             ->bulkActions([
@@ -241,14 +246,14 @@ class AguinaldosRelationManager extends RelationManager
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->visible(fn() => $this->getOwnerRecord()->isProcessing())
+                        ->visible(fn () => $this->getOwnerRecord()->isProcessing())
                         ->action(function (Collection $records) {
                             $count = $records->filter->isPending()->each->markAsPaid()->count();
 
                             Notification::make()
                                 ->success()
-                                ->title("Aguinaldos marcados como pagados")
-                                ->body('Se han marcado ' . ($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos") . ' como pagados exitosamente.')
+                                ->title('Aguinaldos marcados como pagados')
+                                ->body('Se han marcado '.($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos").' como pagados exitosamente.')
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -261,14 +266,14 @@ class AguinaldosRelationManager extends RelationManager
                         ->modalHeading('¿Marcar como Pendientes?')
                         ->modalDescription('Se revertirá el pago de los aguinaldos pagados seleccionados y volverán a estado Pendiente.')
                         ->modalSubmitActionLabel('Sí, marcar como pendientes')
-                        ->visible(fn() => $this->getOwnerRecord()->isProcessing())
+                        ->visible(fn () => $this->getOwnerRecord()->isProcessing())
                         ->action(function (Collection $records) {
                             $count = $records->filter->isPaid()->each->markAsPending()->count();
 
                             Notification::make()
                                 ->warning()
-                                ->title("Aguinaldos revertidos a Pendiente")
-                                ->body('Se han revertido ' . ($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos") . ' a estado Pendiente.')
+                                ->title('Aguinaldos revertidos a Pendiente')
+                                ->body('Se han revertido '.($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos").' a estado Pendiente.')
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -281,7 +286,7 @@ class AguinaldosRelationManager extends RelationManager
                         ->modalHeading('¿Regenerar Aguinaldos?')
                         ->modalDescription('Se recalcularán los valores de los aguinaldos seleccionados según los datos actuales. No afectará el estado de pago.')
                         ->modalSubmitActionLabel('Sí, regenerar')
-                        ->visible(fn() => $this->getOwnerRecord()->isProcessing())
+                        ->visible(fn () => $this->getOwnerRecord()->isProcessing())
                         ->action(function (Collection $records, AguinaldoService $aguinaldoService) {
                             $success = 0;
                             $errors = 0;
@@ -299,7 +304,7 @@ class AguinaldosRelationManager extends RelationManager
                                 Notification::make()
                                     ->success()
                                     ->title('Aguinaldos regenerados')
-                                    ->body('Se regeneraron ' . ($success === 1 ? '1 aguinaldo' : "{$success} aguinaldos") . ' exitosamente.' . ($errors > 0 ? " {$errors} fallaron." : ''))
+                                    ->body('Se regeneraron '.($success === 1 ? '1 aguinaldo' : "{$success} aguinaldos").' exitosamente.'.($errors > 0 ? " {$errors} fallaron." : ''))
                                     ->send();
                             }
 
@@ -307,7 +312,7 @@ class AguinaldosRelationManager extends RelationManager
                                 Notification::make()
                                     ->danger()
                                     ->title('Error al regenerar')
-                                    ->body("No se pudo regenerar ningún aguinaldo.")
+                                    ->body('No se pudo regenerar ningún aguinaldo.')
                                     ->send();
                             }
                         })
@@ -321,15 +326,15 @@ class AguinaldosRelationManager extends RelationManager
                         ->modalHeading('¿Eliminar Aguinaldos?')
                         ->modalDescription('Se eliminarán los aguinaldos seleccionados. Esta acción no se puede deshacer.')
                         ->modalSubmitActionLabel('Sí, eliminar')
-                        ->visible(fn() => $this->getOwnerRecord()->isProcessing())
+                        ->visible(fn () => $this->getOwnerRecord()->isProcessing())
                         ->action(function (Collection $records) {
                             $count = $records->count();
                             $records->each->delete();
 
                             Notification::make()
                                 ->success()
-                                ->title("Aguinaldos eliminados")
-                                ->body('Se han eliminado ' . ($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos") . ' exitosamente.')
+                                ->title('Aguinaldos eliminados')
+                                ->body('Se han eliminado '.($count === 1 ? '1 aguinaldo' : "{$count} aguinaldos").' exitosamente.')
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -342,9 +347,6 @@ class AguinaldosRelationManager extends RelationManager
 
     /**
      * Configura la infolist para mostrar detalles adicionales de cada aguinaldo cuando se visualiza un registro.
-     *
-     * @param Infolist $infolist
-     * @return Infolist
      */
     public function infolist(Infolist $infolist): Infolist
     {
@@ -389,7 +391,7 @@ class AguinaldosRelationManager extends RelationManager
 
                             TextEntry::make('months_worked')
                                 ->label('Meses Trabajados')
-                                ->formatStateUsing(fn($state) => number_format($state, 0) . ' meses')
+                                ->formatStateUsing(fn ($state) => number_format($state, 0).' meses')
                                 ->icon('heroicon-o-calendar'),
                         ])->columns(2),
 
@@ -405,9 +407,9 @@ class AguinaldosRelationManager extends RelationManager
                             TextEntry::make('status')
                                 ->label('Estado de Pago')
                                 ->badge()
-                                ->formatStateUsing(fn(string $state) => Aguinaldo::getStatusLabel($state))
-                                ->color(fn(string $state) => Aguinaldo::getStatusColor($state))
-                                ->icon(fn(string $state) => Aguinaldo::getStatusIcon($state)),
+                                ->formatStateUsing(fn (string $state) => Aguinaldo::getStatusLabel($state))
+                                ->color(fn (string $state) => Aguinaldo::getStatusColor($state))
+                                ->icon(fn (string $state) => Aguinaldo::getStatusIcon($state)),
 
                             TextEntry::make('paid_at')
                                 ->label('Fecha de Pago')
@@ -425,10 +427,10 @@ class AguinaldosRelationManager extends RelationManager
 
                         TextEntry::make('pdf_path')
                             ->label('PDF Generado')
-                            ->formatStateUsing(fn($state) => $state ? 'Disponible' : 'No generado')
+                            ->formatStateUsing(fn ($state) => $state ? 'Disponible' : 'No generado')
                             ->badge()
-                            ->color(fn($state) => $state ? 'success' : 'gray')
-                            ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+                            ->color(fn ($state) => $state ? 'success' : 'gray')
+                            ->icon(fn ($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
                     ])
                     ->columns(2)
                     ->collapsed(),

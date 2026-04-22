@@ -255,6 +255,6 @@ class LoanInstallment extends Model
      */
     public function scopeForActiveLoan($query)
     {
-        return $query->whereHas('loan', fn ($q) => $q->where('status', 'active'));
+        return $query->whereHas('loan', fn ($q) => $q->where('status', 'approved'));
     }
 }

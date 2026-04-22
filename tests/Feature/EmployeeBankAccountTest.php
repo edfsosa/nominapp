@@ -36,11 +36,12 @@ function makeBankEmployee(): Employee
     Contract::create([
         'employee_id' => $employee->id,
         'position_id' => $position->id,
+        'department_id' => $department->id,
         'type' => 'indefinido',
         'salary_type' => 'mensual',
         'salary' => 3_000_000,
-        'payroll_type' => 'mensual',
-        'payment_method' => 'transferencia',
+        'payroll_type' => 'monthly',
+        'payment_method' => 'debit',
         'start_date' => now()->subYear(),
         'status' => 'active',
     ]);
@@ -195,10 +196,10 @@ it('una cuenta bancaria puede estar asociada a nóminas', function () {
 
     $period = PayrollPeriod::create([
         'name' => 'Abril 2026',
-        'frequency' => 'mensual',
+        'frequency' => 'monthly',
         'start_date' => '2026-04-01',
         'end_date' => '2026-04-30',
-        'status' => 'open',
+        'status' => 'draft',
     ]);
 
     Payroll::create([

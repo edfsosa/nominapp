@@ -11,13 +11,13 @@ use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -27,15 +27,20 @@ use Filament\Tables\Table;
 class VacationsRelationManager extends RelationManager
 {
     protected static string $relationship = 'vacations';
+
     protected static ?string $title = 'Vacaciones';
+
     protected static ?string $modelLabel = 'Vacación';
+
     protected static ?string $pluralModelLabel = 'Vacaciones';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Define el formulario para solicitar y editar vacaciones.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -47,7 +52,7 @@ class VacationsRelationManager extends RelationManager
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required()
-                    ->maxDate(fn(Get $get) => $get('end_date'))
+                    ->maxDate(fn (Get $get) => $get('end_date'))
                     ->helperText('Selecciona la fecha de inicio de las vacaciones')
                     ->live(),
 
@@ -57,7 +62,7 @@ class VacationsRelationManager extends RelationManager
                     ->closeOnDateSelection()
                     ->native(false)
                     ->required()
-                    ->minDate(fn(Get $get) => $get('start_date') ?: now())
+                    ->minDate(fn (Get $get) => $get('start_date') ?: now())
                     ->helperText('Selecciona la fecha de fin de las vacaciones')
                     ->live(),
 
@@ -92,9 +97,6 @@ class VacationsRelationManager extends RelationManager
 
     /**
      * Define la tabla de vacaciones con columnas, filtros y acciones.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -102,39 +104,39 @@ class VacationsRelationManager extends RelationManager
             ->columns([
                 TextColumn::make('period')
                     ->label('Período')
-                    ->state(fn(Vacation $record): string => $record->period_formatted)
-                    ->description(fn(Vacation $record): string => $record->days_description)
+                    ->state(fn (Vacation $record): string => $record->period_formatted)
+                    ->description(fn (Vacation $record): string => $record->days_description)
                     ->icon('heroicon-o-calendar-days')
                     ->sortable(['start_date', 'end_date'])
                     ->searchable(['start_date', 'end_date']),
 
                 TextColumn::make('type')
                     ->label('Tipo')
-                    ->formatStateUsing(fn(Vacation $record): string => $record->type_label)
+                    ->formatStateUsing(fn (Vacation $record): string => $record->type_label)
                     ->badge()
-                    ->color(fn(Vacation $record): string => $record->type_color)
-                    ->icon(fn(Vacation $record): string => $record->type_icon)
+                    ->color(fn (Vacation $record): string => $record->type_color)
+                    ->icon(fn (Vacation $record): string => $record->type_icon)
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(Vacation $record): string => $record->status_color)
-                    ->icon(fn(Vacation $record): string => $record->status_icon)
-                    ->formatStateUsing(fn(Vacation $record): string => $record->status_label)
+                    ->color(fn (Vacation $record): string => $record->status_color)
+                    ->icon(fn (Vacation $record): string => $record->status_icon)
+                    ->formatStateUsing(fn (Vacation $record): string => $record->status_label)
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('created_at_description')
                     ->label('Solicitado el')
-                    ->description(fn(Vacation $record): string => $record->created_at_since)
+                    ->description(fn (Vacation $record): string => $record->created_at_since)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('updated_at_description')
                     ->label('Última actualización')
-                    ->description(fn(Vacation $record): string => $record->updated_at_since)
+                    ->description(fn (Vacation $record): string => $record->updated_at_since)
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -152,11 +154,11 @@ class VacationsRelationManager extends RelationManager
 
                 Filter::make('upcoming')
                     ->label('Próximas vacaciones')
-                    ->query(fn($query) => $query->where('start_date', '>=', now())),
+                    ->query(fn ($query) => $query->where('start_date', '>=', now())),
 
                 Filter::make('past')
                     ->label('Vacaciones pasadas')
-                    ->query(fn($query) => $query->where('end_date', '<', now())),
+                    ->query(fn ($query) => $query->where('end_date', '<', now())),
             ])
             ->headerActions([
                 CreateAction::make()
@@ -171,13 +173,12 @@ class VacationsRelationManager extends RelationManager
                     ->label('Aprobar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn(Vacation $record) => $record->status === 'pending')
+                    ->visible(fn (Vacation $record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar solicitud de vacaciones')
                     ->modalDescription(
-                        fn(Vacation $record) =>
-                        'Se aprobarán ' . $record->days_description .
-                            ' de vacaciones del ' . $record->period_formatted
+                        fn (Vacation $record) => 'Se aprobarán '.$record->days_description.
+                            ' de vacaciones del '.$record->period_formatted
                     )
                     ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Vacation $record) {
@@ -194,7 +195,7 @@ class VacationsRelationManager extends RelationManager
                     ->label('Rechazar')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->visible(fn(Vacation $record) => $record->status === 'pending')
+                    ->visible(fn (Vacation $record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar solicitud de vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas rechazar esta solicitud de vacaciones?')
@@ -217,7 +218,7 @@ class VacationsRelationManager extends RelationManager
                 DeleteAction::make()
                     ->modalHeading('Eliminar vacaciones')
                     ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.')
-                    ->before(fn(Vacation $record) => VacationService::releaseOnDelete($record))
+                    ->before(fn (Vacation $record) => VacationService::releaseOnDelete($record))
                     ->successNotificationTitle('Vacaciones eliminadas'),
             ])
             ->bulkActions([
@@ -246,7 +247,7 @@ class VacationsRelationManager extends RelationManager
                             Notification::make()
                                 ->success()
                                 ->title('Vacaciones aprobadas')
-                                ->body("Se aprobaron {$approved} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->body("Se aprobaron {$approved} solicitudes.".($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -275,7 +276,7 @@ class VacationsRelationManager extends RelationManager
                             Notification::make()
                                 ->warning()
                                 ->title('Vacaciones rechazadas')
-                                ->body("Se rechazaron {$rejected} solicitudes." . ($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
+                                ->body("Se rechazaron {$rejected} solicitudes.".($skipped > 0 ? " Se omitieron {$skipped} que no estaban pendientes." : ''))
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
@@ -283,7 +284,7 @@ class VacationsRelationManager extends RelationManager
                     DeleteBulkAction::make()
                         ->modalHeading('Eliminar vacaciones')
                         ->modalDescription('¿Estás seguro de que deseas eliminar estas solicitudes? Esta acción no se puede deshacer.')
-                        ->before(fn($records) => $records->each(fn($record) => VacationService::releaseOnDelete($record))),
+                        ->before(fn ($records) => $records->each(fn ($record) => VacationService::releaseOnDelete($record))),
                 ]),
             ])
             ->defaultSort('start_date', 'desc')

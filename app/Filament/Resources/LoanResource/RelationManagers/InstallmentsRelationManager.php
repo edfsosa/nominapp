@@ -18,8 +18,15 @@ use pxlrbt\FilamentExcel\Exports\ExcelExport;
 class InstallmentsRelationManager extends RelationManager
 {
     protected static string $relationship = 'installments';
+
     protected static ?string $title = 'Cuotas';
+
     protected static ?string $recordTitleAttribute = 'installment_number';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     public function form(Form $form): Form
     {
@@ -43,9 +50,9 @@ class InstallmentsRelationManager extends RelationManager
 
                     TextEntry::make('status')
                         ->label('Estado')
-                        ->formatStateUsing(fn(string $state) => LoanInstallment::getStatusLabel($state))
-                        ->color(fn(string $state) => LoanInstallment::getStatusColor($state))
-                        ->icon(fn(string $state) => LoanInstallment::getStatusIcon($state))
+                        ->formatStateUsing(fn (string $state) => LoanInstallment::getStatusLabel($state))
+                        ->color(fn (string $state) => LoanInstallment::getStatusColor($state))
+                        ->icon(fn (string $state) => LoanInstallment::getStatusIcon($state))
                         ->badge(),
                 ])->columns(3),
 
@@ -91,15 +98,15 @@ class InstallmentsRelationManager extends RelationManager
                     ->label('Vencimiento')
                     ->date('d/m/Y')
                     ->sortable()
-                    ->color(fn(LoanInstallment $record) => $record->isOverdue() ? 'danger' : null)
-                    ->icon(fn(LoanInstallment $record) => $record->isOverdue() ? 'heroicon-o-exclamation-triangle' : null),
+                    ->color(fn (LoanInstallment $record) => $record->isOverdue() ? 'danger' : null)
+                    ->icon(fn (LoanInstallment $record) => $record->isOverdue() ? 'heroicon-o-exclamation-triangle' : null),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => LoanInstallment::getStatusLabel($state))
-                    ->color(fn(string $state): string => LoanInstallment::getStatusColor($state))
-                    ->icon(fn(string $state): string => LoanInstallment::getStatusIcon($state))
+                    ->formatStateUsing(fn (string $state) => LoanInstallment::getStatusLabel($state))
+                    ->color(fn (string $state): string => LoanInstallment::getStatusColor($state))
+                    ->icon(fn (string $state): string => LoanInstallment::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('paid_at')
@@ -123,7 +130,7 @@ class InstallmentsRelationManager extends RelationManager
                     ->exports([
                         ExcelExport::make()
                             ->fromTable()
-                            ->withFilename('cuotas_préstamo_' . $this->ownerRecord->id . '_' . now()->format('Y_m_d_H_i_s') . '.xlsx'),
+                            ->withFilename('cuotas_préstamo_'.$this->ownerRecord->id.'_'.now()->format('Y_m_d_H_i_s').'.xlsx'),
                     ])
                     ->label('Exportar a Excel')
                     ->color('info')
@@ -132,7 +139,7 @@ class InstallmentsRelationManager extends RelationManager
             ->defaultSort('installment_number', 'asc')
             ->paginated(false)
             ->emptyStateHeading('No hay cuotas asignadas a este préstamo')
-            ->emptyStateDescription('Las cuotas se generarán automáticamente al crear y activar el préstamo.')
+            ->emptyStateDescription('Las cuotas se generarán automáticamente al crear y aprobar el préstamo.')
             ->emptyStateIcon('heroicon-o-check-circle');
     }
 }

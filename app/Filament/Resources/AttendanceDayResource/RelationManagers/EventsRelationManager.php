@@ -21,15 +21,20 @@ use Filament\Tables\Table;
 class EventsRelationManager extends RelationManager
 {
     protected static string $relationship = 'events';
+
     protected static ?string $title = 'Marcaciones';
+
     protected static ?string $modelLabel = 'Marcación';
+
     protected static ?string $pluralModelLabel = 'Marcaciones';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Formulario para crear y editar marcaciones manualmente.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -53,9 +58,6 @@ class EventsRelationManager extends RelationManager
 
     /**
      * Infolist para ver el detalle de una marcación en modal.
-     *
-     * @param  Infolist $infolist
-     * @return Infolist
      */
     public function infolist(Infolist $infolist): Infolist
     {
@@ -67,43 +69,39 @@ class EventsRelationManager extends RelationManager
 
                 TextEntry::make('event_type')
                     ->label('Tipo de evento')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                    ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state)),
+                    ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                    ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state)),
 
                 TextEntry::make('source')
                     ->label('Canal')
                     ->badge()
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
-                    ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                    ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                    ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                    ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
 
                 TextEntry::make('recorded_at')
                     ->label('Fecha y hora')
-                    ->formatStateUsing(fn(AttendanceEvent $record) =>
-                        $record->recorded_at->format('d/m/Y H:i:s') . ' — ' . $record->recorded_at->diffForHumans()
+                    ->formatStateUsing(fn (AttendanceEvent $record) => $record->recorded_at->format('d/m/Y H:i:s').' — '.$record->recorded_at->diffForHumans()
                     ),
 
                 TextEntry::make('location_display')
                     ->label('Coordenadas')
-                    ->formatStateUsing(fn(AttendanceEvent $record) => $record->getFormattedLocation())
+                    ->formatStateUsing(fn (AttendanceEvent $record) => $record->getFormattedLocation())
                     ->icon('heroicon-o-map-pin')
-                    ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation()),
+                    ->visible(fn (AttendanceEvent $record) => $record->hasValidLocation()),
 
                 ViewEntry::make('location_map')
                     ->label('Ubicación en mapa')
                     ->view('filament.resources.attendance-event.location-map')
-                    ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation())
+                    ->visible(fn (AttendanceEvent $record) => $record->hasValidLocation())
                     ->columnSpanFull(),
             ]);
     }
 
     /**
      * Tabla de marcaciones del día con filtros y acciones de gestión.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -118,19 +116,19 @@ class EventsRelationManager extends RelationManager
 
                 TextColumn::make('event_type')
                     ->label('Tipo de Evento')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                    ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state))
+                    ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                    ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state))
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('source')
                     ->label('Canal')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                    ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
+                    ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                    ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('created_at')

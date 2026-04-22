@@ -11,7 +11,6 @@ use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Notifications\Notification;
-use Filament\Resources\Pages\ViewRecord;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
@@ -21,36 +20,31 @@ use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
-use Illuminate\Support\Carbon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 /** Gestiona las percepciones asignadas al empleado desde su vista de detalle. */
 class EmployeePerceptionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'employeePerceptions';
+
     protected static ?string $title = 'Percepciones';
+
     protected static ?string $modelLabel = 'Percepción';
+
     protected static ?string $pluralModelLabel = 'Percepciones';
 
-    /**
-     * Determina si la relación debe ser de solo lectura.
-     *
-     * @return boolean
-     */
-    public function isReadonly(): bool
+    public function isReadOnly(): bool
     {
-        return is_a($this->getPageClass(), ViewRecord::class, true);
+        return false;
     }
 
     /**
      * Define el formulario para crear/editar asignaciones de percepciones a empleados.
-     *
-     * @param Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -60,21 +54,20 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Percepción')
                     ->relationship(
                         name: 'perception',
-                        modifyQueryUsing: fn(Builder $query) => $query->where('is_active', true)->orderBy('name')
+                        modifyQueryUsing: fn (Builder $query) => $query->where('is_active', true)->orderBy('name')
                     )
                     ->getOptionLabelFromRecordUsing(
-                        fn(Model $record) =>
-                        $record->name . ' (' .
+                        fn (Model $record) => $record->name.' ('.
                             ($record->isFixed()
-                                ? '₲ ' . number_format($record->amount, 0, ',', '.')
-                                : $record->percent . '%'
-                            ) . ')'
+                                ? '₲ '.number_format($record->amount, 0, ',', '.')
+                                : $record->percent.'%'
+                            ).')'
                     )
                     ->required()
                     ->searchable()
                     ->preload()
                     ->live()
-                    ->afterStateUpdated(fn(Set $set) => $set('custom_amount', null))
+                    ->afterStateUpdated(fn (Set $set) => $set('custom_amount', null))
                     ->hiddenOn('edit')
                     ->helperText('Solo se pueden asignar percepciones que estén activas en el sistema.'),
 
@@ -86,7 +79,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->live()
                     ->closeOnDateSelection()
                     ->displayFormat('d/m/Y')
-                    ->maxDate(fn(Get $get) => $get('end_date') ?: null)
+                    ->maxDate(fn (Get $get) => $get('end_date') ?: null)
                     ->helperText('La fecha de inicio no puede ser posterior a la fecha de fin'),
 
                 DatePicker::make('end_date')
@@ -96,7 +89,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->live()
                     ->closeOnDateSelection()
                     ->displayFormat('d/m/Y')
-                    ->minDate(fn(Get $get) => $get('start_date') ?: null)
+                    ->minDate(fn (Get $get) => $get('start_date') ?: null)
                     ->helperText('Dejar vacío si la percepción no tiene fecha de fin'),
 
                 TextInput::make('custom_amount')
@@ -107,7 +100,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->maxValue(999999999)
                     ->step(1)
                     ->helperText('Dejar vacío para usar el monto configurado en la percepción')
-                    ->columnSpan(fn(string $operation) => $operation === 'edit' ? 2 : 1),
+                    ->columnSpan(fn (string $operation) => $operation === 'edit' ? 2 : 1),
 
                 Textarea::make('notes')
                     ->label('Notas')
@@ -120,14 +113,11 @@ class EmployeePerceptionsRelationManager extends RelationManager
 
     /**
      * Define la tabla para listar las percepciones asignadas a un empleado.
-     *
-     * @param Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->with('perception'))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('perception'))
             ->columns([
                 TextColumn::make('perception.code')
                     ->label('Código')
@@ -147,13 +137,13 @@ class EmployeePerceptionsRelationManager extends RelationManager
 
                 TextColumn::make('perception.calculation')
                     ->label('Tipo')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
                         'fixed' => 'Fijo',
                         'percentage' => 'Porcentaje',
                         default => $state,
                     })
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'fixed' => 'primary',
                         'percentage' => 'gray',
                         default => 'gray',
@@ -164,14 +154,15 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Monto')
                     ->getStateUsing(function ($record) {
                         if ($record->custom_amount !== null) {
-                            return '₲ ' . number_format($record->custom_amount, 0, ',', '.');
+                            return '₲ '.number_format($record->custom_amount, 0, ',', '.');
                         } elseif ($record->perception->isPercentage()) {
-                            return $record->perception->percent . '%';
+                            return $record->perception->percent.'%';
                         }
-                        return '₲ ' . number_format($record->perception->amount, 0, ',', '.');
+
+                        return '₲ '.number_format($record->perception->amount, 0, ',', '.');
                     })
                     ->badge()
-                    ->color(fn($record) => $record->custom_amount !== null ? 'warning' : 'gray'),
+                    ->color(fn ($record) => $record->custom_amount !== null ? 'warning' : 'gray'),
 
                 TextColumn::make('start_date')
                     ->label('Desde')
@@ -205,16 +196,16 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Estado')
                     ->placeholder('Todos')
                     ->options([
-                        'active'   => 'Activo',
-                        'pending'  => 'Pendiente',
+                        'active' => 'Activo',
+                        'pending' => 'Pendiente',
                         'inactive' => 'Inactivo',
                     ])
                     ->native(false)
-                    ->query(fn(Builder $query, array $data) => match ($data['value'] ?? null) {
-                        'active'   => $query->active(),
-                        'pending'  => $query->pending(),
+                    ->query(fn (Builder $query, array $data) => match ($data['value'] ?? null) {
+                        'active' => $query->active(),
+                        'pending' => $query->pending(),
                         'inactive' => $query->inactive(),
-                        default    => $query,
+                        default => $query,
                     }),
             ])
             ->headerActions([
@@ -225,7 +216,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                         $hasActive = EmployeePerception::where('employee_id', $this->getOwnerRecord()->id)
                             ->where('perception_id', $data['perception_id'])
                             ->where('start_date', '<=', now())
-                            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
                             ->exists();
 
                         if ($hasActive) {
@@ -245,7 +236,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Remover')
                     ->icon('heroicon-o-x-circle')
                     ->color('warning')
-                    ->visible(fn($record) => !$this->isReadonly() && $record->isActive())
+                    ->visible(fn ($record) => ! $this->isReadonly() && $record->isActive())
                     ->modalHeading('Remover Percepción del Empleado')
                     ->modalDescription('Confirmá la fecha hasta la cual aplica esta percepción para el empleado.')
                     ->modalSubmitActionLabel('Sí, remover')
@@ -280,7 +271,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->label('Reactivar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->visible(fn($record) => !$this->isReadonly() && !$record->isActive())
+                    ->visible(fn ($record) => ! $this->isReadonly() && ! $record->isActive())
                     ->modalHeading('Reactivar Percepción')
                     ->modalDescription('Confirmá la fecha desde la cual se reactiva esta percepción para el empleado.')
                     ->modalSubmitActionLabel('Sí, reactivar')
@@ -306,7 +297,7 @@ class EmployeePerceptionsRelationManager extends RelationManager
                             ->where('perception_id', $record->perception_id)
                             ->where('id', '!=', $record->id)
                             ->where('start_date', '<=', now())
-                            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
                             ->exists();
 
                         if ($hasActive) {
@@ -315,11 +306,12 @@ class EmployeePerceptionsRelationManager extends RelationManager
                                 ->title('No se puede reactivar')
                                 ->body('Este empleado ya tiene una asignación activa para esta percepción.')
                                 ->send();
+
                             return;
                         }
 
                         $startDate = Carbon::parse($data['start_date']);
-                        $endDate   = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
+                        $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
 
                         if ($record->reactivate($startDate, $endDate)) {
                             $body = $endDate
@@ -421,14 +413,15 @@ class EmployeePerceptionsRelationManager extends RelationManager
                                 ->helperText('Opcional: dejar vacío si no tiene fecha de fin definida'),
                         ])
                         ->action(function ($records, array $data) {
-                            $startDate   = Carbon::parse($data['start_date']);
-                            $endDate     = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
+                            $startDate = Carbon::parse($data['start_date']);
+                            $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
                             $reactivated = 0;
-                            $skipped     = 0;
+                            $skipped = 0;
 
                             foreach ($records as $record) {
                                 if ($record->isActive()) {
                                     $skipped++;
+
                                     continue;
                                 }
 
@@ -436,11 +429,12 @@ class EmployeePerceptionsRelationManager extends RelationManager
                                     ->where('perception_id', $record->perception_id)
                                     ->where('id', '!=', $record->id)
                                     ->where('start_date', '<=', now())
-                                    ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                    ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
                                     ->exists();
 
                                 if ($hasActive) {
                                     $skipped++;
+
                                     continue;
                                 }
 

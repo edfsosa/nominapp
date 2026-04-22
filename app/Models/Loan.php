@@ -11,9 +11,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Préstamo otorgado a un empleado, pagadero en cuotas mensuales.
  *
- * Ciclo de vida: pending → activate() → active → [todas las cuotas pagadas] → paid
- *               active → markAsDefaulted() → defaulted → reactivate() → active
- *               pending/active/defaulted → cancel() → cancelled
+ * Ciclo de vida: pending → approve() → approved → [todas las cuotas pagadas] → paid
+ *               pending → reject()  → rejected
+ *               pending/approved    → cancel()  → cancelled
  *
  * Las cuotas se generan con amortización francesa: cuota fija con desglose
  * de capital e interés por período. Con tasa 0%, todas las cuotas son iguales
@@ -27,6 +27,7 @@ class Loan extends Model
         'interest_rate',
         'installments_count',
         'installment_amount',
+        'first_installment_days',
         'outstanding_balance',
         'status',
         'reason',
@@ -40,6 +41,7 @@ class Loan extends Model
         'interest_rate' => 'decimal:2',
         'installment_amount' => 'decimal:2',
         'outstanding_balance' => 'decimal:2',
+        'first_installment_days' => 'integer',
         'granted_at' => 'date',
     ];
 
@@ -76,10 +78,10 @@ class Loan extends Model
     {
         return match ($status) {
             'pending' => 'Pendiente',
-            'active' => 'Activo',
+            'approved' => 'Aprobado',
             'paid' => 'Pagado',
+            'rejected' => 'Rechazado',
             'cancelled' => 'Cancelado',
-            'defaulted' => 'En Mora',
             default => 'Desconocido',
         };
     }
@@ -91,10 +93,10 @@ class Loan extends Model
     {
         return match ($status) {
             'pending' => 'warning',
-            'active' => 'info',
+            'approved' => 'info',
             'paid' => 'success',
+            'rejected' => 'danger',
             'cancelled' => 'gray',
-            'defaulted' => 'danger',
             default => 'gray',
         };
     }
@@ -106,10 +108,10 @@ class Loan extends Model
     {
         return match ($status) {
             'pending' => 'heroicon-o-clock',
-            'active' => 'heroicon-o-play',
+            'approved' => 'heroicon-o-check-badge',
             'paid' => 'heroicon-o-check-circle',
-            'cancelled' => 'heroicon-o-x-circle',
-            'defaulted' => 'heroicon-o-exclamation-triangle',
+            'rejected' => 'heroicon-o-x-circle',
+            'cancelled' => 'heroicon-o-minus-circle',
             default => 'heroicon-o-question-mark-circle',
         };
     }
@@ -123,10 +125,10 @@ class Loan extends Model
     {
         return [
             'pending' => 'Pendiente',
-            'active' => 'Activo',
+            'approved' => 'Aprobado',
             'paid' => 'Pagado',
+            'rejected' => 'Rechazado',
             'cancelled' => 'Cancelado',
-            'defaulted' => 'En Mora',
         ];
     }
 
@@ -134,29 +136,34 @@ class Loan extends Model
     // VERIFICADORES DE ESTADO
     // =========================================================================
 
+    /** Verifica si el préstamo está pendiente de aprobación. */
     public function isPending(): bool
     {
         return $this->status === 'pending';
     }
 
-    public function isActive(): bool
+    /** Verifica si el préstamo está aprobado y en curso de cobro. */
+    public function isApproved(): bool
     {
-        return $this->status === 'active';
+        return $this->status === 'approved';
     }
 
+    /** Verifica si el préstamo fue completamente pagado. */
     public function isPaid(): bool
     {
         return $this->status === 'paid';
     }
 
+    /** Verifica si el préstamo fue rechazado. */
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
+    }
+
+    /** Verifica si el préstamo fue cancelado. */
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
-    }
-
-    public function isDefaulted(): bool
-    {
-        return $this->status === 'defaulted';
     }
 
     // =========================================================================
@@ -237,22 +244,31 @@ class Loan extends Model
      */
     public function calculatePmt(): float
     {
-        $principal = (float) $this->amount;
-        $n = (int) $this->installments_count;
-        $annualRate = (float) $this->interest_rate;
+        return static::computePmt((float) $this->amount, (int) $this->installments_count, (float) $this->interest_rate);
+    }
 
+    /**
+     * Fórmula PMT estática reutilizable desde formularios Filament sin instanciar el modelo.
+     *
+     * @param  float  $principal  Monto del préstamo.
+     * @param  int  $n  Cantidad de cuotas.
+     * @param  float  $annualRate  Tasa de interés anual en porcentaje (ej: 3.0 para 3%).
+     * @return float Cuota mensual redondeada a 2 decimales.
+     */
+    public static function computePmt(float $principal, int $n, float $annualRate): float
+    {
         if ($n === 0) {
             return 0.0;
         }
 
         if ($annualRate <= 0) {
-            return round($principal / $n, 2);
+            return round($principal / $n, 0);
         }
 
-        $r = ($annualRate / 100) / 12; // Tasa mensual
+        $r = ($annualRate / 100) / 12;
         $pmt = $principal * $r * pow(1 + $r, $n) / (pow(1 + $r, $n) - 1);
 
-        return round($pmt, 2);
+        return round($pmt, 0);
     }
 
     // =========================================================================
@@ -309,7 +325,7 @@ class Loan extends Model
 
         DB::transaction(function () use ($grantedById, $pmt, $startDate) {
             $this->update([
-                'status' => 'active',
+                'status' => 'approved',
                 'granted_at' => now(),
                 'granted_by_id' => $grantedById,
                 'installment_amount' => $pmt,
@@ -328,6 +344,39 @@ class Loan extends Model
     }
 
     /**
+     * Rechaza la solicitud de préstamo.
+     *
+     * Solo aplica a préstamos en estado pendiente.
+     *
+     * @param  string|null  $reason  Motivo del rechazo.
+     * @return array{success: bool, message: string}
+     */
+    public function reject(?string $reason = null): array
+    {
+        if (! $this->isPending()) {
+            return [
+                'success' => false,
+                'message' => 'Solo se pueden rechazar préstamos en estado Pendiente.',
+            ];
+        }
+
+        $notes = $this->notes;
+        if ($reason) {
+            $notes = $notes ? "{$notes}\n\nRechazo: {$reason}" : "Rechazo: {$reason}";
+        }
+
+        $this->update([
+            'status' => 'rejected',
+            'notes' => $notes,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => 'El préstamo ha sido rechazado.',
+        ];
+    }
+
+    /**
      * Cancela el préstamo.
      *
      * Las cuotas ya pagadas se conservan; solo se cancelan las pendientes.
@@ -337,7 +386,7 @@ class Loan extends Model
      */
     public function cancel(?string $reason = null): array
     {
-        if ($this->isPaid() || $this->isCancelled()) {
+        if ($this->isPaid() || $this->isCancelled() || $this->isRejected()) {
             return [
                 'success' => false,
                 'message' => 'No se puede cancelar un préstamo en este estado.',
@@ -366,76 +415,13 @@ class Loan extends Model
     }
 
     /**
-     * Marca el préstamo como en mora.
-     *
-     * Las cuotas pendientes se conservan para cobro posterior.
-     * Solo aplica a préstamos activos.
-     *
-     * @param  string|null  $reason  Motivo de la mora.
-     * @return array{success: bool, message: string}
-     */
-    public function markAsDefaulted(?string $reason = null): array
-    {
-        if (! $this->isActive()) {
-            return [
-                'success' => false,
-                'message' => 'Solo se pueden marcar como en mora los préstamos activos.',
-            ];
-        }
-
-        $notes = $this->notes;
-        if ($reason) {
-            $notes = $notes ? "{$notes}\n\nMora: {$reason}" : "Mora: {$reason}";
-        }
-
-        $this->update([
-            'status' => 'defaulted',
-            'notes' => $notes,
-        ]);
-
-        return [
-            'success' => true,
-            'message' => 'El préstamo fue marcado como en mora.',
-        ];
-    }
-
-    /**
-     * Reactiva un préstamo en mora para continuar el cobro de cuotas pendientes.
-     *
-     * @return array{success: bool, message: string}
-     */
-    public function reactivate(): array
-    {
-        if (! $this->isDefaulted()) {
-            return [
-                'success' => false,
-                'message' => 'Solo se pueden reactivar préstamos en mora.',
-            ];
-        }
-
-        if ($this->pending_installments_count === 0) {
-            return [
-                'success' => false,
-                'message' => 'No hay cuotas pendientes para reactivar.',
-            ];
-        }
-
-        $this->update(['status' => 'active']);
-
-        return [
-            'success' => true,
-            'message' => "Préstamo reactivado. Continúa con {$this->pending_installments_count} cuota(s) pendiente(s).",
-        ];
-    }
-
-    /**
      * Verifica si todas las cuotas están pagadas y cierra el préstamo.
      *
      * Llamado por LoanInstallmentCalculator::markInstallmentsAsPaid().
      */
     public function checkIfPaid(): void
     {
-        if ($this->isActive() && $this->pending_installments_count === 0) {
+        if ($this->isApproved() && $this->pending_installments_count === 0) {
             $this->update([
                 'status' => 'paid',
                 'outstanding_balance' => 0,
@@ -471,38 +457,7 @@ class Loan extends Model
      */
     protected function calculateNextPayrollDate(): Carbon
     {
-        $now = Carbon::now();
-        $payrollType = $this->employee->activeContract?->payroll_type ?? 'monthly';
-
-        return match ($payrollType) {
-            'weekly' => $this->getNextMonday($now),
-            'biweekly' => $this->getNextBiweeklyDate($now),
-            default => $now->copy()->addMonth()->endOfMonth(),
-        };
-    }
-
-    /**
-     * Retorna el próximo lunes desde una fecha dada.
-     */
-    protected function getNextMonday(Carbon $from): Carbon
-    {
-        $next = $from->copy();
-
-        return $next->isMonday()
-            ? $next->addWeek()->startOfDay()
-            : $next->next(Carbon::MONDAY)->startOfDay();
-    }
-
-    /**
-     * Retorna la próxima fecha quincenal (día 16 o 1° del mes siguiente).
-     */
-    protected function getNextBiweeklyDate(Carbon $from): Carbon
-    {
-        $next = $from->copy();
-
-        return $next->day < 16
-            ? $next->day(16)->startOfDay()
-            : $next->addMonth()->startOfMonth();
+        return Carbon::now()->addDays($this->first_installment_days);
     }
 
     /**
@@ -579,14 +534,14 @@ class Loan extends Model
     }
 
     /**
-     * Filtra préstamos activos.
+     * Filtra préstamos aprobados (en curso de cobro).
      *
      * @param  \Illuminate\Database\Eloquent\Builder  $query
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function scopeActive($query)
+    public function scopeApproved($query)
     {
-        return $query->where('status', 'active');
+        return $query->where('status', 'approved');
     }
 
     /**
@@ -621,7 +576,7 @@ class Loan extends Model
     public static function getActiveForEmployee(int $employeeId): ?self
     {
         return static::where('employee_id', $employeeId)
-            ->whereIn('status', ['pending', 'active'])
+            ->whereIn('status', ['pending', 'approved'])
             ->first();
     }
 
@@ -631,7 +586,7 @@ class Loan extends Model
     public static function getTotalActiveDebtForEmployee(int $employeeId): float
     {
         return (float) static::where('employee_id', $employeeId)
-            ->whereIn('status', ['active', 'defaulted'])
+            ->where('status', 'approved')
             ->sum('outstanding_balance');
     }
 

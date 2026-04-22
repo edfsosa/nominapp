@@ -97,15 +97,15 @@ function makeLoanPeriod(int $month = 3): PayrollPeriod
 }
 
 /**
- * Crea un Loan activo para el empleado.
+ * Crea un Loan para el empleado.
  *
- * @param  string  $status  'active' | 'paid' | 'cancelled' | 'defaulted'
+ * @param  string  $status  'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled'
  */
 function makeLoan(
     Employee $employee,
     int $installmentsCount = 6,
     int $installmentAmount = 500_000,
-    string $status = 'active',
+    string $status = 'approved',
 ): Loan {
     return Loan::create([
         'employee_id' => $employee->id,
@@ -216,7 +216,7 @@ it('excluye cuotas con due_date fuera del período', function () {
     expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('excluye cuotas de préstamos inactivos (cancelled, paid)', function () {
+it('excluye cuotas de préstamos no aprobados (cancelled, paid, rejected)', function () {
     seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period = makeLoanPeriod();
@@ -232,17 +232,17 @@ it('excluye cuotas de préstamos inactivos (cancelled, paid)', function () {
     expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('incluye cuotas de préstamos defaulted', function () {
+it('excluye cuotas de préstamos rechazados', function () {
     seedLoanDeductions();
     $employee = makeLoanEmployee();
     $period = makeLoanPeriod();
-    $defaulted = makeLoan($employee, status: 'defaulted');
-    makeLoanInstallment($defaulted, 1, '2026-03-15');
+    $rejected = makeLoan($employee, status: 'rejected');
+    makeLoanInstallment($rejected, 1, '2026-03-15');
 
     $result = app(LoanInstallmentCalculator::class)->calculate($employee, $period);
 
-    expect($result['installments'])->toHaveCount(1);
-    expect(EmployeeDeduction::count())->toBe(1);
+    expect($result['installments'])->toBeEmpty();
+    expect(EmployeeDeduction::count())->toBe(0);
 });
 
 it('excluye cuotas de préstamos de otro empleado', function () {
@@ -348,5 +348,5 @@ it('no cierra el préstamo si aún quedan cuotas pendientes', function () {
 
     app(LoanInstallmentCalculator::class)->markInstallmentsAsPaid([$inst1->id]);
 
-    expect($loan->fresh()->status)->toBe('active');
+    expect($loan->fresh()->status)->toBe('approved');
 });

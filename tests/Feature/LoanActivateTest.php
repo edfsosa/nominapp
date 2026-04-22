@@ -95,12 +95,12 @@ function getAdminUser(): User
 it('falla si el préstamo no está pendiente', function () {
     $employee = makeActivateEmployee();
     $loan = makePendingLoan($employee);
-    $loan->update(['status' => 'active']);
+    $loan->update(['status' => 'approved']);
 
     $result = $loan->activate(getAdminUser()->id);
 
     expect($result['success'])->toBeFalse()
-        ->and($result['message'])->toContain('pendientes');
+        ->and($result['message'])->toContain('Pendiente');
 });
 
 it('falla si el empleado no tiene contrato activo', function () {
@@ -185,7 +185,7 @@ it('activa el préstamo y genera las cuotas correctamente', function () {
     expect($result['success'])->toBeTrue();
 
     $loan->refresh();
-    expect($loan->status)->toBe('active')
+    expect($loan->status)->toBe('approved')
         ->and($loan->granted_at)->not->toBeNull()
         ->and($loan->granted_by_id)->toBe(getAdminUser()->id)
         ->and($loan->installments()->count())->toBe(4)
@@ -207,10 +207,10 @@ it('la suma de cuotas generadas es igual al monto total del préstamo', function
 
 it('calcula el installment_amount usando PMT al activar con tasa de interés', function () {
     // P=1.000.000, tasa anual=12% (r=1% mensual), n=12
-    // PMT = 1.000.000 × 0,01 × (1,01)^12 / ((1,01)^12 - 1) ≈ 88.848,79
+    // PMT = 1.000.000 × 0,01 × (1,01)^12 / ((1,01)^12 - 1) ≈ 88.848,79 → redondeado a entero = 88.849
     $employee = makeActivateEmployee(salary: 2_550_000);
     $loan = makePendingLoan($employee, amount: 1_000_000, installmentsCount: 12, interestRate: 12.0);
-    $expectedPmt = round(1_000_000 * 0.01 * pow(1.01, 12) / (pow(1.01, 12) - 1), 2);
+    $expectedPmt = round(1_000_000 * 0.01 * pow(1.01, 12) / (pow(1.01, 12) - 1), 0);
 
     $result = $loan->activate(getAdminUser()->id);
 

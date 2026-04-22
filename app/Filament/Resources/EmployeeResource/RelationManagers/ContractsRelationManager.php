@@ -43,6 +43,11 @@ class ContractsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'Contratos';
 
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     /**
      * Define el formulario para crear y editar contratos.
      */

@@ -21,9 +21,17 @@ use Filament\Tables\Table;
 class PositionsRelationManager extends RelationManager
 {
     protected static string $relationship = 'positions';
+
     protected static ?string $title = 'Cargos';
+
     protected static ?string $modelLabel = 'cargo';
+
     protected static ?string $pluralModelLabel = 'cargos';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     public function form(Form $form): Form
     {
@@ -37,8 +45,8 @@ class PositionsRelationManager extends RelationManager
                     ->unique(
                         table: 'positions',
                         column: 'name',
-                        ignorable: fn($record) => $record,
-                        modifyRuleUsing: fn($rule, $component) => $rule->where('department_id', $component->getLivewire()->ownerRecord->id)
+                        ignorable: fn ($record) => $record,
+                        modifyRuleUsing: fn ($rule, $component) => $rule->where('department_id', $component->getLivewire()->ownerRecord->id)
                     )
                     ->columnSpanFull(),
             ]);
@@ -73,7 +81,7 @@ class PositionsRelationManager extends RelationManager
             ])
             ->filters([
                 Filter::make('con_empleados')
-                    ->query(fn($query) => $query->has('employees'))
+                    ->query(fn ($query) => $query->has('employees'))
                     ->label('Con empleados asignados'),
             ])
             ->headerActions([
@@ -86,9 +94,9 @@ class PositionsRelationManager extends RelationManager
                 ViewAction::make('viewEmployees')
                     ->label('Ver empleados')
                     ->icon('heroicon-o-users')
-                    ->modalHeading(fn($record) => "Empleados en: {$record->name}")
+                    ->modalHeading(fn ($record) => "Empleados en: {$record->name}")
                     ->infolist(
-                        fn(Infolist $infolist) => $infolist
+                        fn (Infolist $infolist) => $infolist
                             ->schema([
                                 RepeatableEntry::make('employees')
                                     ->label('')
@@ -107,7 +115,7 @@ class PositionsRelationManager extends RelationManager
                     )
                     ->modalWidth('6xl')
                     ->color('info')
-                    ->visible(fn($record) => $record->employees_count > 0),
+                    ->visible(fn ($record) => $record->employees_count > 0),
                 EditAction::make()
                     ->successNotificationTitle('Cargo actualizado exitosamente'),
                 DeleteAction::make()

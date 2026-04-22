@@ -36,14 +36,14 @@ class ProductionSeeder extends Seeder
 
     private function createAdminUser(): void
     {
-        $email    = env('ADMIN_EMAIL', 'admin@example.com');
-        $name     = env('ADMIN_NAME', 'Administrador');
+        $email = env('ADMIN_EMAIL', 'admin@example.com');
+        $name = env('ADMIN_NAME', 'Administrador');
         $password = env('ADMIN_PASSWORD') ?: Str::random(12);
 
         $user = User::firstOrCreate(
             ['email' => $email],
             [
-                'name'     => $name,
+                'name' => $name,
                 'password' => bcrypt($password),
             ]
         );
@@ -68,47 +68,60 @@ class ProductionSeeder extends Seeder
         $deductions = [
             // ── Deducciones legales obligatorias ──────────────────────────────
             [
-                'name'                => 'Aporte IPS',
-                'code'                => 'IPS001',
-                'type'                => 'legal',
-                'description'         => 'Aporte al Instituto de Previsión Social (9% del salario)',
-                'calculation'         => 'percentage',
-                'amount'              => null,
-                'percent'             => 9.00,
-                'is_mandatory'        => true,
-                'affects_irp'         => true,
-                'apply_judicial_limit'=> false,
-                'is_active'           => true,
+                'name' => 'Aporte IPS',
+                'code' => 'IPS001',
+                'type' => 'legal',
+                'description' => 'Aporte al Instituto de Previsión Social (9% del salario)',
+                'calculation' => 'percentage',
+                'amount' => null,
+                'percent' => 9.00,
+                'is_mandatory' => true,
+                'affects_irp' => true,
+                'apply_judicial_limit' => false,
+                'is_active' => true,
             ],
 
             // ── Deducciones del sistema — Préstamos y Adelantos ───────────────
             // Usadas internamente por LoanInstallmentCalculator.
             // El monto real viene del custom_amount del EmployeeDeduction (cuota específica).
             [
-                'name'                => 'Cuota de Préstamo',
-                'code'                => 'PRE001',
-                'type'                => 'loan',
-                'description'         => 'Descuento de cuota de préstamo otorgado por el empleador. El monto se fija por cuota individual.',
-                'calculation'         => 'fixed',
-                'amount'              => null,
-                'percent'             => null,
-                'is_mandatory'        => false,
-                'affects_irp'         => false,
-                'apply_judicial_limit'=> false,
-                'is_active'           => true,
+                'name' => 'Cuota de Préstamo',
+                'code' => 'PRE001',
+                'type' => 'loan',
+                'description' => 'Descuento de cuota de préstamo otorgado por el empleador. El monto se fija por cuota individual.',
+                'calculation' => 'fixed',
+                'amount' => null,
+                'percent' => null,
+                'is_mandatory' => false,
+                'affects_irp' => false,
+                'apply_judicial_limit' => false,
+                'is_active' => true,
             ],
             [
-                'name'                => 'Cuota de Adelanto de Salario',
-                'code'                => 'ADE001',
-                'type'                => 'loan',
-                'description'         => 'Descuento de adelanto de salario (hasta 50% del salario del período). El monto se fija por cuota individual.',
-                'calculation'         => 'fixed',
-                'amount'              => null,
-                'percent'             => null,
-                'is_mandatory'        => false,
-                'affects_irp'         => false,
-                'apply_judicial_limit'=> false,
-                'is_active'           => true,
+                'name' => 'Cuota de Adelanto de Salario',
+                'code' => 'ADE001',
+                'type' => 'loan',
+                'description' => 'Descuento de adelanto de salario (hasta 50% del salario del período). El monto se fija por cuota individual.',
+                'calculation' => 'fixed',
+                'amount' => null,
+                'percent' => null,
+                'is_mandatory' => false,
+                'affects_irp' => false,
+                'apply_judicial_limit' => false,
+                'is_active' => true,
+            ],
+            [
+                'name' => 'Cuota de Retiro de Mercadería',
+                'code' => 'MER001',
+                'type' => 'loan',
+                'description' => 'Descuento de cuota por retiro de mercadería a crédito. El monto se fija por cuota individual.',
+                'calculation' => 'fixed',
+                'amount' => null,
+                'percent' => null,
+                'is_mandatory' => false,
+                'affects_irp' => false,
+                'apply_judicial_limit' => false,
+                'is_active' => true,
             ],
         ];
 
@@ -122,7 +135,7 @@ class ProductionSeeder extends Seeder
             );
         }
 
-        $this->command->info('Deducciones sembradas: IPS (9%), PRE001, ADE001.');
+        $this->command->info('Deducciones sembradas: IPS (9%), PRE001, ADE001, MER001.');
     }
 
     private function printChecklist(): void

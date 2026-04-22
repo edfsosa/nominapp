@@ -18,7 +18,7 @@ return new class extends Migration
             $table->decimal('amount', 12, 2); // Monto total del préstamo
             $table->unsignedInteger('installments_count')->default(1); // Número de cuotas
             $table->decimal('installment_amount', 12, 2); // Monto de cada cuota
-            $table->enum('status', ['pending', 'active', 'paid', 'cancelled', 'defaulted'])->default('pending');
+            $table->enum('status', ['pending', 'approved', 'paid', 'rejected', 'cancelled'])->default('pending');
             $table->text('reason')->nullable(); // Motivo del préstamo/adelanto
             $table->date('granted_at')->nullable(); // Fecha de otorgamiento
             $table->foreignId('granted_by_id')->nullable()->constrained('users')->nullOnDelete();

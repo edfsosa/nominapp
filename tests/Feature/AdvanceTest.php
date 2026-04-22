@@ -85,6 +85,7 @@ function makeAdvPayroll(Employee $employee, PayrollPeriod $period): Payroll
         'employee_id' => $employee->id,
         'payroll_period_id' => $period->id,
         'status' => 'draft',
+        'base_salary' => 2_550_000,
         'gross_salary' => 2_550_000,
         'net_salary' => 2_550_000,
         'total_deductions' => 0,

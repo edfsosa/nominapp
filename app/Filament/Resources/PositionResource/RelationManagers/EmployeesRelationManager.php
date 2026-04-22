@@ -21,9 +21,17 @@ use pxlrbt\FilamentExcel\Exports\ExcelExport;
 class EmployeesRelationManager extends RelationManager
 {
     protected static string $relationship = 'employees';
+
     protected static ?string $title = 'Empleados';
+
     protected static ?string $modelLabel = 'empleado';
+
     protected static ?string $pluralModelLabel = 'empleados';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     public function table(Table $table): Table
     {
@@ -37,8 +45,8 @@ class EmployeesRelationManager extends RelationManager
 
                 TextColumn::make('full_name')
                     ->label('Nombre completo')
-                    ->getStateUsing(fn(Employee $record) => $record->first_name . ' ' . $record->last_name)
-                    ->description(fn(Employee $record) => 'CI: ' . $record->ci)
+                    ->getStateUsing(fn (Employee $record) => $record->first_name.' '.$record->last_name)
+                    ->description(fn (Employee $record) => 'CI: '.$record->ci)
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->sortable()
                     ->weight('medium'),
@@ -51,22 +59,22 @@ class EmployeesRelationManager extends RelationManager
 
                 TextColumn::make('phone')
                     ->label('Teléfono')
-                    ->formatStateUsing(fn($state) => $state ? '+595 ' . $state : null)
+                    ->formatStateUsing(fn ($state) => $state ? '+595 '.$state : null)
                     ->icon('heroicon-o-phone')
-                    ->url(fn(Employee $record) => $record->phone ? 'https://api.whatsapp.com/send?phone=595' . $record->phone : null)
+                    ->url(fn (Employee $record) => $record->phone ? 'https://api.whatsapp.com/send?phone=595'.$record->phone : null)
                     ->openUrlInNewTab()
                     ->placeholder('Sin teléfono'),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn($state) => match ($state) {
+                    ->color(fn ($state) => match ($state) {
                         'active' => 'success',
                         'inactive' => 'danger',
                         'suspended' => 'warning',
                         default => 'gray',
                     })
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'active' => 'Activo',
                         'inactive' => 'Inactivo',
                         'suspended' => 'Suspendido',
@@ -96,7 +104,7 @@ class EmployeesRelationManager extends RelationManager
                         ExcelExport::make()
                             ->fromTable()
                             ->except(['photo', 'face_descriptor'])
-                            ->withFilename('empleados_cargo_' . now()->format('d_m_Y_H_i_s'))
+                            ->withFilename('empleados_cargo_'.now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
                     ->label('Exportar a Excel')
@@ -112,7 +120,7 @@ class EmployeesRelationManager extends RelationManager
                         ExcelExport::make()
                             ->fromTable()
                             ->except(['photo', 'face_descriptor'])
-                            ->withFilename('empleados_cargo_' . now()->format('d_m_Y_H_i_s'))
+                            ->withFilename('empleados_cargo_'.now()->format('d_m_Y_H_i_s'))
                             ->withWriterType(Excel::XLSX),
                     ])
                     ->label('Exportar a Excel')
@@ -163,13 +171,13 @@ class EmployeesRelationManager extends RelationManager
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn($state) => match ($state) {
+                                ->color(fn ($state) => match ($state) {
                                     'active' => 'success',
                                     'inactive' => 'danger',
                                     'suspended' => 'warning',
                                     default => 'gray',
                                 })
-                                ->formatStateUsing(fn($state) => match ($state) {
+                                ->formatStateUsing(fn ($state) => match ($state) {
                                     'active' => 'Activo',
                                     'inactive' => 'Inactivo',
                                     'suspended' => 'Suspendido',

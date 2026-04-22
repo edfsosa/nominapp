@@ -61,7 +61,7 @@ class LiquidacionService
             // ===== COMPONENTE 1: PREAVISO =====
             $preavisoDays = 0;
             $preavisoAmount = 0;
-            if (!$inTrialPeriod && Liquidacion::includesPreaviso($liquidacion->termination_type) && !$liquidacion->preaviso_otorgado) {
+            if (! $inTrialPeriod && Liquidacion::includesPreaviso($liquidacion->termination_type) && ! $liquidacion->preaviso_otorgado) {
                 $preavisoDays = $this->calculatePreavisoDays($yearsOfService);
                 if ($preavisoDays > 0) {
                     $preavisoAmount = round($preavisoDays * $dailySalary, 0);
@@ -80,7 +80,7 @@ class LiquidacionService
             // ===== COMPONENTE 2: INDEMNIZACIÓN =====
             $indemnizacionAmount = 0;
             $indemnizacionEstabilidadAmount = 0;
-            if (!$inTrialPeriod && Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
+            if (! $inTrialPeriod && Liquidacion::includesIndemnizacion($liquidacion->termination_type)) {
                 $indemnizacionAmount = $this->calculateIndemnizacion($yearsOfService, $monthsOfService, $averageSalary6m);
                 if ($indemnizacionAmount > 0) {
                     $totalHaberes += $indemnizacionAmount;
@@ -89,16 +89,16 @@ class LiquidacionService
                     $remainingMonths = $monthsOfService % 12;
                     $units = $yearsOfService + ($remainingMonths > 6 ? 1 : 0);
                     $items[] = [
-                        'type'     => 'haber',
+                        'type' => 'haber',
                         'category' => 'indemnizacion',
-                        'description' => "Indemnización: {$units} unid. × {$daysPerYear} {$unit} = " . ($units * $daysPerYear) . " {$unit}",
-                        'amount'   => $indemnizacionAmount,
+                        'description' => "Indemnización: {$units} unid. × {$daysPerYear} {$unit} = ".($units * $daysPerYear)." {$unit}",
+                        'amount' => $indemnizacionAmount,
                         'metadata' => [
-                            'years'           => $yearsOfService,
+                            'years' => $yearsOfService,
                             'months_fraction' => $remainingMonths,
-                            'units'           => $units,
+                            'units' => $units,
                             'average_salary_6m' => $averageSalary6m,
-                            'daily_avg'       => round($averageSalary6m / 30, 2),
+                            'daily_avg' => round($averageSalary6m / 30, 2),
                         ],
                     ];
 
@@ -107,10 +107,10 @@ class LiquidacionService
                         $indemnizacionEstabilidadAmount = $indemnizacionAmount;
                         $totalHaberes += $indemnizacionEstabilidadAmount;
                         $items[] = [
-                            'type'     => 'haber',
+                            'type' => 'haber',
                             'category' => 'indemnizacion_estabilidad',
                             'description' => 'Indemnización adicional — Estabilidad Laboral Propia (Art. 95 CLT)',
-                            'amount'   => $indemnizacionEstabilidadAmount,
+                            'amount' => $indemnizacionEstabilidadAmount,
                             'metadata' => ['base_indemnizacion' => $indemnizacionAmount],
                         ];
                     }
@@ -229,7 +229,7 @@ class LiquidacionService
                 'average_salary_6m' => $averageSalary6m,
                 'preaviso_days' => $preavisoDays,
                 'preaviso_amount' => $preavisoAmount,
-                'indemnizacion_amount'             => $indemnizacionAmount,
+                'indemnizacion_amount' => $indemnizacionAmount,
                 'indemnizacion_estabilidad_amount' => $indemnizacionEstabilidadAmount,
                 'vacaciones_days' => $vacacionesDays,
                 'vacaciones_amount' => $vacacionesAmount,
@@ -250,10 +250,11 @@ class LiquidacionService
             $liquidacion->update(['pdf_path' => $pdfPath]);
 
             DB::commit();
+
             return $liquidacion->fresh();
         } catch (\Throwable $e) {
             DB::rollBack();
-            Log::error('Error al calcular liquidación: ' . $e->getMessage(), [
+            Log::error('Error al calcular liquidación: '.$e->getMessage(), [
                 'liquidacion_id' => $liquidacion->id,
                 'employee_id' => $liquidacion->employee_id,
             ]);
@@ -272,7 +273,7 @@ class LiquidacionService
             $liquidacion->employee->update(['status' => 'inactive']);
 
             $liquidacion->employee->activeContract?->update([
-                'status'  => 'terminated',
+                'status' => 'terminated',
                 'end_date' => $liquidacion->termination_date,
             ]);
 
@@ -328,7 +329,7 @@ class LiquidacionService
         $payrolls = Payroll::where('employee_id', $employee->id)
             ->whereHas('period', function ($q) use ($sixMonthsAgo, $terminationDate) {
                 $q->where('start_date', '>=', $sixMonthsAgo)
-                  ->where('start_date', '<=', $terminationDate);
+                    ->where('start_date', '<=', $terminationDate);
             })
             ->get();
 
@@ -340,6 +341,7 @@ class LiquidacionService
 
         // Dividir por la cantidad real de meses encontrados (< 6 si el empleado tiene menos tiempo)
         $totalGross = $payrolls->sum('gross_salary');
+
         return round($totalGross / $payrolls->count(), 2);
     }
 
@@ -421,7 +423,7 @@ class LiquidacionService
 
         // Verificar si ya se pagó aguinaldo del año
         $aguinaldoPagado = Aguinaldo::where('employee_id', $employee->id)
-            ->whereHas('period', fn($q) => $q->where('year', $year))
+            ->whereHas('period', fn ($q) => $q->where('year', $year))
             ->exists();
 
         if ($aguinaldoPagado) {
@@ -432,7 +434,7 @@ class LiquidacionService
         $payrolls = Payroll::where('employee_id', $employee->id)
             ->whereHas('period', function ($q) use ($year, $terminationDate) {
                 $q->whereYear('start_date', $year)
-                  ->where('start_date', '<=', $terminationDate);
+                    ->where('start_date', '<=', $terminationDate);
             })
             ->get();
 
@@ -442,7 +444,7 @@ class LiquidacionService
         }
 
         // Solo percepciones salariales (affects_ips) + horas extra; excluye viáticos y subsidios
-        $totalEarned = $payrolls->sum(fn($p) => (float) $p->base_salary + (float) $p->ips_perceptions);
+        $totalEarned = $payrolls->sum(fn ($p) => (float) $p->base_salary + (float) $p->ips_perceptions);
 
         return round($totalEarned / 12, 0);
     }
@@ -501,7 +503,7 @@ class LiquidacionService
     protected function getPendingLoanIds(Employee $employee): array
     {
         return Loan::where('employee_id', $employee->id)
-            ->whereIn('status', ['active', 'pending'])
+            ->whereIn('status', ['approved', 'pending'])
             ->pluck('id')
             ->toArray();
     }
@@ -509,7 +511,7 @@ class LiquidacionService
     protected function cancelPendingLoans(Employee $employee): void
     {
         $activeLoans = Loan::where('employee_id', $employee->id)
-            ->whereIn('status', ['active', 'pending'])
+            ->whereIn('status', ['approved', 'pending'])
             ->get();
 
         foreach ($activeLoans as $loan) {
@@ -519,8 +521,8 @@ class LiquidacionService
             ]);
             $loan->update([
                 'status' => 'cancelled',
-                'notes' => ($loan->notes ? $loan->notes . "\n\n" : '')
-                    . 'Cancelado por liquidación. Saldo deducido de la liquidación.',
+                'notes' => ($loan->notes ? $loan->notes."\n\n" : '')
+                    .'Cancelado por liquidación. Saldo deducido de la liquidación.',
             ]);
         }
     }

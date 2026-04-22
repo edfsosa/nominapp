@@ -4,8 +4,6 @@ namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\ShiftOverride;
 use App\Models\ShiftTemplate;
-use App\Services\RotationService;
-use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -18,7 +16,6 @@ use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -30,15 +27,20 @@ use Filament\Tables\Table;
 class ShiftOverridesRelationManager extends RelationManager
 {
     protected static string $relationship = 'shiftOverrides';
+
     protected static ?string $title = 'Cambios de Turno';
+
     protected static ?string $modelLabel = 'Cambio';
+
     protected static ?string $pluralModelLabel = 'Cambios de Turno';
+
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
 
     /**
      * Define el formulario de creación de un override de turno.
-     *
-     * @param  Form  $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -60,11 +62,11 @@ class ShiftOverridesRelationManager extends RelationManager
                                 $companyId = $this->getOwnerRecord()->branch?->company_id;
 
                                 return ShiftTemplate::query()
-                                    ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                                    ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                     ->where('is_active', true)
                                     ->orderByRaw('is_day_off ASC, name ASC')
                                     ->get()
-                                    ->mapWithKeys(fn($s) => [
+                                    ->mapWithKeys(fn ($s) => [
                                         $s->id => $s->is_day_off
                                             ? "🌙 {$s->name}"
                                             : "⏰ {$s->name} ({$s->start_time} – {$s->end_time})",
@@ -92,14 +94,11 @@ class ShiftOverridesRelationManager extends RelationManager
 
     /**
      * Define la tabla de overrides de turno del empleado.
-     *
-     * @param  Table  $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn($query) => $query->with('shift')->latest('override_date'))
+            ->modifyQueryUsing(fn ($query) => $query->with('shift')->latest('override_date'))
             ->columns([
                 TextColumn::make('override_date')
                     ->label('Fecha')
@@ -128,8 +127,8 @@ class ShiftOverridesRelationManager extends RelationManager
                 TextColumn::make('reason_type')
                     ->label('Motivo')
                     ->badge()
-                    ->formatStateUsing(fn($state) => ShiftOverride::getReasonTypeLabels()[$state] ?? $state)
-                    ->color(fn($state) => ShiftOverride::getReasonTypeColors()[$state] ?? 'gray'),
+                    ->formatStateUsing(fn ($state) => ShiftOverride::getReasonTypeLabels()[$state] ?? $state)
+                    ->color(fn ($state) => ShiftOverride::getReasonTypeColors()[$state] ?? 'gray'),
 
                 TextColumn::make('notes')
                     ->label('Notas')
@@ -148,7 +147,7 @@ class ShiftOverridesRelationManager extends RelationManager
                     ->label('Registrar cambio')
                     ->icon('heroicon-o-plus')
                     ->modalHeading('Registrar cambio de turno')
-                    ->mutateFormDataUsing(fn(array $data) => array_merge($data, [
+                    ->mutateFormDataUsing(fn (array $data) => array_merge($data, [
                         'created_by_id' => auth()->id(),
                     ]))
                     ->successNotification(

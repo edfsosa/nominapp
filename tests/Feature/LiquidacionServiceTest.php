@@ -7,7 +7,6 @@ use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Liquidacion;
 use App\Models\Loan;
-use App\Models\LoanInstallment;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
@@ -25,19 +24,20 @@ function makeLiqService(): LiquidacionService
 {
     $pdf = \Mockery::mock(LiquidacionPDFGenerator::class);
     $pdf->shouldReceive('generate')->andReturn('mock/liquidacion.pdf');
+
     return new LiquidacionService($pdf);
 }
 
 function seedLiqSettings(): void
 {
     $settings = [
-        'indemnizacion_days_per_year'           => 15,
-        'ips_employee_rate'                    => 9,
-        'ips_deduction_code'                   => 'IPS001',
+        'indemnizacion_days_per_year' => 15,
+        'ips_employee_rate' => 9,
+        'ips_deduction_code' => 'IPS001',
         'overtime_multiplier_nocturno_holiday' => 2.6,
-        'min_salary_monthly'                   => 2_550_328,
-        'min_salary_daily_jornal'              => 87_950,
-        'family_bonus_percentage'              => 5.0,
+        'min_salary_monthly' => 2_550_328,
+        'min_salary_daily_jornal' => 87_950,
+        'family_bonus_percentage' => 5.0,
     ];
 
     foreach ($settings as $name => $value) {
@@ -50,35 +50,35 @@ function seedLiqSettings(): void
 
 function makeLiqEmployee(
     string $salaryType = 'mensual',
-    int    $salary     = 2_550_000,
-    Carbon $startDate  = null,
+    int $salary = 2_550_000,
+    ?Carbon $startDate = null,
 ): Employee {
     static $ci = 9000000;
     $n = $ci++;
 
-    $company    = Company::create(['name' => "Empresa {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
-    $branch     = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
+    $company = Company::create(['name' => "Empresa {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
     $department = Department::create(['name' => "Depto {$n}", 'company_id' => $company->id]);
-    $position   = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
+    $position = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
 
     $employee = Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Liq',
-        'ci'         => (string) $n,
-        'email'      => "liq{$n}@test.com",
-        'branch_id'  => $branch->id,
-        'status'     => 'active',
+        'last_name' => 'Liq',
+        'ci' => (string) $n,
+        'email' => "liq{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
     ]);
 
     Contract::create([
-        'employee_id'   => $employee->id,
-        'type'          => 'indefinido',
-        'start_date'    => $startDate ?? Carbon::now()->subYears(3),
-        'salary_type'   => $salaryType,
-        'salary'        => $salary,
-        'position_id'   => $position->id,
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => $startDate ?? Carbon::now()->subYears(3),
+        'salary_type' => $salaryType,
+        'salary' => $salary,
+        'position_id' => $position->id,
         'department_id' => $department->id,
-        'status'        => 'active',
+        'status' => 'active',
     ]);
 
     return $employee->fresh();
@@ -86,48 +86,49 @@ function makeLiqEmployee(
 
 function makeLiquidacion(Employee $employee, array $overrides = []): Liquidacion
 {
-    $hireDate        = $employee->hire_date ?? Carbon::now()->subYears(3);
+    $hireDate = $employee->hire_date ?? Carbon::now()->subYears(3);
     $terminationDate = Carbon::create(2026, 3, 15);
-    $baseSalary      = (float) ($employee->base_salary ?? $employee->daily_rate ?? 2_550_000);
-    $salaryType      = $employee->activeContract?->salary_type ?? 'mensual';
-    $dailySalary     = $salaryType === 'jornal' ? $baseSalary : round($baseSalary / 30, 2);
+    $baseSalary = (float) ($employee->base_salary ?? $employee->daily_rate ?? 2_550_000);
+    $salaryType = $employee->activeContract?->salary_type ?? 'mensual';
+    $dailySalary = $salaryType === 'jornal' ? $baseSalary : round($baseSalary / 30, 2);
 
     return Liquidacion::create(array_merge([
-        'employee_id'       => $employee->id,
-        'termination_date'  => $terminationDate->toDateString(),
-        'termination_type'  => 'unjustified_dismissal',
+        'employee_id' => $employee->id,
+        'termination_date' => $terminationDate->toDateString(),
+        'termination_type' => 'unjustified_dismissal',
         'preaviso_otorgado' => false,
-        'hire_date'         => $hireDate->toDateString(),
-        'base_salary'       => $baseSalary,
-        'daily_salary'      => $dailySalary,
-        'salary_type'       => $salaryType,
-        'status'            => 'draft',
+        'hire_date' => $hireDate->toDateString(),
+        'base_salary' => $baseSalary,
+        'daily_salary' => $dailySalary,
+        'salary_type' => $salaryType,
+        'status' => 'draft',
     ], $overrides));
 }
 
 function makeLiqPayPeriod(int $year, int $month): PayrollPeriod
 {
     $start = Carbon::create($year, $month, 1);
+
     return PayrollPeriod::create([
-        'name'       => $start->format('F Y'),
+        'name' => $start->format('F Y'),
         'start_date' => $start->toDateString(),
-        'end_date'   => $start->endOfMonth()->toDateString(),
-        'frequency'  => 'monthly',
-        'status'     => 'closed',
+        'end_date' => $start->endOfMonth()->toDateString(),
+        'frequency' => 'monthly',
+        'status' => 'closed',
     ]);
 }
 
 function makeLiqPayroll(Employee $employee, PayrollPeriod $period, float $baseSalary, float $perceptions = 0): Payroll
 {
     return Payroll::create([
-        'employee_id'       => $employee->id,
+        'employee_id' => $employee->id,
         'payroll_period_id' => $period->id,
-        'base_salary'       => $baseSalary,
+        'base_salary' => $baseSalary,
         'total_perceptions' => $perceptions,
-        'gross_salary'      => $baseSalary + $perceptions,
-        'total_deductions'  => 0,
-        'net_salary'        => $baseSalary + $perceptions,
-        'status'            => 'approved',
+        'gross_salary' => $baseSalary + $perceptions,
+        'total_deductions' => 0,
+        'net_salary' => $baseSalary + $perceptions,
+        'status' => 'approved',
     ]);
 }
 
@@ -135,7 +136,7 @@ function makeLiqPayroll(Employee $employee, PayrollPeriod $period, float $baseSa
 
 it('calculate cambia el estado a calculated y genera pdf', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -147,9 +148,9 @@ it('calculate cambia el estado a calculated y genera pdf', function () {
 
 it('calculate elimina items previos antes de recalcular', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee);
-    $service     = makeLiqService();
+    $service = makeLiqService();
 
     $service->calculate($liquidacion);
     $countFirst = $liquidacion->fresh()->items()->count();
@@ -165,9 +166,9 @@ it('calculate elimina items previos antes de recalcular', function () {
 it('calcula preaviso para despido injustificado sin preaviso otorgado', function () {
     seedLiqSettings();
     // 3 años → 45 días de preaviso (tier 1-5)
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, [
-        'termination_type'  => 'unjustified_dismissal',
+        'termination_type' => 'unjustified_dismissal',
         'preaviso_otorgado' => false,
     ]);
 
@@ -179,9 +180,9 @@ it('calcula preaviso para despido injustificado sin preaviso otorgado', function
 
 it('no calcula preaviso si preaviso_otorgado = true', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, [
-        'termination_type'  => 'unjustified_dismissal',
+        'termination_type' => 'unjustified_dismissal',
         'preaviso_otorgado' => true,
     ]);
 
@@ -193,7 +194,7 @@ it('no calcula preaviso si preaviso_otorgado = true', function () {
 
 it('no calcula preaviso para renuncia voluntaria', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'resignation']);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -205,10 +206,10 @@ it('no calcula preaviso para renuncia voluntaria', function () {
 it('no calcula preaviso si el empleado está en período de prueba', function () {
     seedLiqSettings();
     // Contratado hace 15 días → dentro del período de prueba de 30 días
-    $hireDate    = Carbon::create(2026, 2, 28);
-    $employee    = makeLiqEmployee(startDate: $hireDate);
+    $hireDate = Carbon::create(2026, 2, 28);
+    $employee = makeLiqEmployee(startDate: $hireDate);
     $liquidacion = makeLiquidacion($employee, [
-        'hire_date'        => $hireDate->toDateString(),
+        'hire_date' => $hireDate->toDateString(),
         'termination_date' => '2026-03-15',
         'termination_type' => 'unjustified_dismissal',
     ]);
@@ -226,21 +227,21 @@ it('aplica tier correcto de preaviso según antigüedad', function () {
     ];
 
     // 3 años → 45 días
-    $employee3y  = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
-    $liq3y       = makeLiquidacion($employee3y);
-    $result3y    = makeLiqService()->calculate($liq3y);
+    $employee3y = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $liq3y = makeLiquidacion($employee3y);
+    $result3y = makeLiqService()->calculate($liq3y);
     expect($result3y->preaviso_days)->toBe(45);
 
     // 7 años → 60 días
-    $employee7y  = makeLiqEmployee(startDate: Carbon::create(2019, 3, 15));
-    $liq7y       = makeLiquidacion($employee7y);
-    $result7y    = makeLiqService()->calculate($liq7y);
+    $employee7y = makeLiqEmployee(startDate: Carbon::create(2019, 3, 15));
+    $liq7y = makeLiquidacion($employee7y);
+    $result7y = makeLiqService()->calculate($liq7y);
     expect($result7y->preaviso_days)->toBe(60);
 
     // 12 años → 90 días
     $employee12y = makeLiqEmployee(startDate: Carbon::create(2014, 3, 15));
-    $liq12y      = makeLiquidacion($employee12y);
-    $result12y   = makeLiqService()->calculate($liq12y);
+    $liq12y = makeLiquidacion($employee12y);
+    $result12y = makeLiqService()->calculate($liq12y);
     expect($result12y->preaviso_days)->toBe(90);
 });
 
@@ -249,20 +250,20 @@ it('aplica tier correcto de preaviso según antigüedad', function () {
 it('calcula indemnización para despido injustificado', function () {
     seedLiqSettings();
     // 3 años, sin fracción > 6 meses → units = 3; 3 × 15 × dailyAvg
-    $employee    = makeLiqEmployee('mensual', 2_550_000, Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee('mensual', 2_550_000, Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'unjustified_dismissal']);
 
     $result = makeLiqService()->calculate($liquidacion);
 
-    $dailyAvg    = 2_550_000 / 30;
-    $expected    = round(3 * 15 * $dailyAvg, 0);
+    $dailyAvg = 2_550_000 / 30;
+    $expected = round(3 * 15 * $dailyAvg, 0);
 
     expect((float) $result->indemnizacion_amount)->toBe((float) $expected);
 });
 
 it('no calcula indemnización para renuncia voluntaria', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'resignation']);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -272,7 +273,7 @@ it('no calcula indemnización para renuncia voluntaria', function () {
 
 it('duplica la indemnización por estabilidad laboral propia para 10+ años', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2014, 3, 15)); // 12 años
+    $employee = makeLiqEmployee(startDate: Carbon::create(2014, 3, 15)); // 12 años
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'unjustified_dismissal']);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -283,7 +284,7 @@ it('duplica la indemnización por estabilidad laboral propia para 10+ años', fu
 
 it('no agrega indemnización estabilidad para menos de 10 años', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15)); // 3 años
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15)); // 3 años
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'unjustified_dismissal']);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -296,7 +297,7 @@ it('no agrega indemnización estabilidad para menos de 10 años', function () {
 it('calcula salario pendiente si no hay nómina del mes de terminación', function () {
     seedLiqSettings();
     // Termina el día 15 de marzo, sin nómina de marzo → 15 días pendientes
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
     $liquidacion = makeLiquidacion($employee, ['termination_date' => '2026-03-15']);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -307,7 +308,7 @@ it('calcula salario pendiente si no hay nómina del mes de terminación', functi
 
 it('no calcula salario pendiente si ya existe nómina del mes de terminación', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
     $liquidacion = makeLiquidacion($employee, ['termination_date' => '2026-03-15']);
 
     // Nómina de marzo ya pagada
@@ -323,7 +324,7 @@ it('no calcula salario pendiente si ya existe nómina del mes de terminación', 
 
 it('calcula aguinaldo proporcional en base a nóminas del año', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 1, 1));
     $liquidacion = makeLiquidacion($employee, ['termination_date' => '2026-03-15']);
 
     // 2 nóminas del año 2026 (enero y febrero)
@@ -333,7 +334,7 @@ it('calcula aguinaldo proporcional en base a nóminas del año', function () {
     $result = makeLiqService()->calculate($liquidacion);
 
     $totalEarned = 2 * 2_550_000;
-    $expected    = round($totalEarned / 12, 0);
+    $expected = round($totalEarned / 12, 0);
 
     expect((float) $result->aguinaldo_proporcional_amount)->toBe((float) $expected);
 });
@@ -341,10 +342,10 @@ it('calcula aguinaldo proporcional en base a nóminas del año', function () {
 it('calcula aguinaldo proporcional sobre salario pendiente cuando no hay nóminas previas', function () {
     seedLiqSettings();
     // Contratado en este mismo mes → no hay nóminas, salario pendiente es la base
-    $hireDate    = Carbon::create(2026, 3, 1);
-    $employee    = makeLiqEmployee(startDate: $hireDate);
+    $hireDate = Carbon::create(2026, 3, 1);
+    $employee = makeLiqEmployee(startDate: $hireDate);
     $liquidacion = makeLiquidacion($employee, [
-        'hire_date'        => $hireDate->toDateString(),
+        'hire_date' => $hireDate->toDateString(),
         'termination_date' => '2026-03-15',
     ]);
 
@@ -360,7 +361,7 @@ it('calcula aguinaldo proporcional sobre salario pendiente cuando no hay nómina
 
 it('net_amount = total_haberes - total_deductions', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee);
 
     $result = makeLiqService()->calculate($liquidacion);
@@ -372,7 +373,7 @@ it('net_amount = total_haberes - total_deductions', function () {
 
 it('crea LiquidacionItems con type haber y deduction', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['termination_type' => 'unjustified_dismissal']);
 
     makeLiqService()->calculate($liquidacion);
@@ -386,7 +387,7 @@ it('crea LiquidacionItems con type haber y deduction', function () {
 
 it('close marca al empleado como inactivo y termina el contrato', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['status' => 'calculated']);
 
     makeLiqService()->close($liquidacion);
@@ -400,7 +401,7 @@ it('close marca al empleado como inactivo y termina el contrato', function () {
 
 it('close cambia el status de la liquidación a closed', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['status' => 'calculated']);
 
     makeLiqService()->close($liquidacion);
@@ -411,16 +412,16 @@ it('close cambia el status de la liquidación a closed', function () {
 
 it('close cancela los préstamos activos del empleado', function () {
     seedLiqSettings();
-    $employee    = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
+    $employee = makeLiqEmployee(startDate: Carbon::create(2023, 3, 15));
     $liquidacion = makeLiquidacion($employee, ['status' => 'calculated']);
 
     $loan = Loan::create([
-        'employee_id'        => $employee->id,
-        'type'               => 'loan',
-        'amount'             => 1_000_000,
-        'remaining_debt'     => 1_000_000,
+        'employee_id' => $employee->id,
+        'type' => 'loan',
+        'amount' => 1_000_000,
+        'remaining_debt' => 1_000_000,
         'installment_amount' => 100_000,
-        'status'             => 'active',
+        'status' => 'approved',
     ]);
 
     makeLiqService()->close($liquidacion);
@@ -434,9 +435,9 @@ it('las vacaciones proporcionales usan el promedio de 6 meses, no el salario con
     seedLiqSettings();
 
     // Empleado contratado 2024-01-01; termina 2026-03-15 → 2 años + 2 meses en el período actual
-    $hireDate        = Carbon::create(2024, 1, 1);
+    $hireDate = Carbon::create(2024, 1, 1);
     $terminationDate = Carbon::create(2026, 3, 15);
-    $employee        = makeLiqEmployee(salary: 2_000_000, startDate: $hireDate);
+    $employee = makeLiqEmployee(salary: 2_000_000, startDate: $hireDate);
 
     // 3 nóminas con gross_salary mayor al contractual (horas extra, etc.)
     // Promedio = (3.000.000 × 3) / 3 = 3.000.000 → daily_avg = 100.000
@@ -446,19 +447,19 @@ it('las vacaciones proporcionales usan el promedio de 6 meses, no el salario con
     }
 
     $liquidacion = makeLiquidacion($employee, [
-        'hire_date'         => $hireDate->toDateString(),
-        'termination_date'  => $terminationDate->toDateString(),
-        'base_salary'       => 2_000_000,
-        'daily_salary'      => round(2_000_000 / 30, 2),
+        'hire_date' => $hireDate->toDateString(),
+        'termination_date' => $terminationDate->toDateString(),
+        'base_salary' => 2_000_000,
+        'daily_salary' => round(2_000_000 / 30, 2),
     ]);
 
-    $result  = makeLiqService()->calculate($liquidacion);
+    $result = makeLiqService()->calculate($liquidacion);
     $vacItem = $result->items()->where('category', 'vacaciones')->firstOrFail();
 
-    $days             = (int) $vacItem->metadata['days'];
-    $dailyAvg         = round(3_000_000 / 30, 2);
+    $days = (int) $vacItem->metadata['days'];
+    $dailyAvg = round(3_000_000 / 30, 2);
     $dailyContractual = round(2_000_000 / 30, 2);
-    $expectedWithAvg  = round($days * $dailyAvg, 0);
+    $expectedWithAvg = round($days * $dailyAvg, 0);
 
     expect($days)->toBeGreaterThan(0)
         ->and((float) $vacItem->amount)->toBe((float) $expectedWithAvg)
@@ -472,23 +473,23 @@ it('sin nóminas previas las vacaciones proporcionales hacen fallback al salario
     seedLiqSettings();
 
     // Contratado 2024-01-01; termina 2026-03-15 → tiene días proporcionales
-    $hireDate        = Carbon::create(2024, 1, 1);
+    $hireDate = Carbon::create(2024, 1, 1);
     $terminationDate = Carbon::create(2026, 3, 15);
-    $employee        = makeLiqEmployee(salary: 2_550_000, startDate: $hireDate);
+    $employee = makeLiqEmployee(salary: 2_550_000, startDate: $hireDate);
 
     $liquidacion = makeLiquidacion($employee, [
-        'hire_date'        => $hireDate->toDateString(),
+        'hire_date' => $hireDate->toDateString(),
         'termination_date' => $terminationDate->toDateString(),
-        'base_salary'      => 2_550_000,
-        'daily_salary'     => round(2_550_000 / 30, 2),
+        'base_salary' => 2_550_000,
+        'daily_salary' => round(2_550_000 / 30, 2),
     ]);
 
-    $result  = makeLiqService()->calculate($liquidacion);
+    $result = makeLiqService()->calculate($liquidacion);
     $vacItem = $result->items()->where('category', 'vacaciones')->firstOrFail();
 
     // Sin nóminas previas, averageSalary6m = baseSalary → daily_avg = baseSalary / 30
     $expectedDailyAvg = round(2_550_000 / 30, 2);
-    $days             = (int) $vacItem->metadata['days'];
+    $days = (int) $vacItem->metadata['days'];
 
     expect($days)->toBeGreaterThan(0)
         ->and((float) $vacItem->metadata['average_salary_6m'])->toBe(2_550_000.0)

@@ -27,7 +27,7 @@ class Company extends Model
     ];
 
     protected $casts = [
-        'is_active'  => 'boolean',
+        'is_active' => 'boolean',
         'founded_at' => 'date',
     ];
 
@@ -35,16 +35,16 @@ class Company extends Model
      * Tipos societarios legales permitidos
      */
     public static array $legalTypes = [
-        'EAS'         => 'Empresa por Acciones Simplificadas (EAS)',
-        'SA'          => 'Sociedad Anónima (SA)',
-        'SRL'         => 'Sociedad de Resp. Limitada (SRL)',
-        'SACI'        => 'Sociedad Anónima de Cap. e Industria (SACI)',
-        'SC'          => 'Sociedad Colectiva (SC)',
-        'EU'          => 'Empresa Unipersonal',
+        'EAS' => 'Empresa por Acciones Simplificadas (EAS)',
+        'SA' => 'Sociedad Anónima (SA)',
+        'SRL' => 'Sociedad de Resp. Limitada (SRL)',
+        'SACI' => 'Sociedad Anónima de Cap. e Industria (SACI)',
+        'SC' => 'Sociedad Colectiva (SC)',
+        'EU' => 'Empresa Unipersonal',
         'Cooperativa' => 'Cooperativa',
-        'Consorcio'    => 'Consorcio',
-        'Fundacion'   => 'Fundación',
-        'Asociacion'   => 'Asociación',
+        'Consorcio' => 'Consorcio',
+        'Fundacion' => 'Fundación',
+        'Asociacion' => 'Asociación',
     ];
 
     /**
@@ -79,6 +79,21 @@ class Company extends Model
     public function branches(): HasMany
     {
         return $this->hasMany(Branch::class);
+    }
+
+    /** Cuentas bancarias de la empresa. */
+    public function bankAccounts(): HasMany
+    {
+        return $this->hasMany(CompanyBankAccount::class);
+    }
+
+    /** Cuenta bancaria principal activa de la empresa, si existe. */
+    public function primaryBankAccount(): ?CompanyBankAccount
+    {
+        return $this->bankAccounts()
+            ->where('is_primary', true)
+            ->where('status', 'active')
+            ->first();
     }
 
     /**
@@ -132,7 +147,7 @@ class Company extends Model
             ->selectRaw('COUNT(*) as total, SUM(employees.status = "active") as active_count')
             ->first();
 
-        return ($result?->active_count ?? 0) . ' / ' . ($result?->total ?? 0);
+        return ($result?->active_count ?? 0).' / '.($result?->total ?? 0);
     }
 
     /**
