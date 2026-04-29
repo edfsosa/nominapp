@@ -3,7 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Comprobante de Adelanto #{{ $advance->id }}</title>
     <style>
         @page {
@@ -19,291 +18,285 @@
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.5;
-            padding: 15mm 20mm;
+            font-size: 9px;
+            line-height: 1.4;
+        }
+
+        .copy-label {
+            font-size: 7px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: right;
+            color: #555;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
         }
 
         .company-header {
             text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
             border-bottom: 1px solid #000;
         }
 
         .company-logo {
-            max-height: 40px;
-            max-width: 120px;
-            margin-bottom: 8px;
-        }
-
-        .company-name {
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
+            max-height: 28px;
+            max-width: 90px;
             margin-bottom: 3px;
         }
 
+        .company-name {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
         .company-info {
-            font-size: 9px;
+            font-size: 8px;
         }
 
         .title {
             text-align: center;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 20px 0 5px 0;
+            margin: 6px 0 2px 0;
         }
 
         .subtitle {
             text-align: center;
-            font-size: 10px;
-            margin-bottom: 20px;
-        }
-
-        .section {
-            margin-bottom: 15px;
-        }
-
-        .section-title {
-            font-weight: bold;
-            font-size: 10px;
-            text-transform: uppercase;
-            padding: 5px 0;
-            margin-bottom: 8px;
-            border-bottom: 1px solid #000;
-        }
-
-        .info-grid {
-            display: table;
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .info-row {
-            display: table-row;
-        }
-
-        .info-label {
-            display: table-cell;
-            font-weight: bold;
-            width: 180px;
-            padding: 5px 8px;
-            border: 1px solid #000;
-        }
-
-        .info-value {
-            display: table-cell;
-            padding: 5px 8px;
-            border: 1px solid #000;
+            font-size: 8px;
+            margin-bottom: 6px;
         }
 
         .highlight-box {
-            margin: 15px 0;
-            padding: 15px;
+            margin: 6px 0;
+            padding: 6px;
             border: 2px solid #000;
             text-align: center;
         }
 
         .highlight-label {
-            font-size: 10px;
+            font-size: 8px;
             text-transform: uppercase;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
 
         .highlight-amount {
-            font-size: 20px;
+            font-size: 16px;
             font-weight: bold;
             font-family: 'Courier New', monospace;
         }
 
+        .section {
+            margin-bottom: 6px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            font-size: 8px;
+            text-transform: uppercase;
+            padding: 3px 0;
+            margin-bottom: 4px;
+            border-bottom: 1px solid #000;
+        }
+
+        table.info-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table.info-table th {
+            text-align: left;
+            font-weight: bold;
+            width: 150px;
+            padding: 3px 6px;
+            border: 1px solid #000;
+        }
+
+        table.info-table td {
+            padding: 3px 6px;
+            border: 1px solid #000;
+        }
+
         .note-section {
-            margin: 15px 0;
-            padding: 12px;
+            margin: 5px 0;
+            padding: 5px 8px;
             border: 1px solid #000;
         }
 
         .note-title {
             font-weight: bold;
-            margin-bottom: 5px;
+            margin-bottom: 2px;
         }
 
         .info-box {
-            margin: 15px 0;
-            padding: 10px 12px;
+            margin: 5px 0;
+            padding: 5px 8px;
             border: 1px solid #ccc;
-            font-size: 9px;
+            font-size: 8px;
         }
 
-        .signature-section {
-            margin-top: 50px;
-            display: table;
+        table.signature-table {
             width: 100%;
+            margin-top: 30px;
         }
 
-        .signature-item {
-            display: table-cell;
+        table.signature-table td {
             width: 50%;
             text-align: center;
-            padding: 0 30px;
+            padding: 0 25px;
         }
 
         .signature-line {
             border-top: 1px solid #000;
             margin-bottom: 5px;
-            padding-top: 5px;
+            padding-top: 40px;
         }
 
         .signature-label {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
         }
 
         .signature-sublabel {
-            font-size: 9px;
+            font-size: 7px;
         }
 
         .footer {
-            margin-top: 40px;
+            margin-top: 8px;
             text-align: center;
-            font-size: 8px;
+            font-size: 7px;
             border-top: 1px solid #ccc;
-            padding-top: 10px;
+            padding-top: 4px;
+        }
+
+        .cut-line {
+            border-top: 1px dashed #555;
+            margin-top: 6mm;
         }
     </style>
 </head>
 
 <body>
-    {{-- Encabezado de la Empresa --}}
-    <div class="company-header">
-        @if ($companyLogo)
-            <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
-        @endif
-        <div class="company-name">{{ $companyName }}</div>
-        <div class="company-info">
-            @if ($companyRuc)
-                RUC: {{ $companyRuc }}
-            @endif
-            @if ($employerNumber)
-                | Nro. Patronal: {{ $employerNumber }}
-            @endif
-        </div>
-        @if ($companyAddress)
-            <div class="company-info">{{ $companyAddress }}</div>
-        @endif
-        @if ($companyPhone || $companyEmail)
-            <div class="company-info">
-                @if ($companyPhone)
-                    Tel: {{ $companyPhone }}
-                @endif
-                @if ($companyPhone && $companyEmail)
-                    |
-                @endif
-                @if ($companyEmail)
-                    {{ $companyEmail }}
-                @endif
-            </div>
-        @endif
-    </div>
+    {{-- Envolvente único: impide que DomPDF inserte saltos de página adentro --}}
+    <div style="page-break-inside: avoid;">
 
-    {{-- Titulo --}}
-    <div class="title">Comprobante de Adelanto de Salario</div>
-    <div class="subtitle">Documento #{{ $advance->id }}</div>
+        @foreach (['COPIA EMPLEADO', 'COPIA EMPRESA'] as $copyLabel)
+            <div style="padding: 10mm 14mm 6mm 14mm;">
 
-    {{-- Monto destacado --}}
-    <div class="highlight-box">
-        <div class="highlight-label">Monto del Adelanto</div>
-        <div class="highlight-amount">Gs. {{ number_format($advance->amount, 0, ',', '.') }}</div>
-    </div>
+                {{-- Etiqueta de copia --}}
+                <div class="copy-label">{{ $copyLabel }}</div>
 
-    {{-- Informacion del Empleado --}}
-    <div class="section">
-        <div class="section-title">Informacion del Empleado</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $advance->employee->full_name }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cedula de Identidad:</div>
-                <div class="info-value">{{ $advance->employee->ci }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $advance->employee->activeContract?->position?->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $advance->employee->activeContract?->position?->department?->name ?? 'N/A' }}</div>
-            </div>
-        </div>
-    </div>
-
-    {{-- Detalles del Adelanto --}}
-    <div class="section">
-        <div class="section-title">Detalles del Adelanto</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Estado:</div>
-                <div class="info-value">{{ \App\Models\Advance::getStatusLabel($advance->status) }}</div>
-            </div>
-            @if ($advance->approved_at)
-                <div class="info-row">
-                    <div class="info-label">Fecha de Aprobacion:</div>
-                    <div class="info-value">{{ $advance->approved_at->format('d/m/Y') }}</div>
+                {{-- Encabezado de la empresa --}}
+                <div class="company-header">
+                    @if ($companyLogo)
+                        <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
+                    @endif
+                    <div class="company-name">{{ $companyName }}</div>
+                    <div class="company-info">
+                        @if ($companyRuc)
+                            RUC: {{ $companyRuc }}
+                        @endif
+                        @if ($companyRuc && $employerNumber)
+                            |
+                        @endif
+                        @if ($employerNumber)
+                            Nro. Patronal: {{ $employerNumber }}
+                        @endif
+                    </div>
+                    @if ($companyAddress)
+                        <div class="company-info">{{ $companyAddress }}</div>
+                    @endif
+                    @if ($companyPhone || $companyEmail)
+                        <div class="company-info">
+                            @if ($companyPhone)
+                                Tel: {{ $companyPhone }}
+                            @endif
+                            @if ($companyPhone && $companyEmail)
+                                |
+                            @endif
+                            @if ($companyEmail)
+                                {{ $companyEmail }}
+                            @endif
+                        </div>
+                    @endif
                 </div>
-            @endif
-            @if ($advance->approvedBy)
-                <div class="info-row">
-                    <div class="info-label">Aprobado por:</div>
-                    <div class="info-value">{{ $advance->approvedBy->name }}</div>
+
+                {{-- Título --}}
+                <div class="title">Adelanto de Salario</div>
+                <div class="subtitle">Documento #{{ $advance->id }}</div>
+
+                {{-- Monto destacado --}}
+                <div class="highlight-box">
+                    <div class="highlight-label">Monto del Adelanto</div>
+                    <div class="highlight-amount">Gs. {{ number_format($advance->amount, 0, ',', '.') }}</div>
                 </div>
-            @endif
-            @if ($advance->payroll)
-                <div class="info-row">
-                    <div class="info-label">Descontado en Nomina:</div>
-                    <div class="info-value">{{ $advance->payroll->period?->name ?? 'N/A' }}</div>
+
+                {{-- Información del empleado --}}
+                <div class="section">
+                    <div class="section-title">Información del Empleado</div>
+                    <table class="info-table">
+                        <tr>
+                            <th>Nombre Completo:</th>
+                            <td>{{ $advance->employee->full_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cédula de Identidad:</th>
+                            <td>{{ $advance->employee->ci }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cargo:</th>
+                            <td>{{ $advance->employee->activeContract?->position?->name ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Departamento:</th>
+                            <td>{{ $advance->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
+                        </tr>
+                    </table>
                 </div>
+
+                {{-- Nota legal --}}
+                <div class="info-box">
+                    El presente comprobante acredita el adelanto de salario solicitado por el empleado. El monto
+                    indicado
+                    será descontado automáticamente en la liquidación de nómina del período correspondiente.
+                </div>
+
+                {{-- Firmas --}}
+                <table class="signature-table">
+                    <tr>
+                        <td>
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Empleado</div>
+                            <div class="signature-sublabel">{{ $advance->employee->full_name }}</div>
+                            <div class="signature-sublabel">CI: {{ $advance->employee->ci }}</div>
+                        </td>
+                        <td>
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Recursos Humanos</div>
+                            <div class="signature-sublabel">Firma y Sello</div>
+                        </td>
+                    </tr>
+                </table>
+
+                {{-- Footer --}}
+                <div class="footer">
+                    Documento generado el {{ now()->format('d/m/Y H:i') }}
+                    @if ($city)
+                        | {{ $city }}, Paraguay
+                    @endif
+                </div>
+
+            </div>
+
+            {{-- Línea de corte entre copias --}}
+            @if (!$loop->last)
+                <div class="cut-line"></div>
             @endif
-        </div>
-    </div>
+        @endforeach
 
-    {{-- Notas --}}
-    @if ($advance->notes)
-        <div class="note-section">
-            <div class="note-title">Observaciones:</div>
-            <p>{{ $advance->notes }}</p>
-        </div>
-    @endif
-
-    {{-- Nota legal --}}
-    <div class="info-box">
-        El presente comprobante acredita el adelanto de salario solicitado por el empleado. El monto indicado
-        sera descontado automaticamente en la liquidacion de nomina del periodo correspondiente.
-    </div>
-
-    {{-- Firmas --}}
-    <div class="signature-section">
-        <div class="signature-item">
-            <div class="signature-line"></div>
-            <div class="signature-label">Empleado</div>
-            <div class="signature-sublabel">{{ $advance->employee->full_name }}</div>
-            <div class="signature-sublabel">CI: {{ $advance->employee->ci }}</div>
-        </div>
-        <div class="signature-item">
-            <div class="signature-line"></div>
-            <div class="signature-label">Recursos Humanos</div>
-            <div class="signature-sublabel">Firma y Sello</div>
-        </div>
-    </div>
-
-    {{-- Footer --}}
-    <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i') }}
-        @if ($city)
-            | {{ $city }}, Paraguay
-        @endif
     </div>
 </body>
 

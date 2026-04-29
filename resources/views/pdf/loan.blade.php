@@ -243,12 +243,17 @@
     </div>
 
     {{-- Titulo --}}
-    <div class="title">Contrato de Prestamo</div>
+    <div class="title">Préstamo</div>
     <div class="subtitle">Documento #{{ $loan->id }}</div>
 
     {{-- Informacion del Empleado y Detalles del Prestamo (lado a lado) --}}
     @php
-        $reasonLabels = ['personal' => 'Personal', 'medical' => 'Médico', 'education' => 'Educación', 'other' => 'Otro'];
+        $reasonLabels = [
+            'personal' => 'Personal',
+            'medical' => 'Médico',
+            'education' => 'Educación',
+            'other' => 'Otro',
+        ];
     @endphp
     <div style="display: table; width: 100%; margin-bottom: 12px; border-collapse: collapse;">
         {{-- Columna izquierda: Empleado --}}
@@ -270,7 +275,8 @@
                     </tr>
                     <tr>
                         <td class="text-left" style="font-weight: bold;">Departamento:</td>
-                        <td class="text-left">{{ $loan->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
+                        <td class="text-left">
+                            {{ $loan->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
                     </tr>
                 </tbody>
             </table>
@@ -294,17 +300,19 @@
                     </tr>
                     <tr>
                         <td class="text-left" style="font-weight: bold;">Tasa de Interés Anual:</td>
-                        <td class="text-left">{{ $loan->hasInterest() ? number_format((float) $loan->interest_rate, 2, ',', '.') . '%' : 'Sin interés' }}</td>
+                        <td class="text-left">
+                            {{ $loan->hasInterest() ? number_format((float) $loan->interest_rate, 2, ',', '.') . '%' : 'Sin interés' }}
+                        </td>
                     </tr>
                     <tr>
                         <td class="text-left" style="font-weight: bold;">Motivo:</td>
-                        <td class="text-left">{{ $reasonLabels[$loan->reason] ?? $loan->reason ?? '-' }}</td>
+                        <td class="text-left">{{ $reasonLabels[$loan->reason] ?? ($loan->reason ?? '-') }}</td>
                     </tr>
                     @if ($loan->granted_at)
-                    <tr>
-                        <td class="text-left" style="font-weight: bold;">Fecha de Otorgamiento:</td>
-                        <td class="text-left">{{ $loan->granted_at->format('d/m/Y') }}</td>
-                    </tr>
+                        <tr>
+                            <td class="text-left" style="font-weight: bold;">Fecha de Otorgamiento:</td>
+                            <td class="text-left">{{ $loan->granted_at->format('d/m/Y') }}</td>
+                        </tr>
                     @endif
                 </tbody>
             </table>
@@ -338,8 +346,10 @@
                                 {{ $installment->due_date->format('d/m/Y') }}
                             </td>
                             @if ($hasInterest)
-                                <td class="amount">Gs. {{ number_format((float) $installment->capital_amount, 0, ',', '.') }}</td>
-                                <td class="amount">Gs. {{ number_format((float) $installment->interest_amount, 0, ',', '.') }}</td>
+                                <td class="amount">Gs.
+                                    {{ number_format((float) $installment->capital_amount, 0, ',', '.') }}</td>
+                                <td class="amount">Gs.
+                                    {{ number_format((float) $installment->interest_amount, 0, ',', '.') }}</td>
                             @endif
                             <td class="amount">Gs. {{ number_format((float) $installment->amount, 0, ',', '.') }}</td>
                             <td>

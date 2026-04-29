@@ -43,7 +43,9 @@
             margin-bottom: 2px;
         }
 
-        .company-info { font-size: 8px; }
+        .company-info {
+            font-size: 8px;
+        }
 
         .title {
             text-align: center;
@@ -59,7 +61,9 @@
             margin-bottom: 8px;
         }
 
-        .section { margin-bottom: 8px; }
+        .section {
+            margin-bottom: 8px;
+        }
 
         .section-title {
             font-weight: bold;
@@ -76,7 +80,8 @@
             margin: 0;
         }
 
-        th, td {
+        th,
+        td {
             border: 1px solid #000;
             padding: 3px 5px;
             font-size: 8px;
@@ -88,22 +93,44 @@
             text-align: center;
         }
 
-        .text-left   { text-align: left; }
-        .text-right  { text-align: right; }
-        .text-center { text-align: center; }
+        .text-left {
+            text-align: left;
+        }
+
+        .text-right {
+            text-align: right;
+        }
+
+        .text-center {
+            text-align: center;
+        }
 
         .amount {
             font-family: 'Courier New', monospace;
             text-align: right;
         }
 
-        .total-row td { font-weight: bold; background-color: #f5f5f5; }
+        .total-row td {
+            font-weight: bold;
+            background-color: #f5f5f5;
+        }
 
-        .status-paid      { color: #065f46; }
-        .status-pending   { color: #92400e; }
-        .status-cancelled { color: #6b7280; }
+        .status-paid {
+            color: #065f46;
+        }
 
-        .overdue { color: #991b1b; font-weight: bold; }
+        .status-pending {
+            color: #92400e;
+        }
+
+        .status-cancelled {
+            color: #6b7280;
+        }
+
+        .overdue {
+            color: #991b1b;
+            font-weight: bold;
+        }
 
         .note-section {
             margin: 6px 0;
@@ -111,7 +138,10 @@
             border: 1px solid #000;
         }
 
-        .note-title { font-weight: bold; margin-bottom: 3px; }
+        .note-title {
+            font-weight: bold;
+            margin-bottom: 3px;
+        }
 
         .signature-section {
             margin-top: 30px;
@@ -132,8 +162,14 @@
             padding-top: 4px;
         }
 
-        .signature-label    { font-size: 9px; font-weight: bold; }
-        .signature-sublabel { font-size: 8px; }
+        .signature-label {
+            font-size: 9px;
+            font-weight: bold;
+        }
+
+        .signature-sublabel {
+            font-size: 8px;
+        }
 
         .footer {
             margin-top: 20px;
@@ -153,23 +189,33 @@
         @endif
         <div class="company-name">{{ $companyName }}</div>
         <div class="company-info">
-            @if ($companyRuc) RUC: {{ $companyRuc }} @endif
-            @if ($employerNumber) | Nro. Patronal: {{ $employerNumber }} @endif
+            @if ($companyRuc)
+                RUC: {{ $companyRuc }}
+            @endif
+            @if ($employerNumber)
+                | Nro. Patronal: {{ $employerNumber }}
+            @endif
         </div>
         @if ($companyAddress)
             <div class="company-info">{{ $companyAddress }}</div>
         @endif
         @if ($companyPhone || $companyEmail)
             <div class="company-info">
-                @if ($companyPhone) Tel: {{ $companyPhone }} @endif
-                @if ($companyPhone && $companyEmail) | @endif
-                @if ($companyEmail) {{ $companyEmail }} @endif
+                @if ($companyPhone)
+                    Tel: {{ $companyPhone }}
+                @endif
+                @if ($companyPhone && $companyEmail)
+                    |
+                @endif
+                @if ($companyEmail)
+                    {{ $companyEmail }}
+                @endif
             </div>
         @endif
     </div>
 
     {{-- Título --}}
-    <div class="title">Estado de Cuenta — Retiro de Mercadería</div>
+    <div class="title">Retiro de Mercadería</div>
     <div class="subtitle">Documento #{{ $withdrawal->id }}</div>
 
     {{-- Empleado e Info de Pago (lado a lado) --}}
@@ -205,11 +251,13 @@
                 <tbody>
                     <tr>
                         <td style="width: 50%; font-weight: bold;">Monto Total:</td>
-                        <td class="amount"><strong>Gs. {{ number_format((float) $withdrawal->total_amount, 0, ',', '.') }}</strong></td>
+                        <td class="amount"><strong>Gs.
+                                {{ number_format((float) $withdrawal->total_amount, 0, ',', '.') }}</strong></td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold;">Monto por Cuota:</td>
-                        <td class="amount">Gs. {{ number_format((float) $withdrawal->installment_amount, 0, ',', '.') }}</td>
+                        <td class="amount">Gs.
+                            {{ number_format((float) $withdrawal->installment_amount, 0, ',', '.') }}</td>
                     </tr>
                     <tr>
                         <td style="font-weight: bold;">Cantidad de Cuotas:</td>
@@ -217,19 +265,20 @@
                     </tr>
                     <tr>
                         <td style="font-weight: bold;">Saldo Pendiente:</td>
-                        <td class="amount">Gs. {{ number_format((float) $withdrawal->outstanding_balance, 0, ',', '.') }}</td>
+                        <td class="amount">Gs.
+                            {{ number_format((float) $withdrawal->outstanding_balance, 0, ',', '.') }}</td>
                     </tr>
                     @if ($withdrawal->approved_at)
-                    <tr>
-                        <td style="font-weight: bold;">Fecha de Aprobación:</td>
-                        <td>{{ $withdrawal->approved_at->format('d/m/Y') }}</td>
-                    </tr>
+                        <tr>
+                            <td style="font-weight: bold;">Fecha de Aprobación:</td>
+                            <td>{{ $withdrawal->approved_at->format('d/m/Y') }}</td>
+                        </tr>
                     @endif
                     @if ($withdrawal->approvedBy)
-                    <tr>
-                        <td style="font-weight: bold;">Aprobado por:</td>
-                        <td>{{ $withdrawal->approvedBy->name }}</td>
-                    </tr>
+                        <tr>
+                            <td style="font-weight: bold;">Aprobado por:</td>
+                            <td>{{ $withdrawal->approvedBy->name }}</td>
+                        </tr>
                     @endif
                 </tbody>
             </table>
@@ -339,7 +388,9 @@
     {{-- Footer --}}
     <div class="footer">
         Documento generado el {{ now()->format('d/m/Y H:i') }}
-        @if ($city) | {{ $city }}, Paraguay @endif
+        @if ($city)
+            | {{ $city }}, Paraguay
+        @endif
     </div>
 </body>
 

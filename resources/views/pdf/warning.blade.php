@@ -273,7 +273,7 @@
         <div class="signature-item">
             <div class="signature-line"></div>
             <div class="signature-label">{{ $warning->issuedBy->name }}</div>
-            <div class="signature-sublabel">Representante de la Empresa</div>
+            <div class="signature-sublabel">Recursos Humanos</div>
         </div>
         <div class="signature-item">
             <div class="signature-line"></div>
