@@ -758,6 +758,93 @@ php artisan up
 ```
 Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora).
 
+### RelationManagers de asignación con vigencia por fechas (`EmployeePerception`, `EmployeeDeduction`)
+
+Estas tablas tienen una constraint única compuesta: `(employee_id, entity_id, start_date)`. Esto impone reglas que van más allá de solo verificar si hay una asignación activa.
+
+**Cuatro puntos de entrada que deben validar unicidad de `start_date`:**
+
+```php
+// 1. CreateAction — before()
+$hasSameStartDate = Model::where('employee_id', ...)
+    ->where('entity_id', ...)
+    ->where('start_date', $data['start_date'])
+    ->exists();
+
+// 2. EditAction — before()
+$hasSameStartDate = Model::where('employee_id', $record->employee_id)
+    ->where('entity_id', $record->entity_id)
+    ->where('id', '!=', $record->id)
+    ->where('start_date', $data['start_date'])
+    ->exists();
+
+// 3. reactivate (action individual) — antes del update
+$hasSameStartDate = Model::where(...)->where('id', '!=', $record->id)
+    ->where('start_date', $startDate)->exists();
+
+// 4. BulkAction reactivate — por registro dentro del foreach
+if ($hasSameStartDate) { $skipped++; continue; }
+```
+
+**Por qué:** El chequeo de "asignación activa" (`start_date <= now AND end_date IS NULL OR >= now`) no detecta registros históricos inactivos que compartan la misma `start_date`. El INSERT/UPDATE falla con `UniqueConstraintViolationException` sin capturar.
+
+**Acción deactivate — validar `end_date >= start_date` en el closure:**
+```php
+->action(function (Model $record, array $data) {
+    $endDate = Carbon::parse($data['end_date']);
+    if ($endDate->lt($record->start_date)) {
+        Notification::make()->danger()->title('Fecha inválida')
+            ->body("La fecha de fin no puede ser anterior a la fecha de inicio ({$record->start_date->format('d/m/Y')}).")
+            ->send();
+        return;
+    }
+    // ...
+```
+
+### `->searchable()` con columnas de relaciones en tablas Filament
+
+Pasar un array de columnas relacionales a `->searchable()` genera SQL inválido:
+
+```php
+// ❌ Genera: WHERE employee.first_name LIKE ...
+// MySQL no reconoce 'employee' (singular) como tabla en el subquery
+->searchable(['employee.first_name', 'employee.last_name'])
+
+// ✅ Correcto: usar query callback con whereHas
+->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+    'employee',
+    fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                 ->orWhere('last_name', 'like', "%{$search}%")
+))
+```
+
+La causa: Filament usa el nombre de la relación (singular) como alias de tabla en el subquery `EXISTS`, pero MySQL espera el nombre real de la tabla (plural). El `->searchable()` sin array en columnas simples de relación (`->searchable()` sobre `TextColumn::make('employee.ci')`) sí funciona porque Filament genera el subquery correcto en ese caso.
+
+### Nullsafe en propiedades de relaciones en closures de columnas Filament
+
+Siempre usar `?->` al acceder a relaciones en closures de columnas — el registro relacionado puede ser null si fue eliminado:
+
+```php
+// ❌ Crash si employee es null
+->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
+
+// ✅
+->defaultImageUrl(fn ($record) => $record->employee?->avatar_url)
+
+// ❌ Crash si deduction es null y custom_amount también es null
+->getStateUsing(function ($record) {
+    if ($record->custom_amount !== null) { return ...; }
+    elseif ($record->deduction->isPercentage()) { ... }  // crash
+})
+
+// ✅ Guard explícito
+->getStateUsing(function ($record) {
+    if ($record->custom_amount !== null) { return ...; }
+    if ($record->deduction === null) { return '-'; }
+    if ($record->deduction->isPercentage()) { ... }
+})
+```
+
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation

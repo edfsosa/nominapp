@@ -156,7 +156,13 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ->getStateUsing(function ($record) {
                         if ($record->custom_amount !== null) {
                             return '₲ '.number_format($record->custom_amount, 0, ',', '.');
-                        } elseif ($record->deduction->isPercentage()) {
+                        }
+
+                        if ($record->deduction === null) {
+                            return '-';
+                        }
+
+                        if ($record->deduction->isPercentage()) {
                             return $record->deduction->percent.'%';
                         }
 
@@ -257,6 +263,24 @@ class EmployeeDeductionsRelationManager extends RelationManager
                                 ->title('Ya existe una asignación activa')
                                 ->body('Este empleado ya tiene esta deducción activa en otro registro.')
                                 ->send();
+
+                            $action->halt();
+
+                            return;
+                        }
+
+                        $hasSameStartDate = EmployeeDeduction::where('employee_id', $this->getOwnerRecord()->id)
+                            ->where('deduction_id', $data['deduction_id'])
+                            ->where('start_date', $data['start_date'])
+                            ->exists();
+
+                        if ($hasSameStartDate) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha de inicio duplicada')
+                                ->body('Ya existe un registro con esa fecha de inicio para esta deducción. Elija otra fecha.')
+                                ->send();
+
                             $action->halt();
                         }
                     })
@@ -282,6 +306,16 @@ class EmployeeDeductionsRelationManager extends RelationManager
                     ])
                     ->action(function (EmployeeDeduction $record, array $data) {
                         $endDate = Carbon::parse($data['end_date']);
+
+                        if ($endDate->lt($record->start_date)) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha inválida')
+                                ->body("La fecha de fin no puede ser anterior a la fecha de inicio ({$record->start_date->format('d/m/Y')}).")
+                                ->send();
+
+                            return;
+                        }
 
                         if ($record->deactivate($endDate)) {
                             Notification::make()
@@ -341,6 +375,23 @@ class EmployeeDeductionsRelationManager extends RelationManager
                         }
 
                         $startDate = Carbon::parse($data['start_date']);
+
+                        $hasSameStartDate = EmployeeDeduction::where('employee_id', $record->employee_id)
+                            ->where('deduction_id', $record->deduction_id)
+                            ->where('id', '!=', $record->id)
+                            ->where('start_date', $startDate)
+                            ->exists();
+
+                        if ($hasSameStartDate) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha de inicio duplicada')
+                                ->body('Ya existe otro registro con esa fecha de inicio para esta deducción. Elija otra fecha.')
+                                ->send();
+
+                            return;
+                        }
+
                         $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
 
                         if ($record->reactivate($startDate, $endDate)) {
@@ -365,6 +416,23 @@ class EmployeeDeductionsRelationManager extends RelationManager
                 ActionGroup::make([
                     EditAction::make()
                         ->modalHeading('Editar Asignación')
+                        ->before(function (EmployeeDeduction $record, array $data, EditAction $action) {
+                            $hasSameStartDate = EmployeeDeduction::where('employee_id', $record->employee_id)
+                                ->where('deduction_id', $record->deduction_id)
+                                ->where('id', '!=', $record->id)
+                                ->where('start_date', $data['start_date'])
+                                ->exists();
+
+                            if ($hasSameStartDate) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Fecha de inicio duplicada')
+                                    ->body('Ya existe otro registro con esa fecha de inicio para esta deducción. Elija otra fecha.')
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        })
                         ->successNotificationTitle('Asignación actualizada exitosamente'),
                     DeleteAction::make()
                         ->modalHeading('Eliminar Asignación')
@@ -379,6 +447,7 @@ class EmployeeDeductionsRelationManager extends RelationManager
                         ->icon('heroicon-o-x-circle')
                         ->color('warning')
                         ->modalHeading('Desactivar Asignaciones')
+                        ->modalDescription('Se establecerá la fecha de fin indicada para las asignaciones seleccionadas activas.')
                         ->modalSubmitActionLabel('Sí, desactivar')
                         ->form([
                             DatePicker::make('end_date')
@@ -453,6 +522,19 @@ class EmployeeDeductionsRelationManager extends RelationManager
 
                                     continue;
                                 }
+
+                                $hasSameStartDate = EmployeeDeduction::where('employee_id', $record->employee_id)
+                                    ->where('deduction_id', $record->deduction_id)
+                                    ->where('id', '!=', $record->id)
+                                    ->where('start_date', $startDate)
+                                    ->exists();
+
+                                if ($hasSameStartDate) {
+                                    $skipped++;
+
+                                    continue;
+                                }
+
                                 $record->reactivate($startDate, $endDate);
                                 $reactivated++;
                             }

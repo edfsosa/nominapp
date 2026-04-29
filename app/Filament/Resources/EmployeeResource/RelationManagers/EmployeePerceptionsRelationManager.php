@@ -155,7 +155,13 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ->getStateUsing(function ($record) {
                         if ($record->custom_amount !== null) {
                             return '₲ '.number_format($record->custom_amount, 0, ',', '.');
-                        } elseif ($record->perception->isPercentage()) {
+                        }
+
+                        if ($record->perception === null) {
+                            return '-';
+                        }
+
+                        if ($record->perception->isPercentage()) {
                             return $record->perception->percent.'%';
                         }
 
@@ -227,6 +233,23 @@ class EmployeePerceptionsRelationManager extends RelationManager
                                 ->send();
 
                             $action->halt();
+
+                            return;
+                        }
+
+                        $hasSameStartDate = EmployeePerception::where('employee_id', $this->getOwnerRecord()->id)
+                            ->where('perception_id', $data['perception_id'])
+                            ->where('start_date', $data['start_date'])
+                            ->exists();
+
+                        if ($hasSameStartDate) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha de inicio duplicada')
+                                ->body('Ya existe un registro con esa fecha de inicio para esta percepción. Elija otra fecha.')
+                                ->send();
+
+                            $action->halt();
                         }
                     })
                     ->successNotificationTitle('Percepción asignada exitosamente'),
@@ -251,6 +274,16 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     ])
                     ->action(function (EmployeePerception $record, array $data) {
                         $endDate = Carbon::parse($data['end_date']);
+
+                        if ($endDate->lt($record->start_date)) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha inválida')
+                                ->body("La fecha de fin no puede ser anterior a la fecha de inicio ({$record->start_date->format('d/m/Y')}).")
+                                ->send();
+
+                            return;
+                        }
 
                         if ($record->deactivate($endDate)) {
                             Notification::make()
@@ -311,6 +344,23 @@ class EmployeePerceptionsRelationManager extends RelationManager
                         }
 
                         $startDate = Carbon::parse($data['start_date']);
+
+                        $hasSameStartDate = EmployeePerception::where('employee_id', $record->employee_id)
+                            ->where('perception_id', $record->perception_id)
+                            ->where('id', '!=', $record->id)
+                            ->where('start_date', $startDate)
+                            ->exists();
+
+                        if ($hasSameStartDate) {
+                            Notification::make()
+                                ->danger()
+                                ->title('Fecha de inicio duplicada')
+                                ->body('Ya existe otro registro con esa fecha de inicio para esta percepción. Elija otra fecha.')
+                                ->send();
+
+                            return;
+                        }
+
                         $endDate = filled($data['end_date']) ? Carbon::parse($data['end_date']) : null;
 
                         if ($record->reactivate($startDate, $endDate)) {
@@ -336,6 +386,23 @@ class EmployeePerceptionsRelationManager extends RelationManager
                     EditAction::make()
                         ->modalHeading('Editar Asignación')
                         ->color('primary')
+                        ->before(function (EmployeePerception $record, array $data, EditAction $action) {
+                            $hasSameStartDate = EmployeePerception::where('employee_id', $record->employee_id)
+                                ->where('perception_id', $record->perception_id)
+                                ->where('id', '!=', $record->id)
+                                ->where('start_date', $data['start_date'])
+                                ->exists();
+
+                            if ($hasSameStartDate) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Fecha de inicio duplicada')
+                                    ->body('Ya existe otro registro con esa fecha de inicio para esta percepción. Elija otra fecha.')
+                                    ->send();
+
+                                $action->halt();
+                            }
+                        })
                         ->successNotificationTitle('Asignación actualizada exitosamente'),
 
                     DeleteAction::make()
@@ -433,6 +500,18 @@ class EmployeePerceptionsRelationManager extends RelationManager
                                     ->exists();
 
                                 if ($hasActive) {
+                                    $skipped++;
+
+                                    continue;
+                                }
+
+                                $hasSameStartDate = EmployeePerception::where('employee_id', $record->employee_id)
+                                    ->where('perception_id', $record->perception_id)
+                                    ->where('id', '!=', $record->id)
+                                    ->where('start_date', $startDate)
+                                    ->exists();
+
+                                if ($hasSameStartDate) {
                                     $skipped++;
 
                                     continue;
