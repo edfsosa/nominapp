@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\VacationBalance;
+use App\Models\Vacation;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -11,52 +11,57 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Exporta el balance anual de vacaciones por empleado con los filtros activos del reporte.
+ * Exporta períodos individuales de vacación con los filtros activos del reporte.
  *
- * Cada fila representa un empleado con sus días con derecho, usados, pendientes y disponibles.
+ * Cada fila representa un período de vacación de un empleado.
  */
 class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
-     * @param  int  $year  Año del balance a exportar.
+     * @param  int  $year  Año del período (filtra por start_date).
+     * @param  int|null  $month  Mes opcional (1-12). Null = todos los meses del año.
      * @param  int|null  $companyId  Filtrar por empresa (null = todas).
      * @param  int|null  $branchId  Filtrar por sucursal (null = todas).
-     * @param  bool  $onlyUsed  Si true, solo incluye empleados con días usados > 0.
+     * @param  string|null  $status  Filtrar por estado (null = todos).
      */
     public function __construct(
         protected int $year,
+        protected ?int $month = null,
         protected ?int $companyId = null,
         protected ?int $branchId = null,
-        protected bool $onlyUsed = false,
+        protected ?string $status = null,
     ) {}
 
     /**
-     * Query base: balances del año con joins a empleados y sucursales.
+     * Query base: vacaciones con joins a employees y branches.
      *
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function query()
     {
-        return VacationBalance::query()
+        return Vacation::query()
             ->select([
-                'employee_vacation_balances.id',
-                'employee_vacation_balances.years_of_service',
-                'employee_vacation_balances.entitled_days',
-                'employee_vacation_balances.used_days',
-                'employee_vacation_balances.pending_days',
+                'vacations.id',
+                'vacations.start_date',
+                'vacations.end_date',
+                'vacations.business_days',
+                'vacations.type',
+                'vacations.status',
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',
                 'branches.name as branch_name',
             ])
-            ->join('employees', 'employees.id', '=', 'employee_vacation_balances.employee_id')
+            ->join('employees', 'employees.id', '=', 'vacations.employee_id')
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
-            ->where('employee_vacation_balances.year', $this->year)
+            ->whereYear('vacations.start_date', $this->year)
+            ->when($this->month, fn ($q) => $q->whereMonth('vacations.start_date', $this->month))
             ->when($this->companyId, fn ($q) => $q->where('branches.company_id', $this->companyId))
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
-            ->when($this->onlyUsed, fn ($q) => $q->where('employee_vacation_balances.used_days', '>', 0))
+            ->when($this->status, fn ($q) => $q->where('vacations.status', $this->status))
             ->orderBy('employees.last_name')
-            ->orderBy('employees.first_name');
+            ->orderBy('employees.first_name')
+            ->orderBy('vacations.start_date');
     }
 
     /**
@@ -70,12 +75,11 @@ class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'Empleado',
             'CI',
             'Sucursal',
-            'Antigüedad (años)',
-            'Con Derecho (días)',
-            'Usados (días)',
-            'Pendientes (días)',
-            'Disponibles (días)',
-            'Progreso (%)',
+            'Inicio',
+            'Fin',
+            'Días hábiles',
+            'Tipo',
+            'Estado',
         ];
     }
 
@@ -87,21 +91,15 @@ class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
      */
     public function map($row): array
     {
-        $available = max(0, $row->entitled_days - $row->used_days - $row->pending_days);
-        $progress = $row->entitled_days > 0
-            ? round(($row->used_days / $row->entitled_days) * 100, 1)
-            : 0;
-
         return [
             $row->last_name.', '.$row->first_name,
             $row->ci,
             $row->branch_name,
-            $row->years_of_service,
-            $row->entitled_days,
-            $row->used_days,
-            $row->pending_days,
-            $available,
-            $progress,
+            $row->start_date->format('d/m/Y'),
+            $row->end_date->format('d/m/Y'),
+            $row->business_days,
+            Vacation::getTypeLabel($row->type),
+            Vacation::getStatusLabel($row->status),
         ];
     }
 

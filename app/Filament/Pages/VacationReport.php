@@ -5,7 +5,7 @@ namespace App\Filament\Pages;
 use App\Exports\VacationReportExport;
 use App\Models\Branch;
 use App\Models\Company;
-use App\Models\VacationBalance;
+use App\Models\Vacation;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -13,16 +13,14 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * Reporte de vacaciones por empleado: muestra balance anual de días
- * con derecho, usados, pendientes y disponibles, filtrable por año,
- * empresa y sucursal.
+ * Reporte de vacaciones individuales: muestra cada período de vacación tomado
+ * por empleado, filtrable por año, mes, empresa, sucursal y estado.
  */
 class VacationReport extends Page implements HasTable
 {
@@ -40,18 +38,34 @@ class VacationReport extends Page implements HasTable
 
     protected ?string $heading = 'Reporte de Vacaciones';
 
+    /** @var array<string, string> Nombres de meses en español. */
+    private const MONTHS = [
+        '1' => 'Enero',      '2' => 'Febrero',   '3' => 'Marzo',
+        '4' => 'Abril',      '5' => 'Mayo',       '6' => 'Junio',
+        '7' => 'Julio',      '8' => 'Agosto',     '9' => 'Septiembre',
+        '10' => 'Octubre',    '11' => 'Noviembre',  '12' => 'Diciembre',
+    ];
+
     /**
-     * Retorna el subheading dinámico con el año activo del filtro.
+     * Retorna el subheading dinámico con el año y mes activos del filtro.
      */
     public function getSubheading(): ?string
     {
-        $year = $this->tableFilters['year']['value'] ?? now()->year;
+        $f = $this->tableFilters ?? [];
+        $year = $f['year']['value'] ?? now()->year;
+        $month = $f['month']['value'] ?? null;
 
-        return "Balance anual de vacaciones · Año {$year}";
+        if ($month && isset(self::MONTHS[$month])) {
+            return 'Períodos de vacación · '.self::MONTHS[$month].' '.$year;
+        }
+
+        return 'Períodos de vacación · Año '.$year;
     }
 
     /**
      * Acción de exportación a Excel con los filtros activos.
+     *
+     * @return array<int, Action>
      */
     protected function getHeaderActions(): array
     {
@@ -62,15 +76,17 @@ class VacationReport extends Page implements HasTable
                 ->color('gray')
                 ->requiresConfirmation()
                 ->modalHeading('Exportar reporte de vacaciones')
-                ->modalDescription('Se exportará una fila por empleado con el balance del año y filtros seleccionados.')
+                ->modalDescription('Se exportará una fila por período de vacación con los filtros seleccionados.')
                 ->modalSubmitActionLabel('Sí, exportar')
                 ->action(function () {
-                    [$year, $companyId, $branchId, $onlyUsed] = $this->resolveActiveFilters();
+                    [$year, $month, $companyId, $branchId, $status] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
+                    $suffix = $month ? '_'.str_pad((string) $month, 2, '0', STR_PAD_LEFT) : '';
+
                     return Excel::download(
-                        new VacationReportExport($year, $companyId, $branchId, $onlyUsed),
-                        'vacaciones_'.$year.'_'.now()->format('Y_m_d_H_i').'.xlsx'
+                        new VacationReportExport($year, $month, $companyId, $branchId, $status),
+                        'vacaciones_'.$year.$suffix.'_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
         ];
@@ -84,9 +100,9 @@ class VacationReport extends Page implements HasTable
         return $table
             ->query($this->buildQuery())
             ->filters($this->buildFilters(), layout: FiltersLayout::AboveContent)
-            ->filtersFormColumns(4)
+            ->filtersFormColumns(5)
             ->persistFiltersInSession()
-            ->defaultSort('last_name', 'asc')
+            ->defaultSort('employees.last_name', 'asc')
             ->paginated([25, 50, 100])
             ->striped()
             ->columns([
@@ -94,8 +110,8 @@ class VacationReport extends Page implements HasTable
                     ->label('Empleado')
                     ->getStateUsing(fn ($record) => $record->last_name.', '.$record->first_name)
                     ->sortable(query: fn (Builder $query, string $direction) => $query
-                        ->orderBy('last_name', $direction)
-                        ->orderBy('first_name', $direction))
+                        ->orderBy('employees.last_name', $direction)
+                        ->orderBy('employees.first_name', $direction))
                     ->searchable(query: fn (Builder $query, string $search) => $query->where(
                         fn ($q) => $q->where('employees.first_name', 'like', "%{$search}%")
                             ->orWhere('employees.last_name', 'like', "%{$search}%")
@@ -116,104 +132,69 @@ class VacationReport extends Page implements HasTable
                     ->color('info')
                     ->sortable(),
 
-                TextColumn::make('years_of_service')
-                    ->label('Antigüedad')
-                    ->getStateUsing(fn ($record) => $record->years_of_service.' '.($record->years_of_service === 1 ? 'año' : 'años'))
+                TextColumn::make('start_date')
+                    ->label('Inicio')
+                    ->date('d/m/Y')
+                    ->sortable(),
+
+                TextColumn::make('end_date')
+                    ->label('Fin')
+                    ->date('d/m/Y')
+                    ->sortable(),
+
+                TextColumn::make('business_days')
+                    ->label('Días hábiles')
+                    ->suffix(' días')
                     ->badge()
                     ->color('primary')
-                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('years_of_service', $direction)),
+                    ->alignCenter()
+                    ->sortable(),
 
-                TextColumn::make('entitled_days')
-                    ->label('Con derecho')
-                    ->suffix(' días')
+                TextColumn::make('type')
+                    ->label('Tipo')
+                    ->formatStateUsing(fn ($state) => Vacation::getTypeLabel($state))
                     ->badge()
-                    ->color('success')
-                    ->sortable()
-                    ->alignCenter(),
+                    ->color(fn ($state) => Vacation::getTypeColor($state)),
 
-                TextColumn::make('used_days')
-                    ->label('Usados')
-                    ->suffix(' días')
+                TextColumn::make('status')
+                    ->label('Estado')
+                    ->formatStateUsing(fn ($state) => Vacation::getStatusLabel($state))
                     ->badge()
-                    ->color(fn ($record) => $record->used_days > 0 ? 'warning' : 'gray')
-                    ->sortable()
-                    ->alignCenter(),
-
-                TextColumn::make('pending_days')
-                    ->label('Pendientes')
-                    ->suffix(' días')
-                    ->badge()
-                    ->color(fn ($record) => $record->pending_days > 0 ? 'info' : 'gray')
-                    ->sortable()
-                    ->alignCenter(),
-
-                TextColumn::make('available_days')
-                    ->label('Disponibles')
-                    ->getStateUsing(fn ($record) => max(0, $record->entitled_days - $record->used_days - $record->pending_days))
-                    ->suffix(' días')
-                    ->badge()
-                    ->color(fn ($record) => max(0, $record->entitled_days - $record->used_days - $record->pending_days) > 0 ? 'success' : 'danger')
-                    ->alignCenter(),
-
-                TextColumn::make('progress')
-                    ->label('Progreso')
-                    ->getStateUsing(function ($record) {
-                        if ($record->entitled_days === 0) {
-                            return '0%';
-                        }
-
-                        return round(($record->used_days / $record->entitled_days) * 100).'%';
-                    })
-                    ->badge()
-                    ->color(function ($record) {
-                        if ($record->entitled_days === 0) {
-                            return 'gray';
-                        }
-
-                        $pct = ($record->used_days / $record->entitled_days) * 100;
-
-                        if ($pct >= 100) {
-                            return 'danger';
-                        }
-
-                        if ($pct >= 50) {
-                            return 'warning';
-                        }
-
-                        return $pct > 0 ? 'success' : 'gray';
-                    })
-                    ->alignCenter(),
+                    ->color(fn ($state) => Vacation::getStatusColor($state))
+                    ->icon(fn ($state) => Vacation::getStatusIcon($state)),
             ])
-            ->emptyStateHeading('Sin datos para el período')
-            ->emptyStateDescription('No hay balances de vacaciones para el año y filtros seleccionados. Generá los balances desde la sección de Vacaciones.')
+            ->emptyStateHeading('Sin vacaciones para el período')
+            ->emptyStateDescription('No hay registros de vacaciones para los filtros seleccionados.')
             ->emptyStateIcon('heroicon-o-sun');
     }
 
     /**
-     * Query base: VacationBalance con joins a employees y branches.
+     * Query base: Vacation con joins a employees y branches.
      */
     private function buildQuery(): Builder
     {
-        return VacationBalance::query()
+        return Vacation::query()
             ->select([
-                'employee_vacation_balances.id',
-                'employee_vacation_balances.employee_id',
-                'employee_vacation_balances.year',
-                'employee_vacation_balances.years_of_service',
-                'employee_vacation_balances.entitled_days',
-                'employee_vacation_balances.used_days',
-                'employee_vacation_balances.pending_days',
+                'vacations.id',
+                'vacations.employee_id',
+                'vacations.start_date',
+                'vacations.end_date',
+                'vacations.business_days',
+                'vacations.type',
+                'vacations.status',
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',
                 'branches.name as branch_name',
             ])
-            ->join('employees', 'employees.id', '=', 'employee_vacation_balances.employee_id')
+            ->join('employees', 'employees.id', '=', 'vacations.employee_id')
             ->join('branches', 'branches.id', '=', 'employees.branch_id');
     }
 
     /**
-     * Filtros del reporte: año, empresa, sucursal y opción de solo con vacaciones usadas.
+     * Filtros del reporte: año, mes, empresa, sucursal y estado.
+     *
+     * @return array<int, mixed>
      */
     private function buildFilters(): array
     {
@@ -227,8 +208,17 @@ class VacationReport extends Page implements HasTable
                 ->options($yearOptions)
                 ->default((string) now()->year)
                 ->query(fn (Builder $query, array $data) => filled($data['value'])
-                    ? $query->where('employee_vacation_balances.year', $data['value'])
-                    : $query->where('employee_vacation_balances.year', now()->year)
+                    ? $query->whereYear('vacations.start_date', $data['value'])
+                    : $query->whereYear('vacations.start_date', now()->year)
+                ),
+
+            SelectFilter::make('month')
+                ->label('Mes')
+                ->options(self::MONTHS)
+                ->placeholder('Todos los meses')
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->whereMonth('vacations.start_date', $data['value'])
+                    : $query
                 ),
 
             SelectFilter::make('company_id')
@@ -249,17 +239,21 @@ class VacationReport extends Page implements HasTable
                     : $query
                 ),
 
-            Filter::make('only_used')
-                ->label('Solo con vacaciones usadas')
-                ->toggle()
-                ->query(fn (Builder $query) => $query->where('employee_vacation_balances.used_days', '>', 0)),
+            SelectFilter::make('status')
+                ->label('Estado')
+                ->options(Vacation::getStatusOptions())
+                ->placeholder('Todos los estados')
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('vacations.status', $data['value'])
+                    : $query
+                ),
         ];
     }
 
     /**
      * Extrae los valores activos de los filtros para pasarlos al export.
      *
-     * @return array{int, int|null, int|null, bool}
+     * @return array{int, int|null, int|null, int|null, string|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -267,9 +261,10 @@ class VacationReport extends Page implements HasTable
 
         return [
             isset($f['year']['value']) ? (int) $f['year']['value'] : now()->year,
-            isset($f['company_id']['value']) ? (int) $f['company_id']['value'] : null,
-            isset($f['branch_id']['value']) ? (int) $f['branch_id']['value'] : null,
-            (bool) ($f['only_used']['isActive'] ?? false),
+            isset($f['month']['value']) && $f['month']['value'] !== '' ? (int) $f['month']['value'] : null,
+            isset($f['company_id']['value']) && $f['company_id']['value'] !== '' ? (int) $f['company_id']['value'] : null,
+            isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
+            isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null,
         ];
     }
 }
