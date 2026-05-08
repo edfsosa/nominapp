@@ -46,7 +46,7 @@ class LoanSeeder extends Seeder
                     'installments_count' => 10,
                     'installment_amount' => 500000,
                     'outstanding_balance' => 3500000,
-                    'status' => 'active',
+                    'status' => 'approved',
                     'reason' => 'Préstamo personal para gastos médicos',
                     'notes' => null,
                     'granted_at' => Carbon::now()->subMonths(3)->toDateString(),
