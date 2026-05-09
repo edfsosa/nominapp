@@ -70,6 +70,23 @@ class VacationReport extends Page implements HasTable
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('export_pdf')
+                ->label('Exportar PDF')
+                ->icon('heroicon-o-document-text')
+                ->color('info')
+                ->url(function () {
+                    [$year, $month, $companyId, $branchId, $status] = $this->resolveActiveFilters();
+
+                    return route('vacation.report.pdf', array_filter([
+                        'year'      => $year,
+                        'month'     => $month,
+                        'companyId' => $companyId,
+                        'branchId'  => $branchId,
+                        'status'    => $status,
+                    ], fn ($v) => $v !== null));
+                })
+                ->openUrlInNewTab(),
+
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')

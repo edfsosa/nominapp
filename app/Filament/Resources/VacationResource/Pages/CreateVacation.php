@@ -4,9 +4,9 @@ namespace App\Filament\Resources\VacationResource\Pages;
 
 use App\Filament\Resources\VacationResource;
 use App\Models\Employee;
-use App\Models\Vacation;
 use App\Services\VacationService;
 use Carbon\Carbon;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
 class CreateVacation extends CreateRecord
@@ -15,12 +15,43 @@ class CreateVacation extends CreateRecord
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
+    }
+
+    protected function beforeCreate(): void
+    {
+        $data = $this->data;
+
+        if (empty($data['employee_id']) || empty($data['start_date']) || empty($data['end_date'])) {
+            return;
+        }
+
+        $employee = Employee::find($data['employee_id']);
+        if (!$employee instanceof Employee) {
+            return;
+        }
+
+        $validation = VacationService::validateRequest(
+            $employee,
+            Carbon::parse($data['start_date']),
+            Carbon::parse($data['end_date']),
+        );
+
+        if (!$validation['valid']) {
+            Notification::make()
+                ->danger()
+                ->title('No se puede crear la solicitud')
+                ->body(implode(' | ', $validation['errors']))
+                ->send();
+
+            $this->halt();
+        }
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Asignar el balance correspondiente
+        $data['status'] = 'pending';
+
         if (!empty($data['employee_id']) && !empty($data['start_date'])) {
             $employee = Employee::find($data['employee_id']);
             if (!$employee instanceof Employee) {

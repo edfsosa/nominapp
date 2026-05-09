@@ -16,6 +16,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
+use App\Http\Controllers\VacationReportController;
 use App\Http\Controllers\WarningController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -140,9 +141,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])
         ->name('schedules.remove-employee');
 
-    // Descarga de documentos de vacaciones
+    // Documentos y reportes de vacaciones
     Route::get('/vacaciones/documentos/{filename}', [VacationDocumentController::class, 'download'])
         ->name('vacation.documents.download');
+    Route::get('/vacaciones/reporte/pdf', [VacationReportController::class, 'pdf'])
+        ->name('vacation.report.pdf');
 
     // Organigrama de empresas
     Route::prefix('empresas/{company}')->name('org-chart.')->group(function () {

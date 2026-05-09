@@ -192,6 +192,29 @@ class VacationService
     }
 
     /**
+     * Revierte una vacación aprobada a estado pendiente.
+     *
+     * Deshace el efecto de approve(): devuelve used_days al balance
+     * y los re-registra como pending_days, y limpia el monto calculado.
+     */
+    public static function unapprove(Vacation $vacation): void
+    {
+        DB::transaction(function () use ($vacation) {
+            if ($vacation->vacation_balance_id && $vacation->vacationBalance) {
+                $days = $vacation->business_days ?? 0;
+                $vacation->vacationBalance->returnUsedDays($days);
+                $vacation->vacationBalance->addPendingDays($days);
+            }
+
+            $vacation->update([
+                'status'         => 'pending',
+                'payment_amount' => 0,
+                'payment_status' => 'unpaid',
+            ]);
+        });
+    }
+
+    /**
      * Libera los días del balance al eliminar una vacación (pendiente o aprobada).
      */
     public static function releaseOnDelete(Vacation $vacation): void
