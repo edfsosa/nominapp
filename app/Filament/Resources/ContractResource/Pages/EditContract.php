@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\ContractResource\Pages;
 
+use App\Filament\Resources\ContractResource;
 use App\Models\Contract;
+use App\Models\EmployeeBankAccount;
 use App\Services\ContractService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
@@ -14,7 +16,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
-use App\Filament\Resources\ContractResource;
 use Illuminate\Support\Facades\Storage;
 
 class EditContract extends EditRecord
@@ -23,8 +24,6 @@ class EditContract extends EditRecord
 
     /**
      * Define las acciones disponibles en el encabezado de la página de edición.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -39,14 +38,14 @@ class EditContract extends EditRecord
                 ->label('Generar PDF')
                 ->icon('heroicon-o-printer')
                 ->color('info')
-                ->url(fn(Contract $record) => route('contracts.pdf', $record))
+                ->url(fn (Contract $record) => route('contracts.pdf', $record))
                 ->openUrlInNewTab(),
 
             Action::make('upload_signed')
-                ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
-                ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
-                ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
-                ->visible(fn(Contract $record) => $record->status === 'active')
+                ->label(fn (Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
+                ->icon(fn (Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                ->color(fn (Contract $record) => $record->document_path ? 'warning' : 'success')
+                ->visible(fn (Contract $record) => $record->status === 'active')
                 ->form([
                     FileUpload::make('document_path')
                         ->label('Contrato Firmado (PDF)')
@@ -57,8 +56,8 @@ class EditContract extends EditRecord
                         ->required()
                         ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
                 ])
-                ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
-                ->modalDescription(fn(Contract $record) => $record->document_path
+                ->modalHeading(fn (Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                ->modalDescription(fn (Contract $record) => $record->document_path
                     ? 'El documento actual será reemplazado por el nuevo archivo.'
                     : 'Suba el contrato escaneado con las firmas correspondientes.')
                 ->action(function (Contract $record, array $data) {
@@ -79,8 +78,8 @@ class EditContract extends EditRecord
                 ->label('Descargar Firmado')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->visible(fn(Contract $record) => (bool) $record->document_path)
-                ->action(fn(Contract $record) => response()->download(
+                ->visible(fn (Contract $record) => (bool) $record->document_path)
+                ->action(fn (Contract $record) => response()->download(
                     Storage::disk('public')->path($record->document_path),
                     "contrato_firmado_{$record->employee->ci}_{$record->start_date->format('Y_m_d')}.pdf"
                 )),
@@ -91,7 +90,7 @@ class EditContract extends EditRecord
                 ->label('Renovar')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
-                ->visible(fn(Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
+                ->visible(fn (Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
                 ->requiresConfirmation()
                 ->modalHeading('Renovar Contrato')
                 ->modalDescription(function (Contract $record) {
@@ -99,6 +98,7 @@ class EditContract extends EditRecord
                     if ($record->wouldBecomeIndefiniteOnRenewal()) {
                         $msg .= "\n\n⚠ Art. 53 CLT: Este contrato a plazo fijo ya fue renovado anteriormente. Al renovar nuevamente, el nuevo contrato será automáticamente de tipo INDEFINIDO.";
                     }
+
                     return $msg;
                 })
                 ->modalSubmitActionLabel('Sí, renovar')
@@ -108,7 +108,7 @@ class EditContract extends EditRecord
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->required()
-                        ->default(fn(Contract $record) => $record->end_date ?? now())
+                        ->default(fn (Contract $record) => $record->end_date ?? now())
                         ->closeOnDateSelection(),
 
                     DatePicker::make('end_date')
@@ -116,17 +116,17 @@ class EditContract extends EditRecord
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->closeOnDateSelection()
-                        ->visible(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                        ->required(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                        ->helperText(fn(Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
+                        ->visible(fn (Contract $record) => ! $record->wouldBecomeIndefiniteOnRenewal())
+                        ->required(fn (Contract $record) => ! $record->wouldBecomeIndefiniteOnRenewal())
+                        ->helperText(fn (Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
 
                     TextInput::make('salary')
-                        ->label(fn(Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                        ->label(fn (Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                         ->numeric()
                         ->required()
                         ->prefix('Gs.')
-                        ->suffix(fn(Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
-                        ->default(fn(Contract $record) => $record->salary),
+                        ->suffix(fn (Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
+                        ->default(fn (Contract $record) => $record->salary),
 
                     Textarea::make('notes')
                         ->label('Notas')
@@ -154,10 +154,10 @@ class EditContract extends EditRecord
                 ->label('Terminar')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn(Contract $record) => $record->status === 'active')
+                ->visible(fn (Contract $record) => $record->status === 'active')
                 ->requiresConfirmation()
                 ->modalHeading('Terminar Contrato')
-                ->modalDescription(fn(Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
+                ->modalDescription(fn (Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
                 ->modalSubmitActionLabel('Sí, terminar')
                 ->form([
                     Textarea::make('termination_notes')
@@ -189,9 +189,30 @@ class EditContract extends EditRecord
     }
 
     /**
+     * Crea la cuenta bancaria del empleado si se ingresó una al editar el contrato con pago por débito.
+     */
+    protected function afterSave(): void
+    {
+        if (
+            ($this->data['payment_method'] ?? null) === 'debit' &&
+            filled($this->data['ba_bank'] ?? null)
+        ) {
+            EmployeeBankAccount::firstOrCreate(
+                ['employee_id' => $this->record->employee_id, 'status' => 'active'],
+                [
+                    'bank' => $this->data['ba_bank'],
+                    'account_type' => $this->data['ba_account_type'],
+                    'account_number' => $this->data['ba_account_number'],
+                    'holder_name' => $this->data['ba_holder_name'],
+                    'holder_ci' => $this->data['ba_holder_ci'],
+                    'is_primary' => true,
+                ]
+            );
+        }
+    }
+
+    /**
      * Redirige a la vista de detalle del contrato tras guardar.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
@@ -200,8 +221,6 @@ class EditContract extends EditRecord
 
     /**
      * Retorna la notificación de éxito al guardar el contrato.
-     *
-     * @return Notification|null
      */
     protected function getSavedNotification(): ?Notification
     {

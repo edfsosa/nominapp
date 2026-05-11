@@ -5,6 +5,7 @@ use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\ContractExpirationReportController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\FaceEnrollmentController;
@@ -129,7 +130,12 @@ Route::middleware(['auth'])->group(function () {
     // Préstamos y adelantos
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
+    Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
+
+    // Reportes de contratos (rutas estáticas deben ir ANTES de /contratos/{contract}/pdf)
+    Route::get('/contratos/vencimiento/pdf', [ContractExpirationReportController::class, 'pdf'])
+        ->name('contracts.expiration.report.pdf');
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');

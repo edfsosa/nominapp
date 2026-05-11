@@ -8,6 +8,8 @@ use App\Models\Advance;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
+use App\Services\BankPaymentExportService;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Grid;
@@ -161,6 +163,7 @@ class ListAdvances extends ListRecords
 
                             if ($activeCount >= $maxPerPeriod) {
                                 $skippedLimit++;
+
                                 continue;
                             }
                         }
@@ -168,6 +171,7 @@ class ListAdvances extends ListRecords
                         $max = $employee->getMaxAdvanceAmount();
                         if ($max !== null && $amount > $max) {
                             $skippedAmount++;
+
                             continue;
                         }
 
@@ -196,6 +200,69 @@ class ListAdvances extends ListRecords
                         ->persistent();
                 }),
 
+            Action::make('export_banco')
+                ->label('Exportar para banco')
+                ->icon('heroicon-o-building-library')
+                ->color('gray')
+                ->form([
+                    Select::make('company_id')
+                        ->label('Empresa')
+                        ->options(Company::orderBy('name')->pluck('name', 'id'))
+                        ->required()
+                        ->native(false)
+                        ->searchable(),
+                    TextInput::make('id_empresa')
+                        ->label('ID Empresa (banco)')
+                        ->required()
+                        ->maxLength(50),
+                    TextInput::make('cuenta_debito')
+                        ->label('Cuenta Débito')
+                        ->required()
+                        ->maxLength(50),
+                    Select::make('moneda')
+                        ->label('Moneda')
+                        ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
+                        ->default('Guaraní')
+                        ->required()
+                        ->native(false),
+                    \Filament\Forms\Components\DatePicker::make('fecha_credito')
+                        ->label('Fecha Crédito')
+                        ->required()
+                        ->native(false)
+                        ->default(today())
+                        ->displayFormat('d/m/Y'),
+                    Select::make('tipo')
+                        ->label('Tipo de transferencia')
+                        ->options(['Crédito' => 'Crédito', 'Cheque' => 'Cheque'])
+                        ->default('Crédito')
+                        ->required()
+                        ->native(false),
+                ])
+                ->action(function (array $data) {
+                    $fecha = Carbon::parse($data['fecha_credito'])->format('d/m/Y');
+
+                    $advances = Advance::where('status', 'approved')
+                        ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
+                        ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+                    $params = [
+                        'id_empresa' => $data['id_empresa'],
+                        'cuenta_debito' => $data['cuenta_debito'],
+                        'moneda' => $data['moneda'],
+                        'tipo' => $data['tipo'],
+                        'fecha_credito' => $fecha,
+                    ];
+
+                    $tempFile = app(BankPaymentExportService::class)->generate($params, $advances);
+                    $filename = 'pagos_banco_'.now()->format('Y_m_d_H_i_s').'.xlsm';
+
+                    return response()->download($tempFile, $filename, [
+                        'Content-Type' => 'application/vnd.ms-excel.sheet.macroEnabled.12',
+                    ])->deleteFileAfterSend(true);
+                }),
+
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -212,8 +279,8 @@ class ListAdvances extends ListRecords
                         ->send();
 
                     return Excel::download(
-                        new AdvancesExport(),
-                        'adelantos_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                        new AdvancesExport,
+                        'adelantos_'.now()->format('Y_m_d_H_i_s').'.xlsx'
                     );
                 }),
 
@@ -238,27 +305,27 @@ class ListAdvances extends ListRecords
                 ->badge($counts['total']),
 
             'pending' => Tab::make('Pendientes')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'pending'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending'))
                 ->badge($byStatus['pending'] ?? 0)
                 ->badgeColor('warning'),
 
             'approved' => Tab::make('Aprobados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'approved'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
                 ->badge($byStatus['approved'] ?? 0)
                 ->badgeColor('info'),
 
             'paid' => Tab::make('Pagados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'paid'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))
                 ->badge($byStatus['paid'] ?? 0)
                 ->badgeColor('success'),
 
             'rejected' => Tab::make('Rechazados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'rejected'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected'))
                 ->badge($byStatus['rejected'] ?? 0)
                 ->badgeColor('danger'),
 
             'cancelled' => Tab::make('Cancelados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'cancelled'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'cancelled'))
                 ->badge($byStatus['cancelled'] ?? 0)
                 ->badgeColor('gray'),
         ];

@@ -2,7 +2,7 @@
 
 namespace App\Filament\Resources\ContractResource\Pages;
 
-use App\Models\Contract;
+use App\Filament\Resources\ContractResource;
 use App\Services\ContractService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
@@ -13,7 +13,6 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use App\Filament\Resources\ContractResource;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -28,8 +27,6 @@ class ViewContract extends ViewRecord
 
     /**
      * Define las acciones disponibles en el encabezado de la página de detalle.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -38,14 +35,14 @@ class ViewContract extends ViewRecord
                 ->label('Generar PDF')
                 ->icon('heroicon-o-printer')
                 ->color('info')
-                ->url(fn() => route('contracts.pdf', $this->record))
+                ->url(fn () => route('contracts.pdf', $this->record))
                 ->openUrlInNewTab(),
 
             Action::make('upload_signed')
-                ->label(fn() => $this->record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
-                ->icon(fn() => $this->record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
-                ->color(fn() => $this->record->document_path ? 'warning' : 'success')
-                ->visible(fn() => $this->record->status === 'active')
+                ->label(fn () => $this->record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
+                ->icon(fn () => $this->record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                ->color(fn () => $this->record->document_path ? 'warning' : 'gray')
+                ->visible(fn () => $this->record->status === 'active')
                 ->form([
                     FileUpload::make('document_path')
                         ->label('Contrato Firmado (PDF)')
@@ -56,8 +53,8 @@ class ViewContract extends ViewRecord
                         ->required()
                         ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
                 ])
-                ->modalHeading(fn() => $this->record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
-                ->modalDescription(fn() => $this->record->document_path
+                ->modalHeading(fn () => $this->record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                ->modalDescription(fn () => $this->record->document_path
                     ? 'El documento actual será reemplazado por el nuevo archivo.'
                     : 'Suba el contrato escaneado con las firmas correspondientes.')
                 ->modalSubmitActionLabel('Subir documento')
@@ -79,8 +76,8 @@ class ViewContract extends ViewRecord
                 ->label('Descargar Firmado')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->visible(fn() => (bool) $this->record->document_path)
-                ->action(fn() => response()->download(
+                ->visible(fn () => (bool) $this->record->document_path)
+                ->action(fn () => response()->download(
                     Storage::disk('public')->path($this->record->document_path),
                     "contrato_firmado_{$this->record->employee->ci}_{$this->record->start_date->format('Y_m_d')}.pdf"
                 )),
@@ -91,7 +88,7 @@ class ViewContract extends ViewRecord
                 ->label('Renovar')
                 ->icon('heroicon-o-arrow-path')
                 ->color('success')
-                ->visible(fn() => $this->record->status === 'active' && $this->record->type !== 'indefinido')
+                ->visible(fn () => $this->record->status === 'active' && $this->record->type !== 'indefinido')
                 ->requiresConfirmation()
                 ->modalHeading('Renovar Contrato')
                 ->modalDescription(function () {
@@ -99,6 +96,7 @@ class ViewContract extends ViewRecord
                     if ($this->record->wouldBecomeIndefiniteOnRenewal()) {
                         $msg .= "\n\n⚠ Art. 53 CLT: Este contrato a plazo fijo ya fue renovado anteriormente. Al renovar nuevamente, el nuevo contrato será automáticamente de tipo INDEFINIDO.";
                     }
+
                     return $msg;
                 })
                 ->modalSubmitActionLabel('Sí, renovar')
@@ -108,7 +106,7 @@ class ViewContract extends ViewRecord
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->required()
-                        ->default(fn() => $this->record->end_date ?? now())
+                        ->default(fn () => $this->record->end_date ?? now())
                         ->closeOnDateSelection(),
 
                     DatePicker::make('end_date')
@@ -116,17 +114,17 @@ class ViewContract extends ViewRecord
                         ->native(false)
                         ->displayFormat('d/m/Y')
                         ->closeOnDateSelection()
-                        ->visible(fn() => !$this->record->wouldBecomeIndefiniteOnRenewal())
-                        ->required(fn() => !$this->record->wouldBecomeIndefiniteOnRenewal())
-                        ->helperText(fn() => $this->record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
+                        ->visible(fn () => ! $this->record->wouldBecomeIndefiniteOnRenewal())
+                        ->required(fn () => ! $this->record->wouldBecomeIndefiniteOnRenewal())
+                        ->helperText(fn () => $this->record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
 
                     TextInput::make('salary')
-                        ->label(fn() => $this->record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                        ->label(fn () => $this->record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                         ->numeric()
                         ->required()
                         ->prefix('Gs.')
-                        ->suffix(fn() => $this->record->salary_type === 'jornal' ? '/día' : '/mes')
-                        ->default(fn() => $this->record->salary),
+                        ->suffix(fn () => $this->record->salary_type === 'jornal' ? '/día' : '/mes')
+                        ->default(fn () => $this->record->salary),
 
                     Textarea::make('notes')
                         ->label('Notas')
@@ -154,10 +152,10 @@ class ViewContract extends ViewRecord
                 ->label('Terminar')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn() => $this->record->status === 'active')
+                ->visible(fn () => $this->record->status === 'active')
                 ->requiresConfirmation()
                 ->modalHeading('Terminar Contrato')
-                ->modalDescription(fn() => "¿Está seguro de que desea terminar el contrato de {$this->record->employee->full_name}?")
+                ->modalDescription(fn () => "¿Está seguro de que desea terminar el contrato de {$this->record->employee->full_name}?")
                 ->modalSubmitActionLabel('Sí, terminar')
                 ->form([
                     Textarea::make('termination_notes')

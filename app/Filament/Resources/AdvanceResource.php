@@ -65,13 +65,13 @@ class AdvanceResource extends Resource
                             ->label('Empleado')
                             ->relationship(
                                 name: 'employee',
-                                modifyQueryUsing: fn(Builder $query) => $query
+                                modifyQueryUsing: fn (Builder $query) => $query
                                     ->where('status', 'active')
-                                    ->whereHas('activeContract', fn($c) => $c->whereNotNull('salary')->where('salary', '>', 0))
+                                    ->whereHas('activeContract', fn ($c) => $c->whereNotNull('salary')->where('salary', '>', 0))
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
-                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
+                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->full_name_with_ci)
                             ->searchable(['first_name', 'last_name', 'ci'])
                             ->native(false)
                             ->required()
@@ -82,7 +82,7 @@ class AdvanceResource extends Resource
                                 $employee = $get('employee_id') ? Employee::find($get('employee_id')) : null;
                                 $set('max_advance_amount', $employee?->getMaxAdvanceAmount());
                             })
-                            ->disabled(fn(string $operation) => $operation === 'edit')
+                            ->disabled(fn (string $operation) => $operation === 'edit')
                             ->helperText('Solo se muestran empleados activos con salario definido.'),
 
                         TextInput::make('amount')
@@ -90,7 +90,7 @@ class AdvanceResource extends Resource
                             ->numeric()
                             ->required()
                             ->minValue(1)
-                            ->maxValue(fn(Get $get) => $get('max_advance_amount') ?? 9999999999)
+                            ->maxValue(fn (Get $get) => $get('max_advance_amount') ?? 9999999999)
                             ->prefix('Gs.')
                             ->helperText(function (Get $get) {
                                 $max = $get('max_advance_amount');
@@ -98,10 +98,10 @@ class AdvanceResource extends Resource
                                 $percent = (int) app(PayrollSettings::class)->advance_max_percent;
 
                                 return $max
-                                    ? 'Máximo: ' . number_format($max, 0, ',', '.') . ' Gs. (' . $percent . '% del salario)'
+                                    ? 'Máximo: '.number_format($max, 0, ',', '.').' Gs. ('.$percent.'% del salario)'
                                     : 'Seleccione un empleado para ver el monto máximo';
                             })
-                            ->disabled(fn(string $operation) => $operation === 'edit'),
+                            ->disabled(fn (string $operation) => $operation === 'edit'),
 
                         Textarea::make('notes')
                             ->label('Notas')
@@ -155,9 +155,9 @@ class AdvanceResource extends Resource
 
                             TextEntry::make('status')
                                 ->label('Estado')
-                                ->formatStateUsing(fn(string $state) => Advance::getStatusLabel($state))
-                                ->color(fn(string $state) => Advance::getStatusColor($state))
-                                ->icon(fn(string $state) => Advance::getStatusIcon($state))
+                                ->formatStateUsing(fn (string $state) => Advance::getStatusLabel($state))
+                                ->color(fn (string $state) => Advance::getStatusColor($state))
+                                ->icon(fn (string $state) => Advance::getStatusIcon($state))
                                 ->badge(),
 
                             TextEntry::make('created_at')
@@ -192,7 +192,7 @@ class AdvanceResource extends Resource
                                 ->placeholder('Pendiente de nómina'),
                         ])->columns(3),
                     ])
-                    ->visible(fn(Advance $record) => $record->isApproved() || $record->isPaid()),
+                    ->visible(fn (Advance $record) => $record->isApproved() || $record->isPaid()),
             ]);
     }
 
@@ -203,7 +203,7 @@ class AdvanceResource extends Resource
     {
         return $table
             ->modifyQueryUsing(
-                fn(Builder $query) => $query->with(['employee', 'approvedBy'])
+                fn (Builder $query) => $query->with(['employee', 'approvedBy'])
             )
             ->columns([
                 TextColumn::make('id')
@@ -213,7 +213,7 @@ class AdvanceResource extends Resource
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -241,9 +241,9 @@ class AdvanceResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Advance::getStatusLabel($state))
-                    ->color(fn(string $state) => Advance::getStatusColor($state))
-                    ->icon(fn(string $state) => Advance::getStatusIcon($state))
+                    ->formatStateUsing(fn (string $state) => Advance::getStatusLabel($state))
+                    ->color(fn (string $state) => Advance::getStatusColor($state))
+                    ->icon(fn (string $state) => Advance::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('approved_at')
@@ -279,7 +279,7 @@ class AdvanceResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->multiple()
                     ->native(false),
@@ -299,19 +299,19 @@ class AdvanceResource extends Resource
                             ->closeOnDateSelection(),
                     ])
                     ->columns(2)
-                    ->query(fn(Builder $query, array $data): Builder => $query
-                        ->when($data['from'], fn($q, $date) => $q->whereDate('approved_at', '>=', $date))
-                        ->when($data['until'], fn($q, $date) => $q->whereDate('approved_at', '<=', $date))),
+                    ->query(fn (Builder $query, array $data): Builder => $query
+                        ->when($data['from'], fn ($q, $date) => $q->whereDate('approved_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->whereDate('approved_at', '<=', $date))),
             ])
             ->actions([
                 Action::make('approve')
                     ->label('Aprobar')
                     ->icon('heroicon-o-check')
                     ->color('success')
-                    ->visible(fn(Advance $record) => $record->isPending())
+                    ->visible(fn (Advance $record) => $record->isPending())
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Adelanto')
-                    ->modalDescription(fn(Advance $record) => 'Se aprobará el adelanto de ' . number_format((float) $record->amount, 0, ',', '.') . ' Gs. para ' . $record->employee->full_name . '. Se descontará automáticamente en la próxima liquidación de nómina.')
+                    ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
                     ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Advance $record) {
                         $result = $record->approve(Auth::id());
@@ -327,10 +327,10 @@ class AdvanceResource extends Resource
                     ->label('Rechazar')
                     ->icon('heroicon-o-x-circle')
                     ->color('warning')
-                    ->visible(fn(Advance $record) => $record->isPending())
+                    ->visible(fn (Advance $record) => $record->isPending())
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar Adelanto')
-                    ->modalDescription(fn(Advance $record) => 'Se rechazará el adelanto de ' . number_format((float) $record->amount, 0, ',', '.') . ' Gs. para ' . $record->employee->full_name . '. El adelanto quedará en estado Rechazado.')
+                    ->modalDescription(fn (Advance $record) => 'Se rechazará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. El adelanto quedará en estado Rechazado.')
                     ->modalSubmitActionLabel('Sí, rechazar')
                     ->form([
                         Textarea::make('reason')
@@ -348,13 +348,12 @@ class AdvanceResource extends Resource
                             ->send();
                     }),
 
-
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->visible(fn(Advance $record) => $record->isApproved() || $record->isPaid())
-                    ->url(fn(Advance $record) => route('advances.pdf', $record))
+                    ->visible(fn (Advance $record) => $record->isApproved() || $record->isPaid())
+                    ->url(fn (Advance $record) => route('advances.pdf', $record))
                     ->openUrlInNewTab(),
 
             ])
@@ -376,6 +375,7 @@ class AdvanceResource extends Resource
                             foreach ($records as $record) {
                                 if (! $record->isPending()) {
                                     $skipped++;
+
                                     continue;
                                 }
 
@@ -421,6 +421,7 @@ class AdvanceResource extends Resource
                             foreach ($records as $record) {
                                 if (! $record->isPending()) {
                                     $skipped++;
+
                                     continue;
                                 }
 
@@ -442,8 +443,18 @@ class AdvanceResource extends Resource
                         })
                         ->deselectRecordsAfterCompletion(),
 
-
                 ]),
+
+                BulkAction::make('pdf_masivo')
+                    ->label('Descargar PDF')
+                    ->icon('heroicon-o-document-arrow-down')
+                    ->color('info')
+                    ->action(function (Collection $records, \Livewire\Component $livewire) {
+                        $ids = $records->pluck('id')->implode(',');
+                        $url = route('advances.pdf.bulk', ['ids' => $ids]);
+                        $livewire->js("window.open('{$url}', '_blank')");
+                    })
+                    ->deselectRecordsAfterCompletion(),
             ])
             ->defaultSort('id', 'desc')
             ->emptyStateHeading('No se encontraron adelantos')

@@ -3,9 +3,9 @@
 namespace App\Models;
 
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
 
 class Contract extends Model
@@ -27,14 +27,15 @@ class Contract extends Model
         'document_path',
         'status',
         'notes',
+        'body',
         'created_by_id',
     ];
 
     protected $casts = [
-        'start_date'      => 'date',
-        'end_date'        => 'date',
-        'trial_days'      => 'integer',
-        'salary'          => 'integer',
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'trial_days' => 'integer',
+        'salary' => 'integer',
         'advance_percent' => 'integer',
     ];
 
@@ -72,11 +73,11 @@ class Contract extends Model
     public static function getTypeOptions(): array
     {
         return [
-            'indefinido'       => 'Por Tiempo Indefinido',
-            'plazo_fijo'       => 'Por Plazo Determinado',
+            'indefinido' => 'Por Tiempo Indefinido',
+            'plazo_fijo' => 'Por Plazo Determinado',
             'obra_determinada' => 'Por Obra Determinada',
-            'aprendizaje'      => 'De Aprendizaje',
-            'pasantia'         => 'Pasantía',
+            'aprendizaje' => 'De Aprendizaje',
+            'pasantia' => 'Pasantía',
         ];
     }
 
@@ -88,34 +89,34 @@ class Contract extends Model
     public static function getTypeColor(string $type): string
     {
         return match ($type) {
-            'indefinido'       => 'success',
-            'plazo_fijo'       => 'warning',
+            'indefinido' => 'success',
+            'plazo_fijo' => 'warning',
             'obra_determinada' => 'info',
-            'aprendizaje'      => 'primary',
-            'pasantia'         => 'gray',
-            default            => 'gray',
+            'aprendizaje' => 'primary',
+            'pasantia' => 'gray',
+            default => 'gray',
         };
     }
 
     public static function getTypeIcon(string $type): string
     {
         return match ($type) {
-            'indefinido'       => 'heroicon-o-check-badge',
-            'plazo_fijo'       => 'heroicon-o-calendar',
+            'indefinido' => 'heroicon-o-check-badge',
+            'plazo_fijo' => 'heroicon-o-calendar',
             'obra_determinada' => 'heroicon-o-wrench-screwdriver',
-            'aprendizaje'      => 'heroicon-o-academic-cap',
-            'pasantia'         => 'heroicon-o-book-open',
-            default            => 'heroicon-o-document-text',
+            'aprendizaje' => 'heroicon-o-academic-cap',
+            'pasantia' => 'heroicon-o-book-open',
+            default => 'heroicon-o-document-text',
         };
     }
 
     public static function getStatusOptions(): array
     {
         return [
-            'active'     => 'Vigente',
-            'expired'    => 'Vencido',
+            'active' => 'Vigente',
+            'expired' => 'Vencido',
             'terminated' => 'Terminado',
-            'renewed'    => 'Renovado',
+            'renewed' => 'Renovado',
         ];
     }
 
@@ -127,22 +128,22 @@ class Contract extends Model
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
-            'active'     => 'success',
-            'expired'    => 'danger',
+            'active' => 'success',
+            'expired' => 'danger',
             'terminated' => 'gray',
-            'renewed'    => 'info',
-            default      => 'gray',
+            'renewed' => 'info',
+            default => 'gray',
         };
     }
 
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
-            'active'     => 'heroicon-o-check-circle',
-            'expired'    => 'heroicon-o-exclamation-triangle',
+            'active' => 'heroicon-o-check-circle',
+            'expired' => 'heroicon-o-exclamation-triangle',
             'terminated' => 'heroicon-o-x-circle',
-            'renewed'    => 'heroicon-o-arrow-path',
-            default      => 'heroicon-o-question-mark-circle',
+            'renewed' => 'heroicon-o-arrow-path',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -153,7 +154,7 @@ class Contract extends Model
     {
         return [
             'mensual' => 'Mensualizado (Sueldo)',
-            'jornal'  => 'Jornalero (Jornal Diario)',
+            'jornal' => 'Jornalero (Jornal Diario)',
         ];
     }
 
@@ -166,8 +167,8 @@ class Contract extends Model
     {
         return match ($salaryType) {
             'mensual' => 'info',
-            'jornal'  => 'warning',
-            default   => 'gray',
+            'jornal' => 'warning',
+            default => 'gray',
         };
     }
 
@@ -175,8 +176,8 @@ class Contract extends Model
     {
         return match ($salaryType) {
             'mensual' => 'heroicon-o-banknotes',
-            'jornal'  => 'heroicon-o-calendar-days',
-            default   => 'heroicon-o-question-mark-circle',
+            'jornal' => 'heroicon-o-calendar-days',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -184,8 +185,8 @@ class Contract extends Model
     {
         return [
             'presencial' => 'Presencial',
-            'remoto'     => 'Remoto',
-            'hibrido'    => 'Híbrido',
+            'remoto' => 'Remoto',
+            'hibrido' => 'Híbrido',
         ];
     }
 
@@ -198,9 +199,9 @@ class Contract extends Model
     {
         return match ($modality) {
             'presencial' => 'success',
-            'remoto'     => 'info',
-            'hibrido'    => 'warning',
-            default      => 'gray',
+            'remoto' => 'info',
+            'hibrido' => 'warning',
+            default => 'gray',
         };
     }
 
@@ -208,9 +209,9 @@ class Contract extends Model
     {
         return match ($modality) {
             'presencial' => 'heroicon-o-building-office',
-            'remoto'     => 'heroicon-o-home',
-            'hibrido'    => 'heroicon-o-arrows-right-left',
-            default      => 'heroicon-o-question-mark-circle',
+            'remoto' => 'heroicon-o-home',
+            'hibrido' => 'heroicon-o-arrows-right-left',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -252,7 +253,7 @@ class Contract extends Model
      */
     public function isInTrialPeriod(): bool
     {
-        if (!$this->trial_days || $this->status !== 'active') {
+        if (! $this->trial_days || $this->status !== 'active') {
             return false;
         }
 
@@ -266,7 +267,7 @@ class Contract extends Model
      */
     public function getTrialEndDateAttribute(): ?Carbon
     {
-        if (!$this->trial_days) {
+        if (! $this->trial_days) {
             return null;
         }
 
@@ -278,21 +279,21 @@ class Contract extends Model
      */
     public function getDurationDescriptionAttribute(): string
     {
-        if (!$this->end_date) {
+        if (! $this->end_date) {
             return 'Indefinido';
         }
 
-        $diff = $this->start_date->diff($this->end_date);
+        $diff = $this->start_date->diff($this->end_date->copy()->addDay());
 
         $parts = [];
         if ($diff->y > 0) {
-            $parts[] = $diff->y . ' ' . ($diff->y === 1 ? 'año' : 'años');
+            $parts[] = $diff->y.' '.($diff->y === 1 ? 'año' : 'años');
         }
         if ($diff->m > 0) {
-            $parts[] = $diff->m . ' ' . ($diff->m === 1 ? 'mes' : 'meses');
+            $parts[] = $diff->m.' '.($diff->m === 1 ? 'mes' : 'meses');
         }
         if ($diff->d > 0 && $diff->y === 0) {
-            $parts[] = $diff->d . ' ' . ($diff->d === 1 ? 'día' : 'días');
+            $parts[] = $diff->d.' '.($diff->d === 1 ? 'día' : 'días');
         }
 
         return implode(', ', $parts) ?: '0 días';
@@ -303,7 +304,7 @@ class Contract extends Model
      */
     public function getRemainingDaysAttribute(): ?int
     {
-        if (!$this->end_date || $this->status !== 'active') {
+        if (! $this->end_date || $this->status !== 'active') {
             return null;
         }
 
@@ -315,7 +316,7 @@ class Contract extends Model
      */
     public function getExpirationDescriptionAttribute(): ?string
     {
-        if (!$this->end_date) {
+        if (! $this->end_date) {
             return null;
         }
 
@@ -326,14 +327,14 @@ class Contract extends Model
         }
 
         if ($remaining < 0) {
-            return 'Venció hace ' . abs($remaining) . ' días';
+            return 'Venció hace '.abs($remaining).' días';
         }
 
         if ($remaining === 0) {
             return 'Vence hoy';
         }
 
-        return 'Vence en ' . $remaining . ' días';
+        return 'Vence en '.$remaining.' días';
     }
 
     /**
@@ -367,15 +368,15 @@ class Contract extends Model
             $forceIndefinido = $this->type === 'plazo_fijo' && $previousRenewals >= 2;
 
             $data = array_merge([
-                'employee_id'   => $this->employee_id,
-                'type'          => $forceIndefinido ? 'indefinido' : $this->type,
-                'salary_type'   => $this->salary_type,
-                'salary'        => $this->salary,
-                'payroll_type'  => $this->payroll_type,
-                'position_id'   => $this->position_id,
+                'employee_id' => $this->employee_id,
+                'type' => $forceIndefinido ? 'indefinido' : $this->type,
+                'salary_type' => $this->salary_type,
+                'salary' => $this->salary,
+                'payroll_type' => $this->payroll_type,
+                'position_id' => $this->position_id,
                 'department_id' => $this->department_id,
                 'work_modality' => $this->work_modality,
-                'status'        => 'active',
+                'status' => 'active',
             ], $newContractData);
 
             // Si se forzó indefinido, quitar fecha de fin
@@ -439,7 +440,7 @@ class Contract extends Model
             return 'Gs. 0';
         }
 
-        return 'Gs. ' . number_format((int) $amount, 0, ',', '.');
+        return 'Gs. '.number_format((int) $amount, 0, ',', '.');
     }
 
     public function getFormattedSalaryAttribute(): string
@@ -447,8 +448,8 @@ class Contract extends Model
         $formatted = self::formatCurrency($this->salary);
 
         return $this->salary_type === 'jornal'
-            ? $formatted . '/día'
-            : $formatted . '/mes';
+            ? $formatted.'/día'
+            : $formatted.'/mes';
     }
 
     public function getFormattedStartDateAttribute(): string
@@ -467,22 +468,20 @@ class Contract extends Model
     public static function getCounts(): array
     {
         return [
-            'active'   => static::where('status', 'active')->count(),
+            'active' => static::where('status', 'active')->count(),
             'expiring' => static::expiringSoon(
                 app(\App\Settings\GeneralSettings::class)->contract_alert_days
             )->count(),
-            'expired'  => static::expired()->count(),
+            'expired' => static::expired()->count(),
         ];
     }
 
     /**
      *  Calcula los días restantes del período de prueba (Art. 58 CLT)
-     *
-     * @return integer|null
      */
     public function getTrialDaysLeftAttribute(): ?int
     {
-        if (!$this->trial_days || $this->status !== 'active') {
+        if (! $this->trial_days || $this->status !== 'active') {
             return null;
         }
 

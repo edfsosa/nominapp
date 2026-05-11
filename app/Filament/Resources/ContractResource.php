@@ -2,56 +2,66 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\ContractResource\Pages;
 use App\Models\Contract;
+use App\Models\ContractTemplate;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\Position;
 use App\Services\ContractService;
-use Filament\Forms\Get;
-use Filament\Forms\Set;
-use Filament\Forms\Form;
-use Filament\Infolists\Infolist;
-use Filament\Infolists\Components\Section as InfoSection;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Tables\Table;
-use Filament\Resources\Resource;
 use App\Settings\GeneralSettings;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Filters\Filter;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ActionGroup;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Placeholder;
-use Filament\Notifications\Notification;
-use Filament\Notifications\Actions\Action as NotificationAction;
+use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\RichEditor;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Form;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
+use Filament\Infolists\Components\Actions\Action as InfoAction;
+use Filament\Infolists\Components\Actions as InfoActions;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Infolists\Infolist;
+use Filament\Notifications\Actions\Action as NotificationAction;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
-use App\Filament\Resources\ContractResource\Pages;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Storage;
 
 class ContractResource extends Resource
 {
     // Configuración general del recurso
     protected static ?string $model = Contract::class;
+
     protected static ?string $navigationLabel = 'Contratos';
+
     protected static ?string $label = 'contrato';
+
     protected static ?string $pluralLabel = 'contratos';
+
     protected static ?string $slug = 'contratos';
+
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
     protected static ?string $navigationGroup = 'Empleados';
+
     protected static ?int $navigationSort = 2;
 
     /**
      * Definición del formulario para crear/editar contratos
-     *
-     * @param Form $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -65,17 +75,21 @@ class ContractResource extends Resource
                             ->label('Empleado')
                             ->relationship(
                                 name: 'employee',
-                                modifyQueryUsing: fn(Builder $query) => $query
+                                modifyQueryUsing: fn (Builder $query) => $query
                                     ->where('status', 'active')
+                                    ->whereDoesntHave('contracts', fn (Builder $q) => $q->where('status', 'active'))
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
-                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
+                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->full_name_with_ci)
                             ->searchable(['first_name', 'last_name', 'ci'])
                             ->native(false)
                             ->required()
-                            ->disabled(fn(string $operation) => $operation === 'edit')
-                            ->columnSpan(2),
+                            ->preload()
+                            ->live()
+                            ->disabled(fn (string $operation) => $operation === 'edit')
+                            ->columnSpan(2)
+                            ->helperText('Solo se muestran empleados activos sin contrato vigente'),
 
                         Select::make('type')
                             ->label('Tipo de Contrato')
@@ -83,11 +97,14 @@ class ContractResource extends Resource
                             ->required()
                             ->native(false)
                             ->live()
-                            ->afterStateUpdated(function (?string $state, Set $set) {
+                            ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
                                 if ($state === 'indefinido') {
                                     $set('end_date', null);
                                 }
                                 $set('trial_days', 30);
+                                if ($state && ! $get('body')) {
+                                    $set('body', ContractTemplate::getForType($state)?->body);
+                                }
                             }),
                     ])
                     ->columns(3),
@@ -109,8 +126,8 @@ class ContractResource extends Resource
                             ->native(false)
                             ->displayFormat('d/m/Y')
                             ->closeOnDateSelection()
-                            ->visible(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
-                            ->required(fn(Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->visible(fn (Get $get) => Contract::requiresEndDate($get('type') ?? ''))
+                            ->required(fn (Get $get) => Contract::requiresEndDate($get('type') ?? ''))
                             ->after('start_date')
                             ->maxDate(function (Get $get) {
                                 $startDate = $get('start_date');
@@ -119,6 +136,7 @@ class ContractResource extends Resource
                                 if ($startDate && in_array($type, ['plazo_fijo', 'aprendizaje'])) {
                                     return \Carbon\Carbon::parse($startDate)->addYear();
                                 }
+
                                 return null;
                             })
                             ->helperText(function (Get $get) {
@@ -126,6 +144,7 @@ class ContractResource extends Resource
                                 if (in_array($type, ['plazo_fijo', 'aprendizaje'])) {
                                     return 'Art. 53 CLT: Máximo 1 año para contratos a plazo determinado';
                                 }
+
                                 return null;
                             }),
 
@@ -151,47 +170,66 @@ class ContractResource extends Resource
                             ->default('mensual')
                             ->required()
                             ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state) {
+                                $settings = app(PayrollSettings::class);
+                                if ($state === 'mensual') {
+                                    $set('payroll_type', 'monthly');
+                                    $set('salary', $settings->min_salary_monthly);
+                                } elseif ($state === 'jornal') {
+                                    $set('salary', $settings->min_salary_daily_jornal);
+                                }
+                            })
                             ->helperText('Art. 231 CLT: Forma de remuneración del trabajador'),
 
                         Select::make('payroll_type')
                             ->label('Tipo de Nómina')
-                            ->options(\App\Models\Employee::getPayrollTypeOptions())
+                            ->options(Employee::getPayrollTypeOptions())
                             ->native(false)
                             ->default('monthly')
                             ->required()
+                            ->hidden(fn (Get $get) => $get('salary_type') === 'mensual')
+                            ->dehydrated()
                             ->helperText('Define la frecuencia de pago del empleado'),
 
                         TextInput::make('salary')
-                            ->label(fn(Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                            ->label(fn (Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                             ->numeric()
                             ->required()
                             ->minValue(1)
                             ->prefix('Gs.')
-                            ->suffix(fn(Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
+                            ->suffix(fn (Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
+                            ->default(fn () => app(PayrollSettings::class)->min_salary_monthly)
                             ->placeholder('0'),
-
-                        Select::make('position_id')
-                            ->label('Cargo')
-                            ->options(Position::getOptionsWithDepartment())
-                            ->searchable()
-                            ->preload()
-                            ->native(false)
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function ($state, Set $set) {
-                                if ($state) {
-                                    $position = Position::find($state);
-                                    if ($position) {
-                                        $set('department_id', $position->department_id);
-                                    }
-                                }
-                            }),
 
                         Select::make('department_id')
                             ->label('Departamento')
-                            ->relationship('department', 'name')
+                            ->options(function (Get $get) {
+                                $employeeId = $get('employee_id');
+                                if (! $employeeId) {
+                                    return Department::orderBy('name')->pluck('name', 'id');
+                                }
+                                $companyId = Employee::find($employeeId)?->branch?->company_id;
+
+                                return $companyId
+                                    ? Department::where('company_id', $companyId)->orderBy('name')->pluck('name', 'id')
+                                    : Department::orderBy('name')->pluck('name', 'id');
+                            })
                             ->searchable()
-                            ->preload()
+                            ->native(false)
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('position_id', null)),
+
+                        Select::make('position_id')
+                            ->label('Cargo')
+                            ->options(function (Get $get) {
+                                $deptId = $get('department_id');
+
+                                return $deptId
+                                    ? Position::where('department_id', $deptId)->orderBy('name')->pluck('name', 'id')->toArray()
+                                    : Position::getOptionsWithDepartment();
+                            })
+                            ->searchable()
                             ->native(false)
                             ->required(),
 
@@ -207,8 +245,65 @@ class ContractResource extends Resource
                             ->options(\App\Models\Employee::getPaymentMethodOptions())
                             ->native(false)
                             ->default('debit')
-                            ->required(),
+                            ->required()
+                            ->live(),
                     ])
+                    ->columns(2),
+
+                Section::make('Cuenta Bancaria')
+                    ->description('Información de cuenta para acreditación del salario')
+                    ->icon('heroicon-o-credit-card')
+                    ->visible(fn (Get $get) => $get('payment_method') === 'debit')
+                    ->schema(function (Get $get) {
+                        $employeeId = $get('employee_id');
+                        $existingAccount = $employeeId
+                            ? EmployeeBankAccount::where('employee_id', $employeeId)
+                                ->where('status', 'active')
+                                ->first()
+                            : null;
+
+                        if ($existingAccount) {
+                            return [
+                                Placeholder::make('bank_account_info')
+                                    ->label('Cuenta registrada')
+                                    ->content(
+                                        'Banco: '.$existingAccount->bank_label.
+                                        ' | Cuenta: '.$existingAccount->account_number.
+                                        ' ('.$existingAccount->account_type_label.')'
+                                    )
+                                    ->columnSpanFull(),
+                            ];
+                        }
+
+                        return [
+                            Select::make('ba_bank')
+                                ->label('Banco')
+                                ->options(EmployeeBankAccount::getBankOptions())
+                                ->native(false)
+                                ->searchable()
+                                ->dehydrated(false)
+                                ->required(),
+                            Select::make('ba_account_type')
+                                ->label('Tipo de Cuenta')
+                                ->options(EmployeeBankAccount::getAccountTypeOptions())
+                                ->native(false)
+                                ->dehydrated(false)
+                                ->required(),
+                            TextInput::make('ba_account_number')
+                                ->label('Número de Cuenta')
+                                ->maxLength(30)
+                                ->dehydrated(false)
+                                ->required(),
+                            TextInput::make('ba_holder_name')
+                                ->label('Titular')
+                                ->dehydrated(false)
+                                ->required(),
+                            TextInput::make('ba_holder_ci')
+                                ->label('CI del Titular')
+                                ->dehydrated(false)
+                                ->required(),
+                        ];
+                    })
                     ->columns(2),
 
                 Section::make('Documento Firmado')
@@ -227,7 +322,26 @@ class ContractResource extends Resource
                             ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.')
                             ->columnSpanFull(),
                     ])
-                    ->visible(fn(string $operation) => $operation === 'edit'),
+                    ->visible(fn (string $operation) => $operation === 'edit'),
+
+                Section::make('Cuerpo del Contrato')
+                    ->description('Cláusulas y condiciones del contrato')
+                    ->icon('heroicon-o-document-text')
+                    ->schema([
+                        RichEditor::make('body')
+                            ->label('Cuerpo del Contrato')
+                            ->helperText('Se pre-rellena con la plantilla del tipo elegido. Podés editarlo libremente.')
+                            ->columnSpanFull()
+                            ->toolbarButtons([
+                                'bold',
+                                'italic',
+                                'underline',
+                                'orderedList',
+                                'bulletList',
+                                'redo',
+                                'undo',
+                            ]),
+                    ]),
 
                 Section::make('Notas')
                     ->schema([
@@ -249,44 +363,43 @@ class ContractResource extends Resource
 
                         Placeholder::make('created_by')
                             ->label('Creado por')
-                            ->content(fn(?Contract $record) => $record?->createdBy?->name ?? '-')
-                            ->visible(fn(string $operation) => $operation === 'edit'),
+                            ->content(fn (?Contract $record) => $record?->createdBy?->name ?? '-')
+                            ->visible(fn (string $operation) => $operation === 'edit'),
 
                         Placeholder::make('duration')
                             ->label('Duración')
-                            ->content(fn(?Contract $record) => $record?->duration_description ?? '-')
-                            ->visible(fn(string $operation) => $operation === 'edit'),
+                            ->content(fn (?Contract $record) => $record?->duration_description ?? '-')
+                            ->visible(fn (string $operation) => $operation === 'edit'),
 
                         Placeholder::make('expiration')
                             ->label('Vencimiento')
-                            ->content(fn(?Contract $record) => $record?->expiration_description ?? '-')
-                            ->visible(fn(string $operation, ?Contract $record = null) => $operation === 'edit' && $record?->end_date),
+                            ->content(fn (?Contract $record) => $record?->expiration_description ?? '-')
+                            ->visible(fn (string $operation, ?Contract $record = null) => $operation === 'edit' && $record?->end_date),
 
                         Placeholder::make('trial_status')
                             ->label('Período de Prueba')
                             ->content(function (?Contract $record) {
-                                if (!$record || !$record->trial_days) {
+                                if (! $record || ! $record->trial_days) {
                                     return '-';
                                 }
                                 if ($record->isInTrialPeriod()) {
                                     // Mostrar días restantes, formatear en entero para evitar decimales
                                     $daysLeft = (int) $record->trial_days_left;
+
                                     return "{$daysLeft} días restantes";
                                 }
+
                                 return 'Período de prueba finalizado';
                             })
-                            ->visible(fn(string $operation) => $operation === 'edit'),
+                            ->visible(fn (string $operation) => $operation === 'edit'),
                     ])
                     ->columns(2)
-                    ->visible(fn(string $operation) => $operation === 'edit'),
+                    ->visible(fn (string $operation) => $operation === 'edit'),
             ]);
     }
 
     /**
      * Define el infolist para mostrar el detalle de un contrato.
-     *
-     * @param  Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -294,31 +407,47 @@ class ContractResource extends Resource
             InfoSection::make('Contrato')
                 ->description('Datos generales del contrato laboral')
                 ->icon('heroicon-o-document-text')
+                ->collapsible()
                 ->schema([
                     TextEntry::make('employee.full_name')
                         ->label('Empleado')
-                        ->weight('bold')
+                        ->icon('heroicon-o-user')
                         ->columnSpan(2),
+
+                    TextEntry::make('employee.ci')
+                        ->label('CI')
+                        ->icon('heroicon-o-identification')
+                        ->copyable()
+                        ->tooltip('Haz clic para copiar')
+                        ->copyMessage('Cédula copiada'),
 
                     TextEntry::make('type')
                         ->label('Tipo')
                         ->badge()
-                        ->formatStateUsing(fn($state) => Contract::getTypeLabel($state))
-                        ->color(fn($state) => Contract::getTypeColor($state))
-                        ->icon(fn($state) => Contract::getTypeIcon($state)),
+                        ->formatStateUsing(fn ($state) => Contract::getTypeLabel($state))
+                        ->color(fn ($state) => Contract::getTypeColor($state))
+                        ->icon(fn ($state) => Contract::getTypeIcon($state)),
 
                     TextEntry::make('status')
                         ->label('Estado')
                         ->badge()
-                        ->formatStateUsing(fn($state) => Contract::getStatusLabel($state))
-                        ->color(fn($state) => Contract::getStatusColor($state))
-                        ->icon(fn($state) => Contract::getStatusIcon($state)),
+                        ->formatStateUsing(fn ($state) => Contract::getStatusLabel($state))
+                        ->color(fn ($state) => Contract::getStatusColor($state))
+                        ->icon(fn ($state) => Contract::getStatusIcon($state)),
+
+                    TextEntry::make('document_signed_status')
+                        ->label('Documento Firmado')
+                        ->badge()
+                        ->getStateUsing(fn (Contract $record) => $record->document_path ? 'Cargado' : 'Pendiente')
+                        ->color(fn (?string $state) => $state === 'Cargado' ? 'success' : 'gray')
+                        ->icon(fn (?string $state) => $state === 'Cargado' ? 'heroicon-o-check-circle' : 'heroicon-o-clock'),
                 ])
-                ->columns(4),
+                ->columns(3),
 
             InfoSection::make('Período')
                 ->description('Fechas y duración del contrato')
                 ->icon('heroicon-o-calendar')
+                ->collapsible()
                 ->schema([
                     TextEntry::make('start_date')
                         ->label('Fecha de Inicio')
@@ -329,9 +458,18 @@ class ContractResource extends Resource
                         ->date('d/m/Y')
                         ->placeholder('Indefinido'),
 
-                    TextEntry::make('trial_days')
-                        ->label('Días de Prueba')
-                        ->suffix(' días'),
+                    TextEntry::make('trial_period_status')
+                        ->label('Período de Prueba')
+                        ->badge()
+                        ->getStateUsing(function (Contract $record) {
+                            if ($record->isInTrialPeriod()) {
+                                return "{$record->trial_days_left} días restantes";
+                            }
+
+                            return 'Finalizado';
+                        })
+                        ->color(fn (?string $state) => str_contains((string) $state, 'restantes') ? 'success' : 'gray')
+                        ->hidden(fn (Contract $record) => ! $record->trial_days),
 
                     TextEntry::make('duration_description')
                         ->label('Duración'),
@@ -345,6 +483,7 @@ class ContractResource extends Resource
             InfoSection::make('Condiciones Laborales')
                 ->description('Salario, cargo y modalidad de trabajo')
                 ->icon('heroicon-o-briefcase')
+                ->collapsible()
                 ->schema([
                     TextEntry::make('formatted_salary')
                         ->label('Salario'),
@@ -352,16 +491,16 @@ class ContractResource extends Resource
                     TextEntry::make('salary_type')
                         ->label('Tipo de Remuneración')
                         ->badge()
-                        ->formatStateUsing(fn($state) => Contract::getSalaryTypeLabel($state))
-                        ->color(fn($state) => Contract::getSalaryTypeColor($state))
-                        ->icon(fn($state) => Contract::getSalaryTypeIcon($state)),
+                        ->formatStateUsing(fn ($state) => Contract::getSalaryTypeLabel($state))
+                        ->color(fn ($state) => Contract::getSalaryTypeColor($state))
+                        ->icon(fn ($state) => Contract::getSalaryTypeIcon($state)),
 
                     TextEntry::make('work_modality')
                         ->label('Modalidad')
                         ->badge()
-                        ->formatStateUsing(fn($state) => Contract::getWorkModalityLabel($state))
-                        ->color(fn($state) => Contract::getWorkModalityColor($state))
-                        ->icon(fn($state) => Contract::getWorkModalityIcon($state)),
+                        ->formatStateUsing(fn ($state) => Contract::getWorkModalityLabel($state))
+                        ->color(fn ($state) => Contract::getWorkModalityColor($state))
+                        ->icon(fn ($state) => Contract::getWorkModalityIcon($state)),
 
                     TextEntry::make('position.name')
                         ->label('Cargo'),
@@ -369,29 +508,93 @@ class ContractResource extends Resource
                     TextEntry::make('department.name')
                         ->label('Departamento'),
 
+                    TextEntry::make('department.company.name')
+                        ->label('Empresa'),
+
                     TextEntry::make('payroll_type')
                         ->label('Tipo de Nómina')
-                        ->formatStateUsing(fn($state) => Employee::getPayrollTypeOptions()[$state] ?? $state),
+                        ->formatStateUsing(fn ($state) => Employee::getPayrollTypeOptions()[$state] ?? $state),
 
                     TextEntry::make('payment_method')
                         ->label('Método de Pago')
-                        ->formatStateUsing(fn($state) => Employee::getPaymentMethodOptions()[$state] ?? $state),
+                        ->formatStateUsing(fn ($state) => Employee::getPaymentMethodOptions()[$state] ?? $state),
                 ])
-                ->columns(3),
+                ->columns(4),
+
+            InfoSection::make('Cuenta Bancaria')
+                ->description('Datos de la cuenta para acreditación del salario')
+                ->icon('heroicon-o-credit-card')
+                ->collapsible()
+                ->visible(fn (Contract $record) => $record->payment_method === 'debit')
+                ->schema(function (Contract $record) {
+                    $account = $record->employee->bankAccounts()->where('status', 'active')->first();
+
+                    if (! $account) {
+                        return [
+                            TextEntry::make('no_bank_account')
+                                ->label('')
+                                ->getStateUsing(fn () => 'Sin cuenta bancaria registrada.')
+                                ->columnSpanFull(),
+                            InfoActions::make([
+                                InfoAction::make('ir_al_empleado')
+                                    ->label('Ir al perfil del empleado')
+                                    ->icon('heroicon-o-arrow-top-right-on-square')
+                                    ->url(\App\Filament\Resources\EmployeeResource::getUrl('view', ['record' => $record->employee_id]))
+                                    ->openUrlInNewTab(),
+                            ])->columnSpanFull(),
+                        ];
+                    }
+
+                    return [
+                        TextEntry::make('bank_label')
+                            ->label('Banco')
+                            ->getStateUsing(fn () => $account->bank_label),
+
+                        TextEntry::make('account_number')
+                            ->label('Número de Cuenta')
+                            ->getStateUsing(fn () => $account->account_number)
+                            ->copyable(),
+
+                        TextEntry::make('account_type_label')
+                            ->label('Tipo de Cuenta')
+                            ->getStateUsing(fn () => $account->account_type_label),
+
+                        TextEntry::make('holder_name')
+                            ->label('Titular')
+                            ->getStateUsing(fn () => $account->holder_name),
+
+                        TextEntry::make('holder_ci')
+                            ->label('CI del Titular')
+                            ->getStateUsing(fn () => $account->holder_ci ?? '—'),
+                    ];
+                })
+                ->columns(2),
+
+            InfoSection::make('Cuerpo del Contrato')
+                ->description('Cláusulas y condiciones editables')
+                ->icon('heroicon-o-document-text')
+                ->collapsible()
+                ->schema([
+                    TextEntry::make('body')
+                        ->label('')
+                        ->html()
+                        ->columnSpanFull(),
+                ])
+                ->visible(fn (Contract $record) => (bool) $record->body),
 
             InfoSection::make('Notas')
+                ->collapsible()
                 ->schema([
                     TextEntry::make('notes')
                         ->label('')
                         ->placeholder('Sin notas')
                         ->columnSpanFull(),
                 ])
-                ->visible(fn(Contract $record) => !empty($record->notes)),
+                ->visible(fn (Contract $record) => ! empty($record->notes)),
 
             InfoSection::make('Registro')
                 ->icon('heroicon-o-information-circle')
                 ->collapsible()
-                ->collapsed()
                 ->schema([
                     TextEntry::make('createdBy.name')
                         ->label('Creado por'),
@@ -410,9 +613,6 @@ class ContractResource extends Resource
 
     /**
      * Definición de la tabla para listar contratos
-     *
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -420,7 +620,7 @@ class ContractResource extends Resource
         $alertDays = $settings->contract_alert_days;
 
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee', 'position', 'department', 'createdBy']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['employee', 'position', 'department', 'createdBy']))
             ->columns([
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
@@ -441,9 +641,9 @@ class ContractResource extends Resource
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Contract::getTypeLabel($state))
-                    ->color(fn(string $state): string => Contract::getTypeColor($state))
-                    ->icon(fn(string $state): string => Contract::getTypeIcon($state))
+                    ->formatStateUsing(fn (string $state) => Contract::getTypeLabel($state))
+                    ->color(fn (string $state): string => Contract::getTypeColor($state))
+                    ->icon(fn (string $state): string => Contract::getTypeIcon($state))
                     ->sortable(),
 
                 TextColumn::make('position.name')
@@ -462,17 +662,17 @@ class ContractResource extends Resource
                 TextColumn::make('work_modality')
                     ->label('Modalidad')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Contract::getWorkModalityLabel($state))
-                    ->color(fn(string $state): string => Contract::getWorkModalityColor($state))
-                    ->icon(fn(string $state): string => Contract::getWorkModalityIcon($state))
+                    ->formatStateUsing(fn (string $state) => Contract::getWorkModalityLabel($state))
+                    ->color(fn (string $state): string => Contract::getWorkModalityColor($state))
+                    ->icon(fn (string $state): string => Contract::getWorkModalityIcon($state))
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Contract::getStatusLabel($state))
-                    ->color(fn(string $state): string => Contract::getStatusColor($state))
-                    ->icon(fn(string $state): string => Contract::getStatusIcon($state))
+                    ->formatStateUsing(fn (string $state) => Contract::getStatusLabel($state))
+                    ->color(fn (string $state): string => Contract::getStatusColor($state))
+                    ->icon(fn (string $state): string => Contract::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('created_at')
@@ -505,19 +705,19 @@ class ContractResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false),
 
                 Filter::make('expiring_soon')
                     ->label('Por vencer')
-                    ->query(fn(Builder $query) => $query->expiringSoon($alertDays))
+                    ->query(fn (Builder $query) => $query->expiringSoon($alertDays))
                     ->toggle(),
 
                 Filter::make('expired')
                     ->label('Vencidos')
-                    ->query(fn(Builder $query) => $query->expired())
+                    ->query(fn (Builder $query) => $query->expired())
                     ->toggle(),
 
                 Filter::make('dates')
@@ -537,8 +737,8 @@ class ContractResource extends Resource
                     ->columns(2)
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when($data['start_from'], fn(Builder $q, $date) => $q->whereDate('start_date', '>=', $date))
-                            ->when($data['start_until'], fn(Builder $q, $date) => $q->whereDate('start_date', '<=', $date));
+                            ->when($data['start_from'], fn (Builder $q, $date) => $q->whereDate('start_date', '>=', $date))
+                            ->when($data['start_until'], fn (Builder $q, $date) => $q->whereDate('start_date', '<=', $date));
                     }),
             ])
             ->actions([
@@ -548,7 +748,7 @@ class ContractResource extends Resource
                         ->label('Renovar')
                         ->icon('heroicon-o-arrow-path')
                         ->color('success')
-                        ->visible(fn(Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
+                        ->visible(fn (Contract $record) => $record->status === 'active' && $record->type !== 'indefinido')
                         ->requiresConfirmation()
                         ->modalHeading('Renovar Contrato')
                         ->modalDescription(function (Contract $record) {
@@ -556,6 +756,7 @@ class ContractResource extends Resource
                             if ($record->wouldBecomeIndefiniteOnRenewal()) {
                                 $msg .= "\n\n⚠ Art. 53 CLT: Este contrato a plazo fijo ya fue renovado anteriormente. Al renovar nuevamente, el nuevo contrato será automáticamente de tipo INDEFINIDO.";
                             }
+
                             return $msg;
                         })
                         ->modalSubmitActionLabel('Sí, renovar')
@@ -565,7 +766,7 @@ class ContractResource extends Resource
                                 ->native(false)
                                 ->displayFormat('d/m/Y')
                                 ->required()
-                                ->default(fn(Contract $record) => $record->end_date ?? now())
+                                ->default(fn (Contract $record) => $record->end_date ?? now())
                                 ->closeOnDateSelection(),
 
                             DatePicker::make('end_date')
@@ -573,17 +774,17 @@ class ContractResource extends Resource
                                 ->native(false)
                                 ->displayFormat('d/m/Y')
                                 ->closeOnDateSelection()
-                                ->visible(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                                ->required(fn(Contract $record) => !$record->wouldBecomeIndefiniteOnRenewal())
-                                ->helperText(fn(Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
+                                ->visible(fn (Contract $record) => ! $record->wouldBecomeIndefiniteOnRenewal())
+                                ->required(fn (Contract $record) => ! $record->wouldBecomeIndefiniteOnRenewal())
+                                ->helperText(fn (Contract $record) => $record->type === 'plazo_fijo' ? 'Art. 53 CLT: Máximo 1 año' : null),
 
                             TextInput::make('salary')
-                                ->label(fn(Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
+                                ->label(fn (Contract $record) => $record->salary_type === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
                                 ->numeric()
                                 ->required()
                                 ->prefix('Gs.')
-                                ->suffix(fn(Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
-                                ->default(fn(Contract $record) => $record->salary),
+                                ->suffix(fn (Contract $record) => $record->salary_type === 'jornal' ? '/día' : '/mes')
+                                ->default(fn (Contract $record) => $record->salary),
 
                             Textarea::make('notes')
                                 ->label('Notas')
@@ -609,14 +810,14 @@ class ContractResource extends Resource
                         ->label('Generar PDF')
                         ->icon('heroicon-o-printer')
                         ->color('info')
-                        ->url(fn(Contract $record) => route('contracts.pdf', $record))
+                        ->url(fn (Contract $record) => route('contracts.pdf', $record))
                         ->openUrlInNewTab(),
 
                     Action::make('upload_signed')
-                        ->label(fn(Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
-                        ->icon(fn(Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
-                        ->color(fn(Contract $record) => $record->document_path ? 'warning' : 'success')
-                        ->visible(fn(Contract $record) => $record->status === 'active')
+                        ->label(fn (Contract $record) => $record->document_path ? 'Reemplazar Firmado' : 'Subir Firmado')
+                        ->icon(fn (Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
+                        ->color(fn (Contract $record) => $record->document_path ? 'warning' : 'success')
+                        ->visible(fn (Contract $record) => $record->status === 'active')
                         ->form([
                             FileUpload::make('document_path')
                                 ->label('Contrato Firmado (PDF)')
@@ -627,8 +828,8 @@ class ContractResource extends Resource
                                 ->required()
                                 ->helperText('Suba el documento escaneado del contrato firmado. Solo PDF, máximo 10 MB.'),
                         ])
-                        ->modalHeading(fn(Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
-                        ->modalDescription(fn(Contract $record) => $record->document_path
+                        ->modalHeading(fn (Contract $record) => $record->document_path ? 'Reemplazar Documento Firmado' : 'Subir Contrato Firmado')
+                        ->modalDescription(fn (Contract $record) => $record->document_path
                             ? 'El documento actual será reemplazado por el nuevo archivo.'
                             : 'Suba el contrato escaneado con las firmas correspondientes.')
                         ->modalSubmitActionLabel('Subir documento')
@@ -650,8 +851,8 @@ class ContractResource extends Resource
                         ->label('Descargar Firmado')
                         ->icon('heroicon-o-arrow-down-tray')
                         ->color('gray')
-                        ->visible(fn(Contract $record) => (bool) $record->document_path)
-                        ->action(fn(Contract $record) => response()->download(
+                        ->visible(fn (Contract $record) => (bool) $record->document_path)
+                        ->action(fn (Contract $record) => response()->download(
                             Storage::disk('public')->path($record->document_path),
                             "contrato_firmado_{$record->employee->ci}_{$record->start_date->format('Y_m_d')}.pdf"
                         )),
@@ -660,10 +861,10 @@ class ContractResource extends Resource
                         ->label('Terminar Contrato')
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
-                        ->visible(fn(Contract $record) => $record->status === 'active')
+                        ->visible(fn (Contract $record) => $record->status === 'active')
                         ->requiresConfirmation()
                         ->modalHeading('Terminar Contrato')
-                        ->modalDescription(fn(Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
+                        ->modalDescription(fn (Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
                         ->modalSubmitActionLabel('Sí, terminar')
                         ->form([
                             Textarea::make('termination_notes')
@@ -701,7 +902,6 @@ class ContractResource extends Resource
 
     /**
      * Definición de las páginas del recurso.
-     * @return array
      */
     public static function getPages(): array
     {
@@ -715,8 +915,6 @@ class ContractResource extends Resource
 
     /**
      * Muestra un badge en el menú de navegación con la cantidad de contratos que están por vencer según el período configurado en ajustes generales.
-     *
-     * @return string|null
      */
     public static function getNavigationBadge(): ?string
     {
@@ -728,8 +926,6 @@ class ContractResource extends Resource
 
     /**
      * Define el color del badge en el menú de navegación para contratos por vencer.
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeColor(): ?string
     {
@@ -738,8 +934,6 @@ class ContractResource extends Resource
 
     /**
      * Define el tooltip del badge en el menú de navegación para contratos por vencer, indicando que el número representa los "Contratos por vencer".
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeTooltip(): ?string
     {
