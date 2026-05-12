@@ -4,7 +4,7 @@ namespace App\Filament\Resources\LoanResource\Pages;
 
 use App\Filament\Resources\LoanResource;
 use App\Models\Loan;
-use App\Settings\GeneralSettings;
+use App\Settings\PayrollSettings;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
@@ -20,7 +20,7 @@ class CreateLoan extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        $settings = app(GeneralSettings::class);
+        $settings = app(PayrollSettings::class);
         $maxAmount = $settings->max_loan_amount;
 
         if ($data['amount'] > $maxAmount) {

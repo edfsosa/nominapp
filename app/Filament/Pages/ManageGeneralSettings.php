@@ -2,31 +2,33 @@
 
 namespace App\Filament\Pages;
 
-use Filament\Forms\Form;
-use Filament\Pages\SettingsPage;
 use App\Settings\GeneralSettings;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Form;
+use Filament\Pages\SettingsPage;
 
 class ManageGeneralSettings extends SettingsPage
 {
     // Configuraciones de la página
     protected static ?string $navigationIcon = 'heroicon-o-cog-6-tooth';
+
     protected static ?string $navigationLabel = 'Configuración General';
+
     protected static ?string $title = 'Configuración General';
+
     protected static ?string $navigationGroup = 'Configuración';
+
     protected static ?int $navigationSort = 3;
+
     protected static string $settings = GeneralSettings::class;
 
     /**
      * Define el formulario de configuración general.
-     *
-     * @param Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -63,9 +65,10 @@ class ManageGeneralSettings extends SettingsPage
                                 // RUC con formato específico
                                 TextInput::make('company_ruc')
                                     ->label('RUC')
-                                    ->placeholder('80000000-0')
-                                    ->regex('/^\d{8}-\d{1}$/')
-                                    ->maxLength(50),
+                                    ->placeholder('80012345-6')
+                                    ->regex('/^\d{1,8}-\d$/')
+                                    ->maxLength(20)
+                                    ->validationMessages(['regex' => 'El RUC debe tener el formato número-dígito verificador. Ej: 80012345-6 o 1234567-1.']),
 
                                 // Nro. Patronal con longitud máxima
                                 TextInput::make('company_employer_number')
@@ -81,11 +84,11 @@ class ManageGeneralSettings extends SettingsPage
                                 // Teléfono con prefijo y validación de longitud
                                 TextInput::make('company_phone')
                                     ->label('Teléfono')
-                                    ->tel()
-                                    ->prefix('+595')
-                                    ->placeholder('971123456')
-                                    ->minLength(7)
-                                    ->maxLength(15),
+                                    ->placeholder('0981123456')
+                                    ->maxLength(10)
+                                    ->regex('/^0\d{8,9}$/')
+                                    ->helperText('Sin espacios ni guiones. Ej: 0981123456')
+                                    ->validationMessages(['regex' => 'Ingrese un número válido de Paraguay: móvil (09XXXXXXXX) o fijo (021XXXXXX / 0XXXXXXXX).']),
 
                                 // Correo electrónico con validación
                                 TextInput::make('company_email')
@@ -116,47 +119,19 @@ class ManageGeneralSettings extends SettingsPage
                     ->description('Parámetros de trabajo y horarios')
                     ->icon('heroicon-o-clock')
                     ->schema([
-                        // Zona horaria y horas de trabajo por semana en una cuadrícula de 2 columnas
-                        Grid::make(2)
-                            ->schema([
-                                // Selección de zona horaria con opciones predefinidas
-                                Select::make('timezone')
-                                    ->label('Zona horaria')
-                                    ->options([
-                                        'America/Asuncion' => 'América/Asunción (UTC -3)',
-                                        'America/Argentina/Buenos_Aires' => 'América/Buenos Aires (UTC -3)',
-                                        'America/Sao_Paulo' => 'América/São Paulo (UTC -3)',
-                                        'America/Montevideo' => 'América/Montevideo (UTC -3)',
-                                        'America/Santiago' => 'América/Santiago (UTC -4)',
-                                    ])
-                                    ->native(false)
-                                    ->default('America/Asuncion')
-                                    ->searchable()
-                                    ->helperText('Zona horaria para el cálculo de fechas y horas'),
-
-                                // Horas de trabajo por semana con validación numérica
-                                TextInput::make('working_hours_per_week')
-                                    ->label('Horas de trabajo por semana')
-                                    ->numeric()
-                                    ->minValue(1)
-                                    ->maxValue(168)
-                                    ->default(48)
-                                    ->helperText('Cantidad de horas laborales en una semana'),
-                            ]),
-                    ]),
-
-                // Nueva sección para configuración de préstamos
-                Section::make('Configuración de Préstamos')
-                    ->description('Parámetros para préstamos y adelantos')
-                    ->icon('heroicon-o-banknotes')
-                    ->schema([
-                        TextInput::make('max_loan_amount')
-                            ->label('Monto máximo de préstamo')
-                            ->numeric()
-                            ->minValue(0)
-                            ->default(5000000)
-                            ->prefix('Gs.')
-                            ->helperText('Monto máximo que se puede prestar a un empleado'),
+                        Select::make('timezone')
+                            ->label('Zona horaria')
+                            ->options([
+                                'America/Asuncion' => 'América/Asunción (UTC -3)',
+                                'America/Argentina/Buenos_Aires' => 'América/Buenos Aires (UTC -3)',
+                                'America/Sao_Paulo' => 'América/São Paulo (UTC -3)',
+                                'America/Montevideo' => 'América/Montevideo (UTC -3)',
+                                'America/Santiago' => 'América/Santiago (UTC -4)',
+                            ])
+                            ->native(false)
+                            ->default('America/Asuncion')
+                            ->searchable()
+                            ->helperText('Zona horaria para el cálculo de fechas y horas'),
                     ]),
 
                 Section::make('Configuración de Contratos')

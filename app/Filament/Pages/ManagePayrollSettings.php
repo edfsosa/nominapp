@@ -308,6 +308,14 @@ class ManagePayrollSettings extends SettingsPage
                     ->schema([
                         Grid::make(3)
                             ->schema([
+                                TextInput::make('max_loan_amount')
+                                    ->label('Monto máximo de préstamo')
+                                    ->numeric()
+                                    ->minValue(0)
+                                    ->required()
+                                    ->prefix('Gs.')
+                                    ->helperText('Monto máximo que se puede prestar a un empleado'),
+
                                 TextInput::make('loan_installment_cap_percent')
                                     ->label('Tope de cuota (% salario)')
                                     ->numeric()
