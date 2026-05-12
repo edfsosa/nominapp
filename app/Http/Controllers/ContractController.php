@@ -37,7 +37,9 @@ class ContractController extends Controller
             default => 'DIURNA',
         };
 
-        $weeklyHours = $settings->working_hours_per_week;
+        $weeklyHours = $schedule
+            ? (int) round($scheduleDays->where('is_active', true)->sum(fn ($d) => $d->scheduled_hours))
+            : app(\App\Settings\PayrollSettings::class)->daily_hours * 6;
         $weeklyHoursInWords = self::numberToWords($weeklyHours);
 
         $employeeAge = $contract->employee?->birth_date

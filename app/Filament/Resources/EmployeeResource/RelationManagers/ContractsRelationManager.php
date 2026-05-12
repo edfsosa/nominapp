@@ -112,7 +112,7 @@ class ContractsRelationManager extends RelationManager
                             ->label('Días de Prueba')
                             ->numeric()
                             ->minValue(0)
-                            ->maxValue(30)
+                            ->maxValue(180)
                             ->default(30)
                             ->suffix('días'),
                     ])

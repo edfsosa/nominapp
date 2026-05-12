@@ -152,10 +152,9 @@ class ContractResource extends Resource
                             ->label('Días de Prueba')
                             ->numeric()
                             ->minValue(0)
-                            ->maxValue(30)
+                            ->maxValue(180)
                             ->default(30)
-                            ->suffix('días')
-                            ->helperText('Art. 58 CLT: Período de prueba hasta 30 días'),
+                            ->suffix('días'),
                     ])
                     ->columns(3),
 
