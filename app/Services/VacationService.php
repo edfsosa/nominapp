@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AttendanceDay;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Payroll;
@@ -49,11 +50,12 @@ class VacationService
      */
     public static function getYearsOfService(Employee $employee, ?Carbon $asOfDate = null): int
     {
-        if (!$employee->hire_date) {
+        if (! $employee->hire_date) {
             return 0;
         }
 
         $asOfDate = $asOfDate ?? Carbon::now();
+
         return $employee->hire_date->diffInYears($asOfDate);
     }
 
@@ -71,16 +73,50 @@ class VacationService
                 $vacation->vacationBalance->confirmDays($vacation->business_days ?? 0);
             }
 
-            $paymentAmount = $vacation->type === 'paid'
-                ? self::calculateVacationPay($vacation->employee, $vacation)
-                : 0.0;
+            $paymentAmount = self::calculateVacationPay($vacation->employee, $vacation);
 
             $vacation->update([
-                'status'         => 'approved',
+                'status' => 'approved',
                 'payment_amount' => $paymentAmount,
                 'payment_status' => 'unpaid',
             ]);
+
+            self::createAttendanceDays($vacation);
         });
+    }
+
+    /**
+     * Genera registros de attendance_days con status on_leave para cada día del período vacacional.
+     * Usa updateOrInsert para no duplicar si ya existen registros para esas fechas.
+     */
+    private static function createAttendanceDays(Vacation $vacation): void
+    {
+        $period = CarbonPeriod::create($vacation->start_date, $vacation->end_date);
+        $holidays = Holiday::whereBetween('date', [$vacation->start_date, $vacation->end_date])
+            ->pluck('date')
+            ->map(fn ($d) => $d->format('Y-m-d'))
+            ->toArray();
+
+        $now = now();
+
+        foreach ($period as $date) {
+            $dateStr = $date->format('Y-m-d');
+            $isWeekend = $date->isWeekend();
+            $isHoliday = in_array($dateStr, $holidays);
+
+            AttendanceDay::withoutEvents(fn () => AttendanceDay::updateOrCreate(
+                ['employee_id' => $vacation->employee_id, 'date' => $dateStr],
+                [
+                    'status' => 'on_leave',
+                    'on_vacation' => true,
+                    'is_weekend' => $isWeekend,
+                    'is_holiday' => $isHoliday,
+                    'notes' => 'Vacación aprobada #'.$vacation->id,
+                    'is_calculated' => false,
+                    'updated_at' => $now,
+                ]
+            ));
+        }
     }
 
     /**
@@ -92,22 +128,18 @@ class VacationService
      *   monto            = tarifa_diaria × business_days
      *
      * Si el empleado no tiene nóminas previas, se usa el salario base del contrato como fallback.
-     *
-     * @param  Employee $employee
-     * @param  Vacation $vacation
-     * @return float
      */
     public static function calculateVacationPay(Employee $employee, Vacation $vacation): float
     {
-        if ($vacation->type !== 'paid' || ($vacation->business_days ?? 0) <= 0) {
+        if (($vacation->business_days ?? 0) <= 0) {
             return 0.0;
         }
 
-        $refDate    = Carbon::parse($vacation->start_date);
+        $refDate = Carbon::parse($vacation->start_date);
         $sixMonthsAgo = $refDate->copy()->subMonths(6)->startOfMonth();
 
         $payrolls = Payroll::where('employee_id', $employee->id)
-            ->whereHas('period', fn($q) => $q
+            ->whereHas('period', fn ($q) => $q
                 ->where('start_date', '>=', $sixMonthsAgo)
                 ->where('start_date', '<', $refDate)
             )
@@ -118,8 +150,8 @@ class VacationService
         if ($payrolls->isEmpty()) {
             $monthlySalary = (float) ($employee->base_salary ?? 0);
             Log::info('VacationService: sin nóminas previas, usando salario base como fallback', [
-                'employee_id'   => $employee->id,
-                'vacation_id'   => $vacation->id,
+                'employee_id' => $employee->id,
+                'vacation_id' => $vacation->id,
                 'monthly_salary' => $monthlySalary,
             ]);
         } else {
@@ -131,19 +163,20 @@ class VacationService
                 'employee_id' => $employee->id,
                 'vacation_id' => $vacation->id,
             ]);
+
             return 0.0;
         }
 
         $dailyRate = round($monthlySalary / 30, 2);
-        $amount    = round($dailyRate * $vacation->business_days, 2);
+        $amount = round($dailyRate * $vacation->business_days, 2);
 
         Log::info('VacationService: monto vacacional calculado', [
-            'employee_id'    => $employee->id,
-            'vacation_id'    => $vacation->id,
-            'payrolls_used'  => $payrolls->count(),
-            'monthly_avg'    => $monthlySalary,
-            'daily_rate'     => $dailyRate,
-            'business_days'  => $vacation->business_days,
+            'employee_id' => $employee->id,
+            'vacation_id' => $vacation->id,
+            'payrolls_used' => $payrolls->count(),
+            'monthly_avg' => $monthlySalary,
+            'daily_rate' => $dailyRate,
+            'business_days' => $vacation->business_days,
             'payment_amount' => $amount,
         ]);
 
@@ -156,8 +189,7 @@ class VacationService
      * Debe llamarse antes de la fecha de inicio de la vacación (Art. 218 CLT).
      * Emite un warning en el log si se registra después del inicio.
      *
-     * @param  Vacation $vacation
-     * @param  Carbon|null $paidAt  Fecha del pago (default: ahora)
+     * @param  Carbon|null  $paidAt  Fecha del pago (default: ahora)
      */
     public static function recordPayment(Vacation $vacation, ?Carbon $paidAt = null): void
     {
@@ -167,14 +199,14 @@ class VacationService
             Log::warning('VacationService: pago vacacional registrado después del inicio — incumple Art. 218 CLT', [
                 'employee_id' => $vacation->employee_id,
                 'vacation_id' => $vacation->id,
-                'start_date'  => $vacation->start_date,
-                'paid_at'     => $paidAt,
+                'start_date' => $vacation->start_date,
+                'paid_at' => $paidAt,
             ]);
         }
 
         $vacation->update([
             'payment_status' => 'paid',
-            'paid_at'        => $paidAt,
+            'paid_at' => $paidAt,
         ]);
     }
 
@@ -207,7 +239,7 @@ class VacationService
             }
 
             $vacation->update([
-                'status'         => 'pending',
+                'status' => 'pending',
                 'payment_amount' => 0,
                 'payment_status' => 'unpaid',
             ]);
@@ -220,7 +252,7 @@ class VacationService
     public static function releaseOnDelete(Vacation $vacation): void
     {
         DB::transaction(function () use ($vacation) {
-            if (!$vacation->vacation_balance_id || !$vacation->vacationBalance) {
+            if (! $vacation->vacation_balance_id || ! $vacation->vacationBalance) {
                 return;
             }
 
@@ -233,6 +265,22 @@ class VacationService
     }
 
     /**
+     * Retorna el total de días disponibles del empleado sumando todos sus balances.
+     *
+     * Suma entitled - used - pending por año (sin cap por año) para reflejar
+     * correctamente el saldo acumulativo cuando una solicitud debitó más días
+     * que los asignados en un año específico.
+     */
+    public static function getTotalAvailableDays(Employee $employee): int
+    {
+        $raw = VacationBalance::where('employee_id', $employee->id)
+            ->get()
+            ->sum(fn (VacationBalance $b) => $b->entitled_days - $b->used_days - $b->pending_days);
+
+        return max(0, (int) $raw);
+    }
+
+    /**
      * Obtiene o crea el balance de vacaciones del empleado para un año
      */
     public static function getOrCreateBalance(Employee $employee, int $year): VacationBalance
@@ -241,7 +289,7 @@ class VacationService
             ->where('year', $year)
             ->first();
 
-        if (!$balance) {
+        if (! $balance) {
             $yearsOfService = self::getYearsOfService($employee, Carbon::create($year, 1, 1));
             $entitledDays = self::getEntitledDays($yearsOfService);
 
@@ -270,7 +318,7 @@ class VacationService
 
         $holidays = Holiday::whereBetween('date', [$startDate, $endDate])
             ->pluck('date')
-            ->map(fn($date) => $date->format('Y-m-d'))
+            ->map(fn ($date) => $date->format('Y-m-d'))
             ->toArray();
 
         foreach ($period as $date) {
@@ -293,12 +341,13 @@ class VacationService
     {
         $schedule = $employee->getScheduleForDate($date);
 
-        if (!$schedule) {
+        if (! $schedule) {
             $dayOfWeek = $date->dayOfWeekIso;
+
             return $dayOfWeek >= 1 && $dayOfWeek <= 6;
         }
 
-        return !$schedule->isDayOff($date->dayOfWeekIso);
+        return ! $schedule->isDayOff($date->dayOfWeekIso);
     }
 
     /**
@@ -313,7 +362,7 @@ class VacationService
         $iterations = 0;
 
         while ($iterations < $maxIterations) {
-            if (!Holiday::isHoliday($returnDate) && in_array($returnDate->dayOfWeekIso, $workingDays)) {
+            if (! Holiday::isHoliday($returnDate) && in_array($returnDate->dayOfWeekIso, $workingDays)) {
                 return $returnDate;
             }
 
@@ -343,7 +392,7 @@ class VacationService
         $businessDays = self::calculateBusinessDays($employee, $startDate, $endDate);
 
         if ($businessDays < 1) {
-            $errors[] = "El período seleccionado no contiene días hábiles.";
+            $errors[] = 'El período seleccionado no contiene días hábiles.';
         }
 
         // 3. Verificar mínimo de días consecutivos (fraccionamiento)
@@ -353,17 +402,16 @@ class VacationService
             $warnings[] = "Según la ley, el fraccionamiento mínimo es de {$minConsecutiveDays} días hábiles consecutivos. Se solicitaron {$businessDays} días.";
         }
 
-        // 4. Verificar días disponibles
+        // 4. Verificar días disponibles (saldo acumulativo entre todos los años)
         $year = $startDate->year;
         $balance = self::getOrCreateBalance($employee, $year);
 
-        // Si estamos editando, excluir los días de la vacación actual
-        $currentPendingDays = 0;
-        if ($excludeVacation && $excludeVacation->vacation_balance_id === $balance->id) {
-            $currentPendingDays = $excludeVacation->business_days ?? 0;
-        }
+        $availableDays = self::getTotalAvailableDays($employee);
 
-        $availableDays = $balance->available_days + $currentPendingDays;
+        // Si estamos editando, devolver los días de la vacación actual al total
+        if ($excludeVacation) {
+            $availableDays += $excludeVacation->business_days ?? 0;
+        }
 
         if ($businessDays > $availableDays) {
             $errors[] = "No hay suficientes días disponibles. Solicitados: {$businessDays}, Disponibles: {$availableDays}";
@@ -386,7 +434,7 @@ class VacationService
         }
 
         if ($overlapping->exists()) {
-            $errors[] = "El período seleccionado se solapa con otra solicitud de vacaciones.";
+            $errors[] = 'El período seleccionado se solapa con otra solicitud de vacaciones.';
         }
 
         return [
@@ -413,7 +461,7 @@ class VacationService
                 ->where('year', $year)
                 ->exists();
 
-            if (!$existing) {
+            if (! $existing) {
                 self::getOrCreateBalance($employee, $year);
                 $created++;
             } else {
