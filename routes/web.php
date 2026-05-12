@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdvanceController;
+use App\Http\Controllers\AdvanceReportController;
 use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
@@ -127,10 +128,11 @@ Route::middleware(['auth'])->group(function () {
     // Amonestaciones
     Route::get('/amonestaciones/{warning}/pdf', [WarningController::class, 'show'])->name('warnings.pdf');
 
-    // Préstamos y adelantos
+    // Préstamos y adelantos (rutas estáticas deben ir ANTES de las dinámicas con {advance})
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
     Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
+    Route::get('/adelantos/reporte/pdf', [AdvanceReportController::class, 'pdf'])->name('advances.report.pdf');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 
     // Reportes de contratos (rutas estáticas deben ir ANTES de /contratos/{contract}/pdf)
