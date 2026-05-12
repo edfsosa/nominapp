@@ -17,9 +17,6 @@ class EditVacation extends EditRecord
 
     /**
      * Redirige a la vista si la vacación ya fue aprobada.
-     *
-     * @param  int|string $record
-     * @return void
      */
     public function mount(int|string $record): void
     {
@@ -38,8 +35,6 @@ class EditVacation extends EditRecord
 
     /**
      * Define las acciones del encabezado de la página.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -58,25 +53,23 @@ class EditVacation extends EditRecord
 
     /**
      * Define la URL a la que se redirige después de guardar.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 
     /**
      * Mutar los datos del formulario antes de guardarlos.
      *
-     * @param  array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        if (!empty($data['employee_id']) && !empty($data['start_date'])) {
+        if (! empty($data['employee_id']) && ! empty($data['start_date'])) {
             $employee = Employee::find($data['employee_id']);
-            if (!$employee instanceof Employee) {
+            if (! $employee instanceof Employee) {
                 return $data;
             }
             $year = Carbon::parse($data['start_date'])->year;
@@ -89,8 +82,6 @@ class EditVacation extends EditRecord
 
     /**
      * Ajusta el balance de días pendientes si cambiaron los días hábiles.
-     *
-     * @return void
      */
     protected function beforeSave(): void
     {
@@ -108,8 +99,6 @@ class EditVacation extends EditRecord
 
     /**
      * Define el título de la notificación después de guardar.
-     *
-     * @return string|null
      */
     protected function getSavedNotificationTitle(): ?string
     {

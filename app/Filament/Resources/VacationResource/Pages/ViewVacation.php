@@ -6,9 +6,11 @@ use App\Filament\Resources\VacationResource;
 use App\Services\VacationService;
 use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Str;
@@ -21,8 +23,6 @@ class ViewVacation extends ViewRecord
 
     /**
      * Define las acciones del encabezado de la página.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -97,6 +97,37 @@ class ViewVacation extends ViewRecord
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $record]));
                 }),
 
+            Action::make('mark_paid')
+                ->label('Marcar como pagado')
+                ->icon('heroicon-o-banknotes')
+                ->color('success')
+                ->visible(fn () => $this->record->isApproved()
+                    && $this->record->payment_status === 'unpaid'
+                    && $this->record->payment_method === 'immediate')
+                ->modalHeading('Registrar pago vacacional')
+                ->modalDescription(fn () => 'Monto a registrar: Gs. '.number_format((float) $this->record->payment_amount, 0, ',', '.'))
+                ->modalSubmitActionLabel('Sí, registrar pago')
+                ->form([
+                    DatePicker::make('paid_at')
+                        ->label('Fecha de pago')
+                        ->displayFormat('d/m/Y')
+                        ->native(false)
+                        ->closeOnDateSelection()
+                        ->default(now())
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    VacationService::recordPayment($this->record, Carbon::parse($data['paid_at']));
+
+                    Notification::make()
+                        ->success()
+                        ->title('Pago registrado')
+                        ->body("El pago vacacional de {$this->record->employee->full_name} fue registrado correctamente.")
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                }),
+
             Action::make('generateDocuments')
                 ->label('Generar Documentos')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -110,16 +141,16 @@ class ViewVacation extends ViewRecord
                         ->label('Documentos a generar')
                         ->options([
                             'communication' => 'Comunicación de Vacaciones',
-                            'usufruct'      => 'Solicitud de Usufructo de Vacaciones',
-                            'settlement'    => 'Recibo de Liquidación de Vacaciones',
+                            'usufruct' => 'Solicitud de Usufructo de Vacaciones',
+                            'settlement' => 'Recibo de Liquidación de Vacaciones',
                         ])
                         ->default(['communication', 'usufruct', 'settlement'])
                         ->required()
                         ->columns(1)
                         ->descriptions([
                             'communication' => 'Solicitud formal de vacaciones con información del empleado y período',
-                            'usufruct'      => 'Confirmación de que el empleado usufructuó sus vacaciones',
-                            'settlement'    => 'Liquidación de salario por vacaciones según Art. 220 C.L.',
+                            'usufruct' => 'Confirmación de que el empleado usufructuó sus vacaciones',
+                            'settlement' => 'Liquidación de salario por vacaciones según Art. 220 C.L.',
                         ]),
                 ])
                 ->action(function (array $data) {
@@ -131,7 +162,7 @@ class ViewVacation extends ViewRecord
 
                     $filename = $this->generateDocumentsFile($this->record, $selectedDocs);
 
-                    $this->js("window.open('" . route('vacation.documents.download', ['filename' => $filename]) . "', '_blank')");
+                    $this->js("window.open('".route('vacation.documents.download', ['filename' => $filename])."', '_blank')");
 
                     Notification::make()
                         ->success()
@@ -150,9 +181,8 @@ class ViewVacation extends ViewRecord
     /**
      * Genera los documentos seleccionados y devuelve el nombre del archivo resultante.
      *
-     * @param  mixed         $record
-     * @param  array<string> $selectedDocs
-     * @return string
+     * @param  mixed  $record
+     * @param  array<string>  $selectedDocs
      */
     protected function generateDocumentsFile($record, array $selectedDocs): string
     {
@@ -169,16 +199,16 @@ class ViewVacation extends ViewRecord
             $pdfData = $this->getPdfData($record, $selectedDocs[0]);
             $pdf = Pdf::loadView($pdfData['view'], $pdfData['data'])->setPaper('a4', 'portrait');
 
-            $filename = $uniqueId . '_' . $pdfData['filename'];
-            $pdf->save($tempDir . '/' . $filename);
+            $filename = $uniqueId.'_'.$pdfData['filename'];
+            $pdf->save($tempDir.'/'.$filename);
 
             return $filename;
         }
 
-        $employeeNameSlug = Str::slug($record->employee->first_name . ' ' . $record->employee->last_name);
-        $zipFilename = $uniqueId . '_vacaciones-' . $employeeNameSlug . '-' . $record->employee->ci . '.zip';
-        $zipPath = $tempDir . '/' . $zipFilename;
-        $zip = new ZipArchive();
+        $employeeNameSlug = Str::slug($record->employee->first_name.' '.$record->employee->last_name);
+        $zipFilename = $uniqueId.'_vacaciones-'.$employeeNameSlug.'-'.$record->employee->ci.'.zip';
+        $zipPath = $tempDir.'/'.$zipFilename;
+        $zip = new ZipArchive;
 
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
             throw new \Exception('No se pudo crear el archivo ZIP');
@@ -197,13 +227,10 @@ class ViewVacation extends ViewRecord
 
     /**
      * Elimina archivos temporales con más de 1 hora de antigüedad.
-     *
-     * @param  string $dir
-     * @return void
      */
     protected function cleanOldTempFiles(string $dir): void
     {
-        $files = glob($dir . '/*');
+        $files = glob($dir.'/*');
         $now = time();
 
         foreach ($files as $file) {
@@ -217,7 +244,6 @@ class ViewVacation extends ViewRecord
      * Devuelve la vista, nombre de archivo y datos para cada tipo de PDF.
      *
      * @param  mixed  $record
-     * @param  string $type
      * @return array<string, mixed>
      */
     protected function getPdfData($record, string $type): array
@@ -226,7 +252,7 @@ class ViewVacation extends ViewRecord
         $company = $record->employee->company;
 
         $logoPath = $company?->logo ?? $settings->company_logo;
-        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+        $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
         $companyLogo = $companyLogo && file_exists($companyLogo) ? $companyLogo : null;
 
         $companyName = $company?->name ?? $settings->company_name;
@@ -237,7 +263,7 @@ class ViewVacation extends ViewRecord
         $employerNumber = $company?->employer_number ?? $settings->company_employer_number ?? '';
         $city = $company?->city ?? $settings->company_city ?? '';
 
-        $employeeNameSlug = Str::slug($record->employee->first_name . ' ' . $record->employee->last_name);
+        $employeeNameSlug = Str::slug($record->employee->first_name.' '.$record->employee->last_name);
 
         $baseData = compact(
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
@@ -246,15 +272,15 @@ class ViewVacation extends ViewRecord
 
         return match ($type) {
             'communication' => [
-                'view'     => 'pdf.vacation-form',
+                'view' => 'pdf.vacation-form',
                 'filename' => "comunicacion-vacaciones-{$employeeNameSlug}-{$record->employee->ci}.pdf",
-                'data'     => array_merge(['vacation' => $record], $baseData),
+                'data' => array_merge(['vacation' => $record], $baseData),
             ],
 
             'usufruct' => [
-                'view'     => 'pdf.vacation-usufruct-notice',
+                'view' => 'pdf.vacation-usufruct-notice',
                 'filename' => "solicitud-usufructo-{$employeeNameSlug}-{$record->employee->ci}.pdf",
-                'data'     => array_merge(['vacation' => $record], $baseData),
+                'data' => array_merge(['vacation' => $record], $baseData),
             ],
 
             'settlement' => $this->buildSettlementData($record, $baseData, $employeeNameSlug),
@@ -266,9 +292,8 @@ class ViewVacation extends ViewRecord
     /**
      * Calcula y devuelve los datos del recibo de liquidación de vacaciones.
      *
-     * @param  mixed         $record
-     * @param  array<string, mixed> $baseData
-     * @param  string        $employeeNameSlug
+     * @param  mixed  $record
+     * @param  array<string, mixed>  $baseData
      * @return array<string, mixed>
      */
     private function buildSettlementData($record, array $baseData, string $employeeNameSlug): array
@@ -283,17 +308,17 @@ class ViewVacation extends ViewRecord
         $netAmount = $totalSalary - $ipsDeduction;
 
         return [
-            'view'     => 'pdf.vacation-settlement-receipt',
+            'view' => 'pdf.vacation-settlement-receipt',
             'filename' => "recibo-liquidacion-{$employeeNameSlug}-{$record->employee->ci}.pdf",
-            'data'     => array_merge(['vacation' => $record], $baseData, [
-                'days'            => $days,
-                'dailySalary'     => $dailySalary,
-                'subTotal'        => $totalSalary,
-                'totalSalary'     => $totalSalary,
-                'ipsRate'         => $ipsRate,
-                'ipsDeduction'    => $ipsDeduction,
+            'data' => array_merge(['vacation' => $record], $baseData, [
+                'days' => $days,
+                'dailySalary' => $dailySalary,
+                'subTotal' => $totalSalary,
+                'totalSalary' => $totalSalary,
+                'ipsRate' => $ipsRate,
+                'ipsDeduction' => $ipsDeduction,
                 'totalDeductions' => $ipsDeduction,
-                'netAmount'       => $netAmount,
+                'netAmount' => $netAmount,
             ]),
         ];
     }

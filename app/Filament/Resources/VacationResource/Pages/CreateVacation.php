@@ -27,7 +27,7 @@ class CreateVacation extends CreateRecord
         }
 
         $employee = Employee::find($data['employee_id']);
-        if (!$employee instanceof Employee) {
+        if (! $employee instanceof Employee) {
             return;
         }
 
@@ -37,7 +37,7 @@ class CreateVacation extends CreateRecord
             Carbon::parse($data['end_date']),
         );
 
-        if (!$validation['valid']) {
+        if (! $validation['valid']) {
             Notification::make()
                 ->danger()
                 ->title('No se puede crear la solicitud')
@@ -46,15 +46,23 @@ class CreateVacation extends CreateRecord
 
             $this->halt();
         }
+
+        foreach ($validation['warnings'] ?? [] as $warning) {
+            Notification::make()
+                ->warning()
+                ->title('Advertencia')
+                ->body($warning)
+                ->send();
+        }
     }
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['status'] = 'pending';
 
-        if (!empty($data['employee_id']) && !empty($data['start_date'])) {
+        if (! empty($data['employee_id']) && ! empty($data['start_date'])) {
             $employee = Employee::find($data['employee_id']);
-            if (!$employee instanceof Employee) {
+            if (! $employee instanceof Employee) {
                 return $data;
             }
             $year = Carbon::parse($data['start_date'])->year;
