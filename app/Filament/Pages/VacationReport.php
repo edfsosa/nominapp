@@ -78,11 +78,11 @@ class VacationReport extends Page implements HasTable
                     [$year, $month, $companyId, $branchId, $status] = $this->resolveActiveFilters();
 
                     return route('vacation.report.pdf', array_filter([
-                        'year'      => $year,
-                        'month'     => $month,
+                        'year' => $year,
+                        'month' => $month,
                         'companyId' => $companyId,
-                        'branchId'  => $branchId,
-                        'status'    => $status,
+                        'branchId' => $branchId,
+                        'status' => $status,
                     ], fn ($v) => $v !== null));
                 })
                 ->openUrlInNewTab(),
@@ -167,11 +167,22 @@ class VacationReport extends Page implements HasTable
                     ->alignCenter()
                     ->sortable(),
 
-                TextColumn::make('type')
-                    ->label('Tipo')
-                    ->formatStateUsing(fn ($state) => Vacation::getTypeLabel($state))
+                TextColumn::make('payment_amount')
+                    ->label('Monto')
+                    ->formatStateUsing(fn ($state) => ($state !== null && $state > 0)
+                        ? 'Gs. '.number_format((float) $state, 0, ',', '.')
+                        : '—')
                     ->badge()
-                    ->color(fn ($state) => Vacation::getTypeColor($state)),
+                    ->color(fn ($state) => ($state !== null && $state > 0) ? 'success' : 'gray')
+                    ->alignRight()
+                    ->sortable(),
+
+                TextColumn::make('payment_method')
+                    ->label('Forma de pago')
+                    ->formatStateUsing(fn ($state) => Vacation::getPaymentMethodLabel($state))
+                    ->badge()
+                    ->color(fn ($state) => Vacation::getPaymentMethodColor($state))
+                    ->icon(fn ($state) => Vacation::getPaymentMethodIcon($state)),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -197,8 +208,9 @@ class VacationReport extends Page implements HasTable
                 'vacations.start_date',
                 'vacations.end_date',
                 'vacations.business_days',
-                'vacations.type',
+                'vacations.payment_method',
                 'vacations.status',
+                'vacations.payment_amount',
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',

@@ -29,17 +29,14 @@ class VacationReportController extends Controller
      *   - Sin mes, con empresa → agrupa por mes
      *   - Con mes, sin empresa → agrupa por empresa
      *   - Con mes y empresa → lista plana
-     *
-     * @param  Request  $request
-     * @return Response
      */
     public function pdf(Request $request): Response
     {
-        $year      = (int) ($request->query('year', now()->year));
-        $month     = $request->query('month')     ? (int) $request->query('month')     : null;
+        $year = (int) ($request->query('year', now()->year));
+        $month = $request->query('month') ? (int) $request->query('month') : null;
         $companyId = $request->query('companyId') ? (int) $request->query('companyId') : null;
-        $branchId  = $request->query('branchId')  ? (int) $request->query('branchId')  : null;
-        $status    = $request->query('status') ?: 'approved';
+        $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
+        $status = $request->query('status') ?: 'approved';
 
         $vacations = Vacation::query()
             ->select([
@@ -48,12 +45,13 @@ class VacationReportController extends Controller
                 'vacations.end_date',
                 'vacations.return_date',
                 'vacations.business_days',
-                'vacations.type',
+                'vacations.payment_method',
                 'vacations.status',
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',
                 'branches.name as branch_name',
+                'vacations.payment_amount',
                 'companies.id as company_id',
                 'companies.name as company_name',
             ])
@@ -75,9 +73,9 @@ class VacationReportController extends Controller
         // Modo de agrupación adaptativo
         $groupMode = match (true) {
             $month === null && $companyId === null => 'company_month',
-            $month === null                        => 'month',
-            $companyId === null                    => 'company',
-            default                                => 'flat',
+            $month === null => 'month',
+            $companyId === null => 'company',
+            default => 'flat',
         };
 
         $groups = match ($groupMode) {
@@ -87,7 +85,7 @@ class VacationReportController extends Controller
                     fn ($v) => (int) date('n', strtotime($v->start_date))
                 )),
             'company' => $vacations->groupBy('company_name'),
-            'month'   => $vacations->groupBy(
+            'month' => $vacations->groupBy(
                 fn ($v) => (int) date('n', strtotime($v->start_date))
             ),
             default => null,
@@ -97,26 +95,27 @@ class VacationReportController extends Controller
         $uniqueCompanyIds = $vacations->pluck('company_id')->filter()->unique();
         $resolvedCompanyId = $companyId ?? ($uniqueCompanyIds->count() === 1 ? $uniqueCompanyIds->first() : null);
 
-        $company  = $resolvedCompanyId ? Company::find($resolvedCompanyId) : null;
+        $company = $resolvedCompanyId ? Company::find($resolvedCompanyId) : null;
         $settings = app(GeneralSettings::class);
         $showCompanyHeader = $company !== null;
 
-        $logoPath    = $company?->logo ?? $settings->company_logo;
-        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+        $logoPath = $company?->logo ?? $settings->company_logo;
+        $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
         $companyLogo = $companyLogo && file_exists($companyLogo) ? $companyLogo : null;
 
-        $companyName    = $company?->name            ?? $settings->company_name;
-        $companyRuc     = $company?->ruc             ?? $settings->company_ruc            ?? '';
-        $companyAddress = $company?->address         ?? $settings->company_address        ?? '';
-        $companyPhone   = $company?->phone           ?? $settings->company_phone          ?? '';
-        $companyEmail   = $company?->email           ?? $settings->company_email          ?? '';
+        $companyName = $company?->name ?? $settings->company_name;
+        $companyRuc = $company?->ruc ?? $settings->company_ruc ?? '';
+        $companyAddress = $company?->address ?? $settings->company_address ?? '';
+        $companyPhone = $company?->phone ?? $settings->company_phone ?? '';
+        $companyEmail = $company?->email ?? $settings->company_email ?? '';
         $employerNumber = $company?->employer_number ?? $settings->company_employer_number ?? '';
-        $city           = $company?->city            ?? $settings->company_city           ?? '';
+        $city = $company?->city ?? $settings->company_city ?? '';
 
-        $monthName         = $month ? (self::MONTHS[$month] ?? '') : null;
+        $monthName = $month ? (self::MONTHS[$month] ?? '') : null;
         $totalBusinessDays = $vacations->sum('business_days');
-        $totalEmployees    = $vacations->unique('ci')->count();
-        $months            = self::MONTHS;
+        $totalEmployees = $vacations->unique('ci')->count();
+        $totalPaymentAmount = $vacations->sum('payment_amount');
+        $months = self::MONTHS;
 
         $pdf = Pdf::loadView('pdf.vacation-report', compact(
             'vacations', 'groups', 'groupMode', 'months',
@@ -124,14 +123,14 @@ class VacationReportController extends Controller
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'employerNumber', 'city',
-            'totalBusinessDays', 'totalEmployees'
+            'totalBusinessDays', 'totalEmployees', 'totalPaymentAmount'
         ))->setPaper('a4', 'portrait');
 
-        $monthSuffix = $month ? '-' . str_pad((string) $month, 2, '0', STR_PAD_LEFT) : '';
+        $monthSuffix = $month ? '-'.str_pad((string) $month, 2, '0', STR_PAD_LEFT) : '';
 
         return response($pdf->output(), 200, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="informe-vacaciones-' . $year . $monthSuffix . '.pdf"',
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="informe-vacaciones-'.$year.$monthSuffix.'.pdf"',
         ]);
     }
 }

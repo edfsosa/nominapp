@@ -231,6 +231,9 @@
             $i = 0;
             foreach ($rows as $v) {
                 $even = $i % 2 === 1 ? 'row-even' : '';
+                $amount = ($v->payment_amount !== null && $v->payment_amount > 0)
+                    ? 'Gs. ' . number_format((float) $v->payment_amount, 0, ',', '.')
+                    : '—';
                 echo '<tr class="' . $even . '">';
                 echo '<td class="text-left">' . strtoupper(e($v->last_name)) . ', ' . e($v->first_name) . '</td>';
                 echo '<td>' . e($v->ci) . '</td>';
@@ -240,9 +243,17 @@
                 $returnDate = $v->return_date ? \Carbon\Carbon::parse($v->return_date)->format('d/m/Y') : '—';
                 echo '<td>' . $returnDate . '</td>';
                 echo '<td>' . e($v->business_days) . '</td>';
+                echo '<td>' . $amount . '</td>';
                 echo '</tr>';
                 $i++;
             }
+        }
+
+        /** Formatea un monto en Guaraníes o retorna '—' si es nulo/cero. */
+        function fmtGs($amount): string {
+            return ($amount !== null && $amount > 0)
+                ? 'Gs. ' . number_format((float) $amount, 0, ',', '.')
+                : '—';
         }
     @endphp
 
@@ -257,13 +268,14 @@
             <table>
                 <thead>
                     <tr>
-                        <th class="text-left" style="width:26%">Empleado</th>
-                        <th style="width:8%">CI</th>
-                        <th style="width:14%">Sucursal</th>
-                        <th style="width:9%">Inicio</th>
-                        <th style="width:9%">Fin</th>
-                        <th style="width:9%">Reintegro</th>
-                        <th style="width:8%">Días Háb.</th>
+                        <th class="text-left" style="width:22%">Empleado</th>
+                        <th style="width:7%">CI</th>
+                        <th style="width:12%">Sucursal</th>
+                        <th style="width:8%">Inicio</th>
+                        <th style="width:8%">Fin</th>
+                        <th style="width:8%">Reintegro</th>
+                        <th style="width:7%">Días Háb.</th>
+                        <th style="width:13%">Monto</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -281,13 +293,14 @@
                 <table>
                     <thead>
                         <tr>
-                            <th class="text-left" style="width:28%">Empleado</th>
-                            <th style="width:8%">CI</th>
-                            <th style="width:16%">Sucursal</th>
-                            <th style="width:10%">Inicio</th>
-                            <th style="width:10%">Fin</th>
-                            <th style="width:10%">Reintegro</th>
-                            <th style="width:9%">Días Háb.</th>
+                            <th class="text-left" style="width:22%">Empleado</th>
+                            <th style="width:7%">CI</th>
+                            <th style="width:13%">Sucursal</th>
+                            <th style="width:9%">Inicio</th>
+                            <th style="width:9%">Fin</th>
+                            <th style="width:9%">Reintegro</th>
+                            <th style="width:7%">Días Háb.</th>
+                            <th style="width:13%">Monto</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -295,8 +308,8 @@
                     </tbody>
                 </table>
                 <div class="subtotal-row">
-                    <div class="st-item"><span class="st-label">Empleados:</span> {{ $rows->unique('ci')->count() }}</div>
-                    <div class="st-item"><span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                    <div class="st-item"><span class="st-label">Empleados:</span> {{ $rows->unique('ci')->count() }} &nbsp;·&nbsp; <span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                    <div class="st-item"><span class="st-label">Monto total:</span> {{ fmtGs($rows->sum('payment_amount')) }}</div>
                 </div>
             @endforeach
 
@@ -310,13 +323,14 @@
                 <table>
                     <thead>
                         <tr>
-                            <th class="text-left" style="width:28%">Empleado</th>
-                            <th style="width:8%">CI</th>
-                            <th style="width:16%">Sucursal</th>
-                            <th style="width:10%">Inicio</th>
-                            <th style="width:10%">Fin</th>
-                            <th style="width:10%">Reintegro</th>
-                            <th style="width:9%">Días Háb.</th>
+                            <th class="text-left" style="width:22%">Empleado</th>
+                            <th style="width:7%">CI</th>
+                            <th style="width:13%">Sucursal</th>
+                            <th style="width:9%">Inicio</th>
+                            <th style="width:9%">Fin</th>
+                            <th style="width:9%">Reintegro</th>
+                            <th style="width:7%">Días Háb.</th>
+                            <th style="width:13%">Monto</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -324,8 +338,8 @@
                     </tbody>
                 </table>
                 <div class="subtotal-row">
-                    <div class="st-item"><span class="st-label">Empleados:</span> {{ $rows->unique('ci')->count() }}</div>
-                    <div class="st-item"><span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                    <div class="st-item"><span class="st-label">Empleados:</span> {{ $rows->unique('ci')->count() }} &nbsp;·&nbsp; <span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                    <div class="st-item"><span class="st-label">Monto total:</span> {{ fmtGs($rows->sum('payment_amount')) }}</div>
                 </div>
             @endforeach
 
@@ -343,13 +357,14 @@
                     <table>
                         <thead>
                             <tr>
-                                <th class="text-left" style="width:26%">Empleado</th>
-                                <th style="width:8%">CI</th>
-                                <th style="width:14%">Sucursal</th>
-                                <th style="width:9%">Inicio</th>
-                                <th style="width:9%">Fin</th>
-                                <th style="width:9%">Reintegro</th>
-                                <th style="width:8%">Días Háb.</th>
+                                <th class="text-left" style="width:20%">Empleado</th>
+                                <th style="width:7%">CI</th>
+                                <th style="width:12%">Sucursal</th>
+                                <th style="width:8%">Inicio</th>
+                                <th style="width:8%">Fin</th>
+                                <th style="width:8%">Reintegro</th>
+                                <th style="width:7%">Días Háb.</th>
+                                <th style="width:13%">Monto</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -357,15 +372,15 @@
                         </tbody>
                     </table>
                     <div class="subtotal-row">
-                        <div class="st-item"><span class="st-label">Empleados en {{ $months[$monthNum] ?? '' }}:</span> {{ $rows->unique('ci')->count() }}</div>
-                        <div class="st-item"><span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                        <div class="st-item"><span class="st-label">Empleados en {{ $months[$monthNum] ?? '' }}:</span> {{ $rows->unique('ci')->count() }} &nbsp;·&nbsp; <span class="st-label">Días hábiles:</span> {{ $rows->sum('business_days') }}</div>
+                        <div class="st-item"><span class="st-label">Monto total:</span> {{ fmtGs($rows->sum('payment_amount')) }}</div>
                     </div>
                 @endforeach
 
                 {{-- Subtotal empresa --}}
                 <div class="subtotal-row" style="background-color:#ddd; margin-bottom:12px;">
-                    <div class="st-item"><span class="st-label">Total {{ $compName }}:</span> {{ $compRows->unique('ci')->count() }} empleados</div>
-                    <div class="st-item"><span class="st-label">Total días hábiles:</span> {{ $compRows->sum('business_days') }}</div>
+                    <div class="st-item"><span class="st-label">Total {{ $compName }}:</span> {{ $compRows->unique('ci')->count() }} empleados &nbsp;·&nbsp; {{ $compRows->sum('business_days') }} días</div>
+                    <div class="st-item"><span class="st-label">Monto total:</span> {{ fmtGs($compRows->sum('payment_amount')) }}</div>
                 </div>
             @endforeach
         @endif
@@ -379,6 +394,9 @@
                 </div>
                 <div class="grand-total-item">
                     <span class="grand-total-label">Total días hábiles:</span> {{ $totalBusinessDays }}
+                </div>
+                <div class="grand-total-item">
+                    <span class="grand-total-label">Monto total:</span> {{ fmtGs($totalPaymentAmount) }}
                 </div>
             </div>
         </div>

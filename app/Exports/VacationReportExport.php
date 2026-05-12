@@ -45,8 +45,9 @@ class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'vacations.start_date',
                 'vacations.end_date',
                 'vacations.business_days',
-                'vacations.type',
+                'vacations.payment_method',
                 'vacations.status',
+                'vacations.payment_amount',
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',
@@ -78,7 +79,8 @@ class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'Inicio',
             'Fin',
             'Días hábiles',
-            'Tipo',
+            'Monto (Gs.)',
+            'Forma de pago',
             'Estado',
         ];
     }
@@ -98,7 +100,10 @@ class VacationReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             $row->start_date->format('d/m/Y'),
             $row->end_date->format('d/m/Y'),
             $row->business_days,
-            Vacation::getTypeLabel($row->type),
+            ($row->payment_amount !== null && $row->payment_amount > 0)
+                ? (float) $row->payment_amount
+                : null,
+            Vacation::getPaymentMethodLabel($row->payment_method ?? 'immediate'),
             Vacation::getStatusLabel($row->status),
         ];
     }
