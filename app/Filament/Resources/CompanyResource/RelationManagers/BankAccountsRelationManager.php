@@ -49,6 +49,13 @@ class BankAccountsRelationManager extends RelationManager
                     ->required()
                     ->columnSpanFull(),
 
+                TextInput::make('bank_company_id')
+                    ->label('ID Empresa (banco)')
+                    ->maxLength(50)
+                    ->placeholder('Ej: 12345')
+                    ->helperText('ID asignado por el banco a la empresa para pagos en lote.')
+                    ->columnSpanFull(),
+
                 TextInput::make('account_number')
                     ->label('Número de cuenta')
                     ->required()
@@ -108,6 +115,11 @@ class BankAccountsRelationManager extends RelationManager
                     ->searchable()
                     ->copyable()
                     ->copyMessage('Número copiado'),
+
+                TextColumn::make('bank_company_id')
+                    ->label('ID Empresa (banco)')
+                    ->placeholder('-')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('account_type')
                     ->label('Tipo')
