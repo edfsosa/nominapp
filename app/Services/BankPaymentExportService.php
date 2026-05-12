@@ -3,10 +3,12 @@
 namespace App\Services;
 
 use App\Models\Advance;
+use Carbon\Carbon;
 use DOMDocument;
 use DOMElement;
 use DOMXPath;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use RuntimeException;
 use ZipArchive;
 
@@ -60,6 +62,117 @@ class BankPaymentExportService
         $zip->close();
 
         return $tempFile;
+    }
+
+    /**
+     * Genera el contenido del archivo TRANSFER.txt para enviar directamente al banco.
+     * Marca todos los adelantos incluidos como pagados (payroll_id = null).
+     *
+     * Formato de línea replicado de la macro GeneraTXT del template .xlsm (Itaú):
+     *   D01 = registro de detalle por empleado
+     *   C01 = registro de control con el total (última línea)
+     *
+     * @param  array<string, mixed>  $params  id_empresa, cuenta_debito, moneda, tipo, fecha_credito (Y-m-d)
+     * @param  Collection<int, Advance>  $advances
+     */
+    public function generateTxt(array $params, Collection $advances): string
+    {
+        $lines = [];
+        $totalAmount = 0.0;
+
+        foreach ($advances as $advance) {
+            $cuenta = $advance->employee->bankAccounts->first()?->account_number ?? '';
+            $monto = (float) $advance->amount;
+            $totalAmount += $monto;
+
+            $lines[] = $this->buildDetailLine(
+                idEmpresa: $params['id_empresa'],
+                cuentaDebito: $params['cuenta_debito'],
+                cuentaEmpleado: $cuenta,
+                tipo: $params['tipo'],
+                nombre: $advance->employee->full_name,
+                moneda: $params['moneda'],
+                monto: $monto,
+                ci: (string) $advance->employee->ci,
+                fecha: $params['fecha_credito'],
+            );
+        }
+
+        $lines[] = $this->buildControlLine(
+            idEmpresa: $params['id_empresa'],
+            cuentaDebito: $params['cuenta_debito'],
+            moneda: $params['moneda'],
+            totalMonto: $totalAmount,
+        );
+
+        foreach ($advances as $advance) {
+            $advance->markAsPaidBankTransfer();
+        }
+
+        return implode("\r\n", $lines)."\r\n";
+    }
+
+    /**
+     * Construye una línea de detalle D01 en formato fijo Itaú.
+     */
+    private function buildDetailLine(
+        string $idEmpresa,
+        string $cuentaDebito,
+        string $cuentaEmpleado,
+        string $tipo,
+        string $nombre,
+        string $moneda,
+        float $monto,
+        string $ci,
+        string $fecha,
+    ): string {
+        return 'D01'
+            .$idEmpresa
+            .str_pad($cuentaDebito, 10, '0', STR_PAD_LEFT)
+            .'017'
+            .str_pad($cuentaEmpleado, 10, '0', STR_PAD_LEFT)
+            .($tipo === 'Cheque' ? 'H' : 'C')
+            .str_pad(substr(strtoupper(Str::ascii($nombre)), 0, 50), 50, ' ', STR_PAD_RIGHT)
+            .($moneda === 'Dólar' ? '1' : '0')
+            .str_pad((string) (int) round($monto * 100), 15, '0', STR_PAD_LEFT)
+            .str_repeat('0', 15)
+            .str_pad(substr(strtoupper(Str::ascii($ci)), 0, 12), 12, ' ', STR_PAD_RIGHT)
+            .'0'
+            .str_repeat(' ', 20)
+            .'000'
+            .Carbon::parse($fecha)->format('Ymd')
+            .str_repeat('0', 8)
+            .str_repeat(' ', 65)
+            .str_repeat('0', 14)
+            .str_repeat(' ', 10);
+    }
+
+    /**
+     * Construye la línea de control C01 (totales) en formato fijo Itaú.
+     */
+    private function buildControlLine(
+        string $idEmpresa,
+        string $cuentaDebito,
+        string $moneda,
+        float $totalMonto,
+    ): string {
+        return 'C01'
+            .$idEmpresa
+            .str_pad($cuentaDebito, 10, '0', STR_PAD_LEFT)
+            .'017'
+            .str_repeat('0', 10)
+            .'D'
+            .str_repeat(' ', 50)
+            .($moneda === 'Dólar' ? '1' : '0')
+            .str_pad((string) (int) round($totalMonto * 100), 15, '0', STR_PAD_LEFT)
+            .str_repeat('0', 15)
+            .str_repeat(' ', 12)
+            .'0'
+            .str_repeat(' ', 20)
+            .str_repeat('0', 19)
+            .str_repeat(' ', 65)
+            .str_repeat('0', 14)
+            .str_repeat(' ', 10);
     }
 
     /**

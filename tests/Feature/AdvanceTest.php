@@ -6,10 +6,12 @@ use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
 use App\Models\User;
+use App\Services\BankPaymentExportService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -48,6 +50,17 @@ function makeAdvEmployee(int $salary = 2_550_000): Employee
         'payroll_type' => 'monthly',
         'position_id' => $position->id,
         'department_id' => $department->id,
+        'status' => 'active',
+    ]);
+
+    EmployeeBankAccount::create([
+        'employee_id' => $employee->id,
+        'bank' => 'itau',
+        'account_number' => '1234567890',
+        'account_type' => 'corriente',
+        'holder_name' => 'Test Advance',
+        'holder_ci' => (string) $n,
+        'is_primary' => true,
         'status' => 'active',
     ]);
 
@@ -306,4 +319,98 @@ it('getPendingCount retorna el número de adelantos pendientes', function () {
     makeAdvance($emp1, status: 'approved');
 
     expect(Advance::getPendingCount())->toBe(2);
+});
+
+// ─── bank account validation ──────────────────────────────────────────────────
+
+it('falla al aprobar si el empleado no tiene cuenta bancaria principal activa', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee);
+
+    $employee->bankAccounts()->delete();
+
+    $result = $advance->fresh()->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('cuenta bancaria');
+});
+
+// ─── markAsPaidBankTransfer() ─────────────────────────────────────────────────
+
+it('markAsPaidBankTransfer marca el adelanto como paid sin payroll_id', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee, status: 'approved');
+
+    $advance->markAsPaidBankTransfer();
+
+    $advance->refresh();
+    expect($advance->status)->toBe('paid')
+        ->and($advance->payroll_id)->toBeNull();
+});
+
+// ─── BankPaymentExportService::generateTxt() ─────────────────────────────────
+
+it('generateTxt genera líneas D01 y C01 en formato fijo', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 500_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '12345',
+        'cuenta_debito' => '9876543210',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    $content = app(BankPaymentExportService::class)->generateTxt(
+        $params,
+        collect([$advance])
+    );
+
+    $lines = explode("\r\n", trim($content));
+
+    expect($lines)->toHaveCount(2);
+    expect($lines[0])->toStartWith('D01');
+    expect($lines[1])->toStartWith('C01');
+});
+
+it('generateTxt marca los adelantos como paid tras generar', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 500_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '12345',
+        'cuenta_debito' => '9876543210',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    app(BankPaymentExportService::class)->generateTxt($params, collect([$advance]));
+
+    expect($advance->fresh()->status)->toBe('paid')
+        ->and($advance->fresh()->payroll_id)->toBeNull();
+});
+
+it('generateTxt incluye id_empresa y cuenta_debito en las líneas', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 1_000_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '99888',
+        'cuenta_debito' => '1111111111',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    $content = app(BankPaymentExportService::class)->generateTxt($params, collect([$advance]));
+
+    $lines = explode("\r\n", trim($content));
+
+    expect($lines[0])->toContain('99888')->toContain('1111111111');
+    expect($lines[1])->toContain('99888')->toContain('1111111111');
 });

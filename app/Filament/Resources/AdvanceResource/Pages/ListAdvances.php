@@ -13,6 +13,7 @@ use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -210,15 +211,36 @@ class ListAdvances extends ListRecords
                         ->options(Company::orderBy('name')->pluck('name', 'id'))
                         ->required()
                         ->native(false)
-                        ->searchable(),
-                    TextInput::make('id_empresa')
-                        ->label('ID Empresa (banco)')
-                        ->required()
-                        ->maxLength(50),
-                    TextInput::make('cuenta_debito')
-                        ->label('Cuenta Débito')
-                        ->required()
-                        ->maxLength(50),
+                        ->searchable()
+                        ->live(),
+
+                    Placeholder::make('banco_info')
+                        ->label('Cuenta bancaria principal')
+                        ->content(function (Get $get) {
+                            $companyId = $get('company_id');
+
+                            if (! $companyId) {
+                                return 'Seleccioná una empresa para ver la cuenta bancaria.';
+                            }
+
+                            $account = \App\Models\CompanyBankAccount::where('company_id', $companyId)
+                                ->where('is_primary', true)
+                                ->where('status', 'active')
+                                ->first();
+
+                            if (! $account) {
+                                return 'Sin cuenta bancaria principal configurada.';
+                            }
+
+                            $parts = [\App\Models\CompanyBankAccount::getBankLabel($account->bank)];
+                            $parts[] = $account->bank_company_id
+                                ? 'ID Empresa: '.$account->bank_company_id
+                                : '⚠ ID Empresa no configurado';
+                            $parts[] = 'Cuenta: '.$account->account_number;
+
+                            return implode(' · ', $parts);
+                        })
+                        ->columnSpanFull(),
                     Select::make('moneda')
                         ->label('Moneda')
                         ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
@@ -238,7 +260,36 @@ class ListAdvances extends ListRecords
                         ->required()
                         ->native(false),
                 ])
-                ->action(function (array $data) {
+                ->action(function (array $data, Action $action) {
+                    $account = \App\Models\CompanyBankAccount::where('company_id', $data['company_id'])
+                        ->where('is_primary', true)
+                        ->where('status', 'active')
+                        ->first();
+
+                    if (! $account) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Sin cuenta bancaria principal')
+                            ->body('La empresa no tiene cuenta bancaria principal activa configurada.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
+                    if (! $account->bank_company_id) {
+                        Notification::make()
+                            ->danger()
+                            ->title('ID Empresa no configurado')
+                            ->body('Completá el ID Empresa en la cuenta bancaria principal de la empresa antes de exportar.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
                     $fecha = Carbon::parse($data['fecha_credito'])->format('d/m/Y');
 
                     $advances = Advance::where('status', 'approved')
@@ -248,8 +299,8 @@ class ListAdvances extends ListRecords
                         ->get();
 
                     $params = [
-                        'id_empresa' => $data['id_empresa'],
-                        'cuenta_debito' => $data['cuenta_debito'],
+                        'id_empresa' => $account->bank_company_id,
+                        'cuenta_debito' => $account->account_number,
                         'moneda' => $data['moneda'],
                         'tipo' => $data['tipo'],
                         'fecha_credito' => $fecha,
@@ -261,6 +312,143 @@ class ListAdvances extends ListRecords
                     return response()->download($tempFile, $filename, [
                         'Content-Type' => 'application/vnd.ms-excel.sheet.macroEnabled.12',
                     ])->deleteFileAfterSend(true);
+                }),
+
+            Action::make('export_banco_txt')
+                ->label('Descargar TXT banco')
+                ->icon('heroicon-o-document-arrow-down')
+                ->color('primary')
+                ->modalHeading('Generar TRANSFER.txt para banco')
+                ->modalDescription('Los adelantos aprobados incluidos en el archivo quedarán marcados como Pagados.')
+                ->modalSubmitActionLabel('Generar y Descargar')
+                ->form([
+                    Select::make('company_id')
+                        ->label('Empresa')
+                        ->options(Company::orderBy('name')->pluck('name', 'id'))
+                        ->required()
+                        ->native(false)
+                        ->searchable()
+                        ->live(),
+
+                    Placeholder::make('banco_info')
+                        ->label('Cuenta bancaria principal')
+                        ->content(function (Get $get) {
+                            $companyId = $get('company_id');
+
+                            if (! $companyId) {
+                                return 'Seleccioná una empresa para ver la cuenta bancaria.';
+                            }
+
+                            $account = \App\Models\CompanyBankAccount::where('company_id', $companyId)
+                                ->where('is_primary', true)
+                                ->where('status', 'active')
+                                ->first();
+
+                            if (! $account) {
+                                return 'Sin cuenta bancaria principal configurada.';
+                            }
+
+                            $parts = [\App\Models\CompanyBankAccount::getBankLabel($account->bank)];
+                            $parts[] = $account->bank_company_id
+                                ? 'ID Empresa: '.$account->bank_company_id
+                                : '⚠ ID Empresa no configurado';
+                            $parts[] = 'Cuenta: '.$account->account_number;
+
+                            return implode(' · ', $parts);
+                        })
+                        ->columnSpanFull(),
+
+                    Select::make('moneda')
+                        ->label('Moneda')
+                        ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
+                        ->default('Guaraní')
+                        ->required()
+                        ->native(false),
+
+                    \Filament\Forms\Components\DatePicker::make('fecha_credito')
+                        ->label('Fecha Crédito')
+                        ->required()
+                        ->native(false)
+                        ->default(today())
+                        ->displayFormat('d/m/Y'),
+
+                    Select::make('tipo')
+                        ->label('Tipo de transferencia')
+                        ->options(['Crédito' => 'Crédito', 'Cheque' => 'Cheque'])
+                        ->default('Crédito')
+                        ->required()
+                        ->native(false),
+                ])
+                ->action(function (array $data, Action $action) {
+                    $account = \App\Models\CompanyBankAccount::where('company_id', $data['company_id'])
+                        ->where('is_primary', true)
+                        ->where('status', 'active')
+                        ->first();
+
+                    if (! $account) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Sin cuenta bancaria principal')
+                            ->body('La empresa no tiene cuenta bancaria principal activa configurada.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
+                    if (! $account->bank_company_id) {
+                        Notification::make()
+                            ->danger()
+                            ->title('ID Empresa no configurado')
+                            ->body('Completá el ID Empresa en la cuenta bancaria principal de la empresa antes de exportar.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
+                    $advances = Advance::where('status', 'approved')
+                        ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
+                        ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
+                        ->orderBy('created_at', 'desc')
+                        ->get();
+
+                    if ($advances->isEmpty()) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Sin adelantos aprobados')
+                            ->body('No hay adelantos aprobados para esta empresa.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
+                    $params = [
+                        'id_empresa' => $account->bank_company_id,
+                        'cuenta_debito' => $account->account_number,
+                        'moneda' => $data['moneda'],
+                        'tipo' => $data['tipo'],
+                        'fecha_credito' => Carbon::parse($data['fecha_credito'])->format('Y-m-d'),
+                    ];
+
+                    $content = app(BankPaymentExportService::class)->generateTxt($params, $advances);
+                    $filename = 'TRANSFER_'.now()->format('Y_m_d_H_i_s').'.txt';
+
+                    Notification::make()
+                        ->success()
+                        ->title('Archivo generado')
+                        ->body("{$advances->count()} adelanto(s) marcados como pagados.")
+                        ->send();
+
+                    return response()->streamDownload(
+                        fn () => print ($content),
+                        $filename,
+                        ['Content-Type' => 'text/plain; charset=UTF-8']
+                    );
                 }),
 
             Action::make('export')

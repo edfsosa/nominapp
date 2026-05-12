@@ -196,6 +196,13 @@ class Advance extends Model
             ];
         }
 
+        if (! $this->employee->bankAccounts()->where('is_primary', true)->where('status', 'active')->exists()) {
+            return [
+                'success' => false,
+                'message' => 'El empleado no tiene cuenta bancaria principal activa. Registre una antes de aprobar.',
+            ];
+        }
+
         // Verificar que no exista nómina del período actual ya generada
         $currentPeriod = $this->getCurrentPeriod();
         if ($currentPeriod && $this->payrollExistsForPeriod($currentPeriod)) {
@@ -336,6 +343,16 @@ class Advance extends Model
             'status' => 'paid',
             'payroll_id' => $payrollId,
         ]);
+    }
+
+    /**
+     * Marca el adelanto como pagado vía transferencia bancaria directa (sin nómina).
+     *
+     * El payroll_id queda en null para distinguirlo de adelantos descontados en nómina.
+     */
+    public function markAsPaidBankTransfer(): void
+    {
+        $this->update(['status' => 'paid']);
     }
 
     // =========================================================================
