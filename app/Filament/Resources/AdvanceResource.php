@@ -103,6 +103,13 @@ class AdvanceResource extends Resource
                             })
                             ->disabled(fn (string $operation) => $operation === 'edit'),
 
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options(Advance::getPaymentMethodOptions())
+                            ->default('transfer')
+                            ->required()
+                            ->native(false),
+
                         Textarea::make('notes')
                             ->label('Notas')
                             ->placeholder('Motivo u observaciones...')
@@ -160,11 +167,18 @@ class AdvanceResource extends Resource
                                 ->icon(fn (string $state) => Advance::getStatusIcon($state))
                                 ->badge(),
 
+                            TextEntry::make('payment_method')
+                                ->label('Método de pago')
+                                ->formatStateUsing(fn (string $state) => Advance::getPaymentMethodLabel($state))
+                                ->color(fn (string $state) => Advance::getPaymentMethodColor($state))
+                                ->icon(fn (string $state) => Advance::getPaymentMethodIcon($state))
+                                ->badge(),
+
                             TextEntry::make('created_at')
                                 ->label('Solicitado')
                                 ->dateTime('d/m/Y H:i')
                                 ->icon('heroicon-o-calendar'),
-                        ])->columns(3),
+                        ])->columns(4),
 
                         TextEntry::make('notes')
                             ->label('Notas')
@@ -246,6 +260,14 @@ class AdvanceResource extends Resource
                     ->icon(fn (string $state) => Advance::getStatusIcon($state))
                     ->sortable(),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => Advance::getPaymentMethodLabel($state))
+                    ->color(fn (string $state) => Advance::getPaymentMethodColor($state))
+                    ->icon(fn (string $state) => Advance::getPaymentMethodIcon($state))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('approved_at')
                     ->label('Aprobado')
                     ->dateTime('d/m/Y H:i')
@@ -309,12 +331,19 @@ class AdvanceResource extends Resource
                     ->icon('heroicon-o-check')
                     ->color('success')
                     ->visible(fn (Advance $record) => $record->isPending())
-                    ->requiresConfirmation()
                     ->modalHeading('Aprobar Adelanto')
                     ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
                     ->modalSubmitActionLabel('Sí, aprobar')
-                    ->action(function (Advance $record) {
-                        $result = $record->approve(Auth::id());
+                    ->form([
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options(Advance::getPaymentMethodOptions())
+                            ->default(fn (Advance $record) => $record->payment_method)
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->action(function (Advance $record, array $data) {
+                        $result = $record->approve(Auth::id(), $data['payment_method']);
 
                         Notification::make()
                             ->title($result['success'] ? 'Adelanto Aprobado' : 'Error')
@@ -363,11 +392,19 @@ class AdvanceResource extends Resource
                         ->label('Aprobar')
                         ->icon('heroicon-o-check')
                         ->color('success')
-                        ->requiresConfirmation()
                         ->modalHeading('Aprobar Adelantos')
                         ->modalDescription('Se aprobarán los adelantos seleccionados que estén en estado Pendiente. Los demás serán ignorados.')
                         ->modalSubmitActionLabel('Sí, aprobar seleccionados')
-                        ->action(function (Collection $records) {
+                        ->form([
+                            \Filament\Forms\Components\Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Advance::getPaymentMethodOptions())
+                                ->default('transfer')
+                                ->required()
+                                ->native(false)
+                                ->helperText('Se aplicará a todos los adelantos seleccionados.'),
+                        ])
+                        ->action(function (Collection $records, array $data) {
                             $approved = 0;
                             $skipped = 0;
                             $failed = 0;
@@ -379,7 +416,7 @@ class AdvanceResource extends Resource
                                     continue;
                                 }
 
-                                $result = $record->approve(Auth::id());
+                                $result = $record->approve(Auth::id(), $data['payment_method']);
                                 $result['success'] ? $approved++ : $failed++;
                             }
 

@@ -108,11 +108,18 @@ class ListAdvances extends ListRecords
                                 ->prefix('Gs.')
                                 ->helperText('Se verificará que no supere el tope máximo de cada empleado.'),
 
-                            Textarea::make('notes')
-                                ->label('Notas')
-                                ->placeholder('Motivo u observaciones...')
-                                ->rows(2),
+                            Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Advance::getPaymentMethodOptions())
+                                ->default('transfer')
+                                ->required()
+                                ->native(false),
                         ]),
+
+                    Textarea::make('notes')
+                        ->label('Notas')
+                        ->placeholder('Motivo u observaciones...')
+                        ->rows(2),
 
                     Select::make('employee_ids')
                         ->label('Empleados')
@@ -180,6 +187,7 @@ class ListAdvances extends ListRecords
                             'employee_id' => $employee->id,
                             'amount' => $amount,
                             'status' => 'pending',
+                            'payment_method' => $data['payment_method'],
                             'notes' => $data['notes'] ?? null,
                         ]);
                         $created++;
@@ -293,6 +301,7 @@ class ListAdvances extends ListRecords
                     $fecha = Carbon::parse($data['fecha_credito'])->format('d/m/Y');
 
                     $advances = Advance::where('status', 'approved')
+                        ->where('payment_method', 'transfer')
                         ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
                         ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
                         ->orderBy('created_at', 'desc')
@@ -410,6 +419,7 @@ class ListAdvances extends ListRecords
                     }
 
                     $advances = Advance::where('status', 'approved')
+                        ->where('payment_method', 'transfer')
                         ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
                         ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
                         ->orderBy('created_at', 'desc')

@@ -21,6 +21,7 @@ class Advance extends Model
         'employee_id',
         'amount',
         'status',
+        'payment_method',
         'approved_by_id',
         'approved_at',
         'notes',
@@ -127,6 +128,59 @@ class Advance extends Model
     }
 
     // =========================================================================
+    // HELPERS ESTÁTICOS — MÉTODO DE PAGO
+    // =========================================================================
+
+    /**
+     * Retorna las opciones de método de pago para selects Filament.
+     *
+     * @return array<string, string>
+     */
+    public static function getPaymentMethodOptions(): array
+    {
+        return [
+            'transfer' => 'Transferencia bancaria',
+            'cash' => 'Efectivo',
+        ];
+    }
+
+    /**
+     * Retorna el label legible del método de pago.
+     */
+    public static function getPaymentMethodLabel(string $method): string
+    {
+        return match ($method) {
+            'transfer' => 'Transferencia',
+            'cash' => 'Efectivo',
+            default => 'Desconocido',
+        };
+    }
+
+    /**
+     * Retorna el color semántico Filament para el método de pago.
+     */
+    public static function getPaymentMethodColor(string $method): string
+    {
+        return match ($method) {
+            'transfer' => 'info',
+            'cash' => 'success',
+            default => 'gray',
+        };
+    }
+
+    /**
+     * Retorna el icono heroicon para el método de pago.
+     */
+    public static function getPaymentMethodIcon(string $method): string
+    {
+        return match ($method) {
+            'transfer' => 'heroicon-o-building-library',
+            'cash' => 'heroicon-o-banknotes',
+            default => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    // =========================================================================
     // VERIFICADORES DE ESTADO
     // =========================================================================
 
@@ -174,14 +228,19 @@ class Advance extends Model
     /**
      * Aprueba el adelanto.
      *
-     * Valida que el empleado tenga contrato activo y que no exista otro
-     * adelanto aprobado o pendiente para el mismo empleado.
+     * Para pagos por transferencia, valida que el empleado tenga cuenta bancaria
+     * principal activa. Para pagos en efectivo, omite esa validación.
      *
      * @param  int  $approvedById  ID del usuario que aprueba.
+     * @param  string|null  $paymentMethod  'transfer' o 'cash'. Null usa el valor almacenado en el registro.
      * @return array{success: bool, message: string}
      */
-    public function approve(int $approvedById): array
+    public function approve(int $approvedById, ?string $paymentMethod = null): array
     {
+        if ($paymentMethod !== null) {
+            $this->payment_method = $paymentMethod;
+        }
+
         if (! $this->isPending()) {
             return [
                 'success' => false,
@@ -196,10 +255,10 @@ class Advance extends Model
             ];
         }
 
-        if (! $this->employee->bankAccounts()->where('is_primary', true)->where('status', 'active')->exists()) {
+        if ($this->payment_method !== 'cash' && ! $this->employee->bankAccounts()->where('is_primary', true)->where('status', 'active')->exists()) {
             return [
                 'success' => false,
-                'message' => 'El empleado no tiene cuenta bancaria principal activa. Registre una antes de aprobar.',
+                'message' => 'El empleado no tiene cuenta bancaria principal activa. Registre una o seleccione pago en efectivo.',
             ];
         }
 
@@ -248,6 +307,7 @@ class Advance extends Model
 
         $this->update([
             'status' => 'approved',
+            'payment_method' => $this->payment_method,
             'approved_by_id' => $approvedById,
             'approved_at' => now(),
         ]);

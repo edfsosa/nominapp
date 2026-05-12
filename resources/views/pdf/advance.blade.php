@@ -224,6 +224,25 @@
         </table>
     </div>
 
+    {{-- Datos del adelanto --}}
+    <div class="section">
+        <div class="section-title">Datos del Adelanto</div>
+        <table class="info-table">
+            <tr>
+                <th>Método de pago:</th>
+                <td>{{ \App\Models\Advance::getPaymentMethodLabel($advance->payment_method) }}</td>
+            </tr>
+            <tr>
+                <th>Aprobado el:</th>
+                <td>{{ $advance->approved_at?->format('d/m/Y H:i') ?? 'N/A' }}</td>
+            </tr>
+            <tr>
+                <th>Aprobado por:</th>
+                <td>{{ $advance->approvedBy?->name ?? 'N/A' }}</td>
+            </tr>
+        </table>
+    </div>
+
     {{-- Nota legal --}}
     <div class="info-box">
         El presente comprobante acredita el adelanto de salario solicitado por el empleado. El monto indicado
