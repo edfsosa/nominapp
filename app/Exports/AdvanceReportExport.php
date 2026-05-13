@@ -32,6 +32,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
         protected ?int $branchId = null,
         protected ?string $status = null,
         protected ?int $employeeId = null,
+        protected ?string $paymentMethod = null,
     ) {}
 
     /**
@@ -46,6 +47,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
                 'advances.id',
                 'advances.amount',
                 'advances.status',
+                'advances.payment_method',
                 'advances.notes',
                 'advances.created_at',
                 'advances.approved_at',
@@ -64,6 +66,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->status, fn ($q) => $q->where('advances.status', $this->status))
             ->when($this->employeeId, fn ($q) => $q->where('advances.employee_id', $this->employeeId))
+            ->when($this->paymentMethod, fn ($q) => $q->where('advances.payment_method', $this->paymentMethod))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
             ->orderBy('advances.created_at');
@@ -82,6 +85,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
             'Sucursal',
             'Monto (Gs.)',
             'Estado',
+            'Método de pago',
             'Solicitud',
             'Aprobado el',
             'Aprobado por',
@@ -103,6 +107,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
             $row->branch_name,
             (float) $row->amount,
             Advance::getStatusLabel($row->status),
+            Advance::getPaymentMethodLabel($row->payment_method),
             $row->created_at->format('d/m/Y'),
             $row->approved_at?->format('d/m/Y') ?? '',
             $row->approved_by_name ?? '',

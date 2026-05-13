@@ -190,7 +190,7 @@
 
         .grand-total-item {
             display: table-cell;
-            width: 33%;
+            width: 20%;
             padding: 3px 0;
         }
 
@@ -244,6 +244,7 @@
     <div class="subtitle">
         Período: {{ $fromFormatted }} al {{ $toFormatted }}
         @if($status) &nbsp;·&nbsp; Estado: {{ \App\Models\Advance::getStatusLabel($status) }} @endif
+        @if($paymentMethod) &nbsp;·&nbsp; Método: {{ \App\Models\Advance::getPaymentMethodLabel($paymentMethod) }} @endif
     </div>
 
     {{-- Resumen --}}
@@ -261,6 +262,18 @@
             <td class="label">Monto total</td>
             <td><strong>Gs. {{ number_format((float) $totalAmount, 0, ',', '.') }}</strong></td>
         </tr>
+        @if($amountTransfer > 0)
+        <tr>
+            <td class="label">Total acreditación</td>
+            <td>Gs. {{ number_format((float) $amountTransfer, 0, ',', '.') }}</td>
+        </tr>
+        @endif
+        @if($amountCash > 0)
+        <tr>
+            <td class="label">Total efectivo</td>
+            <td>Gs. {{ number_format((float) $amountCash, 0, ',', '.') }}</td>
+        </tr>
+        @endif
         @foreach(\App\Models\Advance::getStatusOptions() as $key => $label)
             @if(($countByStatus[$key] ?? 0) > 0)
             <tr>
@@ -289,6 +302,7 @@
                     echo '<td>' . e($a->ci) . '</td>';
                     echo '<td>' . e($a->branch_name) . '</td>';
                     echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $a->amount, 0, ',', '.') . '</td>';
+                    echo '<td>' . e(\App\Models\Advance::getPaymentMethodLabel($a->payment_method)) . '</td>';
                     echo '<td><span class="status-badge status-' . $a->status . '">' . \App\Models\Advance::getStatusLabel($a->status) . '</span></td>';
                     echo '<td>' . \Carbon\Carbon::parse($a->created_at)->format('d/m/Y') . '</td>';
                     echo '<td>' . ($a->approved_at ? \Carbon\Carbon::parse($a->approved_at)->format('d/m/Y') : '—') . '</td>';
@@ -304,13 +318,14 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width:22%">Empleado</th>
+                        <th style="width:20%">Empleado</th>
                         <th style="width:7%">CI</th>
-                        <th style="width:15%">Sucursal</th>
-                        <th style="width:13%" class="amount">Monto (Gs.)</th>
-                        <th style="width:11%">Estado</th>
+                        <th style="width:12%">Sucursal</th>
+                        <th style="width:11%" class="amount">Monto (Gs.)</th>
+                        <th style="width:10%">Método</th>
+                        <th style="width:10%">Estado</th>
                         <th style="width:9%">Solicitud</th>
-                        <th style="width:9%">Aprobado el</th>
+                        <th style="width:8%">Aprobado el</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -325,19 +340,24 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width:22%">Empleado</th>
+                            <th style="width:20%">Empleado</th>
                             <th style="width:7%">CI</th>
-                            <th style="width:15%">Sucursal</th>
-                            <th style="width:13%" class="amount">Monto (Gs.)</th>
-                            <th style="width:11%">Estado</th>
+                            <th style="width:12%">Sucursal</th>
+                            <th style="width:11%" class="amount">Monto (Gs.)</th>
+                            <th style="width:10%">Método</th>
+                            <th style="width:10%">Estado</th>
                             <th style="width:9%">Solicitud</th>
-                            <th style="width:9%">Aprobado el</th>
+                            <th style="width:8%">Aprobado el</th>
                         </tr>
                     </thead>
                     <tbody>
                         @php advanceRows($rows) @endphp
                     </tbody>
                 </table>
+                @php
+                    $rowTransfer = $rows->where('payment_method', 'transfer')->sum('amount');
+                    $rowCash     = $rows->where('payment_method', 'cash')->sum('amount');
+                @endphp
                 <div class="subtotal-row">
                     <div class="st-item">
                         <span class="st-label">Empleados:</span> {{ $rows->unique('ci')->count() }}
@@ -345,8 +365,13 @@
                         <span class="st-label">Adelantos:</span> {{ $rows->count() }}
                     </div>
                     <div class="st-item">
-                        <span class="st-label">Monto total:</span>
-                        Gs. {{ number_format((float) $rows->sum('amount'), 0, ',', '.') }}
+                        <span class="st-label">Total:</span> Gs. {{ number_format((float) $rows->sum('amount'), 0, ',', '.') }}
+                        @if($rowTransfer > 0)
+                            &nbsp;·&nbsp; <span class="st-label">Acred.:</span> Gs. {{ number_format((float) $rowTransfer, 0, ',', '.') }}
+                        @endif
+                        @if($rowCash > 0)
+                            &nbsp;·&nbsp; <span class="st-label">Efect.:</span> Gs. {{ number_format((float) $rowCash, 0, ',', '.') }}
+                        @endif
                     </div>
                 </div>
             @endforeach
@@ -365,6 +390,14 @@
                 <div class="grand-total-item">
                     <span class="grand-total-label">Monto total:</span>
                     Gs. {{ number_format((float) $totalAmount, 0, ',', '.') }}
+                </div>
+                <div class="grand-total-item">
+                    <span class="grand-total-label">Acreditación:</span>
+                    Gs. {{ number_format((float) $amountTransfer, 0, ',', '.') }}
+                </div>
+                <div class="grand-total-item">
+                    <span class="grand-total-label">Efectivo:</span>
+                    Gs. {{ number_format((float) $amountCash, 0, ',', '.') }}
                 </div>
             </div>
         </div>
