@@ -42,23 +42,30 @@ class AdvanceReport extends Page implements HasTable
     protected ?string $heading = 'Reporte de Adelantos';
 
     /**
-     * Retorna el subheading dinámico con el período activo del filtro.
+     * Retorna el subheading dinámico con el período y filtros activos.
      */
     public function getSubheading(): ?string
     {
         $f = $this->tableFilters ?? [];
         $from = $f['period']['from_date'] ?? null;
         $to = $f['period']['to_date'] ?? null;
+        $status = isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null;
+        $paymentMethod = isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null;
 
         if ($from && $to) {
-            return 'Solicitudes del '.date('d/m/Y', strtotime($from)).' al '.date('d/m/Y', strtotime($to));
+            $base = 'Solicitudes del '.date('d/m/Y', strtotime($from)).' al '.date('d/m/Y', strtotime($to));
+        } elseif ($from) {
+            $base = 'Solicitudes desde el '.date('d/m/Y', strtotime($from));
+        } else {
+            $base = 'Solicitudes del mes '.now()->translatedFormat('F Y');
         }
 
-        if ($from) {
-            return 'Solicitudes desde el '.date('d/m/Y', strtotime($from));
-        }
+        $extras = array_filter([
+            $status ? Advance::getStatusLabel($status) : null,
+            $paymentMethod ? Advance::getPaymentMethodLabel($paymentMethod) : null,
+        ]);
 
-        return 'Solicitudes del mes '.now()->translatedFormat('F Y');
+        return $extras ? $base.' · '.implode(' · ', $extras) : $base;
     }
 
     /**
