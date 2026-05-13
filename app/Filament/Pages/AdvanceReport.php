@@ -164,6 +164,13 @@ class AdvanceReport extends Page implements HasTable
                     ->alignRight()
                     ->sortable(),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->formatStateUsing(fn ($state) => Advance::getPaymentMethodLabel($state))
+                    ->badge()
+                    ->color(fn ($state) => Advance::getPaymentMethodColor($state))
+                    ->icon(fn ($state) => Advance::getPaymentMethodIcon($state)),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->formatStateUsing(fn ($state) => Advance::getStatusLabel($state))
@@ -208,6 +215,7 @@ class AdvanceReport extends Page implements HasTable
                 'advances.employee_id',
                 'advances.amount',
                 'advances.status',
+                'advances.payment_method',
                 'advances.notes',
                 'advances.created_at',
                 'advances.approved_at',

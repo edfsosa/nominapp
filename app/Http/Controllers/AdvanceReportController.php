@@ -34,6 +34,7 @@ class AdvanceReportController extends Controller
                 'advances.id',
                 'advances.amount',
                 'advances.status',
+                'advances.payment_method',
                 'advances.notes',
                 'advances.created_at',
                 'advances.approved_at',
@@ -64,6 +65,8 @@ class AdvanceReportController extends Controller
         $totalAmount = $advances->sum('amount');
         $totalEmployees = $advances->unique('ci')->count();
         $countByStatus = $advances->groupBy('status')->map->count();
+        $amountTransfer = $advances->where('payment_method', 'transfer')->sum('amount');
+        $amountCash = $advances->where('payment_method', 'cash')->sum('amount');
 
         // Agrupación adaptativa
         $uniqueCompanyIds = $advances->pluck('company_id')->filter()->unique();
@@ -95,6 +98,7 @@ class AdvanceReportController extends Controller
             'from', 'to', 'fromFormatted', 'toFormatted',
             'status',
             'totalAmount', 'totalEmployees', 'countByStatus',
+            'amountTransfer', 'amountCash',
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'city',

@@ -190,7 +190,7 @@
 
         .grand-total-item {
             display: table-cell;
-            width: 33%;
+            width: 20%;
             padding: 3px 0;
         }
 
@@ -261,6 +261,18 @@
             <td class="label">Monto total</td>
             <td><strong>Gs. {{ number_format((float) $totalAmount, 0, ',', '.') }}</strong></td>
         </tr>
+        @if($amountTransfer > 0)
+        <tr>
+            <td class="label">Total acreditación</td>
+            <td>Gs. {{ number_format((float) $amountTransfer, 0, ',', '.') }}</td>
+        </tr>
+        @endif
+        @if($amountCash > 0)
+        <tr>
+            <td class="label">Total efectivo</td>
+            <td>Gs. {{ number_format((float) $amountCash, 0, ',', '.') }}</td>
+        </tr>
+        @endif
         @foreach(\App\Models\Advance::getStatusOptions() as $key => $label)
             @if(($countByStatus[$key] ?? 0) > 0)
             <tr>
@@ -365,6 +377,14 @@
                 <div class="grand-total-item">
                     <span class="grand-total-label">Monto total:</span>
                     Gs. {{ number_format((float) $totalAmount, 0, ',', '.') }}
+                </div>
+                <div class="grand-total-item">
+                    <span class="grand-total-label">Acreditación:</span>
+                    Gs. {{ number_format((float) $amountTransfer, 0, ',', '.') }}
+                </div>
+                <div class="grand-total-item">
+                    <span class="grand-total-label">Efectivo:</span>
+                    Gs. {{ number_format((float) $amountCash, 0, ',', '.') }}
                 </div>
             </div>
         </div>
