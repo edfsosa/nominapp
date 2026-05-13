@@ -81,6 +81,9 @@ class AdvanceResource extends Resource
 
                                 $employee = $get('employee_id') ? Employee::find($get('employee_id')) : null;
                                 $set('max_advance_amount', $employee?->getMaxAdvanceAmount());
+
+                                $contractMethod = $employee?->activeContract?->payment_method;
+                                $set('payment_method', $contractMethod === 'cash' ? 'cash' : 'transfer');
                             })
                             ->disabled(fn (string $operation) => $operation === 'edit')
                             ->helperText('Solo se muestran empleados activos con salario definido.'),
@@ -104,11 +107,12 @@ class AdvanceResource extends Resource
                             ->disabled(fn (string $operation) => $operation === 'edit'),
 
                         Select::make('payment_method')
-                            ->label('Método de pago')
+                            ->label('Método de pago del adelanto')
                             ->options(Advance::getPaymentMethodOptions())
                             ->default('transfer')
                             ->required()
-                            ->native(false),
+                            ->native(false)
+                            ->helperText('Cómo se entregará este adelanto. Se completa automáticamente según el contrato del empleado, pero puede modificarse.'),
 
                         Textarea::make('notes')
                             ->label('Notas')

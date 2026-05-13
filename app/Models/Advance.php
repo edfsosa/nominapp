@@ -139,7 +139,7 @@ class Advance extends Model
     public static function getPaymentMethodOptions(): array
     {
         return [
-            'transfer' => 'Transferencia bancaria',
+            'transfer' => 'Acreditación bancaria',
             'cash' => 'Efectivo',
         ];
     }
@@ -150,7 +150,7 @@ class Advance extends Model
     public static function getPaymentMethodLabel(string $method): string
     {
         return match ($method) {
-            'transfer' => 'Transferencia',
+            'transfer' => 'Acreditación bancaria',
             'cash' => 'Efectivo',
             default => 'Desconocido',
         };
