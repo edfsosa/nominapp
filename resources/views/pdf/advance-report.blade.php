@@ -244,6 +244,7 @@
     <div class="subtitle">
         Período: {{ $fromFormatted }} al {{ $toFormatted }}
         @if($status) &nbsp;·&nbsp; Estado: {{ \App\Models\Advance::getStatusLabel($status) }} @endif
+        @if($paymentMethod) &nbsp;·&nbsp; Método: {{ \App\Models\Advance::getPaymentMethodLabel($paymentMethod) }} @endif
     </div>
 
     {{-- Resumen --}}

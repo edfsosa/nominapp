@@ -28,6 +28,7 @@ class AdvanceReportController extends Controller
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
         $status = $request->query('status') ?: null;
         $employeeId = $request->query('employeeId') ? (int) $request->query('employeeId') : null;
+        $paymentMethod = $request->query('paymentMethod') ?: null;
 
         $advances = Advance::query()
             ->select([
@@ -56,6 +57,7 @@ class AdvanceReportController extends Controller
             ->when($branchId, fn ($q) => $q->where('employees.branch_id', $branchId))
             ->when($status, fn ($q) => $q->where('advances.status', $status))
             ->when($employeeId, fn ($q) => $q->where('advances.employee_id', $employeeId))
+            ->when($paymentMethod, fn ($q) => $q->where('advances.payment_method', $paymentMethod))
             ->orderBy('companies.name')
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
@@ -96,7 +98,7 @@ class AdvanceReportController extends Controller
         $pdf = Pdf::loadView('pdf.advance-report', compact(
             'advances', 'groups', 'groupMode',
             'from', 'to', 'fromFormatted', 'toFormatted',
-            'status',
+            'status', 'paymentMethod',
             'totalAmount', 'totalEmployees', 'countByStatus',
             'amountTransfer', 'amountCash',
             'showCompanyHeader',

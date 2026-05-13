@@ -74,7 +74,7 @@ class AdvanceReport extends Page implements HasTable
                 ->icon('heroicon-o-document-text')
                 ->color('info')
                 ->url(function () {
-                    [$from, $to, $companyId, $branchId, $status, $employeeId] = $this->resolveActiveFilters();
+                    [$from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod] = $this->resolveActiveFilters();
 
                     return route('advances.report.pdf', array_filter([
                         'from' => $from,
@@ -83,6 +83,7 @@ class AdvanceReport extends Page implements HasTable
                         'branchId' => $branchId,
                         'status' => $status,
                         'employeeId' => $employeeId,
+                        'paymentMethod' => $paymentMethod,
                     ], fn ($v) => $v !== null));
                 })
                 ->openUrlInNewTab(),
@@ -96,7 +97,7 @@ class AdvanceReport extends Page implements HasTable
                 ->modalDescription('Se exportará una fila por adelanto con los filtros seleccionados.')
                 ->modalSubmitActionLabel('Sí, exportar')
                 ->action(function () {
-                    [$from, $to, $companyId, $branchId, $status, $employeeId] = $this->resolveActiveFilters();
+                    [$from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod] = $this->resolveActiveFilters();
 
                     Notification::make()
                         ->success()
@@ -105,7 +106,7 @@ class AdvanceReport extends Page implements HasTable
                         ->send();
 
                     return Excel::download(
-                        new AdvanceReportExport($from, $to, $companyId, $branchId, $status, $employeeId),
+                        new AdvanceReportExport($from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod),
                         'adelantos_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
@@ -120,7 +121,7 @@ class AdvanceReport extends Page implements HasTable
         return $table
             ->query($this->buildQuery())
             ->filters($this->buildFilters(), layout: FiltersLayout::AboveContent)
-            ->filtersFormColumns(5)
+            ->filtersFormColumns(6)
             ->persistFiltersInSession()
             ->defaultSort('employees.last_name', 'asc')
             ->paginated([25, 50, 100])
@@ -305,13 +306,22 @@ class AdvanceReport extends Page implements HasTable
                     ? $query->where('advances.employee_id', $data['value'])
                     : $query
                 ),
+
+            SelectFilter::make('payment_method')
+                ->label('Método de pago')
+                ->options(Advance::getPaymentMethodOptions())
+                ->placeholder('Todos los métodos')
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('advances.payment_method', $data['value'])
+                    : $query
+                ),
         ];
     }
 
     /**
      * Extrae los valores activos de los filtros para pasarlos al export/PDF.
      *
-     * @return array{string|null, string|null, int|null, int|null, string|null, int|null}
+     * @return array{string|null, string|null, int|null, int|null, string|null, int|null, string|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -324,6 +334,7 @@ class AdvanceReport extends Page implements HasTable
             isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
             isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null,
             isset($f['employee_id']['value']) && $f['employee_id']['value'] !== '' ? (int) $f['employee_id']['value'] : null,
+            isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null,
         ];
     }
 }

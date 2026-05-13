@@ -32,6 +32,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
         protected ?int $branchId = null,
         protected ?string $status = null,
         protected ?int $employeeId = null,
+        protected ?string $paymentMethod = null,
     ) {}
 
     /**
@@ -65,6 +66,7 @@ class AdvanceReportExport implements FromQuery, ShouldAutoSize, WithHeadings, Wi
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->status, fn ($q) => $q->where('advances.status', $this->status))
             ->when($this->employeeId, fn ($q) => $q->where('advances.employee_id', $this->employeeId))
+            ->when($this->paymentMethod, fn ($q) => $q->where('advances.payment_method', $this->paymentMethod))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
             ->orderBy('advances.created_at');
