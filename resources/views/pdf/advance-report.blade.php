@@ -172,6 +172,8 @@
             border: 2px solid #000;
             padding: 8px 12px;
             background-color: #f5f5f5;
+            page-break-inside: avoid;
+            page-break-before: auto;
         }
 
         .grand-total-title {
