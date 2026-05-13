@@ -228,6 +228,12 @@ class Employee extends Model
         return $this->hasMany(Loan::class);
     }
 
+    /** Adelantos de salario del empleado. */
+    public function advances(): HasMany
+    {
+        return $this->hasMany(Advance::class);
+    }
+
     /**
      * Relación con el modelo Liquidacion, un empleado puede tener varias liquidaciones
      */

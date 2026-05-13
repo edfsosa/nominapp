@@ -8,6 +8,7 @@ use App\Models\Employee;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -33,6 +34,7 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 
 class AdvanceResource extends Resource
 {
@@ -87,6 +89,66 @@ class AdvanceResource extends Resource
                             })
                             ->disabled(fn (string $operation) => $operation === 'edit')
                             ->helperText('Solo se muestran empleados activos con salario definido.'),
+
+                        Placeholder::make('advance_quota_summary')
+                            ->label('Cuota disponible')
+                            ->dehydrated(false)
+                            ->columnSpanFull()
+                            ->visible(fn (Get $get) => filled($get('employee_id')))
+                            ->content(function (Get $get) {
+                                $employeeId = $get('employee_id');
+                                if (! $employeeId) {
+                                    return '';
+                                }
+
+                                $employee = Employee::with('activeContract')->find($employeeId);
+                                if (! $employee) {
+                                    return '';
+                                }
+
+                                $salary = $employee->getAdvanceReferenceSalary();
+                                if (! $salary) {
+                                    return new HtmlString('<span class="text-danger-600 text-sm">El empleado no tiene salario de referencia definido.</span>');
+                                }
+
+                                $settings = app(PayrollSettings::class);
+                                $percent = (int) $settings->advance_max_percent;
+                                $maxPerAdvance = $employee->getMaxAdvanceAmount() ?? 0;
+                                $maxPerPeriod = (int) $settings->advance_max_per_period;
+
+                                $activeTotal = (float) Advance::where('employee_id', $employeeId)
+                                    ->whereIn('status', ['pending', 'approved'])
+                                    ->sum('amount');
+
+                                $available = max(0, $maxPerAdvance - $activeTotal);
+
+                                $availableColor = $available > 0 ? 'text-success-600' : 'text-danger-600';
+
+                                $rows = '
+                                    <div class="grid grid-cols-2 gap-x-6 gap-y-1 text-sm py-2">
+                                        <div class="text-gray-500">Salario de referencia</div>
+                                        <div class="font-medium">Gs. '.number_format($salary, 0, ',', '.').'</div>
+                                        <div class="text-gray-500">Máximo por adelanto ('.$percent.'%)</div>
+                                        <div class="font-medium">Gs. '.number_format($maxPerAdvance, 0, ',', '.').'</div>
+                                        <div class="text-gray-500">Activos actualmente</div>
+                                        <div class="font-medium">Gs. '.number_format($activeTotal, 0, ',', '.').'</div>
+                                        <div class="text-gray-500 font-semibold">Disponible</div>
+                                        <div class="font-bold '.$availableColor.'">Gs. '.number_format($available, 0, ',', '.').'</div>';
+
+                                if ($maxPerPeriod > 0) {
+                                    $activeCount = Advance::where('employee_id', $employeeId)
+                                        ->whereIn('status', ['pending', 'approved'])
+                                        ->count();
+                                    $countColor = $activeCount >= $maxPerPeriod ? 'text-danger-600' : 'text-gray-900';
+                                    $rows .= '
+                                        <div class="text-gray-500">Adelantos en período</div>
+                                        <div class="font-medium '.$countColor.'">'.$activeCount.' / '.$maxPerPeriod.'</div>';
+                                }
+
+                                $rows .= '</div>';
+
+                                return new HtmlString($rows);
+                            }),
 
                         TextInput::make('amount')
                             ->label('Monto')
@@ -300,6 +362,11 @@ class AdvanceResource extends Resource
                     ->label('Estado')
                     ->options(Advance::getStatusOptions())
                     ->multiple()
+                    ->native(false),
+
+                SelectFilter::make('payment_method')
+                    ->label('Método de pago')
+                    ->options(Advance::getPaymentMethodOptions())
                     ->native(false),
 
                 SelectFilter::make('employee_id')

@@ -1017,6 +1017,7 @@ class EmployeeResource extends Resource
             RelationManagers\EmployeePerceptionsRelationManager::class,
             RelationManagers\BankAccountsRelationManager::class,
             RelationManagers\WarningsRelationManager::class,
+            RelationManagers\AdvancesRelationManager::class,
         ];
     }
 
