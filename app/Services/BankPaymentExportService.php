@@ -22,6 +22,7 @@ class BankPaymentExportService
 
     /**
      * Copia el template, inyecta los datos y retorna la ruta del archivo temporal.
+     * Stampa disbursed_at en los adelantos incluidos para identificar el lote.
      *
      * @param  array<string, mixed>  $params
      * @param  Collection<int, Advance>  $advances
@@ -54,19 +55,24 @@ class BankPaymentExportService
             $cellData['E'.$row] = $advance->employee->full_name;
             $cellData['F'.$row] = $advance->amount;
             $cellData['G'.$row] = $params['tipo'];
-            $cellData['H'.$row] = $params['fecha_credito'];
+            $cellData['H'.$row] = Carbon::parse($params['fecha_credito'])->format('d/m/Y');
             $row++;
         }
 
         $zip->addFromString($sheetPath, $this->updateSheet($sheetXml, $cellData));
         $zip->close();
 
+        // Stampa la fecha del lote para identificar el grupo en la UI
+        Advance::whereIn('id', $advances->pluck('id'))
+            ->update(['disbursed_at' => $params['fecha_credito']]);
+
         return $tempFile;
     }
 
     /**
      * Genera el contenido del archivo TRANSFER.txt para enviar directamente al banco.
-     * Marca todos los adelantos incluidos como pagados (payroll_id = null).
+     * Stampa disbursed_at en los adelantos incluidos para identificar el lote.
+     * El cambio de estado a 'disbursed' lo hace el usuario manualmente desde la UI.
      *
      * Formato de línea replicado de la macro GeneraTXT del template .xlsm (Itaú):
      *   D01 = registro de detalle por empleado
@@ -75,7 +81,7 @@ class BankPaymentExportService
      * @param  array<string, mixed>  $params  id_empresa, cuenta_debito, moneda, tipo, fecha_credito (Y-m-d)
      * @param  Collection<int, Advance>  $advances
      */
-    public function generateTxt(array $params, Collection $advances): string
+    public function generateTxt(array $params, Collection $advances, bool $stampDate = true): string
     {
         $lines = [];
         $totalAmount = 0.0;
@@ -105,8 +111,11 @@ class BankPaymentExportService
             totalMonto: $totalAmount,
         );
 
-        foreach ($advances as $advance) {
-            $advance->markAsPaidBankTransfer();
+        // Solo stampa la fecha cuando se exporta directamente (flujo legacy sin lote).
+        // En el flujo de DisbursementBatch, la fecha se sella al confirmar el lote.
+        if ($stampDate) {
+            Advance::whereIn('id', $advances->pluck('id'))
+                ->update(['disbursed_at' => $params['fecha_credito']]);
         }
 
         return implode("\r\n", $lines)."\r\n";

@@ -177,7 +177,7 @@ class ListAdvances extends ListRecords
                         foreach ($query->get() as $employee) {
                             if ($maxPerPeriod > 0) {
                                 $activeCount = Advance::where('employee_id', $employee->id)
-                                    ->whereIn('status', ['pending', 'approved'])
+                                    ->whereIn('status', ['pending', 'approved', 'disbursed'])
                                     ->count();
 
                                 if ($activeCount >= $maxPerPeriod) {
@@ -332,6 +332,9 @@ class ListAdvances extends ListRecords
                     ->label('Exportar para banco (Excel)')
                     ->icon('heroicon-o-building-library')
                     ->color('gray')
+                    ->modalHeading('Exportar para Banco (Excel)')
+                    ->modalDescription('Se generará el archivo Excel con los adelantos aprobados. Se registrará la fecha de crédito en cada adelanto incluido.')
+                    ->modalSubmitActionLabel('Exportar')
                     ->form([
                         Select::make('company_id')
                             ->label('Empresa')
@@ -339,7 +342,8 @@ class ListAdvances extends ListRecords
                             ->required()
                             ->native(false)
                             ->searchable()
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('employee_ids', [])),
 
                         Placeholder::make('banco_info')
                             ->label('Cuenta bancaria principal')
@@ -369,19 +373,22 @@ class ListAdvances extends ListRecords
                             })
                             ->columnSpanFull(),
 
-                        Select::make('moneda')
-                            ->label('Moneda')
-                            ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
-                            ->default('Guaraní')
-                            ->required()
-                            ->native(false),
+                        Grid::make(2)
+                            ->schema([
+                                Select::make('moneda')
+                                    ->label('Moneda')
+                                    ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
+                                    ->default('Guaraní')
+                                    ->required()
+                                    ->native(false),
 
-                        \Filament\Forms\Components\DatePicker::make('fecha_credito')
-                            ->label('Fecha Crédito')
-                            ->required()
-                            ->native(false)
-                            ->default(today())
-                            ->displayFormat('d/m/Y'),
+                                \Filament\Forms\Components\DatePicker::make('fecha_credito')
+                                    ->label('Fecha Crédito')
+                                    ->required()
+                                    ->native(false)
+                                    ->default(today())
+                                    ->displayFormat('d/m/Y'),
+                            ]),
 
                         Select::make('tipo')
                             ->label('Tipo de transferencia')
@@ -389,6 +396,20 @@ class ListAdvances extends ListRecords
                             ->default('Crédito')
                             ->required()
                             ->native(false),
+
+                        Select::make('employee_ids')
+                            ->label('Empleados a incluir')
+                            ->multiple()
+                            ->native(false)
+                            ->searchable()
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Employee::query()
+                                    ->whereHas('advances', fn ($q) => $q->where('status', 'approved')->where('payment_method', 'transfer'))
+                                    ->whereHas('branch', fn ($b) => $b->where('company_id', $get('company_id')))
+                                    ->orderBy('first_name')->orderBy('last_name')
+                                    ->get()->pluck('full_name_with_ci', 'id')->toArray()
+                                : [])
+                            ->helperText('Dejar vacío para incluir todos los aprobados de la empresa.'),
                     ])
                     ->action(function (array $data, Action $action) {
                         $account = \App\Models\CompanyBankAccount::where('company_id', $data['company_id'])
@@ -397,48 +418,61 @@ class ListAdvances extends ListRecords
                             ->first();
 
                         if (! $account) {
-                            Notification::make()
-                                ->danger()
+                            Notification::make()->danger()
                                 ->title('Sin cuenta bancaria principal')
                                 ->body('La empresa no tiene cuenta bancaria principal activa configurada.')
                                 ->send();
-
                             $action->halt();
 
                             return;
                         }
 
                         if (! $account->bank_company_id) {
-                            Notification::make()
-                                ->danger()
+                            Notification::make()->danger()
                                 ->title('ID Empresa no configurado')
                                 ->body('Completá el ID Empresa en la cuenta bancaria principal de la empresa antes de exportar.')
                                 ->send();
-
                             $action->halt();
 
                             return;
                         }
 
-                        $fecha = Carbon::parse($data['fecha_credito'])->format('d/m/Y');
-
                         $advances = Advance::where('status', 'approved')
                             ->where('payment_method', 'transfer')
                             ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
+                            ->when(
+                                ! empty($data['employee_ids']),
+                                fn ($q) => $q->whereHas('employee', fn ($e) => $e->whereIn('id', $data['employee_ids']))
+                            )
                             ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
                             ->orderBy('created_at', 'desc')
                             ->get();
+
+                        if ($advances->isEmpty()) {
+                            Notification::make()->warning()
+                                ->title('Sin adelantos aprobados')
+                                ->body('No hay adelantos aprobados (acreditación bancaria) para los criterios seleccionados.')
+                                ->send();
+                            $action->halt();
+
+                            return;
+                        }
 
                         $params = [
                             'id_empresa' => $account->bank_company_id,
                             'cuenta_debito' => $account->account_number,
                             'moneda' => $data['moneda'],
                             'tipo' => $data['tipo'],
-                            'fecha_credito' => $fecha,
+                            'fecha_credito' => Carbon::parse($data['fecha_credito'])->format('Y-m-d'),
                         ];
 
                         $tempFile = app(BankPaymentExportService::class)->generate($params, $advances);
                         $filename = 'pagos_banco_'.now()->format('Y_m_d_H_i_s').'.xlsm';
+
+                        Notification::make()->success()
+                            ->title('Archivo generado')
+                            ->body("{$advances->count()} adelanto(s) incluidos. Marcalos como Entregados una vez confirmada la acreditación.")
+                            ->send();
 
                         return response()->download($tempFile, $filename, [
                             'Content-Type' => 'application/vnd.ms-excel.sheet.macroEnabled.12',
@@ -450,7 +484,7 @@ class ListAdvances extends ListRecords
                     ->icon('heroicon-o-document-arrow-down')
                     ->color('primary')
                     ->modalHeading('Generar TRANSFER.txt para banco')
-                    ->modalDescription('Los adelantos aprobados incluidos en el archivo quedarán marcados como Pagados.')
+                    ->modalDescription('Se generará el archivo TXT para enviar al banco. Se registrará la fecha de crédito en cada adelanto incluido. Marcalos como Entregados una vez confirmada la acreditación.')
                     ->modalSubmitActionLabel('Generar y Descargar')
                     ->form([
                         Select::make('company_id')
@@ -459,7 +493,8 @@ class ListAdvances extends ListRecords
                             ->required()
                             ->native(false)
                             ->searchable()
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('employee_ids', [])),
 
                         Placeholder::make('banco_info')
                             ->label('Cuenta bancaria principal')
@@ -489,19 +524,22 @@ class ListAdvances extends ListRecords
                             })
                             ->columnSpanFull(),
 
-                        Select::make('moneda')
-                            ->label('Moneda')
-                            ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
-                            ->default('Guaraní')
-                            ->required()
-                            ->native(false),
+                        Grid::make(2)
+                            ->schema([
+                                Select::make('moneda')
+                                    ->label('Moneda')
+                                    ->options(['Guaraní' => 'Guaraní', 'Dólar' => 'Dólar'])
+                                    ->default('Guaraní')
+                                    ->required()
+                                    ->native(false),
 
-                        \Filament\Forms\Components\DatePicker::make('fecha_credito')
-                            ->label('Fecha Crédito')
-                            ->required()
-                            ->native(false)
-                            ->default(today())
-                            ->displayFormat('d/m/Y'),
+                                \Filament\Forms\Components\DatePicker::make('fecha_credito')
+                                    ->label('Fecha Crédito')
+                                    ->required()
+                                    ->native(false)
+                                    ->default(today())
+                                    ->displayFormat('d/m/Y'),
+                            ]),
 
                         Select::make('tipo')
                             ->label('Tipo de transferencia')
@@ -509,6 +547,20 @@ class ListAdvances extends ListRecords
                             ->default('Crédito')
                             ->required()
                             ->native(false),
+
+                        Select::make('employee_ids')
+                            ->label('Empleados a incluir')
+                            ->multiple()
+                            ->native(false)
+                            ->searchable()
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Employee::query()
+                                    ->whereHas('advances', fn ($q) => $q->where('status', 'approved')->where('payment_method', 'transfer'))
+                                    ->whereHas('branch', fn ($b) => $b->where('company_id', $get('company_id')))
+                                    ->orderBy('first_name')->orderBy('last_name')
+                                    ->get()->pluck('full_name_with_ci', 'id')->toArray()
+                                : [])
+                            ->helperText('Dejar vacío para incluir todos los aprobados de la empresa.'),
                     ])
                     ->action(function (array $data, Action $action) {
                         $account = \App\Models\CompanyBankAccount::where('company_id', $data['company_id'])
@@ -517,24 +569,20 @@ class ListAdvances extends ListRecords
                             ->first();
 
                         if (! $account) {
-                            Notification::make()
-                                ->danger()
+                            Notification::make()->danger()
                                 ->title('Sin cuenta bancaria principal')
                                 ->body('La empresa no tiene cuenta bancaria principal activa configurada.')
                                 ->send();
-
                             $action->halt();
 
                             return;
                         }
 
                         if (! $account->bank_company_id) {
-                            Notification::make()
-                                ->danger()
+                            Notification::make()->danger()
                                 ->title('ID Empresa no configurado')
                                 ->body('Completá el ID Empresa en la cuenta bancaria principal de la empresa antes de exportar.')
                                 ->send();
-
                             $action->halt();
 
                             return;
@@ -543,17 +591,19 @@ class ListAdvances extends ListRecords
                         $advances = Advance::where('status', 'approved')
                             ->where('payment_method', 'transfer')
                             ->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['company_id']))
+                            ->when(
+                                ! empty($data['employee_ids']),
+                                fn ($q) => $q->whereHas('employee', fn ($e) => $e->whereIn('id', $data['employee_ids']))
+                            )
                             ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
                             ->orderBy('created_at', 'desc')
                             ->get();
 
                         if ($advances->isEmpty()) {
-                            Notification::make()
-                                ->warning()
+                            Notification::make()->warning()
                                 ->title('Sin adelantos aprobados')
-                                ->body('No hay adelantos aprobados para esta empresa.')
+                                ->body('No hay adelantos aprobados (acreditación bancaria) para los criterios seleccionados.')
                                 ->send();
-
                             $action->halt();
 
                             return;
@@ -570,10 +620,9 @@ class ListAdvances extends ListRecords
                         $content = app(BankPaymentExportService::class)->generateTxt($params, $advances);
                         $filename = 'TRANSFER_'.now()->format('Y_m_d_H_i_s').'.txt';
 
-                        Notification::make()
-                            ->success()
+                        Notification::make()->success()
                             ->title('Archivo generado')
-                            ->body("{$advances->count()} adelanto(s) marcados como pagados.")
+                            ->body("{$advances->count()} adelanto(s) incluidos. Marcalos como Entregados una vez confirmada la acreditación.")
                             ->send();
 
                         return response()->streamDownload(
@@ -635,7 +684,12 @@ class ListAdvances extends ListRecords
                 ->badge($byStatus['approved'] ?? 0)
                 ->badgeColor('info'),
 
-            'paid' => Tab::make('Pagados')
+            'disbursed' => Tab::make('Entregados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'disbursed'))
+                ->badge($byStatus['disbursed'] ?? 0)
+                ->badgeColor('primary'),
+
+            'paid' => Tab::make('Descontados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))
                 ->badge($byStatus['paid'] ?? 0)
                 ->badgeColor('success'),

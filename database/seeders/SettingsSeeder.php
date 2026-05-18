@@ -34,24 +34,20 @@ class SettingsSeeder extends Seeder
     {
         $this->upsertGroup('general', [
             // Datos de empresa
-            'company_name'            => 'Empresa Demo S.A.',
-            'company_logo'            => null,
-            'company_ruc'             => '80012345-6',
+            'company_name' => 'Empresa Demo S.A.',
+            'company_logo' => null,
+            'company_ruc' => '80012345-6',
             'company_employer_number' => '12345',
-            'company_address'         => 'Av. Mariscal López 1234, Asunción',
-            'company_phone'           => '0211234567',
-            'company_email'           => 'info@empresademo.com.py',
-            'company_city'            => 'Asunción',
+            'company_address' => 'Av. Mariscal López 1234, Asunción',
+            'company_phone' => '0211234567',
+            'company_email' => 'info@empresademo.com.py',
+            'company_city' => 'Asunción',
 
             // Configuración laboral
-            'timezone'               => 'America/Asuncion',
-            'working_hours_per_week' => 48,   // Ley PY: 48 hrs/semana (Art. 194)
-
-            // Préstamos
-            'max_loan_amount'        => 5000000,  // Gs. 5.000.000
+            'timezone' => 'America/Asuncion',
 
             // Contratos
-            'contract_alert_days'    => 30,
+            'contract_alert_days' => 30,
 
             // Registro facial
             'face_enrollment_expiry_hours' => 48,
@@ -75,34 +71,39 @@ class SettingsSeeder extends Seeder
     {
         $this->upsertGroup('payroll', [
             // Jornada diurna (Art. 194)
-            'monthly_hours'  => 240,
-            'daily_hours'    => 8,
+            'monthly_hours' => 240,
+            'daily_hours' => 8,
             'days_per_month' => 30,
 
             // Jornada nocturna (Art. 196)
             'monthly_hours_nocturno' => 210,
-            'daily_hours_nocturno'   => 7,
+            'daily_hours_nocturno' => 7,
 
             // Jornada mixta (Art. 197)
             'monthly_hours_mixto' => 225.0,
-            'daily_hours_mixto'   => 7.5,
+            'daily_hours_mixto' => 7.5,
 
             // Multiplicadores de horas extra (Art. 234)
-            'overtime_multiplier_diurno'           => 1.5,  // +50% sobre hora diurna
-            'overtime_multiplier_nocturno'         => 2.6,  // 1.30 × 2.0 — sobre base diurna
-            'overtime_multiplier_holiday'          => 2.0,  // +100% sobre hora diurna
+            'overtime_multiplier_diurno' => 1.5,  // +50% sobre hora diurna
+            'overtime_multiplier_nocturno' => 2.6,  // 1.30 × 2.0 — sobre base diurna
+            'overtime_multiplier_holiday' => 2.0,  // +100% sobre hora diurna
             'overtime_multiplier_nocturno_holiday' => 2.6,  // 1.30 × 2.0 — nocturna en feriado
 
             // Límites HE (Art. 202)
             'overtime_max_daily_hours' => 3,
+            'overtime_max_weekly_hours' => 9,   // 3 hrs/día × 3 días
+
+            // IRP — Impuesto a la Renta Personal (Ley 2421/04)
+            'irp_annual_threshold' => 80_000_000, // ~80M Gs/año
+            'irp_rate' => 10.0,        // 10% sobre renta gravada
 
             // IPS y liquidación
-            'ips_employee_rate'          => 9.0,
-            'ips_deduction_code'         => 'IPS001',
+            'ips_employee_rate' => 9.0,
+            'ips_deduction_code' => 'IPS001',
             'indemnizacion_days_per_year' => 15,
 
             // Salarios mínimos legales vigentes (Resolución MT 2024)
-            'min_salary_monthly'      => 2_550_328,  // Salario mínimo mensual
+            'min_salary_monthly' => 2_550_328,  // Salario mínimo mensual
             'min_salary_daily_jornal' => 87_950,     // Salario mínimo diario para jornaleros
 
             // Bonificación familiar (Arts. 253-262 CLT) — 5% del salario mínimo mensual por hijo
@@ -110,8 +111,24 @@ class SettingsSeeder extends Seeder
 
             // Vacaciones
             'vacation_min_consecutive_days' => 6,
-            'vacation_min_years_service'    => 1,
-            'vacation_business_days'        => [1, 2, 3, 4, 5, 6], // Lun–Sáb
+            'vacation_min_years_service' => 1,
+            'vacation_business_days' => [1, 2, 3, 4, 5, 6], // Lun–Sáb
+
+            // Préstamos (Art. 245 CLT — cuota máxima 25% del salario)
+            'max_loan_amount' => 5_000_000,
+            'loan_installment_cap_percent' => 25.0,
+            'loan_max_installments' => 60,
+            'loan_max_interest_rate' => 100.0,
+            'loan_first_installment_days' => 30,
+
+            // Adelantos de salario
+            'advance_max_percent' => 50.0, // % máximo del salario por solicitud
+            'advance_max_per_period' => 0,    // 0 = sin límite
+
+            // Retiro de mercaderías
+            'merchandise_max_amount' => 10_000_000,
+            'merchandise_max_installments' => 24,
+            'merchandise_first_installment_days' => 30,
         ]);
 
         $this->command->info('PayrollSettings sembrados.');
@@ -123,8 +140,8 @@ class SettingsSeeder extends Seeder
      * Cada propiedad se almacena como fila individual con payload JSON,
      * según el formato interno de spatie/laravel-settings v2.
      *
-     * @param  string                      $group      Nombre del grupo (e.g., 'general')
-     * @param  array<string, mixed>        $properties Mapa nombre → valor
+     * @param  string  $group  Nombre del grupo (e.g., 'general')
+     * @param  array<string, mixed>  $properties  Mapa nombre → valor
      */
     private function upsertGroup(string $group, array $properties): void
     {
@@ -134,8 +151,8 @@ class SettingsSeeder extends Seeder
             DB::table('settings')->updateOrInsert(
                 ['group' => $group, 'name' => $name],
                 [
-                    'payload'    => json_encode($value),
-                    'locked'     => false,
+                    'payload' => json_encode($value),
+                    'locked' => false,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]

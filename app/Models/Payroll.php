@@ -102,11 +102,12 @@ class Payroll extends Model
 
                 Advance::where('employee_id', $payroll->employee_id)
                     ->where('payroll_id', $payroll->id)
-                    ->update([
-                        'status' => 'approved',
+                    ->get()
+                    ->each(fn (Advance $advance) => $advance->update([
+                        'status' => 'disbursed',
                         'payroll_id' => null,
                         'employee_deduction_id' => null,
-                    ]);
+                    ]));
 
                 if ($advanceDeductionIds->isNotEmpty()) {
                     EmployeeDeduction::whereIn('id', $advanceDeductionIds)->delete();

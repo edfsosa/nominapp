@@ -88,21 +88,21 @@ function makeAdvCalcPeriod(int $month = 3): PayrollPeriod
 }
 
 /**
- * Crea un adelanto aprobado listo para descuento en nómina.
+ * Crea un adelanto entregado (disbursed) listo para descuento en nómina.
  */
-function makeApprovedAdvance(Employee $employee, float $amount = 500_000, ?string $approvedAt = null): Advance
+function makeDisbursedAdvance(Employee $employee, float $amount = 500_000, ?string $approvedAt = null): Advance
 {
     return Advance::create([
         'employee_id' => $employee->id,
         'amount' => $amount,
-        'status' => 'approved',
+        'status' => 'disbursed',
         'approved_at' => $approvedAt ?? Carbon::create(2026, 3, 1)->toDateTimeString(),
     ]);
 }
 
 // ─── calculate() ─────────────────────────────────────────────────────────────
 
-it('retorna advances vacía si el empleado no tiene adelantos aprobados', function () {
+it('retorna advances vacía si el empleado no tiene adelantos entregados', function () {
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
@@ -113,11 +113,11 @@ it('retorna advances vacía si el empleado no tiene adelantos aprobados', functi
     expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('crea EmployeeDeduction con ADE001 para adelanto aprobado dentro del período', function () {
+it('crea EmployeeDeduction con ADE001 para adelanto entregado', function () {
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod(month: 3);
-    $advance = makeApprovedAdvance($employee, 500_000, '2026-03-15 10:00:00');
+    $advance = makeDisbursedAdvance($employee, 500_000, '2026-03-15 10:00:00');
 
     $result = app(AdvanceCalculator::class)->calculate($employee, $period);
 
@@ -132,7 +132,7 @@ it('crea EmployeeDeduction con ADE001 para adelanto aprobado dentro del período
     expect($advance->fresh()->employee_deduction_id)->toBe($ed->id);
 });
 
-it('no procesa adelantos en estado pending (solo approved)', function () {
+it('no procesa adelantos en estado pending o approved (solo disbursed)', function () {
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
@@ -141,6 +141,13 @@ it('no procesa adelantos en estado pending (solo approved)', function () {
         'employee_id' => $employee->id,
         'amount' => 500_000,
         'status' => 'pending',
+    ]);
+
+    Advance::create([
+        'employee_id' => $employee->id,
+        'amount' => 300_000,
+        'status' => 'approved',
+        'approved_at' => now()->toDateTimeString(),
     ]);
 
     $result = app(AdvanceCalculator::class)->calculate($employee, $period);
@@ -168,7 +175,7 @@ it('no procesa adelantos que ya tienen payroll_id asignado', function () {
     Advance::create([
         'employee_id' => $employee->id,
         'amount' => 500_000,
-        'status' => 'approved',
+        'status' => 'paid',
         'approved_at' => '2026-03-01 08:00:00',
         'payroll_id' => $payroll->id,
     ]);
@@ -179,25 +186,25 @@ it('no procesa adelantos que ya tienen payroll_id asignado', function () {
     expect(EmployeeDeduction::count())->toBe(0);
 });
 
-it('excluye adelantos con approved_at posterior al fin del período', function () {
+it('procesa adelantos disbursed sin importar la fecha de aprobación', function () {
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
-    $period = makeAdvCalcPeriod(month: 3); // hasta 2026-03-31
+    $period = makeAdvCalcPeriod(month: 3);
 
-    // Aprobado el 1° de abril → fuera del período
-    makeApprovedAdvance($employee, 500_000, '2026-04-01 08:00:00');
+    // Aprobado meses atrás pero aún sin descontar — debe procesarse igual
+    makeDisbursedAdvance($employee, 500_000, '2025-11-01 08:00:00');
 
     $result = app(AdvanceCalculator::class)->calculate($employee, $period);
 
-    expect($result['advances'])->toBeEmpty();
-    expect(EmployeeDeduction::count())->toBe(0);
+    expect($result['advances'])->toHaveCount(1);
+    expect(EmployeeDeduction::count())->toBe(1);
 });
 
 it('es idempotente: una segunda llamada no duplica EmployeeDeduction', function () {
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
-    makeApprovedAdvance($employee);
+    makeDisbursedAdvance($employee);
 
     $calc = app(AdvanceCalculator::class);
     $calc->calculate($employee, $period);
@@ -210,7 +217,7 @@ it('actualiza el monto en EmployeeDeduction existente al recalcular', function (
     seedAdvanceDeduction();
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
-    $advance = makeApprovedAdvance($employee, 500_000);
+    $advance = makeDisbursedAdvance($employee, 500_000);
 
     $calc = app(AdvanceCalculator::class);
     $calc->calculate($employee, $period);
@@ -228,7 +235,7 @@ it('retorna advances vacía y no genera EmployeeDeduction si ADE001 no existe', 
     // Sin seedAdvanceDeduction()
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
-    makeApprovedAdvance($employee);
+    makeDisbursedAdvance($employee);
 
     $result = app(AdvanceCalculator::class)->calculate($employee, $period);
 
@@ -242,7 +249,7 @@ it('no procesa adelantos de otro empleado', function () {
     $employee2 = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
 
-    makeApprovedAdvance($employee2);
+    makeDisbursedAdvance($employee2);
 
     $result = app(AdvanceCalculator::class)->calculate($employee1, $period);
 
@@ -258,7 +265,7 @@ it('retorna 0 si la lista de IDs está vacía', function () {
     expect($count)->toBe(0);
 });
 
-it('marca adelantos aprobados como pagados y retorna el conteo', function () {
+it('marca adelantos entregados como pagados y retorna el conteo', function () {
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
     $payroll = Payroll::create([
@@ -272,8 +279,8 @@ it('marca adelantos aprobados como pagados y retorna el conteo', function () {
         'total_perceptions' => 0,
     ]);
 
-    $adv1 = makeApprovedAdvance($employee, 500_000);
-    $adv2 = makeApprovedAdvance($employee, 300_000);
+    $adv1 = makeDisbursedAdvance($employee, 500_000);
+    $adv2 = makeDisbursedAdvance($employee, 300_000);
 
     $count = app(AdvanceCalculator::class)->markAdvancesAsPaid([$adv1->id, $adv2->id], $payroll->id);
 
@@ -283,7 +290,7 @@ it('marca adelantos aprobados como pagados y retorna el conteo', function () {
         ->and($adv2->fresh()->status)->toBe('paid');
 });
 
-it('ignora adelantos que no están en estado approved al marcar como pagados', function () {
+it('ignora adelantos que no están en estado disbursed al marcar como pagados', function () {
     $employee = makeAdvCalcEmployee();
     $period = makeAdvCalcPeriod();
     $payroll = Payroll::create([
@@ -297,16 +304,16 @@ it('ignora adelantos que no están en estado approved al marcar como pagados', f
         'total_perceptions' => 0,
     ]);
 
-    $approved = makeApprovedAdvance($employee);
+    $disbursed = makeDisbursedAdvance($employee);
     $pending = Advance::create([
         'employee_id' => $employee->id,
         'amount' => 300_000,
         'status' => 'pending',
     ]);
 
-    $count = app(AdvanceCalculator::class)->markAdvancesAsPaid([$approved->id, $pending->id], $payroll->id);
+    $count = app(AdvanceCalculator::class)->markAdvancesAsPaid([$disbursed->id, $pending->id], $payroll->id);
 
-    // Solo el approved cuenta
+    // Solo el disbursed cuenta
     expect($count)->toBe(1)
         ->and($pending->fresh()->status)->toBe('pending');
 });

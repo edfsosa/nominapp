@@ -45,6 +45,7 @@ class DatabaseSeeder extends Seeder
             // Nómina y períodos
             PayrollPeriodSeeder::class,
             LoanSeeder::class,
+            AdvanceSeeder::class,
 
             // Procesos anuales e históricos
             AguinaldoSeeder::class,
@@ -66,6 +67,7 @@ class DatabaseSeeder extends Seeder
             'aguinaldo_periods',
             'liquidacion_items',
             'liquidaciones',
+            'advances',
             'loan_installments',
             'loans',
             'documents',
@@ -81,6 +83,7 @@ class DatabaseSeeder extends Seeder
             'employee_deductions',
             'employee_perceptions',
             'employee_schedule_assignments',
+            'employee_bank_accounts',
             'contracts',
             'employees',
             'schedule_breaks',

@@ -86,6 +86,13 @@ class AdvancesRelationManager extends RelationManager
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('disbursed_at')
+                    ->label('Entregado')
+                    ->date('d/m/Y')
+                    ->placeholder('-')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -250,7 +257,7 @@ class AdvancesRelationManager extends RelationManager
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->visible(fn (Advance $record) => $record->isApproved() || $record->isPaid())
+                    ->visible(fn (Advance $record) => $record->isApproved() || $record->isDisbursed() || $record->isPaid())
                     ->url(fn (Advance $record) => route('advances.pdf', $record))
                     ->openUrlInNewTab(),
             ])

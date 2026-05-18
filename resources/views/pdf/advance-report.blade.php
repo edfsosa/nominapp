@@ -143,6 +143,7 @@
 
         .status-pending   { background: #fef3cd; color: #856404; }
         .status-approved  { background: #cfe2ff; color: #084298; }
+        .status-disbursed { background: #cfe2ff; color: #052c65; }
         .status-paid      { background: #d1e7dd; color: #0a3622; }
         .status-rejected  { background: #f8d7da; color: #58151c; }
         .status-cancelled { background: #e2e3e5; color: #383d41; }

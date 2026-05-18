@@ -48,6 +48,7 @@ class AdvancesExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             'Notas',
             'Aprobado el',
             'Aprobado por',
+            'Fecha de Entrega',
             'Creado',
             'Editado',
         ];
@@ -70,6 +71,7 @@ class AdvancesExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             $advance->notes ?? '',
             $advance->approved_at?->format('d/m/Y H:i') ?? '',
             $advance->approvedBy?->name ?? '',
+            $advance->disbursed_at?->format('d/m/Y') ?? '',
             $advance->created_at->format('d/m/Y H:i'),
             $advance->updated_at->format('d/m/Y H:i'),
         ];
