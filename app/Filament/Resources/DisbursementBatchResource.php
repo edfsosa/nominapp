@@ -174,16 +174,67 @@ class DisbursementBatchResource extends Resource
                                 ->color(fn (string $state) => DisbursementBatch::getStatusColor($state))
                                 ->icon(fn (string $state) => DisbursementBatch::getStatusIcon($state))
                                 ->badge(),
-                        ])->columns(4),
+
+                            TextEntry::make('advances_count')
+                                ->label('Cantidad de adelantos')
+                                ->icon('heroicon-o-banknotes')
+                                ->getStateUsing(fn (DisbursementBatch $record) => $record->advances()->count()),
+
+                            TextEntry::make('advances_total')
+                                ->label('Monto total')
+                                ->icon('heroicon-o-currency-dollar')
+                                ->getStateUsing(fn (DisbursementBatch $record) => 'Gs. '.number_format((float) $record->advances()->sum('amount'), 0, ',', '.')),
+                        ])->columns(3),
 
                         TextEntry::make('notes')
                             ->label('Notas')
-                            ->placeholder('Sin notas')
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->visible(fn (DisbursementBatch $record) => filled($record->notes)),
                     ]),
+
+                InfolistSection::make('Archivos')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('file_path')
+                                ->label('Archivo TXT (banco)')
+                                ->formatStateUsing(fn (?string $state) => $state ? 'Descargar TXT' : 'No generado')
+                                ->icon(fn (?string $state) => $state ? 'heroicon-o-document-arrow-down' : 'heroicon-o-no-symbol')
+                                ->color(fn (?string $state) => $state ? 'primary' : 'gray')
+                                ->badge()
+                                ->url(fn (DisbursementBatch $record) => $record->file_path
+                                    ? asset('storage/'.$record->file_path)
+                                    : null)
+                                ->openUrlInNewTab(),
+
+                            TextEntry::make('bank_confirmation_path')
+                                ->label('Comprobante bancario')
+                                ->formatStateUsing(fn (?string $state) => $state ? 'Ver comprobante' : 'No adjuntado')
+                                ->icon(fn (?string $state) => $state ? 'heroicon-o-paper-clip' : 'heroicon-o-no-symbol')
+                                ->color(fn (?string $state) => $state ? 'success' : 'gray')
+                                ->badge()
+                                ->url(fn (DisbursementBatch $record) => $record->bank_confirmation_path
+                                    ? asset('storage/'.$record->bank_confirmation_path)
+                                    : null)
+                                ->openUrlInNewTab(),
+                        ])->columns(2),
+                    ])
+                    ->hidden(fn (DisbursementBatch $record) => ! $record->file_path && ! $record->bank_confirmation_path),
 
                 InfolistSection::make('Auditoría')
                     ->schema([
+                        Group::make([
+                            TextEntry::make('createdBy.name')
+                                ->label('Creado por')
+                                ->icon('heroicon-o-user-circle')
+                                ->placeholder('-'),
+
+                            TextEntry::make('created_at')
+                                ->label('Creado')
+                                ->dateTime('d/m/Y H:i')
+                                ->icon('heroicon-o-calendar'),
+                        ])->columns(2)
+                            ->visible(fn (DisbursementBatch $record) => $record->status === 'pending'),
+
                         Group::make([
                             TextEntry::make('createdBy.name')
                                 ->label('Creado por')
@@ -204,7 +255,8 @@ class DisbursementBatchResource extends Resource
                                 ->label('Confirmado')
                                 ->dateTime('d/m/Y H:i')
                                 ->placeholder('-'),
-                        ])->columns(4),
+                        ])->columns(4)
+                            ->visible(fn (DisbursementBatch $record) => $record->status !== 'pending'),
                     ]),
             ]);
     }

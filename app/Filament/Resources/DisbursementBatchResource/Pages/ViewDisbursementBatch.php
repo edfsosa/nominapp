@@ -7,7 +7,9 @@ use App\Models\CompanyBankAccount;
 use App\Models\DisbursementBatch;
 use App\Services\BankPaymentExportService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\Auth;
@@ -30,10 +32,50 @@ class ViewDisbursementBatch extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('edit_batch')
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary')
+                ->visible(fn () => $this->record->isPending())
+                ->modalHeading('Editar lote de pago')
+                ->modalSubmitActionLabel('Guardar cambios')
+                ->fillForm(fn () => [
+                    'fecha_credito' => $this->record->fecha_credito,
+                    'notes' => $this->record->notes,
+                ])
+                ->form([
+                    DatePicker::make('fecha_credito')
+                        ->label('Fecha de acreditación')
+                        ->required()
+                        ->native(false)
+                        ->displayFormat('d/m/Y')
+                        ->closeOnDateSelection()
+                        ->helperText('Fecha en que el banco acreditará los fondos en las cuentas de los empleados.'),
+
+                    Textarea::make('notes')
+                        ->label('Notas')
+                        ->placeholder('Observaciones opcionales...')
+                        ->rows(3),
+                ])
+                ->action(function (array $data) {
+                    $this->record->update([
+                        'fecha_credito' => $data['fecha_credito'],
+                        'notes' => $data['notes'],
+                    ]);
+
+                    Notification::make()
+                        ->success()
+                        ->title('Lote actualizado')
+                        ->body('La fecha de acreditación y las notas fueron actualizadas.')
+                        ->send();
+
+                    $this->refreshFormData(['fecha_credito', 'notes']);
+                }),
+
             Action::make('download_txt')
                 ->label('Descargar TXT')
                 ->icon('heroicon-o-document-arrow-down')
-                ->color('primary')
+                ->color('info')
                 ->visible(fn () => $this->record->isPending())
                 ->modalHeading('Generar archivo TXT Itaú')
                 ->modalDescription(function () {

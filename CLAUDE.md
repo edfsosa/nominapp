@@ -611,6 +611,25 @@ use Filament\Infolists\Components\Grid as InfoGrid;
 **`modalSubmitActionLabel` obligatorio en acciones con confirmación**
 Toda acción con `->requiresConfirmation()` — tanto en filas como en `BulkAction` — debe tener `->modalSubmitActionLabel('Sí, [verbo]')`. El botón genérico "OK" de Filament no es suficiente.
 
+**`->mountUsing()` para validaciones antes de abrir un modal**
+`->before()` corre **después** de que el formulario del modal es enviado — no sirve para prevenir que el modal abra. Para ejecutar lógica pre-modal (ej: verificar disponibilidad y cancelar si no hay datos), usar `->mountUsing()`:
+
+```php
+Action::make('add_items')
+    ->mountUsing(function (\Filament\Forms\Form $form, Action $action) use ($record) {
+        if (! Model::query()->where(...)->exists()) {
+            Notification::make()->warning()->title('Sin registros disponibles')->send();
+            $action->halt();
+            return;
+        }
+        $form->fill(); // obligatorio al override de mountUsing
+    })
+    ->form([...])
+    ->action(function (array $data) { ... })
+```
+
+Regla: siempre llamar `$form->fill()` en el path normal — Filament lo necesita para inicializar el formulario. Omitirlo resulta en un form vacío.
+
 **BulkActions de cambio de estado deben filtrar antes de actualizar**
 Nunca hacer `$records->each->update([...])` sin verificar el estado esperado. Siempre filtrar:
 ```php
@@ -875,6 +894,22 @@ Siempre usar `?->` al acceder a relaciones en closures de columnas — el regist
     if ($record->deduction->isPercentage()) { ... }
 })
 ```
+
+### Campos opcionales nullable en Infolists (`TextEntry`, `ImageEntry`, etc.)
+
+Los campos que pueden ser null deben ocultarse completamente cuando no tienen valor — nunca mostrar placeholder vacío o un campo en blanco.
+
+```php
+// ❌ Muestra el campo aunque esté vacío
+TextEntry::make('notes')
+    ->placeholder('Sin notas'),
+
+// ✅ Oculta el campo si es null/vacío
+TextEntry::make('notes')
+    ->visible(fn($record) => filled($record->notes)),
+```
+
+Aplica a cualquier `TextEntry`, `ImageEntry`, `IconEntry`, etc. con contenido opcional. No usar `->placeholder()` como sustituto — `filled()` es la forma correcta.
 
 ### Important Notes
 - Monetary values use `decimal:2` cast
