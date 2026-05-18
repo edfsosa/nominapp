@@ -15,7 +15,7 @@ return new class extends Migration
             $morphPrefix = config('audit.user.morph_prefix', 'user');
 
             $table->bigIncrements('id');
-            $table->string($morphPrefix.'_type')->nullable();
+            $table->string($morphPrefix.'_type', 191)->nullable();
             $table->unsignedBigInteger($morphPrefix.'_id')->nullable();
             $table->string('event');
             $table->string('auditable_type', 191);
