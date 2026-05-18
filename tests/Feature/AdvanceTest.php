@@ -5,11 +5,14 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Department;
+use App\Models\DisbursementBatch;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
 use App\Models\User;
+use App\Services\BankPaymentExportService;
 use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -51,16 +54,28 @@ function makeAdvEmployee(int $salary = 2_550_000): Employee
         'status' => 'active',
     ]);
 
+    EmployeeBankAccount::create([
+        'employee_id' => $employee->id,
+        'bank' => 'itau',
+        'account_number' => '1234567890',
+        'account_type' => 'corriente',
+        'holder_name' => 'Test Advance',
+        'holder_ci' => (string) $n,
+        'is_primary' => true,
+        'status' => 'active',
+    ]);
+
     return $employee->fresh();
 }
 
 /** Crea un adelanto para el empleado dado. */
-function makeAdvance(Employee $employee, float $amount = 500_000, string $status = 'pending'): Advance
+function makeAdvance(Employee $employee, float $amount = 500_000, string $status = 'pending', string $paymentMethod = 'transfer'): Advance
 {
     return Advance::create([
         'employee_id' => $employee->id,
         'amount' => $amount,
         'status' => $status,
+        'payment_method' => $paymentMethod,
     ]);
 }
 
@@ -231,22 +246,13 @@ it('falla al cancelar un adelanto ya rechazado', function () {
     expect($result['success'])->toBeFalse();
 });
 
-it('falla al cancelar si el adelanto ya fue procesado en nómina', function () {
+it('falla al cancelar si el adelanto está en estado disbursed', function () {
     $employee = makeAdvEmployee();
-    $period = makeAdvPeriod();
-    $payroll = makeAdvPayroll($employee, $period);
-
-    $advance = Advance::create([
-        'employee_id' => $employee->id,
-        'amount' => 500_000,
-        'status' => 'approved',
-        'payroll_id' => $payroll->id,
-    ]);
+    $advance = makeAdvance($employee, status: 'disbursed');
 
     $result = $advance->cancel();
 
-    expect($result['success'])->toBeFalse()
-        ->and($result['message'])->toContain('nómina');
+    expect($result['success'])->toBeFalse();
 });
 
 // ─── markAsPaid() ─────────────────────────────────────────────────────────────
@@ -306,4 +312,147 @@ it('getPendingCount retorna el número de adelantos pendientes', function () {
     makeAdvance($emp1, status: 'approved');
 
     expect(Advance::getPendingCount())->toBe(2);
+});
+
+// ─── bank account validation ──────────────────────────────────────────────────
+
+it('falla al aprobar si el empleado no tiene cuenta bancaria principal activa', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee);
+
+    $employee->bankAccounts()->delete();
+
+    $result = $advance->fresh()->approve(getAdvAdmin()->id);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('cuenta bancaria');
+});
+
+// ─── markAsDisbursed() ───────────────────────────────────────────────────────
+
+it('markAsDisbursed marca el adelanto como disbursed y sella la fecha', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee, status: 'approved');
+
+    $advance->markAsDisbursed('2026-05-15');
+
+    $advance->refresh();
+    expect($advance->status)->toBe('disbursed')
+        ->and($advance->disbursed_at?->format('Y-m-d'))->toBe('2026-05-15')
+        ->and($advance->payroll_id)->toBeNull();
+});
+
+it('markAsDisbursed sin fecha sella disbursed_at con hoy', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee, status: 'approved');
+
+    $advance->markAsDisbursed();
+
+    $advance->refresh();
+    expect($advance->status)->toBe('disbursed')
+        ->and($advance->disbursed_at?->format('Y-m-d'))->toBe(now()->toDateString());
+});
+
+// ─── BankPaymentExportService::generateTxt() ─────────────────────────────────
+
+it('generateTxt genera líneas D01 y C01 en formato fijo', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 500_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '12345',
+        'cuenta_debito' => '9876543210',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    $content = app(BankPaymentExportService::class)->generateTxt(
+        $params,
+        collect([$advance])
+    );
+
+    $lines = explode("\r\n", trim($content));
+
+    expect($lines)->toHaveCount(2);
+    expect($lines[0])->toStartWith('D01');
+    expect($lines[1])->toStartWith('C01');
+});
+
+it('generateTxt sella disbursed_at sin cambiar el estado', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 500_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '12345',
+        'cuenta_debito' => '9876543210',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    app(BankPaymentExportService::class)->generateTxt($params, collect([$advance]));
+
+    $fresh = $advance->fresh();
+    expect($fresh->disbursed_at?->format('Y-m-d'))->toBe('2026-05-15')
+        ->and($fresh->status)->toBe('approved')
+        ->and($fresh->payroll_id)->toBeNull();
+});
+
+it('generateTxt incluye id_empresa y cuenta_debito en las líneas', function () {
+    $employee = makeAdvEmployee(2_000_000);
+    $advance = makeAdvance($employee, amount: 1_000_000, status: 'approved');
+    $advance->load('employee.bankAccounts');
+
+    $params = [
+        'id_empresa' => '99888',
+        'cuenta_debito' => '1111111111',
+        'moneda' => 'Guaraní',
+        'tipo' => 'Crédito',
+        'fecha_credito' => '2026-05-15',
+    ];
+
+    $content = app(BankPaymentExportService::class)->generateTxt($params, collect([$advance]));
+
+    $lines = explode("\r\n", trim($content));
+
+    expect($lines[0])->toContain('99888')->toContain('1111111111');
+    expect($lines[1])->toContain('99888')->toContain('1111111111');
+});
+
+// ─── bank_rejection_reason se limpia al entregar ─────────────────────────────
+
+it('markAsDisbursed limpia bank_rejection_reason', function () {
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee, status: 'approved');
+    $advance->update(['bank_rejection_reason' => 'cuenta_inexistente']);
+
+    $advance->markAsDisbursed();
+
+    $advance->refresh();
+    expect($advance->bank_rejection_reason)->toBeNull();
+});
+
+it('DisbursementBatch::confirm limpia bank_rejection_reason en adelantos acreditados', function () {
+    $user = User::factory()->create();
+    $employee = makeAdvEmployee();
+    $advance = makeAdvance($employee, status: 'approved');
+    $advance->update(['bank_rejection_reason' => 'cuenta_bloqueada']);
+
+    $batch = DisbursementBatch::create([
+        'company_id' => $employee->branch->company_id,
+        'type' => 'advances',
+        'fecha_credito' => now()->toDateString(),
+        'status' => 'pending',
+        'created_by_id' => $user->id,
+    ]);
+    $advance->update(['disbursement_batch_id' => $batch->id]);
+
+    $batch->confirm(confirmedById: $user->id, bankConfirmationPath: 'test/confirmacion.pdf');
+
+    $advance->refresh();
+    expect($advance->status)->toBe('disbursed')
+        ->and($advance->bank_rejection_reason)->toBeNull();
 });

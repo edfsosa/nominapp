@@ -1,14 +1,14 @@
 <?php
 
-use App\Models\Company;
 use App\Models\Branch;
+use App\Models\Company;
+use App\Models\Contract;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Holiday;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use App\Models\Position;
-use App\Models\Contract;
 use App\Models\Schedule;
 use App\Models\ScheduleDay;
 use App\Models\Vacation;
@@ -26,13 +26,13 @@ uses(RefreshDatabase::class);
 function seedPayrollSettings(): void
 {
     $settings = [
-        'vacation_min_years_service'    => 1,
+        'vacation_min_years_service' => 1,
         'vacation_min_consecutive_days' => 5,
-        'vacation_business_days'        => [1, 2, 3, 4, 5, 6], // lunes a sábado
+        'vacation_business_days' => [1, 2, 3, 4, 5, 6], // lunes a sábado
         'overtime_multiplier_nocturno_holiday' => 2.6,
-        'min_salary_monthly'                   => 2_550_328,
-        'min_salary_daily_jornal'              => 87_950,
-        'family_bonus_percentage'              => 5.0,
+        'min_salary_monthly' => 2_550_328,
+        'min_salary_daily_jornal' => 87_950,
+        'family_bonus_percentage' => 5.0,
     ];
 
     foreach ($settings as $name => $value) {
@@ -50,10 +50,10 @@ function makeBasicEmployee(): Employee
 
     return Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Vac',
-        'ci'         => (string) $n,
-        'email'      => "vac{$n}@test.com",
-        'status'     => 'active',
+        'last_name' => 'Vac',
+        'ci' => (string) $n,
+        'email' => "vac{$n}@test.com",
+        'status' => 'active',
     ]);
 }
 
@@ -62,29 +62,29 @@ function makeEmployeeWithHireDate(Carbon $hireDate): Employee
     static $ci = 6000000;
     $n = $ci++;
 
-    $company    = Company::create(['name' => "Empresa {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
-    $branch     = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
+    $company = Company::create(['name' => "Empresa {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
     $department = Department::create(['name' => "Depto {$n}", 'company_id' => $company->id]);
-    $position   = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
+    $position = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
 
     $employee = Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Vac',
-        'ci'         => (string) $n,
-        'email'      => "vac{$n}@test.com",
-        'branch_id'  => $branch->id,
-        'status'     => 'active',
+        'last_name' => 'Vac',
+        'ci' => (string) $n,
+        'email' => "vac{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
     ]);
 
     Contract::create([
-        'employee_id'   => $employee->id,
-        'type'          => 'indefinido',
-        'start_date'    => $hireDate,
-        'salary_type'   => 'mensual',
-        'salary'        => 2_550_000,
-        'position_id'   => $position->id,
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => $hireDate,
+        'salary_type' => 'mensual',
+        'salary' => 2_550_000,
+        'position_id' => $position->id,
         'department_id' => $department->id,
-        'status'        => 'active',
+        'status' => 'active',
     ]);
 
     return $employee->fresh();
@@ -135,9 +135,9 @@ it('calcula correctamente los años de servicio', function () {
 });
 
 it('calcula años de servicio con fecha de referencia específica', function () {
-    $hireDate  = Carbon::create(2020, 1, 1);
-    $asOfDate  = Carbon::create(2025, 6, 1);
-    $employee  = makeEmployeeWithHireDate($hireDate);
+    $hireDate = Carbon::create(2020, 1, 1);
+    $asOfDate = Carbon::create(2025, 6, 1);
+    $employee = makeEmployeeWithHireDate($hireDate);
 
     expect(VacationService::getYearsOfService($employee, $asOfDate))->toBe(5);
 });
@@ -150,7 +150,7 @@ it('cuenta correctamente los días hábiles lunes a sábado', function () {
 
     // Lunes 2026-03-16 a Sábado 2026-03-21 = 6 días hábiles (sin feriados)
     $start = Carbon::create(2026, 3, 16);
-    $end   = Carbon::create(2026, 3, 21);
+    $end = Carbon::create(2026, 3, 21);
 
     expect(VacationService::calculateBusinessDays($employee, $start, $end))->toBe(6);
 });
@@ -161,7 +161,7 @@ it('excluye domingos del conteo de días hábiles', function () {
 
     // Lunes 2026-03-16 a Domingo 2026-03-22 → 6 días (domingo excluido)
     $start = Carbon::create(2026, 3, 16);
-    $end   = Carbon::create(2026, 3, 22);
+    $end = Carbon::create(2026, 3, 22);
 
     expect(VacationService::calculateBusinessDays($employee, $start, $end))->toBe(6);
 });
@@ -175,7 +175,7 @@ it('excluye feriados del conteo de días hábiles', function () {
 
     // Lunes a sábado = 6 días, menos 1 feriado = 5
     $start = Carbon::create(2026, 3, 16);
-    $end   = Carbon::create(2026, 3, 21);
+    $end = Carbon::create(2026, 3, 21);
 
     expect(VacationService::calculateBusinessDays($employee, $start, $end))->toBe(5);
 });
@@ -215,7 +215,7 @@ it('usa el horario del empleado para determinar si es día laboral', function ()
     ScheduleAssignmentService::assign($employee, $schedule, Carbon::create(2026, 1, 1));
     $employee->refresh();
 
-    $monday  = Carbon::create(2026, 3, 16);
+    $monday = Carbon::create(2026, 3, 16);
     $tuesday = Carbon::create(2026, 3, 17);
 
     expect(VacationService::isWorkDay($employee, $monday))->toBeTrue()
@@ -257,17 +257,17 @@ it('approve actualiza el estado y confirma días usados', function () {
     seedPayrollSettings();
 
     $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
-    $balance  = VacationService::getOrCreateBalance($employee, 2026);
+    $balance = VacationService::getOrCreateBalance($employee, 2026);
     $balance->update(['pending_days' => 5]);
 
     $vacation = Vacation::create([
-        'employee_id'         => $employee->id,
+        'employee_id' => $employee->id,
         'vacation_balance_id' => $balance->id,
-        'start_date'          => '2026-04-01',
-        'end_date'            => '2026-04-07',
-        'type'                => 'paid',
-        'status'              => 'pending',
-        'business_days'       => 5,
+        'start_date' => '2026-04-01',
+        'end_date' => '2026-04-07',
+        'payment_method' => 'immediate',
+        'status' => 'pending',
+        'business_days' => 5,
     ]);
 
     VacationService::approve($vacation);
@@ -281,17 +281,17 @@ it('reject actualiza el estado y libera los días pendientes', function () {
     seedPayrollSettings();
 
     $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
-    $balance  = VacationService::getOrCreateBalance($employee, 2026);
+    $balance = VacationService::getOrCreateBalance($employee, 2026);
     $balance->update(['pending_days' => 5]);
 
     $vacation = Vacation::create([
-        'employee_id'         => $employee->id,
+        'employee_id' => $employee->id,
         'vacation_balance_id' => $balance->id,
-        'start_date'          => '2026-04-01',
-        'end_date'            => '2026-04-07',
-        'type'                => 'paid',
-        'status'              => 'pending',
-        'business_days'       => 5,
+        'start_date' => '2026-04-01',
+        'end_date' => '2026-04-07',
+        'payment_method' => 'immediate',
+        'status' => 'pending',
+        'business_days' => 5,
     ]);
 
     VacationService::reject($vacation);
@@ -337,7 +337,7 @@ it('falla si no hay suficiente saldo disponible', function () {
     seedPayrollSettings();
 
     $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
-    $balance  = VacationService::getOrCreateBalance($employee, 2026);
+    $balance = VacationService::getOrCreateBalance($employee, 2026);
     $balance->update(['used_days' => 12]); // agota los 12 días
 
     $result = VacationService::validateRequest(
@@ -347,7 +347,7 @@ it('falla si no hay suficiente saldo disponible', function () {
     );
 
     expect($result['valid'])->toBeFalse()
-        ->and(collect($result['errors'])->contains(fn($e) => str_contains($e, 'suficientes días')))->toBeTrue();
+        ->and(collect($result['errors'])->contains(fn ($e) => str_contains($e, 'suficientes días')))->toBeTrue();
 });
 
 it('agrega advertencia si los días son menores al mínimo consecutivo', function () {
@@ -388,42 +388,43 @@ it('retorna válido con un período correcto y saldo suficiente', function () {
 function makeVacPayPeriod(int $year, int $month): PayrollPeriod
 {
     $start = Carbon::create($year, $month, 1);
+
     return PayrollPeriod::create([
-        'name'       => $start->format('F Y'),
+        'name' => $start->format('F Y'),
         'start_date' => $start->toDateString(),
-        'end_date'   => $start->endOfMonth()->toDateString(),
-        'frequency'  => 'monthly',
-        'status'     => 'closed',
+        'end_date' => $start->endOfMonth()->toDateString(),
+        'frequency' => 'monthly',
+        'status' => 'closed',
     ]);
 }
 
 function makeVacPayroll(Employee $employee, PayrollPeriod $period, float $grossSalary): Payroll
 {
     return Payroll::create([
-        'employee_id'       => $employee->id,
+        'employee_id' => $employee->id,
         'payroll_period_id' => $period->id,
-        'base_salary'       => $grossSalary,
+        'base_salary' => $grossSalary,
         'total_perceptions' => 0,
-        'gross_salary'      => $grossSalary,
-        'total_deductions'  => 0,
-        'net_salary'        => $grossSalary,
-        'status'            => 'approved',
+        'gross_salary' => $grossSalary,
+        'total_deductions' => 0,
+        'net_salary' => $grossSalary,
+        'status' => 'approved',
     ]);
 }
 
-function makeVacation(Employee $employee, int $businessDays = 6, string $type = 'paid'): Vacation
+function makeVacation(Employee $employee, int $businessDays = 6, string $paymentMethod = 'immediate'): Vacation
 {
     $balance = VacationService::getOrCreateBalance($employee, 2026);
     $balance->update(['entitled_days' => 30]); // suficiente saldo para los tests
 
     return Vacation::create([
-        'employee_id'          => $employee->id,
-        'vacation_balance_id'  => $balance->id,
-        'start_date'           => '2026-05-04',
-        'end_date'             => '2026-05-09',
-        'type'                 => $type,
-        'status'               => 'pending',
-        'business_days'        => $businessDays,
+        'employee_id' => $employee->id,
+        'vacation_balance_id' => $balance->id,
+        'start_date' => '2026-05-04',
+        'end_date' => '2026-05-09',
+        'payment_method' => $paymentMethod,
+        'status' => 'pending',
+        'business_days' => $businessDays,
     ]);
 }
 
@@ -460,15 +461,6 @@ it('calculateVacationPay usa el salario base como fallback cuando no hay nómina
     expect($amount)->toBe(round(2_550_000 / 30 * 6, 2));
 });
 
-it('calculateVacationPay retorna 0 para vacaciones no remuneradas', function () {
-    seedPayrollSettings();
-
-    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
-    $vacation = makeVacation($employee, businessDays: 6, type: 'unpaid');
-
-    expect(VacationService::calculateVacationPay($employee, $vacation))->toBe(0.0);
-});
-
 it('calculateVacationPay usa máximo 6 nóminas aunque haya más en el rango', function () {
     seedPayrollSettings();
 
@@ -477,7 +469,7 @@ it('calculateVacationPay usa máximo 6 nóminas aunque haya más en el rango', f
     // Vacation start: 2026-05-04 → sixMonthsAgo = 2025-11-01
     // Creamos 8 nóminas: las primeras 2 (sep, oct 2025) quedan fuera del rango de 6 meses.
     // Las 6 dentro del rango (nov 2025 – abr 2026) son las que debe usar, todas a 3M.
-    makeVacPayroll($employee, makeVacPayPeriod(2025, 9),  2_000_000); // fuera del rango
+    makeVacPayroll($employee, makeVacPayPeriod(2025, 9), 2_000_000); // fuera del rango
     makeVacPayroll($employee, makeVacPayPeriod(2025, 10), 2_000_000); // fuera del rango
     foreach ([11, 12] as $month) {
         makeVacPayroll($employee, makeVacPayPeriod(2025, $month), 3_000_000);
@@ -487,7 +479,7 @@ it('calculateVacationPay usa máximo 6 nóminas aunque haya más en el rango', f
     }
 
     $vacation = makeVacation($employee, businessDays: 6);
-    $amount   = VacationService::calculateVacationPay($employee, $vacation);
+    $amount = VacationService::calculateVacationPay($employee, $vacation);
 
     // 6 nóminas en rango (nov 25 – abr 26), todas a 3M → avg 3M → daily 100.000 × 6 = 600.000
     expect($amount)->toBe(round(3_000_000 / 30 * 6, 2));
@@ -512,17 +504,6 @@ it('approve guarda payment_amount calculado y payment_status=unpaid', function (
     expect((float) $fresh->payment_amount)->toBe($expected)
         ->and($fresh->payment_status)->toBe('unpaid')
         ->and($fresh->status)->toBe('approved');
-});
-
-it('approve guarda payment_amount=0 para vacaciones no remuneradas', function () {
-    seedPayrollSettings();
-
-    $employee = makeEmployeeWithHireDate(Carbon::now()->subYears(2));
-    $vacation = makeVacation($employee, businessDays: 6, type: 'unpaid');
-
-    VacationService::approve($vacation);
-
-    expect((float) $vacation->fresh()->payment_amount)->toBe(0.0);
 });
 
 // ─── recordPayment ────────────────────────────────────────────────────────────
@@ -564,14 +545,14 @@ it('isPaymentOverdue retorna true si la vacación comenzó y no está pagada', f
     $balance->update(['entitled_days' => 30]);
 
     $vacation = Vacation::create([
-        'employee_id'         => $employee->id,
+        'employee_id' => $employee->id,
         'vacation_balance_id' => $balance->id,
-        'start_date'          => '2025-01-06',
-        'end_date'            => '2025-01-11',
-        'type'                => 'paid',
-        'status'              => 'approved',
-        'business_days'       => 6,
-        'payment_status'      => 'unpaid',
+        'start_date' => '2025-01-06',
+        'end_date' => '2025-01-11',
+        'payment_method' => 'immediate',
+        'status' => 'approved',
+        'business_days' => 6,
+        'payment_status' => 'unpaid',
     ]);
 
     expect($vacation->isPaymentOverdue())->toBeTrue();

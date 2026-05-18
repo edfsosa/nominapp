@@ -29,8 +29,7 @@ class AdvanceCalculator
      * Identifica adelantos aprobados pendientes de descuento, crea sus EmployeeDeduction
      * y retorna la colección para trazabilidad posterior.
      *
-     * Solo procesa adelantos con status='approved' y payroll_id IS NULL,
-     * aprobados en o antes del fin del período.
+     * Solo procesa adelantos con status='disbursed' y payroll_id IS NULL.
      *
      * @return array{advances: Collection}
      */
@@ -49,14 +48,11 @@ class AdvanceCalculator
             return ['advances' => $processedAdvances];
         }
 
-        // Adelantos aprobados, sin nómina asignada, aprobados dentro o antes del período
+        // Adelantos entregados al empleado (disbursed), sin nómina asignada aún
         $advances = Advance::query()
             ->where('employee_id', $employee->id)
-            ->where('status', 'approved')
+            ->where('status', 'disbursed')
             ->whereNull('payroll_id')
-            ->where(fn ($q) => $q
-                ->whereNull('approved_at')
-                ->orWhere('approved_at', '<=', $period->end_date))
             ->get();
 
         foreach ($advances as $advance) {
@@ -106,14 +102,15 @@ class AdvanceCalculator
             return 0;
         }
 
-        $count = Advance::whereIn('id', $advanceIds)
-            ->where('status', 'approved')
-            ->update([
-                'status' => 'paid',
-                'payroll_id' => $payrollId,
-            ]);
+        $advances = Advance::whereIn('id', $advanceIds)
+            ->where('status', 'disbursed')
+            ->get();
 
-        return $count;
+        foreach ($advances as $advance) {
+            $advance->markAsPaid($payrollId);
+        }
+
+        return $advances->count();
     }
 
     // =========================================================================

@@ -107,25 +107,30 @@ Retiro anticipado de salario del período en curso. A diferencia de los préstam
 
 **Ciclo de vida:**
 ```
-pending → approved → paid
-       ↘ rejected
-pending/approved → cancelled  (solo si payroll_id IS NULL)
+pending → approved → disbursed → paid
+                   ↘ cancelled (solo desde approved)
+       ↘ rejected (terminal)
+pending/approved → cancelled
 ```
 
+- `disbursed` = dinero entregado al empleado (acreditado en banco o entregado en efectivo), pendiente de descuento en nómina.
+- `paid` = descontado de la nómina. Solo `AdvanceCalculator` setea este estado.
+- `disbursement_batch_at`: fecha del lote de acreditación bancaria (campo `date nullable`). Se stampa al exportar TXT/Excel banco o al marcar manualmente como entregado.
+
 **Integración con nómina — pipeline de deducción:**
-`AdvanceCalculator.calculate()` se ejecuta antes que `DeductionCalculator` en `PayrollService`. Por cada adelanto con `status='approved'` y `payroll_id IS NULL`, crea un `EmployeeDeduction` puntual usando el código `ADE001`. Luego `markAdvancesAsPaid()` setea `status='paid'` y registra el `payroll_id`.
+`AdvanceCalculator.calculate()` se ejecuta antes que `DeductionCalculator` en `PayrollService`. Por cada adelanto con `status='disbursed'` y `payroll_id IS NULL`, crea un `EmployeeDeduction` puntual usando el código `ADE001`. Luego `markAdvancesAsPaid()` setea `status='paid'` y registra el `payroll_id`.
 
 **Dependencia crítica:** El registro `ADE001` debe existir en la tabla `deductions`. Sembrado por `ProductionSeeder` y `DeductionSeeder`. Sin él, el adelanto se omite con un warning en el log.
 
 **Idempotencia:** Si el adelanto ya tiene `employee_deduction_id`, actualiza el monto en lugar de crear uno nuevo.
 
-**Limpieza al eliminar nómina:** `Payroll::booted()` revierte los adelantos a `approved` y elimina los `EmployeeDeduction` asociados.
+**Limpieza al eliminar nómina:** `Payroll::booted()` revierte los adelantos a `disbursed` (no a `approved`) y elimina los `EmployeeDeduction` asociados.
 
 **Validaciones en `Advance::approve()`** (en orden):
 1. Estado debe ser `pending`.
 2. Empleado debe tener contrato activo.
 3. Nómina del período actual no debe estar generada para ese empleado.
-4. Límite por período: si `advance_max_per_period > 0`, la cantidad de adelantos activos (`pending + approved`) no puede igualar o superar ese límite.
+4. Límite por período: si `advance_max_per_period > 0`, la cantidad de adelantos activos (`pending + approved + disbursed`) no puede igualar o superar ese límite.
 5. Cap salarial (solo `salary_type = 'mensual'`): la suma de todos los adelantos activos + el monto del adelanto actual no puede superar el salario mensual bruto.
 
 **Configuración en `PayrollSettings`:**
@@ -138,17 +143,20 @@ No existe generación automática por scheduler. El usuario genera adelantos de 
 - **Individual:** `CreateAdvance` desde el listado.
 - **Masiva:** header action `Generar Adelantos` en `ListAdvances`, con filtros por empresa/sucursal, monto único, y selección de empleados. Valida tope por empleado y límite por período al ejecutar.
 
+**Export banco (TXT / Excel):** header actions en `ListAdvances` → `BankPaymentExportService`. Stampan `disbursement_batch_at = fecha_credito` en los adelantos incluidos. No cambian el estado — el usuario marca manualmente como `disbursed` con la bulk action "Marcar como Entregados".
+
 **UI — acciones disponibles según estado:**
 - `pending`: Aprobar (`success`), Rechazar (`warning`), Cancelar (`danger`), Editar. Sin DeleteAction en ViewRecord.
-- `approved`: Cancelar (`danger`, solo si `payroll_id IS NULL`), Descargar PDF.
+- `approved`: Marcar como Entregado (`primary`), Cancelar (`danger`), Descargar PDF.
+- `disbursed`: Revertir a Aprobado (`warning`, solo si `payroll_id IS NULL`), Descargar PDF.
 - `paid`: Descargar PDF. Sin acciones de mutación.
 - `rejected` / `cancelled`: sin acciones disponibles.
 
-**Acciones en tabla (row actions):** solo `approve` y `reject` — ambas para flujo de aprobación rápida desde el listado. `cancel` solo desde `ViewAdvance`.
+**Acciones en tabla (row actions):** `approve`, `reject`, `mark_disbursed` (approved → disbursed), `revert_to_approved` (disbursed → approved, si `payroll_id IS NULL`).
 
-**Bulk actions:** `approveBulk` (`success`), `rejectBulk` (`warning`) — ambas filtran internamente a `pending` y reportan conteo de procesados/ignorados/fallidos.
+**Bulk actions:** `approveBulk` (`success`), `rejectBulk` (`warning`), `markDisbursedBulk` (`primary`), `revertBulk` (`warning`) — todas filtran internamente al estado esperado y reportan conteo de procesados/ignorados.
 
-**Export Excel:** header action en `ListAdvances` → `AdvancesExport` (columnas: Empleado, CI, Monto, Estado, Notas, Aprobado el, Aprobado por, Creado, Editado).
+**Export Excel:** header action en `ListAdvances` → `AdvancesExport` (columnas: Empleado, CI, Monto, Estado, Método de pago, Notas, Aprobado el, Aprobado por, Fecha de Entrega, Creado, Editado).
 
 ### Módulo de Retiro de Mercaderías
 
@@ -313,7 +321,7 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 - Employee/Contract: `active`, `inactive`, `draft`, `suspended`
 - Payroll: `draft` → `processing` → `approved` → `paid`
 - Loans: `pending` → `approved` → `paid` / `rejected` / `cancelled`
-- Advances: `pending` → `approved` → `paid` / `rejected` / `cancelled`
+- Advances: `pending` → `approved` → `disbursed` → `paid` / `rejected` / `cancelled`
 - Merchandise withdrawals: `pending` → `approved` → `paid` / `cancelled`
 - Liquidación: `draft` → `calculated` → `closed`
 - Aguinaldo (item): `pending` → `paid`
@@ -461,6 +469,30 @@ Las acciones Filament corren via Livewire (AJAX) y **no pueden retornar respuest
 - Usar `inline` cuando la action tiene `->openUrlInNewTab()` — el navegador renderiza el PDF en la pestaña
 - Usar `attachment` solo cuando se quiere forzar la descarga al disco (sin abrir en el navegador)
 - Regla general del proyecto: **los PDFs se abren en nueva pestaña** (`inline`)
+
+### Nombres de archivo en FileUpload
+
+Los archivos subidos por el usuario deben tener nombres legibles e identificables, no el hash aleatorio que genera Filament por defecto. Usar siempre `->getUploadedFileNameForStorageUsing()` con el patrón:
+
+```
+{entidad}_{id}_{YYYY-MM-DD_HH-mm-ss}.{ext}
+```
+
+Ejemplos del proyecto:
+- Comprobante de adelanto: `comprobante_adelanto_42_2026-05-14_10-30-00.jpg`
+- Comprobante de lote bancario: `confirmacion_lote_7_2026-05-14_10-30-00.pdf`
+
+**Implementación:**
+```php
+->getUploadedFileNameForStorageUsing(function ($file) use ($record): string {
+    $ext = $file->getClientOriginalExtension();
+    return 'comprobante_adelanto_'.$record->id.'_'.now()->format('Y-m-d_H-i-s').'.'.$ext;
+})
+```
+
+En `ViewRecord`/`ViewAdvance` donde se accede vía `$this->record`, omitir el `use ($record)` y usar `$this->record->id` directamente.
+
+El timestamp garantiza unicidad si el mismo registro es re-subido múltiples veces (ej. revertir y volver a marcar entregado). No incluir nombre del empleado ni texto libre — pueden tener caracteres especiales.
 
 ### Select dependiente (parent → child)
 

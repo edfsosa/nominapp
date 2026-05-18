@@ -24,6 +24,9 @@ class Employee extends Model
         'phone',
         'email',
         'gender',
+        'marital_status',
+        'nationality',
+        'address',
         'children_count',
         'branch_id',
         'schedule_id',
@@ -223,6 +226,12 @@ class Employee extends Model
     public function loans(): HasMany
     {
         return $this->hasMany(Loan::class);
+    }
+
+    /** Adelantos de salario del empleado. */
+    public function advances(): HasMany
+    {
+        return $this->hasMany(Advance::class);
     }
 
     /**
@@ -662,6 +671,30 @@ class Employee extends Model
     public function getGenderColorAttribute(): string
     {
         return self::getGenderColors()[$this->gender] ?? 'gray';
+    }
+
+    /**
+     * Opciones de estado civil para formularios.
+     *
+     * @return array<string, string>
+     */
+    public static function getMaritalStatusOptions(): array
+    {
+        return [
+            'soltero' => 'Soltero/a',
+            'casado' => 'Casado/a',
+            'divorciado' => 'Divorciado/a',
+            'viudo' => 'Viudo/a',
+            'union_libre' => 'Unión libre',
+        ];
+    }
+
+    /**
+     * Etiqueta formateada del estado civil del empleado.
+     */
+    public function getMaritalStatusLabelAttribute(): ?string
+    {
+        return self::getMaritalStatusOptions()[$this->marital_status] ?? null;
     }
 
     /**

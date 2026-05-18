@@ -3,13 +3,18 @@
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\Contract;
+use App\Models\ContractTemplate;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\EmployeeBankAccount;
 use App\Models\Position;
 use App\Settings\GeneralSettings;
+use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -43,6 +48,9 @@ class ContractsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'Contratos';
 
+    /** @var array<string, string>|null Datos de cuenta bancaria capturados antes de la creación del contrato. */
+    protected ?array $pendingBankAccountData = null;
+
     public function isReadOnly(): bool
     {
         return false;
@@ -65,11 +73,14 @@ class ContractsRelationManager extends RelationManager
                             ->required()
                             ->native(false)
                             ->live()
-                            ->afterStateUpdated(function (?string $state, Set $set) {
+                            ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
                                 if ($state === 'indefinido') {
                                     $set('end_date', null);
                                 }
                                 $set('trial_days', 30);
+                                if ($state && ! $get('body')) {
+                                    $set('body', ContractTemplate::getForType($state)?->body);
+                                }
                             })
                             ->columnSpan(2),
 
@@ -101,7 +112,7 @@ class ContractsRelationManager extends RelationManager
                             ->label('Días de Prueba')
                             ->numeric()
                             ->minValue(0)
-                            ->maxValue(30)
+                            ->maxValue(180)
                             ->default(30)
                             ->suffix('días'),
                     ])
@@ -117,7 +128,16 @@ class ContractsRelationManager extends RelationManager
                             ->native(false)
                             ->default('mensual')
                             ->required()
-                            ->live(),
+                            ->live()
+                            ->afterStateUpdated(function (Set $set, ?string $state) {
+                                $settings = app(PayrollSettings::class);
+                                if ($state === 'mensual') {
+                                    $set('payroll_type', 'monthly');
+                                    $set('salary', $settings->min_salary_monthly);
+                                } elseif ($state === 'jornal') {
+                                    $set('salary', $settings->min_salary_daily_jornal);
+                                }
+                            }),
 
                         TextInput::make('salary')
                             ->label(fn (Get $get) => $get('salary_type') === 'jornal' ? 'Jornal Diario' : 'Salario Mensual')
@@ -126,6 +146,7 @@ class ContractsRelationManager extends RelationManager
                             ->minValue(1)
                             ->prefix('Gs.')
                             ->suffix(fn (Get $get) => $get('salary_type') === 'jornal' ? '/día' : '/mes')
+                            ->default(fn () => app(PayrollSettings::class)->min_salary_monthly)
                             ->helperText('Para jornada nocturna, incluir el recargo del 30% en este monto (Art. 196 CLT).'),
 
                         Select::make('payment_method')
@@ -133,14 +154,17 @@ class ContractsRelationManager extends RelationManager
                             ->options(Employee::getPaymentMethodOptions())
                             ->native(false)
                             ->default('debit')
-                            ->required(),
+                            ->required()
+                            ->live(),
 
                         Select::make('payroll_type')
                             ->label('Tipo de Nómina')
                             ->options(Employee::getPayrollTypeOptions())
                             ->native(false)
                             ->default('monthly')
-                            ->required(),
+                            ->required()
+                            ->hidden(fn (Get $get) => $get('salary_type') === 'mensual')
+                            ->dehydrated(),
 
                         TextInput::make('advance_percent')
                             ->label('Adelanto automático')
@@ -154,6 +178,75 @@ class ContractsRelationManager extends RelationManager
                             ->visible(fn (Get $get) => $get('salary_type') === 'mensual'),
                     ])
                     ->columns(2),
+
+                Section::make('Cuenta Bancaria')
+                    ->description('Información de cuenta para acreditación del salario')
+                    ->icon('heroicon-o-credit-card')
+                    ->compact()
+                    ->visible(fn (Get $get) => $get('payment_method') === 'debit')
+                    ->schema(function () {
+                        $employeeId = $this->getOwnerRecord()->id;
+                        $existingAccount = EmployeeBankAccount::where('employee_id', $employeeId)
+                            ->where('status', 'active')
+                            ->first();
+
+                        if ($existingAccount) {
+                            return [
+                                Placeholder::make('bank_account_info')
+                                    ->label('Cuenta registrada')
+                                    ->content(
+                                        'Banco: '.$existingAccount->bank_label.
+                                        ' | Cuenta: '.$existingAccount->account_number.
+                                        ' ('.$existingAccount->account_type_label.')'
+                                    )
+                                    ->columnSpanFull(),
+                            ];
+                        }
+
+                        return [
+                            Select::make('ba_bank')
+                                ->label('Banco')
+                                ->options(EmployeeBankAccount::getBankOptions())
+                                ->native(false)
+                                ->searchable()
+                                ->required(),
+                            Select::make('ba_account_type')
+                                ->label('Tipo de Cuenta')
+                                ->options(EmployeeBankAccount::getAccountTypeOptions())
+                                ->native(false)
+                                ->required(),
+                            TextInput::make('ba_account_number')
+                                ->label('Número de Cuenta')
+                                ->maxLength(30)
+                                ->required(),
+                            TextInput::make('ba_holder_name')
+                                ->label('Titular')
+                                ->required(),
+                            TextInput::make('ba_holder_ci')
+                                ->label('CI del Titular')
+                                ->required(),
+                        ];
+                    })
+                    ->columns(2),
+
+                Section::make('Cuerpo del Contrato')
+                    ->icon('heroicon-o-document-text')
+                    ->compact()
+                    ->schema([
+                        RichEditor::make('body')
+                            ->label('Cuerpo del Contrato')
+                            ->helperText('Se pre-rellena con la plantilla del tipo elegido. Podés editarlo libremente.')
+                            ->columnSpanFull()
+                            ->toolbarButtons([
+                                'bold',
+                                'italic',
+                                'underline',
+                                'orderedList',
+                                'bulletList',
+                                'redo',
+                                'undo',
+                            ]),
+                    ]),
 
                 Section::make('Cargo')
                     ->icon('heroicon-o-briefcase')
@@ -362,8 +455,29 @@ class ContractsRelationManager extends RelationManager
                         if ($data['type'] === 'indefinido') {
                             $data['end_date'] = null;
                         }
+                        if (($data['payment_method'] ?? null) === 'debit' && filled($data['ba_bank'] ?? null)) {
+                            $this->pendingBankAccountData = [
+                                'bank' => $data['ba_bank'],
+                                'account_type' => $data['ba_account_type'],
+                                'account_number' => $data['ba_account_number'],
+                                'holder_name' => $data['ba_holder_name'],
+                                'holder_ci' => $data['ba_holder_ci'],
+                            ];
+                        } else {
+                            $this->pendingBankAccountData = null;
+                        }
+                        unset($data['ba_bank'], $data['ba_account_type'], $data['ba_account_number'], $data['ba_holder_name'], $data['ba_holder_ci']);
 
                         return $data;
+                    })
+                    ->after(function () {
+                        if ($this->pendingBankAccountData) {
+                            EmployeeBankAccount::firstOrCreate(
+                                ['employee_id' => $this->getOwnerRecord()->id, 'status' => 'active'],
+                                array_merge($this->pendingBankAccountData, ['is_primary' => true])
+                            );
+                            $this->pendingBankAccountData = null;
+                        }
                     })
                     ->before(function (CreateAction $action) {
                         // Validar que no tenga contrato activo

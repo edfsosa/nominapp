@@ -5,7 +5,6 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\LoanResource\Pages;
 use App\Filament\Resources\LoanResource\RelationManagers\InstallmentsRelationManager;
 use App\Models\Loan;
-use App\Settings\GeneralSettings;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Grid;
@@ -61,10 +60,8 @@ class LoanResource extends Resource
      */
     public static function form(Form $form): Form
     {
-        $settings = app(GeneralSettings::class);
-        $maxLoanAmount = $settings->max_loan_amount;
-
         $payrollSettings = app(PayrollSettings::class);
+        $maxLoanAmount = $payrollSettings->max_loan_amount;
         $maxInstallments = $payrollSettings->loan_max_installments;
         $maxInterestRate = $payrollSettings->loan_max_interest_rate;
         $defaultFirstInstallmentDays = $payrollSettings->loan_first_installment_days;

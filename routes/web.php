@@ -1,10 +1,12 @@
 <?php
 
 use App\Http\Controllers\AdvanceController;
+use App\Http\Controllers\AdvanceReportController;
 use App\Http\Controllers\AguinaldoController;
 use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\ContractController;
+use App\Http\Controllers\ContractExpirationReportController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\FaceEnrollmentController;
@@ -16,6 +18,7 @@ use App\Http\Controllers\PayrollController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
+use App\Http\Controllers\VacationReportController;
 use App\Http\Controllers\WarningController;
 use App\Models\Employee;
 use Illuminate\Http\Request;
@@ -125,10 +128,16 @@ Route::middleware(['auth'])->group(function () {
     // Amonestaciones
     Route::get('/amonestaciones/{warning}/pdf', [WarningController::class, 'show'])->name('warnings.pdf');
 
-    // Préstamos y adelantos
+    // Préstamos y adelantos (rutas estáticas deben ir ANTES de las dinámicas con {advance})
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
+    Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
+    Route::get('/adelantos/reporte/pdf', [AdvanceReportController::class, 'pdf'])->name('advances.report.pdf');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
+
+    // Reportes de contratos (rutas estáticas deben ir ANTES de /contratos/{contract}/pdf)
+    Route::get('/contratos/vencimiento/pdf', [ContractExpirationReportController::class, 'pdf'])
+        ->name('contracts.expiration.report.pdf');
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');
@@ -140,9 +149,11 @@ Route::middleware(['auth'])->group(function () {
     Route::post('/admin/schedules/{schedule}/remove-employee/{employee}', [ScheduleEmployeeController::class, 'removeEmployee'])
         ->name('schedules.remove-employee');
 
-    // Descarga de documentos de vacaciones
+    // Documentos y reportes de vacaciones
     Route::get('/vacaciones/documentos/{filename}', [VacationDocumentController::class, 'download'])
         ->name('vacation.documents.download');
+    Route::get('/vacaciones/reporte/pdf', [VacationReportController::class, 'pdf'])
+        ->name('vacation.report.pdf');
 
     // Organigrama de empresas
     Route::prefix('empresas/{company}')->name('org-chart.')->group(function () {

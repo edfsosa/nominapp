@@ -138,6 +138,26 @@ class EmployeeResource extends Resource
                                                     ->placeholder('Seleccionar')
                                                     ->helperText('Seleccioná el género del empleado.'),
 
+                                                Select::make('marital_status')
+                                                    ->label('Estado civil')
+                                                    ->options(Employee::getMaritalStatusOptions())
+                                                    ->native(false)
+                                                    ->nullable()
+                                                    ->placeholder('Seleccionar'),
+
+                                                TextInput::make('nationality')
+                                                    ->label('Nacionalidad')
+                                                    ->maxLength(60)
+                                                    ->default('Paraguaya')
+                                                    ->nullable(),
+
+                                                TextInput::make('address')
+                                                    ->label('Domicilio')
+                                                    ->maxLength(200)
+                                                    ->placeholder('Calle, número, barrio...')
+                                                    ->nullable()
+                                                    ->columnSpanFull(),
+
                                                 TextInput::make('phone')
                                                     ->label('Teléfono')
                                                     ->tel()
@@ -426,6 +446,20 @@ class EmployeeResource extends Resource
                                         ->badge()
                                         ->color(fn (Employee $record) => $record->gender_color)
                                         ->placeholder('No registrado'),
+
+                                    TextEntry::make('marital_status')
+                                        ->label('Estado civil')
+                                        ->getStateUsing(fn (Employee $record) => $record->marital_status_label)
+                                        ->placeholder('No registrado'),
+
+                                    TextEntry::make('nationality')
+                                        ->label('Nacionalidad')
+                                        ->placeholder('No registrada'),
+
+                                    TextEntry::make('address')
+                                        ->label('Domicilio')
+                                        ->placeholder('No registrado')
+                                        ->columnSpanFull(),
 
                                     TextEntry::make('maternity_protection_until')
                                         ->label('Protección de maternidad hasta')
@@ -983,6 +1017,7 @@ class EmployeeResource extends Resource
             RelationManagers\EmployeePerceptionsRelationManager::class,
             RelationManagers\BankAccountsRelationManager::class,
             RelationManagers\WarningsRelationManager::class,
+            RelationManagers\AdvancesRelationManager::class,
         ];
     }
 

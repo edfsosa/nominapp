@@ -6,7 +6,6 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 /**
  * Seeder para entorno de demostración.
@@ -67,6 +66,7 @@ class DemoSeeder extends Seeder
             PayrollPeriodSeeder::class,
             PayrollSeeder::class,
             LoanSeeder::class,
+            AdvanceSeeder::class,
 
             // Procesos anuales e históricos
             AguinaldoSeeder::class,
@@ -81,14 +81,14 @@ class DemoSeeder extends Seeder
     /** Crea el usuario administrador usando las mismas variables de entorno que ProductionSeeder. */
     private function createAdminUser(): void
     {
-        $email    = env('ADMIN_EMAIL', 'admin@example.com');
-        $name     = env('ADMIN_NAME', 'Administrador');
+        $email = env('ADMIN_EMAIL', 'admin@example.com');
+        $name = env('ADMIN_NAME', 'Administrador');
         $password = env('ADMIN_PASSWORD') ?: 'password';
 
         User::firstOrCreate(
             ['email' => $email],
             [
-                'name'     => $name,
+                'name' => $name,
                 'password' => bcrypt($password),
             ]
         );
@@ -110,6 +110,8 @@ class DemoSeeder extends Seeder
             'aguinaldo_periods',
             'liquidacion_items',
             'liquidaciones',
+            'disbursement_batches',
+            'advances',
             'loan_installments',
             'loans',
             'documents',
@@ -130,6 +132,7 @@ class DemoSeeder extends Seeder
             'rotation_patterns',
             'shift_templates',
             'employee_schedule_assignments',
+            'employee_bank_accounts',
             'contracts',
             'employees',
             'schedule_breaks',

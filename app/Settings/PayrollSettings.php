@@ -63,6 +63,8 @@ class PayrollSettings extends Settings
     public float $irp_rate;             // Tasa del impuesto (%) sobre la renta gravada
 
     // Préstamos
+    public int $max_loan_amount;                  // Monto máximo que se puede prestar a un empleado (Gs.)
+
     public float $loan_installment_cap_percent;   // % máximo del salario que puede representar la cuota mensual
 
     public int $loan_max_installments;            // Máximo de cuotas permitidas al crear un préstamo

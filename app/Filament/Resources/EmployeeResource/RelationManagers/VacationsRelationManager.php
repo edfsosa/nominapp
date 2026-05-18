@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
 use App\Models\Vacation;
 use App\Services\VacationService;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -66,10 +67,10 @@ class VacationsRelationManager extends RelationManager
                     ->helperText('Selecciona la fecha de fin de las vacaciones')
                     ->live(),
 
-                Select::make('type')
-                    ->label('Tipo de vacación')
-                    ->options(Vacation::getTypeOptions())
-                    ->default('paid')
+                Select::make('payment_method')
+                    ->label('Forma de pago')
+                    ->options(Vacation::getPaymentMethodOptions())
+                    ->default('immediate')
                     ->native(false)
                     ->required(),
 
@@ -110,14 +111,13 @@ class VacationsRelationManager extends RelationManager
                     ->sortable(['start_date', 'end_date'])
                     ->searchable(['start_date', 'end_date']),
 
-                TextColumn::make('type')
-                    ->label('Tipo')
-                    ->formatStateUsing(fn (Vacation $record): string => $record->type_label)
+                TextColumn::make('payment_method')
+                    ->label('Forma de pago')
+                    ->formatStateUsing(fn (Vacation $record): string => $record->payment_method_label)
                     ->badge()
-                    ->color(fn (Vacation $record): string => $record->type_color)
-                    ->icon(fn (Vacation $record): string => $record->type_icon)
-                    ->sortable()
-                    ->searchable(),
+                    ->color(fn (Vacation $record): string => $record->payment_method_color)
+                    ->icon(fn (Vacation $record): string => $record->payment_method_icon)
+                    ->sortable(),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -141,9 +141,9 @@ class VacationsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('type')
-                    ->label('Tipo')
-                    ->options(Vacation::getTypeOptions())
+                SelectFilter::make('payment_method')
+                    ->label('Forma de pago')
+                    ->options(Vacation::getPaymentMethodOptions())
                     ->native(false),
 
                 SelectFilter::make('status')
@@ -207,6 +207,35 @@ class VacationsRelationManager extends RelationManager
                             ->title('Vacaciones rechazadas')
                             ->body("Las vacaciones de {$record->employee->full_name} fueron rechazadas.")
                             ->warning()
+                            ->send();
+                    }),
+
+                Action::make('mark_paid')
+                    ->label('Marcar como pagado')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('success')
+                    ->visible(fn (Vacation $record) => $record->isApproved()
+                        && $record->payment_status === 'unpaid'
+                        && $record->payment_method === 'immediate')
+                    ->modalHeading('Registrar pago vacacional')
+                    ->modalDescription(fn (Vacation $record) => 'Monto a registrar: Gs. '.number_format((float) $record->payment_amount, 0, ',', '.'))
+                    ->modalSubmitActionLabel('Sí, registrar pago')
+                    ->form([
+                        DatePicker::make('paid_at')
+                            ->label('Fecha de pago')
+                            ->displayFormat('d/m/Y')
+                            ->native(false)
+                            ->closeOnDateSelection()
+                            ->default(now())
+                            ->required(),
+                    ])
+                    ->action(function (Vacation $record, array $data) {
+                        VacationService::recordPayment($record, Carbon::parse($data['paid_at']));
+
+                        Notification::make()
+                            ->success()
+                            ->title('Pago registrado')
+                            ->body("El pago vacacional de {$record->employee->full_name} fue registrado.")
                             ->send();
                     }),
 

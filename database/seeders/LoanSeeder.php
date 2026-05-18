@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\Advance;
 use App\Models\Employee;
 use Carbon\Carbon;
 use Illuminate\Database\Seeder;
@@ -132,16 +131,6 @@ class LoanSeeder extends Seeder
 
             if ($installments) {
                 DB::table('loan_installments')->insert($installments);
-            }
-
-            // Adelanto salarial pendiente para el segundo empleado
-            if ($e->has(1)) {
-                Advance::create([
-                    'employee_id' => $e[1]->id,
-                    'amount' => 1500000,
-                    'status' => 'pending',
-                    'notes' => 'Adelanto de salario — gastos de mudanza',
-                ]);
             }
         });
     }

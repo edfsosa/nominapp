@@ -9,6 +9,7 @@ use App\Models\MerchandiseWithdrawalInstallment;
 use App\Models\Payroll;
 use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
+use App\Models\Vacation;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
@@ -100,8 +101,12 @@ class PayrollService
                 $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
                 $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
 
-                $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
-                // Percepciones que computan para IPS y aguinaldo (salariales + HE + descanso; bonificación familiar excluida)
+                // Remuneración vacacional para vacaciones con payment_method=with_payroll cuyo
+                // start_date cae dentro del período. No suma a la base IPS (Art. 218 CLT).
+                $vacationPays = $this->resolveVacationPays($employee, $period);
+
+                $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'] + $vacationPays['total'];
+                // Percepciones que computan para IPS y aguinaldo (salariales + HE + descanso; bonificación familiar y vacacional excluidas)
                 $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
                 $totalDeductions = $deductions['total'] + $absences['total'];
                 $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
@@ -125,6 +130,16 @@ class PayrollService
                         'payroll_id' => $payroll->id,
                         'type' => 'perception',
                         'perception_type' => $item['perception_type'] ?? null,
+                        'description' => $item['description'],
+                        'amount' => $item['amount'],
+                    ]);
+                }
+
+                // Ítems: remuneración vacacional with_payroll
+                foreach ($vacationPays['items'] as $item) {
+                    PayrollItem::create([
+                        'payroll_id' => $payroll->id,
+                        'type' => 'perception',
                         'description' => $item['description'],
                         'amount' => $item['amount'],
                     ]);
@@ -157,6 +172,11 @@ class PayrollService
                 if ($merchandiseInstallments['installments']->isNotEmpty()) {
                     $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
                     $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
+                }
+
+                // Marcar remuneraciones vacacionales como pagadas
+                foreach ($vacationPays['vacations'] as $vacation) {
+                    VacationService::recordPayment($vacation, now());
                 }
 
                 // Generar PDF
@@ -248,8 +268,9 @@ class PayrollService
             $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
             $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
+            $vacationPays = $this->resolveVacationPays($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'] + $vacationPays['total'];
             $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $totalDeductions = $deductions['total'] + $absences['total'];
             $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
@@ -272,6 +293,15 @@ class PayrollService
                     'payroll_id' => $payroll->id,
                     'type' => 'perception',
                     'perception_type' => $item['perception_type'] ?? null,
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
+                ]);
+            }
+
+            foreach ($vacationPays['items'] as $item) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'perception',
                     'description' => $item['description'],
                     'amount' => $item['amount'],
                 ]);
@@ -300,6 +330,10 @@ class PayrollService
             if ($merchandiseInstallments['installments']->isNotEmpty()) {
                 $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
                 $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
+            }
+
+            foreach ($vacationPays['vacations'] as $vacation) {
+                VacationService::recordPayment($vacation, now());
             }
 
             $pdfPath = $this->payrollPDFGenerator->generate($payroll);
@@ -495,5 +529,45 @@ class PayrollService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Busca vacaciones aprobadas con payment_method=with_payroll y payment_status=unpaid
+     * cuyo start_date cae dentro del período. Retorna total, items y collection de vacaciones.
+     *
+     * La remuneración vacacional no suma a la base IPS (Art. 218 CLT).
+     *
+     * @return array{total: float, items: array, vacations: \Illuminate\Support\Collection}
+     */
+    private function resolveVacationPays(Employee $employee, PayrollPeriod $period): array
+    {
+        $vacations = Vacation::where('employee_id', $employee->id)
+            ->where('payment_method', 'with_payroll')
+            ->where('payment_status', 'unpaid')
+            ->where('status', 'approved')
+            ->whereBetween('start_date', [$period->start_date, $period->end_date])
+            ->get();
+
+        $total = 0.0;
+        $items = [];
+
+        foreach ($vacations as $vacation) {
+            $amount = (float) ($vacation->payment_amount ?? 0);
+
+            if ($amount <= 0) {
+                continue;
+            }
+
+            $total += $amount;
+            $items[] = [
+                'description' => 'Remuneración Vacacional ('
+                    .$vacation->start_date->format('d/m')
+                    .' – '
+                    .$vacation->end_date->format('d/m/Y').')',
+                'amount' => $amount,
+            ];
+        }
+
+        return ['total' => $total, 'items' => $items, 'vacations' => $vacations];
     }
 }

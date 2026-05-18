@@ -44,9 +44,11 @@ class AdvancesExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             'CI',
             'Monto (Gs.)',
             'Estado',
+            'Método de pago',
             'Notas',
             'Aprobado el',
             'Aprobado por',
+            'Fecha de Entrega',
             'Creado',
             'Editado',
         ];
@@ -65,9 +67,11 @@ class AdvancesExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMap
             $advance->employee->ci,
             $advance->amount,
             Advance::getStatusLabel($advance->status),
+            Advance::getPaymentMethodLabel($advance->payment_method),
             $advance->notes ?? '',
             $advance->approved_at?->format('d/m/Y H:i') ?? '',
             $advance->approvedBy?->name ?? '',
+            $advance->disbursed_at?->format('d/m/Y') ?? '',
             $advance->created_at->format('d/m/Y H:i'),
             $advance->updated_at->format('d/m/Y H:i'),
         ];

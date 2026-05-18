@@ -2,10 +2,11 @@
 
 namespace App\Filament\Resources\ContractResource\Pages;
 
-use App\Models\Contract;
-use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\ContractResource;
+use App\Models\Contract;
+use App\Models\EmployeeBankAccount;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
 class CreateContract extends CreateRecord
@@ -14,9 +15,6 @@ class CreateContract extends CreateRecord
 
     /**
      * Antes de crear el contrato, valida que el empleado no tenga un contrato activo y que las fechas no se solapen. También asigna el usuario creador.
-     *
-     * @param array $data
-     * @return array
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
@@ -39,7 +37,7 @@ class CreateContract extends CreateRecord
         }
 
         // Art. 53 CLT: Validar duración máxima de 1 año para plazo fijo
-        if (in_array($data['type'], ['plazo_fijo', 'aprendizaje']) && !empty($data['end_date'])) {
+        if (in_array($data['type'], ['plazo_fijo', 'aprendizaje']) && ! empty($data['end_date'])) {
             $start = \Carbon\Carbon::parse($data['start_date']);
             $end = \Carbon\Carbon::parse($data['end_date']);
 
@@ -64,9 +62,30 @@ class CreateContract extends CreateRecord
     }
 
     /**
+     * Crea la cuenta bancaria del empleado si se ingresó una al crear el contrato con pago por débito.
+     */
+    protected function afterCreate(): void
+    {
+        if (
+            ($this->data['payment_method'] ?? null) === 'debit' &&
+            filled($this->data['ba_bank'] ?? null)
+        ) {
+            EmployeeBankAccount::firstOrCreate(
+                ['employee_id' => $this->record->employee_id, 'status' => 'active'],
+                [
+                    'bank' => $this->data['ba_bank'],
+                    'account_type' => $this->data['ba_account_type'],
+                    'account_number' => $this->data['ba_account_number'],
+                    'holder_name' => $this->data['ba_holder_name'],
+                    'holder_ci' => $this->data['ba_holder_ci'],
+                    'is_primary' => true,
+                ]
+            );
+        }
+    }
+
+    /**
      * Personaliza el mensaje de notificación después de crear el contrato.
-     *
-     * @return string|null
      */
     protected function getCreatedNotificationTitle(): ?string
     {

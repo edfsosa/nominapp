@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\AdvanceResource\Pages;
 
 use App\Filament\Resources\AdvanceResource;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
@@ -23,9 +22,6 @@ class EditAdvance extends EditRecord
     {
         return [
             ViewAction::make()->icon('heroicon-o-eye')->color('primary'),
-            DeleteAction::make()
-                ->icon('heroicon-o-trash')
-                ->visible(fn () => $this->record->isPending()),
         ];
     }
 

@@ -3,8 +3,12 @@
 namespace App\Filament\Resources\AdvanceResource\Pages;
 
 use App\Filament\Resources\AdvanceResource;
+use App\Models\Advance;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
@@ -26,13 +30,20 @@ class ViewAdvance extends ViewRecord
                 ->label('Aprobar')
                 ->icon('heroicon-o-check')
                 ->color('success')
-                ->visible(fn() => $this->record->isPending())
-                ->requiresConfirmation()
+                ->visible(fn () => $this->record->isPending())
                 ->modalHeading('Aprobar Adelanto')
-                ->modalDescription(fn() => 'Se aprobará el adelanto de ' . number_format((float) $this->record->amount, 0, ',', '.') . ' Gs. para ' . $this->record->employee->full_name . '. Se descontará automáticamente en la próxima liquidación de nómina.')
+                ->modalDescription(fn () => 'Se aprobará el adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. para '.$this->record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
                 ->modalSubmitActionLabel('Sí, aprobar')
-                ->action(function () {
-                    $result = $this->record->approve(Auth::id());
+                ->form([
+                    Select::make('payment_method')
+                        ->label('Método de pago')
+                        ->options(Advance::getPaymentMethodOptions())
+                        ->default(fn () => $this->record->payment_method)
+                        ->required()
+                        ->native(false),
+                ])
+                ->action(function (array $data) {
+                    $result = $this->record->approve(Auth::id(), $data['payment_method']);
 
                     if ($result['success']) {
                         Notification::make()
@@ -41,7 +52,7 @@ class ViewAdvance extends ViewRecord
                             ->body($result['message'])
                             ->send();
 
-                        $this->refreshFormData(['status', 'approved_at', 'approved_by_id']);
+                        $this->record->refresh();
                     } else {
                         Notification::make()
                             ->danger()
@@ -55,10 +66,10 @@ class ViewAdvance extends ViewRecord
                 ->label('Rechazar')
                 ->icon('heroicon-o-x-circle')
                 ->color('warning')
-                ->visible(fn() => $this->record->isPending())
+                ->visible(fn () => $this->record->isPending())
                 ->requiresConfirmation()
                 ->modalHeading('Rechazar Adelanto')
-                ->modalDescription(fn() => 'Se rechazará el adelanto de ' . number_format((float) $this->record->amount, 0, ',', '.') . ' Gs. para ' . $this->record->employee->full_name . '. El adelanto quedará en estado Rechazado.')
+                ->modalDescription(fn () => 'Se rechazará el adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. para '.$this->record->employee->full_name.'. El adelanto quedará en estado Rechazado.')
                 ->modalSubmitActionLabel('Sí, rechazar')
                 ->form([
                     Textarea::make('reason')
@@ -76,7 +87,7 @@ class ViewAdvance extends ViewRecord
                             ->body($result['message'])
                             ->send();
 
-                        $this->refreshFormData(['status', 'notes']);
+                        $this->record->refresh();
                     } else {
                         Notification::make()
                             ->danger()
@@ -90,10 +101,10 @@ class ViewAdvance extends ViewRecord
                 ->label('Cancelar')
                 ->icon('heroicon-o-minus-circle')
                 ->color('danger')
-                ->visible(fn() => $this->record->isPending() || $this->record->isApproved())
+                ->visible(fn () => $this->record->isPending() || $this->record->isApproved())
                 ->requiresConfirmation()
                 ->modalHeading('Cancelar Adelanto')
-                ->modalDescription(fn() => '¿Está seguro de que desea cancelar el adelanto de ' . number_format((float) $this->record->amount, 0, ',', '.') . ' Gs.?')
+                ->modalDescription(fn () => '¿Está seguro de que desea cancelar el adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs.?')
                 ->modalSubmitActionLabel('Sí, cancelar')
                 ->form([
                     Textarea::make('reason')
@@ -110,7 +121,122 @@ class ViewAdvance extends ViewRecord
                             ->title('Adelanto Cancelado')
                             ->send();
 
-                        $this->refreshFormData(['status', 'notes']);
+                        $this->record->refresh();
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error')
+                            ->body($result['message'])
+                            ->send();
+                    }
+                }),
+
+            Action::make('revert_to_pending')
+                ->label('Desaprobar')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('warning')
+                ->visible(fn () => $this->record->isApproved() && $this->record->disbursement_batch_id === null)
+                ->requiresConfirmation()
+                ->modalHeading('Desaprobar adelanto')
+                ->modalDescription(fn () => 'El adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. volverá a estado Pendiente y podrá editarse. Deberá aprobarse nuevamente antes de ser entregado.')
+                ->modalSubmitActionLabel('Sí, desaprobar')
+                ->action(function () {
+                    $result = $this->record->revertToPending();
+
+                    if ($result['success']) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Adelanto desaprobado')
+                            ->body($result['message'])
+                            ->send();
+
+                        $this->record->refresh();
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error')
+                            ->body($result['message'])
+                            ->send();
+                    }
+                }),
+
+            Action::make('mark_disbursed')
+                ->label('Marcar como Entregado')
+                ->icon('heroicon-o-banknotes')
+                ->color('primary')
+                ->visible(fn () => $this->record->isApproved())
+                ->modalHeading('Marcar Adelanto como Entregado')
+                ->modalDescription(fn () => 'Se confirmará que el adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. fue entregado a '.$this->record->employee->full_name.'. Se descontará en la próxima liquidación de nómina.')
+                ->modalSubmitActionLabel('Sí, marcar como entregado')
+                ->form([
+                    DateTimePicker::make('disbursed_at')
+                        ->label('Fecha y hora de Entrega')
+                        ->required()
+                        ->native(false)
+                        ->default(now())
+                        ->displayFormat('d/m/Y H:i'),
+
+                    FileUpload::make('transfer_receipt_path')
+                        ->label('Comprobante')
+                        ->disk('public')
+                        ->directory('advances/receipts')
+                        ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+                        ->maxSize(5120)
+                        ->required(fn () => $this->record->payment_method === 'transfer')
+                        ->getUploadedFileNameForStorageUsing(function ($file): string {
+                            $ext = $file->getClientOriginalExtension();
+
+                            return 'comprobante_adelanto_'.$this->record->id.'_'.now()->format('Y-m-d_H-i-s').'.'.$ext;
+                        })
+                        ->helperText(fn () => ($this->record->payment_method === 'transfer'
+                            ? 'Obligatorio para acreditación bancaria. '
+                            : 'Opcional. ')
+                            .'Formatos aceptados: PDF, JPG, PNG, WEBP. Tamaño máximo: 5 MB.'),
+                ])
+                ->action(function (array $data) {
+                    $result = $this->record->markAsDisbursed(
+                        $data['disbursed_at'],
+                        Auth::id(),
+                        $data['transfer_receipt_path'] ?? null,
+                    );
+
+                    if ($result['success']) {
+                        Notification::make()
+                            ->success()
+                            ->title('Adelanto Entregado')
+                            ->body($result['message'])
+                            ->send();
+
+                        $this->record->refresh();
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error')
+                            ->body($result['message'])
+                            ->send();
+                    }
+                }),
+
+            Action::make('revert_to_approved')
+                ->label('Revertir a Aprobado')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('warning')
+                ->visible(fn () => $this->record->isDisbursed() && $this->record->payroll_id === null)
+                ->requiresConfirmation()
+                ->modalHeading('Revertir Adelanto a Aprobado')
+                ->modalDescription(fn () => 'El adelanto de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. para '.$this->record->employee->full_name.' volverá al estado Aprobado.')
+                ->modalSubmitActionLabel('Sí, revertir')
+                ->action(function () {
+                    $result = $this->record->revertToApproved();
+
+                    if ($result['success']) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Adelanto Revertido')
+                            ->body($result['message'])
+                            ->send();
+
+                        $this->record->refresh();
                     } else {
                         Notification::make()
                             ->danger()
@@ -124,13 +250,13 @@ class ViewAdvance extends ViewRecord
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->visible(fn() => $this->record->isApproved() || $this->record->isPaid())
-                ->url(fn() => route('advances.pdf', $this->record))
+                ->visible(fn () => $this->record->isApproved() || $this->record->isDisbursed() || $this->record->isPaid())
+                ->url(fn () => route('advances.pdf', $this->record))
                 ->openUrlInNewTab(),
 
             EditAction::make()
                 ->icon('heroicon-o-pencil-square')
-                ->visible(fn() => $this->record->isPending()),
+                ->visible(fn () => $this->record->isPending()),
         ];
     }
 }

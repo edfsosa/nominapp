@@ -31,11 +31,12 @@ class VacationSeeder extends Seeder
 
         if ($employees->isEmpty()) {
             $this->command->warn('No hay empleados activos para generar vacaciones.');
+
             return;
         }
 
         DB::transaction(function () use ($employees) {
-            $now  = now();
+            $now = now();
             $year = (int) date('Y');
 
             // ─── Definición de vacaciones (fechas fijas en el año en curso) ─────────
@@ -50,7 +51,7 @@ class VacationSeeder extends Seeder
             ];
 
             // ─── Calcular used/pending days por empleado ──────────────────────────
-            $usedByEmployee    = [];
+            $usedByEmployee = [];
             $pendingByEmployee = [];
 
             foreach ($vacationDefs as [$idx, $start, $end, $status]) {
@@ -59,7 +60,7 @@ class VacationSeeder extends Seeder
                 }
 
                 $empId = $employees[$idx]->id;
-                $days  = Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
+                $days = Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
 
                 if ($status === 'approved') {
                     $usedByEmployee[$empId] = ($usedByEmployee[$empId] ?? 0) + $days;
@@ -72,24 +73,24 @@ class VacationSeeder extends Seeder
             $balanceRows = [];
 
             foreach ($employees as $employee) {
-                $hireDate      = $employee->activeContract?->start_date ?? Carbon::now()->subYear();
+                $hireDate = $employee->activeContract?->start_date ?? Carbon::now()->subYear();
                 $yearsOfService = Carbon::parse($hireDate)->diffInYears(now());
 
                 $entitledDays = match (true) {
                     $yearsOfService >= 10 => 30,
-                    $yearsOfService >= 5  => 18,
-                    default               => 12,
+                    $yearsOfService >= 5 => 18,
+                    default => 12,
                 };
 
                 $balanceRows[] = [
-                    'employee_id'      => $employee->id,
-                    'year'             => $year,
+                    'employee_id' => $employee->id,
+                    'year' => $year,
                     'years_of_service' => $yearsOfService,
-                    'entitled_days'    => $entitledDays,
-                    'used_days'        => $usedByEmployee[$employee->id]    ?? 0,
-                    'pending_days'     => $pendingByEmployee[$employee->id] ?? 0,
-                    'created_at'       => $now,
-                    'updated_at'       => $now,
+                    'entitled_days' => $entitledDays,
+                    'used_days' => $usedByEmployee[$employee->id] ?? 0,
+                    'pending_days' => $pendingByEmployee[$employee->id] ?? 0,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ];
             }
 
@@ -107,22 +108,22 @@ class VacationSeeder extends Seeder
                     continue;
                 }
 
-                $employee  = $employees[$idx];
+                $employee = $employees[$idx];
                 $startDate = Carbon::parse($start);
-                $endDate   = Carbon::parse($end);
+                $endDate = Carbon::parse($end);
 
                 $vacationRows[] = [
-                    'employee_id'         => $employee->id,
+                    'employee_id' => $employee->id,
                     'vacation_balance_id' => $balanceMap[$employee->id] ?? null,
-                    'start_date'          => $startDate->toDateString(),
-                    'end_date'            => $endDate->toDateString(),
-                    'return_date'         => $this->nextWorkingDay($endDate)->toDateString(),
-                    'type'                => 'paid',
-                    'reason'              => $reason,
-                    'status'              => $status,
-                    'business_days'       => $this->countBusinessDays($startDate, $endDate),
-                    'created_at'          => $now,
-                    'updated_at'          => $now,
+                    'start_date' => $startDate->toDateString(),
+                    'end_date' => $endDate->toDateString(),
+                    'return_date' => $this->nextWorkingDay($endDate)->toDateString(),
+                    'payment_method' => 'immediate',
+                    'reason' => $reason,
+                    'status' => $status,
+                    'business_days' => $this->countBusinessDays($startDate, $endDate),
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ];
             }
 
@@ -137,7 +138,7 @@ class VacationSeeder extends Seeder
      */
     private function countBusinessDays(Carbon $start, Carbon $end): int
     {
-        $days    = 0;
+        $days = 0;
         $current = $start->copy();
 
         while ($current->lte($end)) {
