@@ -85,7 +85,7 @@ Los pasos 4, 5 y 6 deben correr **antes** que el paso 7 porque crean los `Employ
 
 ### Módulo de Préstamos
 
-**Ciclo de vida:** `pending` → `activate()` → `active` → auto-`paid` (cuando todas las cuotas están pagadas). Desde `active` se puede `markAsDefaulted()` → `defaulted` → `reactivate()` → `active`. Desde cualquier estado no final: `cancel()`.
+**Ciclo de vida:** `pending` → `approve()` → `approved` → auto-`paid` (cuando todas las cuotas están pagadas). Desde `pending`: `reject()` → `rejected`. Desde `pending` / `approved`: `cancel()` → `cancelled`.
 
 **Integración con nómina — pipeline de deducción:**
 `LoanInstallmentCalculator.calculate()` se ejecuta **antes** que `DeductionCalculator` en `PayrollService`. Por cada cuota con `due_date` dentro del período y estado `pending`, crea un `EmployeeDeduction` puntual (`start_date = end_date = due_date`) usando el código `PRE001`. `DeductionCalculator` luego las procesa junto al resto de deducciones del empleado de forma uniforme.
@@ -97,10 +97,9 @@ Los pasos 4, 5 y 6 deben correr **antes** que el paso 7 porque crean los `Employ
 **Limpieza al eliminar nómina:** `Payroll::booted()` revierte las cuotas a `pending` y elimina los `EmployeeDeduction` asociados al período.
 
 **UI — acciones disponibles según estado:**
-- `pending`: Activar, Editar. Sin DeleteAction en ViewRecord.
-- `active`: Marcar en Mora, Cancelar, Descargar PDF.
-- `defaulted`: Reactivar, Cancelar.
-- `cancelled` / `paid`: sin acciones disponibles.
+- `pending`: Aprobar, Rechazar, Editar. Sin DeleteAction en ViewRecord.
+- `approved`: Cancelar, Descargar PDF.
+- `rejected` / `cancelled` / `paid`: sin acciones disponibles.
 
 ### Módulo de Adelantos
 
@@ -313,7 +312,7 @@ Kiosk/terminal marking and face enrollment run on public routes, served by their
 ### Status Enums
 - Employee/Contract: `active`, `inactive`, `draft`, `suspended`
 - Payroll: `draft` → `processing` → `approved` → `paid`
-- Loans: `pending` → `active` → `paid` / `defaulted` / `cancelled`
+- Loans: `pending` → `approved` → `paid` / `rejected` / `cancelled`
 - Advances: `pending` → `approved` → `paid` / `rejected` / `cancelled`
 - Merchandise withdrawals: `pending` → `approved` → `paid` / `cancelled`
 - Liquidación: `draft` → `calculated` → `closed`

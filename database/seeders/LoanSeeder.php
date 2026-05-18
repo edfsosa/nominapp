@@ -37,7 +37,7 @@ class LoanSeeder extends Seeder
 
             $loans = [];
 
-            // Préstamo activo — otorgado hace 3 meses, 3 cuotas pagadas, 7 pendientes
+            // Préstamo aprobado — otorgado hace 3 meses, 3 cuotas pagadas, 7 pendientes
             if ($e->has(0)) {
                 $loans[] = [
                     'employee_id' => $e[0]->id,
@@ -46,7 +46,7 @@ class LoanSeeder extends Seeder
                     'installments_count' => 10,
                     'installment_amount' => 500000,
                     'outstanding_balance' => 3500000,
-                    'status' => 'active',
+                    'status' => 'approved',
                     'reason' => 'Préstamo personal para gastos médicos',
                     'notes' => null,
                     'granted_at' => Carbon::now()->subMonths(3)->toDateString(),

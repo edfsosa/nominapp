@@ -3,7 +3,6 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Recibo de Salario #{{ $payroll->id }}</title>
     <style>
         @page {
@@ -19,97 +18,103 @@
 
         body {
             font-family: Arial, sans-serif;
-            font-size: 11px;
-            line-height: 1.5;
-            padding: 15mm 20mm;
+            font-size: 9px;
+            line-height: 1.4;
+        }
+
+        .copy-label {
+            font-size: 7px;
+            font-weight: bold;
+            text-transform: uppercase;
+            text-align: right;
+            color: #555;
+            margin-bottom: 4px;
+            letter-spacing: 1px;
         }
 
         .company-header {
             text-align: center;
-            margin-bottom: 20px;
-            padding-bottom: 15px;
+            margin-bottom: 6px;
+            padding-bottom: 6px;
             border-bottom: 1px solid #000;
         }
 
         .company-logo {
-            max-height: 40px;
-            max-width: 120px;
-            margin-bottom: 8px;
-        }
-
-        .company-name {
-            font-size: 14px;
-            font-weight: bold;
-            text-transform: uppercase;
+            max-height: 28px;
+            max-width: 90px;
             margin-bottom: 3px;
         }
 
+        .company-name {
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+
         .company-info {
-            font-size: 9px;
+            font-size: 8px;
         }
 
         .title {
             text-align: center;
-            font-size: 13px;
+            font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 20px 0 5px 0;
+            margin: 6px 0 2px 0;
         }
 
         .subtitle {
             text-align: center;
-            font-size: 10px;
-            margin-bottom: 20px;
+            font-size: 8px;
+            margin-bottom: 6px;
         }
 
         .section {
-            margin-bottom: 15px;
+            margin-bottom: 6px;
         }
 
         .section-title {
             font-weight: bold;
-            font-size: 10px;
+            font-size: 8px;
             text-transform: uppercase;
-            padding: 5px 0;
-            margin-bottom: 8px;
+            padding: 3px 0;
+            margin-bottom: 4px;
             border-bottom: 1px solid #000;
         }
 
-        .info-grid {
-            display: table;
+        table.info-table {
             width: 100%;
             border-collapse: collapse;
+            margin: 0;
         }
 
-        .info-row {
-            display: table-row;
-        }
-
-        .info-label {
-            display: table-cell;
+        table.info-table th {
+            text-align: left;
             font-weight: bold;
-            width: 180px;
-            padding: 5px 8px;
+            width: 130px;
+            padding: 3px 6px;
             border: 1px solid #000;
+            font-size: 9px;
         }
 
-        .info-value {
-            display: table-cell;
-            padding: 5px 8px;
+        table.info-table td {
+            padding: 3px 6px;
             border: 1px solid #000;
+            font-size: 9px;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            margin: 15px 0;
+            margin: 6px 0;
         }
 
         th,
         td {
             border: 1px solid #000;
-            padding: 6px;
-            font-size: 9px;
+            padding: 4px 6px;
+            font-size: 8px;
         }
 
         th {
@@ -122,30 +127,22 @@
             text-align: right;
         }
 
-        .text-center {
-            text-align: center;
-        }
-
-        .text-bold {
-            font-weight: bold;
-        }
-
         .amount {
             font-family: 'Courier New', monospace;
             text-align: right;
         }
 
         .summary-section {
-            margin: 15px 0;
-            padding: 12px;
+            margin: 6px 0;
+            padding: 6px;
             border: 1px solid #000;
         }
 
         .summary-title {
             font-weight: bold;
-            margin-bottom: 10px;
+            margin-bottom: 5px;
             text-transform: uppercase;
-            font-size: 10px;
+            font-size: 8px;
         }
 
         .summary-grid {
@@ -159,88 +156,79 @@
 
         .summary-item {
             display: table-cell;
-            padding: 4px 0;
+            padding: 2px 0;
         }
 
         .summary-label {
             font-weight: bold;
-            width: 200px;
+            width: 180px;
             display: inline-block;
-        }
-
-        .summary-value {
-            text-align: right;
         }
 
         .total-row {
             border-top: 1px solid #000;
-            padding-top: 8px;
-            margin-top: 8px;
+            padding-top: 5px;
+            margin-top: 5px;
         }
 
         .total-label {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: bold;
         }
 
         .total-value {
-            font-size: 12px;
+            font-size: 10px;
             font-weight: bold;
-        }
-
-        .note-section {
-            margin: 15px 0;
-            padding: 12px;
-            border: 1px solid #000;
-        }
-
-        .note-title {
-            font-weight: bold;
-            margin-bottom: 5px;
         }
 
         .legal-note {
-            margin-top: 15px;
-            font-size: 9px;
+            margin-top: 5px;
+            font-size: 7px;
             text-align: justify;
-            padding: 10px;
+            padding: 5px 8px;
             border: 1px solid #ccc;
         }
 
-        .signature-section {
-            margin-top: 50px;
-            display: table;
+        table.signature-table {
             width: 100%;
+            margin-top: 20px;
+            border-collapse: collapse;
         }
 
-        .signature-item {
-            display: table-cell;
+        table.signature-table td {
             width: 50%;
             text-align: center;
-            padding: 0 30px;
+            padding: 0 25px;
+            border: none;
+            font-size: 9px;
         }
 
         .signature-line {
             border-top: 1px solid #000;
             margin-bottom: 5px;
-            padding-top: 5px;
+            padding-top: 25px;
         }
 
         .signature-label {
-            font-size: 10px;
+            font-size: 8px;
             font-weight: bold;
         }
 
         .signature-sublabel {
-            font-size: 9px;
+            font-size: 7px;
         }
 
         .footer {
-            margin-top: 40px;
+            margin-top: 6px;
             text-align: center;
-            font-size: 8px;
+            font-size: 7px;
             border-top: 1px solid #ccc;
-            padding-top: 10px;
+            padding-top: 4px;
+        }
+
+        .cut-line {
+            border-top: 1px dashed #555;
+            margin-top: 4mm;
         }
     </style>
 </head>
@@ -255,19 +243,16 @@
         $isDayLaborer = $payroll->employee->employment_type === 'day_laborer';
         // Agrupar percepciones por tipo; las sin tipo (HE, bonif. familiar) van al grupo null
         $perceptionGroups = $perceptions->groupBy('perception_type');
-        // Orden de presentación: salariales primero, luego el resto
         $groupOrder = ['salary', 'other', 'viaticos', 'subsidy', null];
         $sortedGroups = collect($groupOrder)
             ->filter(fn($k) => $perceptionGroups->has($k))
             ->mapWithKeys(fn($k) => [$k => $perceptionGroups->get($k)]);
-        // Añadir grupos con tipos no contemplados en el orden (por seguridad)
         $perceptionGroups->each(function($items, $key) use (&$sortedGroups, $groupOrder) {
             if (!in_array($key, $groupOrder, true)) {
                 $sortedGroups->put($key, $items);
             }
         });
         $showGroups = $sortedGroups->count() > 1;
-
         // Agrupar deducciones por tipo; las sin tipo (ausentismo, cuotas de préstamo) van al grupo null
         $deductionGroups = $deductions->groupBy('deduction_type');
         $deductionGroupOrder = ['legal', 'judicial', 'voluntary', null];
@@ -282,210 +267,233 @@
         $showDeductionGroups = $sortedDeductionGroups->count() > 1;
     @endphp
 
-    {{-- Encabezado de la Empresa --}}
-    <div class="company-header">
-        @if ($companyLogo)
-            <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
-        @endif
-        <div class="company-name">{{ $companyName }}</div>
-        <div class="company-info">
-            @if ($companyRuc)
-                RUC: {{ $companyRuc }}
-            @endif
-            @if ($employerNumber)
-                | Nro. Patronal: {{ $employerNumber }}
-            @endif
-        </div>
-        @if ($companyAddress)
-            <div class="company-info">{{ $companyAddress }}</div>
-        @endif
-        @if ($companyPhone || $companyEmail)
-            <div class="company-info">
-                @if ($companyPhone)
-                    Tel: {{ $companyPhone }}
-                @endif
-                @if ($companyPhone && $companyEmail)
-                    |
-                @endif
-                @if ($companyEmail)
-                    {{ $companyEmail }}
-                @endif
-            </div>
-        @endif
-    </div>
+    {{-- Envolvente único: impide que DomPDF inserte saltos de página adentro --}}
+    <div style="page-break-inside: avoid;">
 
-    {{-- Titulo --}}
-    <div class="title">{{ $isDayLaborer ? 'Recibo de Jornal' : 'Recibo de Salario' }}</div>
-    <div class="subtitle">{{ $payroll->period?->name ?? 'Sin período' }}</div>
+        @foreach (['COPIA EMPLEADO', 'COPIA EMPRESA'] as $copyLabel)
+            <div style="padding: 9mm 14mm 5mm 14mm;">
 
-    {{-- Informacion del Empleado --}}
-    <div class="section">
-        <div class="section-title">Informacion del Empleado</div>
-        <div class="info-grid">
-            <div class="info-row">
-                <div class="info-label">Nombre Completo:</div>
-                <div class="info-value">{{ $payroll->employee->full_name }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cedula de Identidad:</div>
-                <div class="info-value">{{ $payroll->employee->ci }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Cargo:</div>
-                <div class="info-value">{{ $payroll->employee->position->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Departamento:</div>
-                <div class="info-value">{{ $payroll->employee->position->department->name ?? 'N/A' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Tipo de Remuneracion:</div>
-                <div class="info-value">{{ $isDayLaborer ? 'Jornalero (Jornal Diario)' : 'Mensualizado (Sueldo)' }}</div>
-            </div>
-            <div class="info-row">
-                <div class="info-label">Periodo:</div>
-                <div class="info-value">
-                    @if ($payroll->period)
-                        {{ \Carbon\Carbon::parse($payroll->period->start_date)->format('d/m/Y') }} al
-                        {{ \Carbon\Carbon::parse($payroll->period->end_date)->format('d/m/Y') }}
-                        ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
-                    @else
-                        N/A
+                {{-- Etiqueta de copia --}}
+                <div class="copy-label">{{ $copyLabel }}</div>
+
+                {{-- Encabezado de la Empresa --}}
+                <div class="company-header">
+                    @if ($companyLogo)
+                        <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
+                    @endif
+                    <div class="company-name">{{ $companyName }}</div>
+                    <div class="company-info">
+                        @if ($companyRuc)
+                            RUC: {{ $companyRuc }}
+                        @endif
+                        @if ($companyRuc && $employerNumber)
+                            |
+                        @endif
+                        @if ($employerNumber)
+                            Nro. Patronal: {{ $employerNumber }}
+                        @endif
+                    </div>
+                    @if ($companyAddress)
+                        <div class="company-info">{{ $companyAddress }}</div>
+                    @endif
+                    @if ($companyPhone || $companyEmail)
+                        <div class="company-info">
+                            @if ($companyPhone)
+                                Tel: {{ $companyPhone }}
+                            @endif
+                            @if ($companyPhone && $companyEmail)
+                                |
+                            @endif
+                            @if ($companyEmail)
+                                {{ $companyEmail }}
+                            @endif
+                        </div>
                     @endif
                 </div>
-            </div>
-        </div>
-    </div>
 
-    {{-- Percepciones agrupadas por tipo --}}
-    @if ($perceptions->count() > 0)
-        <div class="section">
-            <div class="section-title">Percepciones</div>
-            <table>
-                <thead>
+                {{-- Título --}}
+                <div class="title">{{ $isDayLaborer ? 'Recibo de Jornal' : 'Recibo de Salario' }}</div>
+                <div class="subtitle">{{ $payroll->period?->name ?? 'Sin período' }}</div>
+
+                {{-- Información del Empleado --}}
+                <div class="section">
+                    <div class="section-title">Información del Empleado</div>
+                    <table class="info-table">
+                        <tr>
+                            <th>Nombre Completo:</th>
+                            <td>{{ $payroll->employee->full_name }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cédula de Identidad:</th>
+                            <td>{{ $payroll->employee->ci }}</td>
+                        </tr>
+                        <tr>
+                            <th>Cargo:</th>
+                            <td>{{ $payroll->employee->activeContract?->position?->name ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Departamento:</th>
+                            <td>{{ $payroll->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Tipo de Remuneración:</th>
+                            <td>{{ $isDayLaborer ? 'Jornalero (Jornal Diario)' : 'Mensualizado (Sueldo)' }}</td>
+                        </tr>
+                        <tr>
+                            <th>Período:</th>
+                            <td>
+                                @if ($payroll->period)
+                                    {{ $payroll->period->start_date->format('d/m/Y') }} al
+                                    {{ $payroll->period->end_date->format('d/m/Y') }}
+                                    ({{ $freqLabels[$payroll->period->frequency] ?? $payroll->period->frequency }})
+                                @else
+                                    N/A
+                                @endif
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+
+                {{-- Percepciones agrupadas por tipo --}}
+                @if ($perceptions->count() > 0)
+                    <div class="section">
+                        <div class="section-title">Percepciones</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 70%;">Descripción</th>
+                                    <th style="width: 30%;" class="text-right">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($sortedGroups as $groupKey => $groupItems)
+                                    @if ($showGroups)
+                                        <tr>
+                                            <td colspan="2" style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                                {{ $perceptionTypeLabels[$groupKey] ?? 'Otros' }}
+                                            </td>
+                                        </tr>
+                                    @endif
+                                    @foreach ($groupItems as $item)
+                                        <tr>
+                                            <td>{{ $item->description }}</td>
+                                            <td class="amount">{{ $item->formatted_amount }}</td>
+                                        </tr>
+                                    @endforeach
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+
+                {{-- Deducciones agrupadas por tipo --}}
+                @if ($deductions->count() > 0)
+                    <div class="section">
+                        <div class="section-title">Deducciones</div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th style="width: 70%;">Descripción</th>
+                                    <th style="width: 30%;" class="text-right">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($sortedDeductionGroups as $groupKey => $groupItems)
+                                    @if ($showDeductionGroups)
+                                        <tr>
+                                            <td colspan="2" style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                                {{ $deductionTypeLabels[$groupKey] ?? 'Otras' }}
+                                            </td>
+                                        </tr>
+                                    @endif
+                                    @foreach ($groupItems as $item)
+                                        <tr>
+                                            <td>{{ $item->description }}</td>
+                                            <td class="amount">{{ $item->formatted_deduction }}</td>
+                                        </tr>
+                                    @endforeach
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+
+                {{-- Resumen --}}
+                <div class="summary-section">
+                    <div class="summary-title">Resumen</div>
+                    <div class="summary-grid">
+                        <div class="summary-row">
+                            <div class="summary-item">
+                                <span class="summary-label">{{ $isDayLaborer ? 'Jornal del Período:' : 'Salario Base:' }}</span>
+                                {{ $payroll->formatted_base_salary }}
+                            </div>
+                        </div>
+                        <div class="summary-row">
+                            <div class="summary-item">
+                                <span class="summary-label">Total Percepciones:</span>
+                                {{ $payroll->formatted_total_perceptions }}
+                            </div>
+                        </div>
+                        <div class="summary-row">
+                            <div class="summary-item">
+                                <span class="summary-label">Salario Bruto:</span>
+                                {{ $payroll->formatted_gross_salary }}
+                            </div>
+                        </div>
+                        <div class="summary-row">
+                            <div class="summary-item">
+                                <span class="summary-label">Total Deducciones:</span>
+                                {{ $payroll->formatted_total_deductions }}
+                            </div>
+                        </div>
+                        <div class="summary-row total-row">
+                            <div class="summary-item">
+                                <span class="summary-label total-label">SALARIO NETO A PAGAR:</span>
+                                <strong class="total-value">{{ $payroll->formatted_net_salary }}</strong>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {{-- Nota Legal --}}
+                <div class="legal-note">
+                    <strong>Nota:</strong> Este recibo constituye comprobante de pago válido. Conserve para sus registros.
+                    En caso de discrepancia, comunicarse con Recursos Humanos dentro de las 48 horas siguientes.
+                </div>
+
+                {{-- Firmas --}}
+                <table class="signature-table">
                     <tr>
-                        <th style="width: 70%;">Descripcion</th>
-                        <th style="width: 30%;" class="text-right">Monto</th>
+                        <td>
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Empleado</div>
+                            <div class="signature-sublabel">{{ $payroll->employee->full_name }}</div>
+                            <div class="signature-sublabel">CI: {{ $payroll->employee->ci }}</div>
+                        </td>
+                        <td>
+                            <div class="signature-line"></div>
+                            <div class="signature-label">Recursos Humanos</div>
+                            <div class="signature-sublabel">Firma y Sello</div>
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    @foreach ($sortedGroups as $groupKey => $groupItems)
-                        {{-- Subencabezado de grupo solo si hay más de un tipo --}}
-                        @if ($showGroups)
-                            <tr>
-                                <td colspan="2" style="font-weight: bold; font-size: 9px; text-transform: uppercase; color: #555; padding: 6px 0 2px 0; border-bottom: 1px solid #ddd;">
-                                    {{ $perceptionTypeLabels[$groupKey] ?? 'Otros' }}
-                                </td>
-                            </tr>
-                        @endif
-                        @foreach ($groupItems as $item)
-                            <tr>
-                                <td>{{ $item->description }}</td>
-                                <td class="amount">{{ $item->formatted_amount }}</td>
-                            </tr>
-                        @endforeach
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
+                </table>
 
-    {{-- Deducciones agrupadas por tipo --}}
-    @if ($deductions->count() > 0)
-        <div class="section">
-            <div class="section-title">Deducciones</div>
-            <table>
-                <thead>
-                    <tr>
-                        <th style="width: 70%;">Descripcion</th>
-                        <th style="width: 30%;" class="text-right">Monto</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach ($sortedDeductionGroups as $groupKey => $groupItems)
-                        @if ($showDeductionGroups)
-                            <tr>
-                                <td colspan="2" style="font-weight: bold; font-size: 9px; text-transform: uppercase; color: #555; padding: 6px 0 2px 0; border-bottom: 1px solid #ddd;">
-                                    {{ $deductionTypeLabels[$groupKey] ?? 'Otras' }}
-                                </td>
-                            </tr>
-                        @endif
-                        @foreach ($groupItems as $item)
-                            <tr>
-                                <td>{{ $item->description }}</td>
-                                <td class="amount">{{ $item->formatted_deduction }}</td>
-                            </tr>
-                        @endforeach
-                    @endforeach
-                </tbody>
-            </table>
-        </div>
-    @endif
+                {{-- Footer --}}
+                <div class="footer">
+                    Documento generado el {{ now()->format('d/m/Y H:i') }} | Recibo #{{ $payroll->id }}
+                    @if ($city)
+                        | {{ $city }}, Paraguay
+                    @endif
+                </div>
 
-    {{-- Resumen de Liquidacion --}}
-    <div class="summary-section">
-        <div class="summary-title">Resumen de Liquidacion</div>
-        <div class="summary-grid">
-            <div class="summary-row">
-                <div class="summary-item">
-                    <span class="summary-label">{{ $isDayLaborer ? 'Jornal del Periodo:' : 'Salario Base:' }}</span>
-                    {{ $payroll->formatted_base_salary }}
-                </div>
             </div>
-            <div class="summary-row">
-                <div class="summary-item">
-                    <span class="summary-label">Total Percepciones:</span>
-                    {{ $payroll->formatted_total_perceptions }}
-                </div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-item">
-                    <span class="summary-label">Salario Bruto:</span>
-                    {{ $payroll->formatted_gross_salary }}
-                </div>
-            </div>
-            <div class="summary-row">
-                <div class="summary-item">
-                    <span class="summary-label">Total Deducciones:</span>
-                    {{ $payroll->formatted_total_deductions }}
-                </div>
-            </div>
-            <div class="summary-row total-row">
-                <div class="summary-item">
-                    <span class="summary-label total-label">SALARIO NETO A PAGAR:</span>
-                    <strong class="total-value">{{ $payroll->formatted_net_salary }}</strong>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    {{-- Nota Legal --}}
-    <div class="legal-note">
-        <strong>Nota:</strong> Este recibo constituye comprobante de pago valido. Conserve para sus registros.
-        En caso de discrepancia, comunicarse con Recursos Humanos dentro de las 48 horas siguientes.
-    </div>
+            {{-- Línea de corte entre copias --}}
+            @if (!$loop->last)
+                <div class="cut-line"></div>
+            @endif
+        @endforeach
 
-    {{-- Firmas --}}
-    <div class="signature-section">
-        <div class="signature-item">
-            <div class="signature-line"></div>
-            <div class="signature-label">Empleado</div>
-            <div class="signature-sublabel">{{ $payroll->employee->full_name }}</div>
-            <div class="signature-sublabel">CI: {{ $payroll->employee->ci }}</div>
-        </div>
-        <div class="signature-item">
-            <div class="signature-line"></div>
-            <div class="signature-label">Recursos Humanos</div>
-            <div class="signature-sublabel">Firma y Sello</div>
-        </div>
-    </div>
-
-    {{-- Footer --}}
-    <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i') }} | Recibo #{{ $payroll->id }}
-        @if ($city)
-            | {{ $city }}, Paraguay
-        @endif
     </div>
 </body>
 

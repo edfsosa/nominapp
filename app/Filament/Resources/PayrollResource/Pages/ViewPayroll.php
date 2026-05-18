@@ -22,9 +22,8 @@ class ViewPayroll extends ViewRecord
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->url(fn() => route('payrolls.download', $this->record))
-                ->openUrlInNewTab()
-                ->visible(fn() => $this->record->pdf_path),
+                ->url(fn () => route('payrolls.download', $this->record))
+                ->openUrlInNewTab(),
 
             Action::make('approve')
                 ->label('Aprobar')
@@ -32,7 +31,8 @@ class ViewPayroll extends ViewRecord
                 ->color('success')
                 ->requiresConfirmation()
                 ->modalHeading('Aprobar Recibo')
-                ->modalDescription(fn() => "¿Está seguro de aprobar el recibo de {$this->record->employee->full_name} por " . Payroll::formatCurrency($this->record->net_salary) . "?")
+                ->modalDescription(fn () => "¿Está seguro de aprobar el recibo de {$this->record->employee->full_name} por ".Payroll::formatCurrency($this->record->net_salary).'?')
+                ->modalSubmitActionLabel('Sí, aprobar')
                 ->action(function () {
                     $this->record->update([
                         'status' => 'approved',
@@ -48,7 +48,7 @@ class ViewPayroll extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->status === 'draft'),
+                ->visible(fn () => $this->record->status === 'draft'),
 
             Action::make('mark_paid')
                 ->label('Marcar Pagado')
@@ -56,7 +56,8 @@ class ViewPayroll extends ViewRecord
                 ->color('info')
                 ->requiresConfirmation()
                 ->modalHeading('Marcar como Pagado')
-                ->modalDescription(fn() => "¿Confirma que el recibo de {$this->record->employee->full_name} ha sido pagado?")
+                ->modalDescription(fn () => "¿Confirma que el recibo de {$this->record->employee->full_name} ha sido pagado?")
+                ->modalSubmitActionLabel('Sí, marcar como pagado')
                 ->action(function () {
                     $this->record->update(['status' => 'paid']);
 
@@ -67,7 +68,7 @@ class ViewPayroll extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->status === 'approved'),
+                ->visible(fn () => $this->record->status === 'approved'),
 
             Action::make('revert_paid')
                 ->label('Revertir Pago')
@@ -75,19 +76,20 @@ class ViewPayroll extends ViewRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('Revertir Pago')
-                ->modalDescription(fn() => "¿Está seguro de revertir el pago del recibo de {$this->record->employee->full_name}? Volverá a estado Aprobado.")
+                ->modalDescription(fn () => "¿Está seguro de revertir el pago del recibo de {$this->record->employee->full_name}? Volverá a estado Aprobado.")
+                ->modalSubmitActionLabel('Sí, revertir')
                 ->action(function () {
                     $this->record->update(['status' => 'approved']);
 
                     Notification::make()
                         ->success()
                         ->title('Pago revertido')
-                        ->body("El recibo ha vuelto a estado Aprobado.")
+                        ->body('El recibo ha vuelto a estado Aprobado.')
                         ->send();
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->status === 'paid'),
+                ->visible(fn () => $this->record->status === 'paid'),
 
             Action::make('unapprove')
                 ->label('Desaprobar')
@@ -95,7 +97,8 @@ class ViewPayroll extends ViewRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('Desaprobar Recibo')
-                ->modalDescription(fn() => "¿Está seguro de desaprobar el recibo de {$this->record->employee->full_name}? Volverá a estado Borrador.")
+                ->modalDescription(fn () => "¿Está seguro de desaprobar el recibo de {$this->record->employee->full_name}? Volverá a estado Borrador.")
+                ->modalSubmitActionLabel('Sí, desaprobar')
                 ->action(function () {
                     $this->record->update([
                         'status' => 'draft',
@@ -106,12 +109,12 @@ class ViewPayroll extends ViewRecord
                     Notification::make()
                         ->success()
                         ->title('Recibo desaprobado')
-                        ->body("El recibo ha vuelto a estado Borrador.")
+                        ->body('El recibo ha vuelto a estado Borrador.')
                         ->send();
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->status === 'approved'),
+                ->visible(fn () => $this->record->status === 'approved'),
 
             Action::make('regenerate')
                 ->label('Regenerar')
@@ -119,7 +122,8 @@ class ViewPayroll extends ViewRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('Regenerar Recibo')
-                ->modalDescription(fn() => "Se recalcularán todos los ítems de este recibo. Esta acción reemplazará los valores actuales.")
+                ->modalDescription(fn () => 'Se recalcularán todos los ítems de este recibo. Esta acción reemplazará los valores actuales.')
+                ->modalSubmitActionLabel('Sí, regenerar')
                 ->action(function (PayrollService $payrollService) {
                     try {
                         $payrollService->regenerateForEmployee($this->record);
@@ -127,7 +131,7 @@ class ViewPayroll extends ViewRecord
                         Notification::make()
                             ->success()
                             ->title('Recibo regenerado')
-                            ->body("El recibo ha sido recalculado exitosamente.")
+                            ->body('El recibo ha sido recalculado exitosamente.')
                             ->send();
 
                         $this->refreshFormData([
@@ -143,14 +147,14 @@ class ViewPayroll extends ViewRecord
                         Notification::make()
                             ->danger()
                             ->title('Error al regenerar')
-                            ->body('Ocurrió un error al regenerar el recibo: ' . $e->getMessage())
+                            ->body('Ocurrió un error al regenerar el recibo: '.$e->getMessage())
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->status === 'draft'),
+                ->visible(fn () => $this->record->status === 'draft'),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->status === 'draft')
+                ->visible(fn () => $this->record->status === 'draft')
                 ->successNotification(
                     Notification::make()
                         ->success()

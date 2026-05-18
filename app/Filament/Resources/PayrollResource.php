@@ -31,18 +31,29 @@ use pxlrbt\FilamentExcel\Exports\ExcelExport;
 class PayrollResource extends Resource
 {
     protected static ?string $model = Payroll::class;
+
     protected static ?string $navigationGroup = 'Nóminas';
+
     protected static ?string $navigationLabel = 'Recibos';
+
     protected static ?string $label = 'Recibo';
+
     protected static ?string $pluralLabel = 'Recibos';
+
     protected static ?string $slug = 'recibos';
+
     protected static ?string $navigationIcon = 'heroicon-o-document-text';
+
     protected static ?int $navigationSort = 2;
 
     public static function table(Table $table): Table
     {
         return $table
             ->columns([
+                TextColumn::make('id')
+                    ->label('ID')
+                    ->sortable(),
+
                 TextColumn::make('employee.ci')
                     ->label('CI')
                     ->searchable()
@@ -67,18 +78,8 @@ class PayrollResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'draft'    => 'gray',
-                        'approved' => 'success',
-                        'paid'     => 'info',
-                        default    => 'gray',
-                    })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'draft'    => 'Borrador',
-                        'approved' => 'Aprobado',
-                        'paid'     => 'Pagado',
-                        default    => $state,
-                    })
+                    ->color(fn($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn($state) => Payroll::getStatusLabels()[$state] ?? $state)
                     ->sortable(),
 
                 TextColumn::make('base_salary')
@@ -166,11 +167,7 @@ class PayrollResource extends Resource
 
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'draft'    => 'Borrador',
-                        'approved' => 'Aprobado',
-                        'paid'     => 'Pagado',
-                    ])
+                    ->options(Payroll::getStatusLabels())
                     ->native(false),
 
                 Filter::make('current_year')
@@ -185,8 +182,7 @@ class PayrollResource extends Resource
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
                     ->url(fn(Payroll $record) => route('payrolls.download', $record))
-                    ->openUrlInNewTab()
-                    ->visible(fn(Payroll $record) => (bool) $record->pdf_path),
+                    ->openUrlInNewTab(),
 
                 Action::make('approve')
                     ->label('Aprobar')
@@ -194,7 +190,8 @@ class PayrollResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de aprobar el recibo de {$record->employee->full_name} por " . Payroll::formatCurrency($record->net_salary) . "?")
+                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de aprobar el recibo de {$record->employee->full_name} por " . Payroll::formatCurrency($record->net_salary) . '?')
+                    ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'approved',
@@ -217,6 +214,7 @@ class PayrollResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
                     ->modalDescription(fn(Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'paid']);
 
@@ -234,6 +232,7 @@ class PayrollResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Revertir Pago')
                     ->modalDescription(fn(Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalSubmitActionLabel('Sí, revertir')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'approved']);
 
@@ -252,6 +251,7 @@ class PayrollResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Desaprobar Recibo')
                     ->modalDescription(fn(Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                    ->modalSubmitActionLabel('Sí, desaprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'draft',
@@ -274,6 +274,7 @@ class PayrollResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Regenerar Recibo')
                     ->modalDescription(fn(Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (Payroll $record, PayrollService $payrollService) {
                         try {
                             $payrollService->regenerateForEmployee($record);
@@ -305,6 +306,7 @@ class PayrollResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar Recibos Seleccionados')
                         ->modalDescription('¿Está seguro de aprobar todos los recibos seleccionados? Solo se aprobarán los que estén en estado "Borrador".')
+                        ->modalSubmitActionLabel('Sí, aprobar')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -332,6 +334,7 @@ class PayrollResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Pagados')
                         ->modalDescription('¿Confirma que los recibos seleccionados han sido pagados? Solo se marcarán los que estén en estado "Aprobado".')
+                        ->modalSubmitActionLabel('Sí, marcar como pagados')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -355,6 +358,7 @@ class PayrollResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Revertir Pagos Seleccionados')
                         ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Aprobado.')
+                        ->modalSubmitActionLabel('Sí, revertir')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -378,6 +382,7 @@ class PayrollResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Desaprobar Recibos Seleccionados')
                         ->modalDescription('¿Está seguro? Solo se desaprobarán los recibos en estado "Aprobado". Volverán a estado Borrador.')
+                        ->modalSubmitActionLabel('Sí, desaprobar')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -414,11 +419,12 @@ class PayrollResource extends Resource
                                     ->title('Sin PDFs disponibles')
                                     ->body('Ninguno de los recibos seleccionados tiene PDF generado.')
                                     ->send();
+
                                 return;
                             }
 
                             $tempDir = storage_path('app/public/temp');
-                            if (!is_dir($tempDir)) {
+                            if (! is_dir($tempDir)) {
                                 mkdir($tempDir, 0755, true);
                             }
 
@@ -437,7 +443,7 @@ class PayrollResource extends Resource
                                 copy(Storage::disk('public')->path($record->pdf_path), $tempDir . '/' . $filename);
                             } else {
                                 $filename = $uniqueId . '_recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
-                                $zip = new \ZipArchive();
+                                $zip = new \ZipArchive;
                                 $zip->open($tempDir . '/' . $filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
                                 foreach ($validRecords as $record) {
                                     $zip->addFromString(
@@ -529,19 +535,20 @@ class PayrollResource extends Resource
                                 ->label('Tipo de Remuneración')
                                 ->formatStateUsing(fn(string $state): string => match ($state) {
                                     'day_laborer' => 'Jornalero (Jornal Diario)',
-                                    default       => 'Mensualizado (Sueldo)',
+                                    default => 'Mensualizado (Sueldo)',
                                 })
                                 ->icon(fn(string $state): string => match ($state) {
                                     'day_laborer' => 'heroicon-o-calendar-days',
-                                    default       => 'heroicon-o-banknotes',
+                                    default => 'heroicon-o-banknotes',
                                 })
                                 ->badge()
                                 ->color(fn(string $state): string => match ($state) {
                                     'day_laborer' => 'warning',
-                                    default       => 'info',
+                                    default => 'info',
                                 }),
                         ])->columns(3),
-                    ]),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Información del Período')
                     ->schema([
@@ -555,10 +562,10 @@ class PayrollResource extends Resource
                             TextEntry::make('period.frequency')
                                 ->label('Frecuencia')
                                 ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'monthly'  => 'Mensual',
+                                    'monthly' => 'Mensual',
                                     'biweekly' => 'Quincenal',
-                                    'weekly'   => 'Semanal',
-                                    default    => $state,
+                                    'weekly' => 'Semanal',
+                                    default => $state,
                                 })
                                 ->badge(),
                         ])->columns(2),
@@ -574,7 +581,8 @@ class PayrollResource extends Resource
                                 ->date('d/m/Y')
                                 ->icon('heroicon-o-calendar'),
                         ])->columns(2),
-                    ]),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Detalle de Nómina')
                     ->schema([
@@ -613,7 +621,8 @@ class PayrollResource extends Resource
                             ->weight('bold')
                             ->color('success')
                             ->icon('heroicon-o-currency-dollar'),
-                    ]),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Estado y Aprobación')
                     ->schema([
@@ -621,59 +630,37 @@ class PayrollResource extends Resource
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
-                                    'draft'    => 'gray',
-                                    'approved' => 'success',
-                                    'paid'     => 'info',
-                                    default    => 'gray',
-                                })
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
-                                    'draft'    => 'Borrador',
-                                    'approved' => 'Aprobado',
-                                    'paid'     => 'Pagado',
-                                    default    => $state,
-                                }),
+                                ->color(fn($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                                ->formatStateUsing(fn($state) => Payroll::getStatusLabels()[$state] ?? $state),
 
                             TextEntry::make('approvedBy.name')
                                 ->label('Aprobado por')
                                 ->placeholder('Sin aprobar')
                                 ->icon('heroicon-o-user'),
-                        ])->columns(2),
 
-                        TextEntry::make('approved_at')
-                            ->label('Fecha de Aprobación')
-                            ->dateTime('d/m/Y H:i')
-                            ->placeholder('Sin aprobar')
-                            ->icon('heroicon-o-clock'),
-                    ]),
+                            TextEntry::make('approved_at')
+                                ->label('Fecha de Aprobación')
+                                ->dateTime('d/m/Y H:i')
+                                ->placeholder('Sin aprobar')
+                                ->icon('heroicon-o-clock'),
+                        ])->columns(3),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Información del Sistema')
                     ->schema([
                         Group::make([
                             TextEntry::make('generated_at')
-                                ->label('Fecha de Generación')
+                                ->label('Generado')
                                 ->dateTime('d/m/Y H:i')
                                 ->icon('heroicon-o-clock'),
-
-                            TextEntry::make('pdf_path')
-                                ->label('PDF Generado')
-                                ->formatStateUsing(fn($state) => $state ? 'Disponible' : 'No generado')
-                                ->badge()
-                                ->color(fn($state) => $state ? 'success' : 'gray')
-                                ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
-                        ])->columns(2),
-
-                        Group::make([
-                            TextEntry::make('created_at')
-                                ->label('Creado')
-                                ->dateTime('d/m/Y H:i'),
 
                             TextEntry::make('updated_at')
                                 ->label('Actualizado')
                                 ->dateTime('d/m/Y H:i'),
                         ])->columns(2),
                     ])
-                    ->collapsed(),
+                    ->collapsible(),
             ]);
     }
 
@@ -688,7 +675,6 @@ class PayrollResource extends Resource
     {
         return [
             'index' => Pages\ListPayrolls::route('/'),
-            'create' => Pages\CreatePayroll::route('/create'),
             'view' => Pages\ViewPayroll::route('/{record}'),
         ];
     }

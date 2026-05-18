@@ -63,7 +63,11 @@ class PayrollsRelationManager extends RelationManager
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['employee.first_name', 'employee.last_name'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+                        'employee',
+                        fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                    ))
                     ->sortable()
                     ->wrap(),
 
@@ -76,18 +80,8 @@ class PayrollsRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'draft' => 'gray',
-                        'approved' => 'success',
-                        'paid' => 'info',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'draft' => 'Borrador',
-                        'approved' => 'Aprobado',
-                        'paid' => 'Pagado',
-                        default => $state,
-                    })
+                    ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state)
                     ->sortable(),
 
                 TextColumn::make('base_salary')
@@ -179,11 +173,7 @@ class PayrollsRelationManager extends RelationManager
 
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'draft' => 'Borrador',
-                        'approved' => 'Aprobado',
-                        'paid' => 'Pagado',
-                    ])
+                    ->options(Payroll::getStatusLabels())
                     ->native(false),
 
                 Filter::make('generated_at')
@@ -245,6 +235,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Todos los Recibos')
+                    ->modalSubmitActionLabel('Sí, aprobar todos')
                     ->modalDescription(function () {
                         $count = $this->getOwnerRecord()->payrolls()->where('status', 'draft')->count();
 
@@ -273,6 +264,7 @@ class PayrollsRelationManager extends RelationManager
                     ->color('info')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar Todos como Pagados')
+                    ->modalSubmitActionLabel('Sí, marcar como pagados')
                     ->modalDescription(function () {
                         $count = $this->getOwnerRecord()->payrolls()->where('status', 'approved')->count();
 
@@ -321,6 +313,7 @@ class PayrollsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Recibo')
                     ->modalDescription(fn (Payroll $record) => "¿Aprobar el recibo de {$record->employee->full_name} por ".Payroll::formatCurrency($record->net_salary).'?')
+                    ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'approved',
@@ -342,6 +335,7 @@ class PayrollsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
                     ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'paid']);
 
@@ -359,6 +353,7 @@ class PayrollsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Revertir Pago')
                     ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalSubmitActionLabel('Sí, revertir')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'approved']);
 
@@ -377,6 +372,7 @@ class PayrollsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Desaprobar Recibo')
                     ->modalDescription(fn (Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                    ->modalSubmitActionLabel('Sí, desaprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
                             'status' => 'draft',
@@ -399,6 +395,7 @@ class PayrollsRelationManager extends RelationManager
                     ->requiresConfirmation()
                     ->modalHeading('Regenerar Recibo')
                     ->modalDescription(fn (Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (Payroll $record, PayrollService $payrollService) {
                         try {
                             $payrollService->regenerateForEmployee($record);
@@ -431,6 +428,7 @@ class PayrollsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar Recibos Seleccionados')
                         ->modalDescription('Solo se aprobarán los recibos en estado "Borrador".')
+                        ->modalSubmitActionLabel('Sí, aprobar')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -459,6 +457,7 @@ class PayrollsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Pagados')
                         ->modalDescription('Solo se marcarán los recibos en estado "Aprobado".')
+                        ->modalSubmitActionLabel('Sí, marcar como pagados')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -482,6 +481,7 @@ class PayrollsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Revertir Pagos Seleccionados')
                         ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Aprobado.')
+                        ->modalSubmitActionLabel('Sí, revertir')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -506,6 +506,7 @@ class PayrollsRelationManager extends RelationManager
                         ->requiresConfirmation()
                         ->modalHeading('Desaprobar Recibos Seleccionados')
                         ->modalDescription('¿Está seguro? Solo se desaprobarán los recibos en estado "Aprobado". Volverán a estado Borrador.')
+                        ->modalSubmitActionLabel('Sí, desaprobar')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
@@ -683,18 +684,8 @@ class PayrollsRelationManager extends RelationManager
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn (string $state): string => match ($state) {
-                                    'draft' => 'gray',
-                                    'approved' => 'success',
-                                    'paid' => 'info',
-                                    default => 'gray',
-                                })
-                                ->formatStateUsing(fn (string $state): string => match ($state) {
-                                    'draft' => 'Borrador',
-                                    'approved' => 'Aprobado',
-                                    'paid' => 'Pagado',
-                                    default => $state,
-                                }),
+                                ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                                ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
 
                             TextEntry::make('approvedBy.name')
                                 ->label('Aprobado por')

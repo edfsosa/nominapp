@@ -6,9 +6,12 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Tables;
+use Filament\Tables\Actions\CreateAction;
+use Filament\Tables\Actions\DeleteAction;
+use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 
 class ItemsRelationManager extends RelationManager
@@ -18,11 +21,22 @@ class ItemsRelationManager extends RelationManager
     protected static ?string $modelLabel = 'ítem';
     protected static ?string $pluralModelLabel = 'ítems';
 
+    /**
+     * Determina si la relación es de solo lectura, permitiendo editar los ítems solo cuando la nómina está en estado "draft" y bloqueando cualquier modificación cuando la nómina ha sido aprobada o pagada.
+     *
+     * @return boolean
+     */
     public function isReadOnly(): bool
     {
         return $this->getOwnerRecord()->status !== 'draft';
     }
 
+    /**
+     * Define el formulario para crear y editar los ítems de la nómina, con campos para tipo (percepción o deducción), descripción y monto, y con validaciones adecuadas.
+     *
+     * @param Form $form
+     * @return Form
+     */
     public function form(Form $form): Form
     {
         return $form
@@ -58,6 +72,10 @@ class ItemsRelationManager extends RelationManager
             ->columns(2);
     }
 
+    /**
+     * Define la tabla para mostrar los ítems de la nómina, agrupados por tipo (percepción o deducción) y con acciones condicionadas al estado de la nómina.
+     * @return Table
+     */
     public function table(Table $table): Table
     {
         return $table
@@ -103,34 +121,27 @@ class ItemsRelationManager extends RelationManager
                     ->native(false),
             ])
             ->headerActions([
-                Tables\Actions\CreateAction::make()
+                CreateAction::make()
                     ->label('Agregar Ítem')
                     ->icon('heroicon-o-plus')
                     ->successNotificationTitle('Ítem agregado exitosamente')
                     ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
             ])
             ->actions([
-                Tables\Actions\EditAction::make()
+                EditAction::make()
                     ->successNotificationTitle('Ítem actualizado exitosamente')
                     ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
 
-                Tables\Actions\DeleteAction::make()
+                DeleteAction::make()
                     ->successNotificationTitle('Ítem eliminado exitosamente')
                     ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
-            ])
-            ->bulkActions([
-                Tables\Actions\BulkActionGroup::make([
-                    Tables\Actions\DeleteBulkAction::make()
-                        ->visible(fn() => $this->getOwnerRecord()->status === 'draft')
-                        ->after(fn() => $this->recalculatePayrollTotals()),
-                ]),
             ])
             ->emptyStateHeading('No hay ítems registrados')
             ->emptyStateDescription('Los ítems de percepciones y deducciones aparecerán aquí.')
             ->emptyStateIcon('heroicon-o-document-text')
             ->defaultGroup('type')
             ->groups([
-                Tables\Grouping\Group::make('type')
+                Group::make('type')
                     ->label('Tipo')
                     ->getTitleFromRecordUsing(fn($record) => match ($record->type) {
                         'perception' => 'Percepciones',
@@ -141,24 +152,41 @@ class ItemsRelationManager extends RelationManager
             ]);
     }
 
+    /**
+     * Recalcula los totales de la nómina después de crear un ítem
+     *
+     * @return void
+     */
     protected function afterCreate(): void
     {
-        // Recalcular totales del recibo
         $this->recalculatePayrollTotals();
     }
 
+    /**
+     * Recalcula los totales de la nómina después de actualizar un ítem
+     *
+     * @return void
+     */
     protected function afterUpdate(): void
     {
-        // Recalcular totales del recibo
         $this->recalculatePayrollTotals();
     }
 
+    /**
+     * Recalcula los totales de la nómina después de eliminar un ítem
+     *
+     * @return void
+     */
     protected function afterDelete(): void
     {
-        // Recalcular totales del recibo
         $this->recalculatePayrollTotals();
     }
 
+    /**
+     * Recalcula los totales de percepciones, deducciones, salario bruto y salario neto de la nómina
+     *
+     * @return void
+     */
     protected function recalculatePayrollTotals(): void
     {
         $payroll = $this->getOwnerRecord();

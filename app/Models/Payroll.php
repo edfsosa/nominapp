@@ -185,6 +185,26 @@ class Payroll extends Model
         return 'Nómina de '.($this->employee?->first_name ?? '').' '.($this->employee?->last_name ?? '').' - '.($this->period?->name ?? 'Sin período');
     }
 
+    /** @return array<string, string> */
+    public static function getStatusLabels(): array
+    {
+        return [
+            'draft' => 'Borrador',
+            'approved' => 'Aprobado',
+            'paid' => 'Pagado',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function getStatusColors(): array
+    {
+        return [
+            'draft' => 'gray',
+            'approved' => 'success',
+            'paid' => 'info',
+        ];
+    }
+
     /**
      * Formatea un monto en guaraníes paraguayos
      * Ejemplo: 1500000 -> "Gs. 1.500.000"

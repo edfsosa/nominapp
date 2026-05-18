@@ -8,6 +8,7 @@ use App\Services\PayrollService;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 
@@ -25,9 +26,8 @@ class ViewPayrollPeriod extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Generar Recibos de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de generar los recibos de nómina para el período {$this->record->name}? " .
-                        "Esta acción creará recibos para los empleados activos que aún no tengan uno en este período."
+                    fn () => "¿Está seguro de generar los recibos de nómina para el período {$this->record->name}? ".
+                        'Esta acción creará recibos para los empleados activos que aún no tengan uno en este período.'
                 )
                 ->action(function (PayrollService $payrollService) {
                     $count = $payrollService->generateForPeriod($this->record);
@@ -55,7 +55,61 @@ class ViewPayrollPeriod extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => in_array($this->record->status, ['draft', 'processing'])),
+                ->visible(fn () => in_array($this->record->status, ['draft', 'processing'])),
+
+            Action::make('generate_for_employee')
+                ->label('Generar para Empleado')
+                ->icon('heroicon-o-user-plus')
+                ->color('primary')
+                ->modalHeading('Generar Recibo para Empleado')
+                ->modalSubmitActionLabel('Generar')
+                ->form([
+                    Select::make('employee_id')
+                        ->label('Empleado')
+                        ->options(function () {
+                            $existingIds = $this->record->payrolls()->pluck('employee_id');
+
+                            return Employee::where('status', 'active')
+                                ->whereHas('activeContract', fn ($q) => $q
+                                    ->where('payroll_type', $this->record->frequency)
+                                    ->whereNotNull('salary')
+                                )
+                                ->whereNotIn('id', $existingIds)
+                                ->get()
+                                ->mapWithKeys(fn ($e) => [$e->id => "{$e->full_name} — CI: {$e->ci}"])
+                                ->toArray();
+                        })
+                        ->searchable()
+                        ->native(false)
+                        ->required()
+                        ->placeholder('Seleccione un empleado sin recibo en este período'),
+                ])
+                ->action(function (array $data, PayrollService $payrollService) {
+                    try {
+                        $employee = Employee::findOrFail($data['employee_id']);
+                        $payrollService->generateForEmployee($employee, $this->record);
+
+                        if ($this->record->status === 'draft') {
+                            $this->record->update(['status' => 'processing']);
+                        }
+
+                        Notification::make()
+                            ->success()
+                            ->title('Recibo generado')
+                            ->body("El recibo de {$employee->full_name} fue generado exitosamente.")
+                            ->send();
+
+                        $this->refreshFormData(['status', 'updated_at']);
+                    } catch (\InvalidArgumentException $e) {
+                        Notification::make()
+                            ->danger()
+                            ->title('No se pudo generar el recibo')
+                            ->body($e->getMessage())
+                            ->persistent()
+                            ->send();
+                    }
+                })
+                ->visible(fn () => in_array($this->record->status, ['draft', 'processing'])),
 
             Action::make('regenerate_payrolls')
                 ->label('Regenerar Recibos')
@@ -64,9 +118,8 @@ class ViewPayrollPeriod extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Regenerar Todos los Recibos')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de regenerar TODOS los recibos del período {$this->record->name}? " .
-                        "Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador."
+                    fn () => "¿Está seguro de regenerar TODOS los recibos del período {$this->record->name}? ".
+                        'Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador.'
                 )
                 ->action(function (PayrollService $payrollService) {
                     $payrolls = $this->record->payrolls()->where('status', 'draft')->with('employee')->get();
@@ -77,6 +130,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->title('Sin recibos para regenerar')
                             ->body('No hay recibos en estado borrador para regenerar.')
                             ->send();
+
                         return;
                     }
 
@@ -92,11 +146,11 @@ class ViewPayrollPeriod extends ViewRecord
                         }
                     }
 
-                    if (!empty($failedEmployees)) {
+                    if (! empty($failedEmployees)) {
                         $names = implode(', ', $failedEmployees);
                         Notification::make()
                             ->warning()
-                            ->title("Regeneración parcial")
+                            ->title('Regeneración parcial')
                             ->body("Se regeneraron {$count} recibos. Fallaron: {$names}. Revise el log para más detalles.")
                             ->duration(10000)
                             ->send();
@@ -108,7 +162,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
+                ->visible(fn () => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
 
             Action::make('revert_to_draft')
                 ->label('Revertir a Borrador')
@@ -118,9 +172,10 @@ class ViewPayrollPeriod extends ViewRecord
                 ->modalHeading('Revertir período a Borrador')
                 ->modalDescription(function () {
                     $draftCount = $this->record->payrolls()->where('status', 'draft')->count();
-                    return "Esta acción revertirá el período \"{$this->record->name}\" a estado Borrador " .
-                        "y eliminará los {$draftCount} recibo(s) en borrador. " .
-                        "Los recibos aprobados o pagados impiden esta acción.";
+
+                    return "Esta acción revertirá el período \"{$this->record->name}\" a estado Borrador ".
+                        "y eliminará los {$draftCount} recibo(s) en borrador. ".
+                        'Los recibos aprobados o pagados impiden esta acción.';
                 })
                 ->before(function (Action $action) {
                     $blockedCount = $this->record->payrolls()->whereIn('status', ['approved', 'paid'])->count();
@@ -146,7 +201,7 @@ class ViewPayrollPeriod extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->status === 'processing'),
+                ->visible(fn () => $this->record->status === 'processing'),
 
             Action::make('close_period')
                 ->label('Cerrar Período')
@@ -155,9 +210,8 @@ class ViewPayrollPeriod extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Cerrar Período de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de cerrar el período {$this->record->name}? " .
-                        "Una vez cerrado, no se podrán generar más recibos ni realizar modificaciones."
+                    fn () => "¿Está seguro de cerrar el período {$this->record->name}? ".
+                        'Una vez cerrado, no se podrán generar más recibos ni realizar modificaciones.'
                 )
                 ->before(function (Action $action) {
                     // Regla 1: no se puede cerrar si quedan recibos sin pagar.
@@ -172,6 +226,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->send();
 
                         $action->cancel();
+
                         return;
                     }
 
@@ -180,7 +235,7 @@ class ViewPayrollPeriod extends ViewRecord
                     $payrollEmployeeIds = $this->record->payrolls()->pluck('employee_id');
 
                     $missingCount = Employee::where('status', 'active')
-                        ->whereHas('activeContract', fn($q) => $q
+                        ->whereHas('activeContract', fn ($q) => $q
                             ->where('payroll_type', $this->record->frequency)
                             ->whereNotNull('salary')
                         )
@@ -217,7 +272,7 @@ class ViewPayrollPeriod extends ViewRecord
                     ]);
                 })
                 // Visible solo cuando todos los recibos del período están pagados.
-                ->visible(fn() => $this->record->status === 'processing'
+                ->visible(fn () => $this->record->status === 'processing'
                     && $this->record->payrolls()->exists()
                     && $this->record->payrolls()->whereNot('status', 'paid')->doesntExist()),
 
@@ -228,9 +283,8 @@ class ViewPayrollPeriod extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Reabrir Período de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de reabrir el período {$this->record->name}? " .
-                        "Esto permitirá realizar modificaciones nuevamente."
+                    fn () => "¿Está seguro de reabrir el período {$this->record->name}? ".
+                        'Esto permitirá realizar modificaciones nuevamente.'
                 )
                 ->action(function () {
                     $this->record->update([
@@ -250,19 +304,18 @@ class ViewPayrollPeriod extends ViewRecord
                         'updated_at',
                     ]);
                 })
-                ->visible(fn() => $this->record->status === 'closed'),
+                ->visible(fn () => $this->record->status === 'closed'),
 
             EditAction::make()
-                ->visible(fn() => $this->record->status !== 'closed'),
+                ->visible(fn () => $this->record->status !== 'closed'),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->status === 'draft')
+                ->visible(fn () => $this->record->status === 'draft')
                 ->requiresConfirmation()
                 ->modalHeading('Eliminar Período de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de eliminar el período {$this->record->name}? " .
-                        "Esta acción no se puede deshacer."
+                    fn () => "¿Está seguro de eliminar el período {$this->record->name}? ".
+                        'Esta acción no se puede deshacer.'
                 )
                 ->successNotification(
                     Notification::make()

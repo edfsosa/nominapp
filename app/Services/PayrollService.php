@@ -15,49 +15,18 @@ use Illuminate\Support\Facades\Storage;
 
 class PayrollService
 {
-    protected PerceptionCalculator $perceptionCalculator;
-
-    protected DeductionCalculator $deductionCalculator;
-
-    protected ExtraHourCalculator $extraHourCalculator;
-
-    protected AbsencePenaltyCalculator $absencePenaltyCalculator;
-
-    protected LoanInstallmentCalculator $loanInstallmentCalculator;
-
-    protected AdvanceCalculator $advanceCalculator;
-
-    protected MerchandiseInstallmentCalculator $merchandiseInstallmentCalculator;
-
-    protected FamilyBonusCalculator $familyBonusCalculator;
-
-    protected RestDayCalculator $restDayCalculator;
-
-    protected PayrollPDFGenerator $payrollPDFGenerator;
-
     public function __construct(
-        PerceptionCalculator $perceptionCalculator,
-        DeductionCalculator $deductionCalculator,
-        ExtraHourCalculator $extraHourCalculator,
-        AbsencePenaltyCalculator $absencePenaltyCalculator,
-        LoanInstallmentCalculator $loanInstallmentCalculator,
-        AdvanceCalculator $advanceCalculator,
-        MerchandiseInstallmentCalculator $merchandiseInstallmentCalculator,
-        FamilyBonusCalculator $familyBonusCalculator,
-        RestDayCalculator $restDayCalculator,
-        PayrollPDFGenerator $payrollPDFGenerator
-    ) {
-        $this->perceptionCalculator = $perceptionCalculator;
-        $this->deductionCalculator = $deductionCalculator;
-        $this->extraHourCalculator = $extraHourCalculator;
-        $this->absencePenaltyCalculator = $absencePenaltyCalculator;
-        $this->loanInstallmentCalculator = $loanInstallmentCalculator;
-        $this->advanceCalculator = $advanceCalculator;
-        $this->merchandiseInstallmentCalculator = $merchandiseInstallmentCalculator;
-        $this->familyBonusCalculator = $familyBonusCalculator;
-        $this->restDayCalculator = $restDayCalculator;
-        $this->payrollPDFGenerator = $payrollPDFGenerator;
-    }
+        protected PerceptionCalculator $perceptionCalculator,
+        protected DeductionCalculator $deductionCalculator,
+        protected ExtraHourCalculator $extraHourCalculator,
+        protected AbsencePenaltyCalculator $absencePenaltyCalculator,
+        protected LoanInstallmentCalculator $loanInstallmentCalculator,
+        protected AdvanceCalculator $advanceCalculator,
+        protected MerchandiseInstallmentCalculator $merchandiseInstallmentCalculator,
+        protected FamilyBonusCalculator $familyBonusCalculator,
+        protected RestDayCalculator $restDayCalculator,
+        protected PayrollPDFGenerator $payrollPDFGenerator,
+    ) {}
 
     public function generateForPeriod(PayrollPeriod $period): int
     {
@@ -86,38 +55,37 @@ class PayrollService
                 continue;
             }
 
+            // Calcular salario base antes de abrir la transacción para evitar rollbacks vacíos
+            if ($employee->employment_type === 'day_laborer') {
+                $workedDays = $employee->attendanceDays()
+                    ->whereBetween('date', [$period->start_date, $period->end_date])
+                    ->where('status', 'present')
+                    ->count();
+
+                if ($workedDays === 0) {
+                    Log::info('Jornalero sin días trabajados, omitiendo recibo', [
+                        'employee_id' => $employee->id,
+                        'period_id' => $period->id,
+                    ]);
+
+                    continue;
+                }
+
+                $baseSalary = round($employee->daily_rate * $workedDays, 2);
+
+                Log::info('Jornalero: cálculo de salario base', [
+                    'employee_id' => $employee->id,
+                    'daily_rate' => $employee->daily_rate,
+                    'worked_days' => $workedDays,
+                    'base_salary' => $baseSalary,
+                ]);
+            } else {
+                $baseSalary = $employee->base_salary;
+            }
+
             DB::beginTransaction();
 
             try {
-                // Calcular salario base según tipo de empleo
-                if ($employee->employment_type === 'day_laborer') {
-                    $workedDays = $employee->attendanceDays()
-                        ->whereBetween('date', [$period->start_date, $period->end_date])
-                        ->where('status', 'present')
-                        ->count();
-
-                    if ($workedDays === 0) {
-                        Log::info('Jornalero sin días trabajados, omitiendo recibo', [
-                            'employee_id' => $employee->id,
-                            'period_id' => $period->id,
-                        ]);
-                        DB::rollBack();
-
-                        continue;
-                    }
-
-                    $baseSalary = round($employee->daily_rate * $workedDays, 2);
-
-                    Log::info('Jornalero: cálculo de salario base', [
-                        'employee_id' => $employee->id,
-                        'daily_rate' => $employee->daily_rate,
-                        'worked_days' => $workedDays,
-                        'base_salary' => $baseSalary,
-                    ]);
-                } else {
-                    $baseSalary = $employee->base_salary;
-                }
-
                 // Cálculo modular — extras antes de deducciones para obtener la base IPS correcta.
                 // Préstamos y adelantos se calculan ANTES de DeductionCalculator para que
                 // los EmployeeDeduction creados sean recogidos en el mismo ciclo.
@@ -313,6 +281,7 @@ class PayrollService
                 PayrollItem::create([
                     'payroll_id' => $payroll->id,
                     'type' => 'deduction',
+                    'deduction_type' => $item['deduction_type'] ?? null,
                     'description' => $item['description'],
                     'amount' => $item['amount'],
                 ]);
@@ -380,6 +349,24 @@ class PayrollService
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
                 ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
 
+            // Restaurar outstanding_balance en los préstamos afectados
+            LoanInstallment::whereHas('loan', fn ($q) => $q
+                ->where('employee_id', $employee->id))
+                ->whereBetween('due_date', [$period->start_date, $period->end_date])
+                ->where('status', 'pending')
+                ->with('loan')
+                ->get()
+                ->groupBy('loan_id')
+                ->each(function ($installments) {
+                    $loan = $installments->first()->loan;
+                    if ($loan && $loan->status === 'approved') {
+                        $pendingCapital = $loan->installments()
+                            ->where('status', 'pending')
+                            ->sum('capital_amount');
+                        $loan->update(['outstanding_balance' => $pendingCapital]);
+                    }
+                });
+
             // Revertir cuotas de mercadería pagadas del período anterior
             MerchandiseWithdrawalInstallment::whereHas('withdrawal', fn ($q) => $q
                 ->where('employee_id', $employee->id)
@@ -394,6 +381,7 @@ class PayrollService
                 ->update([
                     'status' => 'approved',
                     'payroll_id' => null,
+                    'employee_deduction_id' => null,
                 ]);
 
             // Eliminar ítems existentes

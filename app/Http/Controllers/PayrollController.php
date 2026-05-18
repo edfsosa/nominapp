@@ -3,21 +3,25 @@
 namespace App\Http\Controllers;
 
 use App\Models\Payroll;
+use App\Services\PayrollPDFGenerator;
 use App\Settings\GeneralSettings;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 class PayrollController extends Controller
 {
-    // Mostrar PDF existente en el navegador (desde storage)
+    public function __construct(protected PayrollPDFGenerator $pdfGenerator) {}
+
+    /** Muestra el PDF del recibo en el navegador. Si el archivo no existe en disco, lo regenera. */
     public function download(Payroll $payroll)
     {
-        if (!$payroll->pdf_path) {
-            return redirect()->back()->with('error', 'El recibo aún no ha sido generado. Por favor, regenere la nómina.');
-        }
-
-        if (!Storage::disk('public')->exists($payroll->pdf_path)) {
-            return redirect()->back()->with('error', 'El archivo PDF no se encuentra. Por favor, regenere el recibo.');
+        if (! $payroll->pdf_path || ! Storage::disk('public')->exists($payroll->pdf_path)) {
+            try {
+                $pdfPath = $this->pdfGenerator->generate($payroll);
+                $payroll->update(['pdf_path' => $pdfPath]);
+            } catch (\Throwable) {
+                abort(404, 'No se pudo generar el recibo PDF.');
+            }
         }
 
         $path = Storage::disk('public')->path($payroll->pdf_path);
@@ -30,9 +34,9 @@ class PayrollController extends Controller
     // Descargar un archivo temporal (PDF o ZIP) generado por bulk actions
     public function downloadTemp(string $filename): BinaryFileResponse
     {
-        $path = storage_path('app/public/temp/' . $filename);
+        $path = storage_path('app/public/temp/'.$filename);
 
-        if (!file_exists($path)) {
+        if (! file_exists($path)) {
             abort(404, 'Archivo no encontrado');
         }
 
@@ -43,8 +47,8 @@ class PayrollController extends Controller
         }
 
         return response()->file($path, [
-            'Content-Type'        => 'application/pdf',
-            'Content-Disposition' => 'inline; filename="' . $cleanFilename . '"',
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$cleanFilename.'"',
         ])->deleteFileAfterSend(true);
     }
 
@@ -55,7 +59,7 @@ class PayrollController extends Controller
         $company = $payroll->employee?->company;
 
         $logoPath = $company?->logo ?? $settings->company_logo;
-        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+        $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
 
         return view('pdf.payroll', [
             'payroll' => $payroll->load(['employee.activeContract.position.department', 'items']),
