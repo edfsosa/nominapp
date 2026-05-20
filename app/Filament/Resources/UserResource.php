@@ -21,11 +21,17 @@ class UserResource extends Resource
     protected static ?string $model = User::class;
 
     protected static ?string $navigationLabel = 'Usuarios';
+
     protected static ?string $label = 'usuario';
+
     protected static ?string $pluralLabel = 'usuarios';
+
     protected static ?string $slug = 'usuarios';
-    protected static ?string $navigationIcon = 'heroicon-o-users';
+
+    protected static ?string $navigationIcon = 'heroicon-o-user-group';
+
     protected static ?string $navigationGroup = 'Configuración';
+
     protected static ?int $navigationSort = 1;
 
     public static function form(Form $form): Form
@@ -57,13 +63,13 @@ class UserResource extends Resource
                         TextInput::make('password')
                             ->label('Contraseña')
                             ->password()
-                            ->required(fn($context) => $context === 'create')
-                            ->dehydrated(fn($state) => filled($state))
-                            ->dehydrateStateUsing(fn($state) => Hash::make($state))
+                            ->required(fn ($context) => $context === 'create')
+                            ->dehydrated(fn ($state) => filled($state))
+                            ->dehydrateStateUsing(fn ($state) => Hash::make($state))
                             ->minLength(8)
                             ->maxLength(255)
                             ->placeholder('Mínimo 8 caracteres')
-                            ->helperText(fn($context) => $context === 'edit'
+                            ->helperText(fn ($context) => $context === 'edit'
                                 ? 'Dejar en blanco para mantener la contraseña actual'
                                 : 'La contraseña debe tener al menos 8 caracteres')
                             ->columnSpan(1),
@@ -71,7 +77,7 @@ class UserResource extends Resource
                         TextInput::make('password_confirmation')
                             ->label('Confirmar contraseña')
                             ->password()
-                            ->required(fn($context) => $context === 'create')
+                            ->required(fn ($context) => $context === 'create')
                             ->dehydrated(false)
                             ->same('password')
                             ->placeholder('Repite la contraseña')
@@ -80,7 +86,6 @@ class UserResource extends Resource
                     ->columns(2),
             ]);
     }
-
 
     public static function table(Table $table): Table
     {

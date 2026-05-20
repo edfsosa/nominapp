@@ -42,7 +42,9 @@ class PayrollResource extends Resource
 
     protected static ?string $slug = 'recibos';
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static bool $shouldRegisterNavigation = false;
+
+    protected static ?string $navigationIcon = 'heroicon-o-receipt-percent';
 
     protected static ?int $navigationSort = 2;
 
@@ -78,15 +80,15 @@ class PayrollResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn($state) => Payroll::getStatusColors()[$state] ?? 'gray')
-                    ->formatStateUsing(fn($state) => Payroll::getStatusLabels()[$state] ?? $state)
+                    ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state)
                     ->sortable(),
 
                 TextColumn::make('base_salary')
                     ->label('Salario Base / Jornal')
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
-                    ->description(fn(Payroll $record): ?string => $record->employee->employment_type === 'day_laborer'
+                    ->description(fn (Payroll $record): ?string => $record->employee->employment_type === 'day_laborer'
                         ? 'Jornal'
                         : null)
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -172,7 +174,7 @@ class PayrollResource extends Resource
 
                 Filter::make('current_year')
                     ->label('Año Actual')
-                    ->query(fn($query) => $query->whereHas('period', function ($q) {
+                    ->query(fn ($query) => $query->whereHas('period', function ($q) {
                         $q->whereYear('start_date', now()->year);
                     })),
             ])
@@ -181,7 +183,7 @@ class PayrollResource extends Resource
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn(Payroll $record) => route('payrolls.download', $record))
+                    ->url(fn (Payroll $record) => route('payrolls.download', $record))
                     ->openUrlInNewTab(),
 
                 Action::make('approve')
@@ -190,7 +192,7 @@ class PayrollResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de aprobar el recibo de {$record->employee->full_name} por " . Payroll::formatCurrency($record->net_salary) . '?')
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de aprobar el recibo de {$record->employee->full_name} por ".Payroll::formatCurrency($record->net_salary).'?')
                     ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
@@ -205,7 +207,7 @@ class PayrollResource extends Resource
                             ->body("El recibo de {$record->employee->full_name} ha sido aprobado.")
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
+                    ->visible(fn (Payroll $record) => $record->status === 'draft'),
 
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
@@ -213,7 +215,7 @@ class PayrollResource extends Resource
                     ->color('info')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
-                    ->modalDescription(fn(Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'paid']);
@@ -223,7 +225,7 @@ class PayrollResource extends Resource
                             ->title('Recibo marcado como pagado')
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'approved'),
+                    ->visible(fn (Payroll $record) => $record->status === 'approved'),
 
                 Action::make('revert_paid')
                     ->label('Revertir Pago')
@@ -231,7 +233,7 @@ class PayrollResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Revertir Pago')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
                     ->modalSubmitActionLabel('Sí, revertir')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'approved']);
@@ -242,7 +244,7 @@ class PayrollResource extends Resource
                             ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'paid'),
+                    ->visible(fn (Payroll $record) => $record->status === 'paid'),
 
                 Action::make('unapprove')
                     ->label('Desaprobar')
@@ -250,7 +252,7 @@ class PayrollResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Desaprobar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
                     ->modalSubmitActionLabel('Sí, desaprobar')
                     ->action(function (Payroll $record) {
                         $record->update([
@@ -265,7 +267,7 @@ class PayrollResource extends Resource
                             ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Borrador.")
                             ->send();
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'approved'),
+                    ->visible(fn (Payroll $record) => $record->status === 'approved'),
 
                 Action::make('regenerate')
                     ->label('Regenerar')
@@ -273,7 +275,7 @@ class PayrollResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Regenerar Recibo')
-                    ->modalDescription(fn(Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                    ->modalDescription(fn (Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
                     ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (Payroll $record, PayrollService $payrollService) {
                         try {
@@ -288,14 +290,14 @@ class PayrollResource extends Resource
                             Notification::make()
                                 ->danger()
                                 ->title('Error al regenerar')
-                                ->body('Ocurrió un error al regenerar el recibo: ' . $e->getMessage())
+                                ->body('Ocurrió un error al regenerar el recibo: '.$e->getMessage())
                                 ->send();
                         }
                     })
-                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
+                    ->visible(fn (Payroll $record) => $record->status === 'draft'),
 
                 DeleteAction::make()
-                    ->visible(fn(Payroll $record) => $record->status === 'draft'),
+                    ->visible(fn (Payroll $record) => $record->status === 'draft'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -410,7 +412,7 @@ class PayrollResource extends Resource
                         ->action(function (Collection $records, \Livewire\Component $livewire) {
                             $records->load('employee');
                             $validRecords = $records->filter(
-                                fn(Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
+                                fn (Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
                             );
 
                             if ($validRecords->isEmpty()) {
@@ -429,7 +431,7 @@ class PayrollResource extends Resource
                             }
 
                             // Limpiar archivos temporales de más de 1 hora
-                            foreach (glob($tempDir . '/*.{pdf,zip}', GLOB_BRACE) as $file) {
+                            foreach (glob($tempDir.'/*.{pdf,zip}', GLOB_BRACE) as $file) {
                                 if (is_file($file) && (time() - filemtime($file)) > 3600) {
                                     @unlink($file);
                                 }
@@ -439,22 +441,22 @@ class PayrollResource extends Resource
 
                             if ($validRecords->count() === 1) {
                                 $record = $validRecords->first();
-                                $filename = $uniqueId . '_recibo_' . $record->employee->ci . '.pdf';
-                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir . '/' . $filename);
+                                $filename = $uniqueId.'_recibo_'.$record->employee->ci.'.pdf';
+                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir.'/'.$filename);
                             } else {
-                                $filename = $uniqueId . '_recibos_' . now()->format('d_m_Y_H_i_s') . '.zip';
+                                $filename = $uniqueId.'_recibos_'.now()->format('d_m_Y_H_i_s').'.zip';
                                 $zip = new \ZipArchive;
-                                $zip->open($tempDir . '/' . $filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
+                                $zip->open($tempDir.'/'.$filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
                                 foreach ($validRecords as $record) {
                                     $zip->addFromString(
-                                        'recibo_' . $record->employee->ci . '_' . $record->id . '.pdf',
+                                        'recibo_'.$record->employee->ci.'_'.$record->id.'.pdf',
                                         Storage::disk('public')->get($record->pdf_path)
                                     );
                                 }
                                 $zip->close();
                             }
 
-                            $livewire->js("window.open('" . route('payrolls.download.temp', ['filename' => $filename]) . "', '_blank')");
+                            $livewire->js("window.open('".route('payrolls.download.temp', ['filename' => $filename])."', '_blank')");
 
                             Notification::make()
                                 ->success()
@@ -468,7 +470,7 @@ class PayrollResource extends Resource
                         ->exports([
                             ExcelExport::make()
                                 ->fromTable()
-                                ->withFilename(fn() => 'recibos_seleccionados_' . now()->format('d_m_Y_H_i_s'))
+                                ->withFilename(fn () => 'recibos_seleccionados_'.now()->format('d_m_Y_H_i_s'))
                                 ->withWriterType(Excel::XLSX),
                         ]),
 
@@ -533,16 +535,16 @@ class PayrollResource extends Resource
 
                             TextEntry::make('employee.employment_type')
                                 ->label('Tipo de Remuneración')
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
                                     'day_laborer' => 'Jornalero (Jornal Diario)',
                                     default => 'Mensualizado (Sueldo)',
                                 })
-                                ->icon(fn(string $state): string => match ($state) {
+                                ->icon(fn (string $state): string => match ($state) {
                                     'day_laborer' => 'heroicon-o-calendar-days',
                                     default => 'heroicon-o-banknotes',
                                 })
                                 ->badge()
-                                ->color(fn(string $state): string => match ($state) {
+                                ->color(fn (string $state): string => match ($state) {
                                     'day_laborer' => 'warning',
                                     default => 'info',
                                 }),
@@ -561,7 +563,7 @@ class PayrollResource extends Resource
 
                             TextEntry::make('period.frequency')
                                 ->label('Frecuencia')
-                                ->formatStateUsing(fn(string $state): string => match ($state) {
+                                ->formatStateUsing(fn (string $state): string => match ($state) {
                                     'monthly' => 'Mensual',
                                     'biweekly' => 'Quincenal',
                                     'weekly' => 'Semanal',
@@ -588,7 +590,7 @@ class PayrollResource extends Resource
                     ->schema([
                         Group::make([
                             TextEntry::make('base_salary')
-                                ->label(fn(Payroll $record): string => $record->employee->employment_type === 'day_laborer'
+                                ->label(fn (Payroll $record): string => $record->employee->employment_type === 'day_laborer'
                                     ? 'Jornal del Período'
                                     : 'Salario Base')
                                 ->money('PYG', locale: 'es_PY')
@@ -630,8 +632,8 @@ class PayrollResource extends Resource
                             TextEntry::make('status')
                                 ->label('Estado')
                                 ->badge()
-                                ->color(fn($state) => Payroll::getStatusColors()[$state] ?? 'gray')
-                                ->formatStateUsing(fn($state) => Payroll::getStatusLabels()[$state] ?? $state),
+                                ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                                ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
 
                             TextEntry::make('approvedBy.name')
                                 ->label('Aprobado por')

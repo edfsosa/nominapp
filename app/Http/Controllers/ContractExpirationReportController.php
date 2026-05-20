@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\Contract;
-use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -109,20 +108,22 @@ class ContractExpirationReportController extends Controller
         $uniqueCompanyIds = $contracts->pluck('company_id')->filter()->unique();
         $resolvedCompanyId = $companyId ?? ($uniqueCompanyIds->count() === 1 ? $uniqueCompanyIds->first() : null);
         $company = $resolvedCompanyId ? Company::find($resolvedCompanyId) : null;
-        $settings = app(GeneralSettings::class);
+        if ($company === null && Company::active()->count() === 1) {
+            $company = Company::first();
+        }
         $showCompanyHeader = $company !== null;
 
-        $logoPath = $company?->logo ?? $settings->company_logo;
+        $logoPath = $company?->logo;
         $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
         $companyLogo = $companyLogo && file_exists($companyLogo) ? $companyLogo : null;
 
-        $companyName = $company?->name ?? $settings->company_name;
-        $companyRuc = $company?->ruc ?? $settings->company_ruc ?? '';
-        $companyAddress = $company?->address ?? $settings->company_address ?? '';
-        $companyPhone = $company?->phone ?? $settings->company_phone ?? '';
-        $companyEmail = $company?->email ?? $settings->company_email ?? '';
-        $employerNumber = $company?->employer_number ?? $settings->company_employer_number ?? '';
-        $city = $company?->city ?? $settings->company_city ?? '';
+        $companyName = $company?->name ?? '';
+        $companyRuc = $company?->ruc ?? '';
+        $companyAddress = $company?->address ?? '';
+        $companyPhone = $company?->phone ?? '';
+        $companyEmail = $company?->email ?? '';
+        $employerNumber = $company?->employer_number ?? '';
+        $city = $company?->city ?? '';
 
         $totalContracts = $contracts->count();
         $daysField = $tab === 'prueba' ? 'days_until_trial_end' : 'days_until_expiry';

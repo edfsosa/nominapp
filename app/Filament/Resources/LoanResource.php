@@ -51,9 +51,9 @@ class LoanResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-banknotes';
 
-    protected static ?string $navigationGroup = 'Nóminas';
+    protected static ?string $navigationGroup = 'Créditos';
 
-    protected static ?int $navigationSort = 5;
+    protected static ?int $navigationSort = 1;
 
     /**
      * Define el formulario de creación/edición de préstamos.

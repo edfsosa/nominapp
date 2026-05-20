@@ -28,19 +28,25 @@ use Illuminate\Validation\Rules\Unique;
 class BranchResource extends Resource
 {
     protected static ?string $model = Branch::class;
+
     protected static ?string $navigationIcon = 'heroicon-o-building-storefront';
+
+    protected static ?string $navigationLabel = 'Sucursales';
+
     protected static ?string $navigationGroup = 'Organización';
+
     protected static ?int $navigationSort = 2;
+
     protected static ?string $modelLabel = 'Sucursal';
+
     protected static ?string $pluralModelLabel = 'Sucursales';
+
     protected static ?string $slug = 'sucursales';
+
     protected static ?string $recordTitleAttribute = 'name';
 
     /**
      * Define el formulario de creación y edición de sucursales.
-     *
-     * @param  \Filament\Forms\Form $form
-     * @return \Filament\Forms\Form
      */
     public static function form(Form $form): Form
     {
@@ -50,10 +56,9 @@ class BranchResource extends Resource
                 ->schema([
                     Select::make('company_id')
                         ->label('Empresa')
-                        ->relationship('company', 'name', fn($query) => $query->active())
+                        ->relationship('company', 'name', fn ($query) => $query->active())
                         ->getOptionLabelFromRecordUsing(
-                            fn(Company $record) =>
-                            $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                            fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                         )
                         ->searchable()
                         ->preload()
@@ -69,8 +74,7 @@ class BranchResource extends Resource
                             table: Branch::class,
                             column: 'name',
                             ignoreRecord: true,
-                            modifyRuleUsing: fn(Unique $rule, Get $get) =>
-                            $rule->where('company_id', $get('company_id'))
+                            modifyRuleUsing: fn (Unique $rule, Get $get) => $rule->where('company_id', $get('company_id'))
                         )
                         ->helperText('El nombre debe ser único dentro de la empresa.'),
 
@@ -121,7 +125,7 @@ class BranchResource extends Resource
                         ->autocompleteReverse(true)
                         ->reverseGeocode([
                             'address' => '%n %S',
-                            'city'    => '%L',
+                            'city' => '%L',
                         ])
                         ->geolocate()
                         ->height('400px'),
@@ -133,9 +137,6 @@ class BranchResource extends Resource
 
     /**
      * Define la vista de detalle de una sucursal.
-     *
-     * @param  \Filament\Infolists\Infolist $infolist
-     * @return \Filament\Infolists\Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -151,8 +152,7 @@ class BranchResource extends Resource
                     TextEntry::make('active_employees')
                         ->label('Empleados Activos / Total')
                         ->getStateUsing(
-                            fn(Branch $record) =>
-                            $record->activeEmployees()->count() . ' / ' . $record->employees()->count()
+                            fn (Branch $record) => $record->activeEmployees()->count().' / '.$record->employees()->count()
                         )
                         ->badge()
                         ->color('success')
@@ -203,9 +203,6 @@ class BranchResource extends Resource
 
     /**
      * Define la tabla de listado de sucursales con filtros y acciones.
-     *
-     * @param  \Filament\Tables\Table $table
-     * @return \Filament\Tables\Table
      */
     public static function table(Table $table): Table
     {
@@ -213,14 +210,14 @@ class BranchResource extends Resource
             ->columns([
                 TextColumn::make('company.name')
                     ->label('Empresa')
-                    ->description(fn($record) => $record->company?->trade_name)
+                    ->description(fn ($record) => $record->company?->trade_name)
                     ->sortable()
                     ->searchable()
                     ->toggleable(),
 
                 TextColumn::make('name')
                     ->label('Sucursal')
-                    ->description(fn($record) => $record->address)
+                    ->description(fn ($record) => $record->address)
                     ->icon('heroicon-o-building-storefront')
                     ->sortable()
                     ->searchable()
@@ -235,8 +232,8 @@ class BranchResource extends Resource
 
                 TextColumn::make('contact_info')
                     ->label('Contacto')
-                    ->getStateUsing(fn($record) => $record->phone ?: 'Sin teléfono')
-                    ->description(fn($record) => $record->email ?: null)
+                    ->getStateUsing(fn ($record) => $record->phone ?: 'Sin teléfono')
+                    ->description(fn ($record) => $record->email ?: null)
                     ->icon('heroicon-o-phone')
                     ->placeholder('Sin contacto'),
 
@@ -264,10 +261,9 @@ class BranchResource extends Resource
             ->filters([
                 SelectFilter::make('company_id')
                     ->label('Empresa')
-                    ->relationship('company', 'name', fn($query) => $query->active())
+                    ->relationship('company', 'name', fn ($query) => $query->active())
                     ->getOptionLabelFromRecordUsing(
-                        fn(Company $record) =>
-                        $record->name . ($record->trade_name ? ' (' . $record->trade_name . ')' : '')
+                        fn (Company $record) => $record->name.($record->trade_name ? ' ('.$record->trade_name.')' : '')
                     )
                     ->searchable()
                     ->preload()
@@ -276,7 +272,7 @@ class BranchResource extends Resource
                 SelectFilter::make('city')
                     ->label('Ciudad')
                     ->options(
-                        fn() => Branch::query()
+                        fn () => Branch::query()
                             ->distinct()
                             ->pluck('city', 'city')
                             ->filter()
@@ -293,12 +289,12 @@ class BranchResource extends Resource
                     ->icon('heroicon-o-map')
                     ->color('info')
                     ->url(
-                        fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])
+                        fn ($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])
                             ? sprintf('https://www.google.com/maps?q=%s,%s', $record->coordinates['lat'], $record->coordinates['lng'])
                             : null
                     )
                     ->openUrlInNewTab()
-                    ->visible(fn($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
+                    ->visible(fn ($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -334,10 +330,10 @@ class BranchResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListBranches::route('/'),
+            'index' => Pages\ListBranches::route('/'),
             'create' => Pages\CreateBranch::route('/create'),
-            'view'   => Pages\ViewBranch::route('/{record}'),
-            'edit'   => Pages\EditBranch::route('/{record}/edit'),
+            'view' => Pages\ViewBranch::route('/{record}'),
+            'edit' => Pages\EditBranch::route('/{record}/edit'),
         ];
     }
 }

@@ -16,7 +16,6 @@ use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\ColorColumn;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
@@ -28,19 +27,25 @@ use Filament\Tables\Table;
 class ShiftTemplateResource extends Resource
 {
     protected static ?string $model = ShiftTemplate::class;
-    protected static ?string $navigationGroup = 'Asistencias';
+
+    protected static ?string $navigationGroup = 'Organización';
+
+    protected static ?string $navigationLabel = 'Plantillas de turno';
+
     protected static ?string $modelLabel = 'Turno';
+
     protected static ?string $pluralModelLabel = 'Turnos';
+
     protected static ?string $slug = 'turnos';
-    protected static ?string $navigationIcon = 'heroicon-o-sun';
-    protected static ?int $navigationSort = 20;
+
+    protected static ?string $navigationIcon = 'heroicon-o-table-cells';
+
+    protected static ?int $navigationSort = 6;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     /**
      * Define el formulario de creación y edición de un turno.
-     *
-     * @param  Form  $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -96,15 +101,15 @@ class ShiftTemplateResource extends Resource
                             ->label('Hora de entrada')
                             ->seconds(false)
                             ->native(false)
-                            ->required(fn(Get $get) => ! $get('is_day_off'))
-                            ->visible(fn(Get $get) => ! $get('is_day_off')),
+                            ->required(fn (Get $get) => ! $get('is_day_off'))
+                            ->visible(fn (Get $get) => ! $get('is_day_off')),
 
                         TimePicker::make('end_time')
                             ->label('Hora de salida')
                             ->seconds(false)
                             ->native(false)
-                            ->required(fn(Get $get) => ! $get('is_day_off'))
-                            ->visible(fn(Get $get) => ! $get('is_day_off'))
+                            ->required(fn (Get $get) => ! $get('is_day_off'))
+                            ->visible(fn (Get $get) => ! $get('is_day_off'))
                             ->helperText('Si es menor que la entrada, el turno cruza la medianoche.'),
 
                         TextInput::make('break_minutes')
@@ -114,7 +119,7 @@ class ShiftTemplateResource extends Resource
                             ->maxValue(480)
                             ->default(0)
                             ->suffix('min')
-                            ->visible(fn(Get $get) => ! $get('is_day_off'))
+                            ->visible(fn (Get $get) => ! $get('is_day_off'))
                             ->helperText('Tiempo de descanso descontado del tiempo neto trabajado.'),
                     ]),
             ]);
@@ -122,9 +127,6 @@ class ShiftTemplateResource extends Resource
 
     /**
      * Define la tabla de listado de turnos.
-     *
-     * @param  Table  $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -148,8 +150,8 @@ class ShiftTemplateResource extends Resource
                 TextColumn::make('shift_type')
                     ->label('Jornada')
                     ->badge()
-                    ->formatStateUsing(fn($state) => ShiftTemplate::getShiftTypeLabels()[$state] ?? $state)
-                    ->color(fn($state) => ShiftTemplate::getShiftTypeColors()[$state] ?? 'gray'),
+                    ->formatStateUsing(fn ($state) => ShiftTemplate::getShiftTypeLabels()[$state] ?? $state)
+                    ->color(fn ($state) => ShiftTemplate::getShiftTypeColors()[$state] ?? 'gray'),
 
                 IconColumn::make('is_day_off')
                     ->label('Franco')
@@ -198,7 +200,7 @@ class ShiftTemplateResource extends Resource
 
                 TernaryFilter::make('is_active')
                     ->label('Estado')
-                    ->trueLabel('Activos'  )
+                    ->trueLabel('Activos')
                     ->falseLabel('Inactivos')
                     ->default(true),
             ])
@@ -208,7 +210,7 @@ class ShiftTemplateResource extends Resource
                     ->modalHeading('Desactivar turno')
                     ->modalDescription('Este turno puede estar en uso por patrones de rotación activos. ¿Deseas desactivarlo?')
                     ->modalSubmitActionLabel('Sí, desactivar')
-                    ->action(fn(ShiftTemplate $record) => $record->update(['is_active' => false]))
+                    ->action(fn (ShiftTemplate $record) => $record->update(['is_active' => false]))
                     ->successNotificationTitle('Turno desactivado'),
             ])
             ->defaultSort('name');
@@ -220,9 +222,9 @@ class ShiftTemplateResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListShiftTemplates::route('/'),
+            'index' => Pages\ListShiftTemplates::route('/'),
             'create' => Pages\CreateShiftTemplate::route('/create'),
-            'edit'   => Pages\EditShiftTemplate::route('/{record}/edit'),
+            'edit' => Pages\EditShiftTemplate::route('/{record}/edit'),
         ];
     }
 }

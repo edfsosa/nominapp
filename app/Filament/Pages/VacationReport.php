@@ -30,9 +30,9 @@ class VacationReport extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Reporte de Vacaciones';
 
-    protected static ?string $navigationGroup = 'Empleados';
+    protected static ?string $navigationGroup = 'Reportes';
 
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 4;
 
     protected static string $view = 'filament.pages.vacation-report';
 
@@ -250,14 +250,16 @@ class VacationReport extends Page implements HasTable
                     : $query
                 ),
 
-            SelectFilter::make('company_id')
-                ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('branches.company_id', $data['value'])
-                    : $query
-                ),
+            ...(Company::active()->count() > 1 ? [
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->query(fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('branches.company_id', $data['value'])
+                        : $query
+                    ),
+            ] : []),
 
             SelectFilter::make('branch_id')
                 ->label('Sucursal')

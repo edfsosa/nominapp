@@ -2,48 +2,54 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\ScheduleResource\Pages;
+use App\Filament\Resources\ScheduleResource\RelationManagers\EmployeesRelationManager;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Models\Schedule;
 use App\Models\ScheduleDay;
 use App\Services\ScheduleAssignmentService;
 use Carbon\Carbon;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
-use Filament\Tables\Table;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
-use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\Toggle;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Forms\Components\TimePicker;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TernaryFilter;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Resources\ScheduleResource\Pages;
-use App\Filament\Resources\ScheduleResource\RelationManagers\EmployeesRelationManager;
 
 class ScheduleResource extends Resource
 {
     protected static ?string $model = Schedule::class;
+
     protected static ?string $navigationGroup = 'Organización';
+
+    protected static ?string $navigationLabel = 'Horarios';
+
     protected static ?string $modelLabel = 'Horario';
+
     protected static ?string $pluralModelLabel = 'Horarios';
+
     protected static ?string $slug = 'horarios';
+
     protected static ?string $navigationIcon = 'heroicon-o-clock';
+
     protected static ?int $navigationSort = 5;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     /**
      * Define el formulario para crear y editar horarios, incluyendo la información general del horario y la configuración detallada de los días laborales con sus respectivos descansos.
-     * 
-     * @param  \Filament\Forms\Form $form
-     * @return \Filament\Forms\Form
      */
     public static function form(Form $form): Form
     {
@@ -80,24 +86,24 @@ class ScheduleResource extends Resource
                     ->description('Activá los días laborales e ingresá los horarios. Los horarios nocturnos pueden tener hora de salida menor a la de entrada.')
                     ->schema([
                         Repeater::make('days')
-                            ->relationship(modifyQueryUsing: fn($query) => $query->orderBy('day_of_week'))
+                            ->relationship(modifyQueryUsing: fn ($query) => $query->orderBy('day_of_week'))
                             ->label(false)
                             ->addable(false)
                             ->deletable(false)
                             ->reorderable(false)
                             ->default(
-                                collect(range(1, 7))->map(fn($day) => [
+                                collect(range(1, 7))->map(fn ($day) => [
                                     'day_of_week' => $day,
-                                    'is_active'   => false,
-                                    'start_time'  => null,
-                                    'end_time'    => null,
+                                    'is_active' => false,
+                                    'start_time' => null,
+                                    'end_time' => null,
                                 ])->toArray()
                             )
                             ->schema([
                                 Hidden::make('day_of_week'),
 
                                 Toggle::make('is_active')
-                                    ->label(fn(Get $get): string => ScheduleDay::getDayOptions()[(int) $get('day_of_week')] ?? 'Día')
+                                    ->label(fn (Get $get): string => ScheduleDay::getDayOptions()[(int) $get('day_of_week')] ?? 'Día')
                                     ->live()
                                     ->columnSpan(1),
 
@@ -105,20 +111,20 @@ class ScheduleResource extends Resource
                                     ->label('Entrada')
                                     ->native(false)
                                     ->seconds(false)
-                                    ->required(fn(Get $get): bool => (bool) $get('is_active'))
-                                    ->visible(fn(Get $get): bool => (bool) $get('is_active'))
+                                    ->required(fn (Get $get): bool => (bool) $get('is_active'))
+                                    ->visible(fn (Get $get): bool => (bool) $get('is_active'))
                                     ->columnSpan(1),
 
                                 TimePicker::make('end_time')
                                     ->label('Salida')
                                     ->native(false)
                                     ->seconds(false)
-                                    ->required(fn(Get $get): bool => (bool) $get('is_active'))
-                                    ->visible(fn(Get $get): bool => (bool) $get('is_active'))
+                                    ->required(fn (Get $get): bool => (bool) $get('is_active'))
+                                    ->visible(fn (Get $get): bool => (bool) $get('is_active'))
                                     ->columnSpan(1),
 
                                 Repeater::make('breaks')
-                                    ->relationship(modifyQueryUsing: fn($query) => $query->orderBy('start_time'))
+                                    ->relationship(modifyQueryUsing: fn ($query) => $query->orderBy('start_time'))
                                     ->label('Descansos')
                                     ->schema([
                                         TextInput::make('name')
@@ -147,7 +153,7 @@ class ScheduleResource extends Resource
                                     ->reorderable(false)
                                     ->cloneable()
                                     ->addActionLabel('Agregar Descanso')
-                                    ->visible(fn(Get $get): bool => (bool) $get('is_active'))
+                                    ->visible(fn (Get $get): bool => (bool) $get('is_active'))
                                     ->columnSpanFull(),
                             ])
                             ->columns(3),
@@ -157,9 +163,6 @@ class ScheduleResource extends Resource
 
     /**
      * Define la tabla para listar los horarios.
-     * 
-     * @param  \Filament\Tables\Table $table
-     * @return \Filament\Tables\Table
      */
     public static function table(Table $table): Table
     {
@@ -175,8 +178,8 @@ class ScheduleResource extends Resource
                 TextColumn::make('shift_type')
                     ->label('Jornada')
                     ->badge()
-                    ->formatStateUsing(fn($state) => Schedule::getShiftTypeLabels()[$state] ?? $state)
-                    ->color(fn($state) => Schedule::getShiftTypeColors()[$state] ?? 'success')
+                    ->formatStateUsing(fn ($state) => Schedule::getShiftTypeLabels()[$state] ?? $state)
+                    ->color(fn ($state) => Schedule::getShiftTypeColors()[$state] ?? 'success')
                     ->sortable(),
 
                 TextColumn::make('active_days_count')
@@ -220,9 +223,9 @@ class ScheduleResource extends Resource
                     ->trueLabel('Con empleados')
                     ->falseLabel('Sin empleados')
                     ->queries(
-                        true: fn(Builder $query) => $query->whereHas('currentEmployees'),
-                        false: fn(Builder $query) => $query->whereDoesntHave('currentEmployees'),
-                        blank: fn(Builder $query) => $query,
+                        true: fn (Builder $query) => $query->whereHas('currentEmployees'),
+                        false: fn (Builder $query) => $query->whereDoesntHave('currentEmployees'),
+                        blank: fn (Builder $query) => $query,
                     )
                     ->native(false),
             ])
@@ -231,25 +234,25 @@ class ScheduleResource extends Resource
                     ->label('Asignar a Empleados')
                     ->icon('heroicon-o-user-plus')
                     ->color('success')
-                    ->fillForm(fn(Schedule $record) => ['schedule_id' => $record->id])
+                    ->fillForm(fn (Schedule $record) => ['schedule_id' => $record->id])
                     ->form([
                         Hidden::make('schedule_id'),
 
                         Select::make('filter_branch')
                             ->label('Filtrar por Sucursal')
-                            ->options(fn() => Branch::pluck('name', 'id'))
+                            ->options(fn () => Branch::pluck('name', 'id'))
                             ->searchable()
                             ->preload()
                             ->native(false)
                             ->live()
-                            ->afterStateUpdated(fn(callable $set) => $set('employee_ids', []))
+                            ->afterStateUpdated(fn (callable $set) => $set('employee_ids', []))
                             ->columnSpanFull(),
 
                         Select::make('employee_ids')
                             ->label('Empleados')
                             ->options(function (callable $get) {
                                 $scheduleId = (int) $get('schedule_id');
-                                $today      = Carbon::today();
+                                $today = Carbon::today();
 
                                 $query = Employee::query()->where('status', 'active');
 
@@ -289,7 +292,7 @@ class ScheduleResource extends Resource
                     ->modalWidth('2xl')
                     ->action(function (Schedule $record, array $data) {
                         $assigned = 0;
-                        $errors   = [];
+                        $errors = [];
 
                         foreach (Employee::whereIn('id', $data['employee_ids'])->get() as $employee) {
                             try {
@@ -312,11 +315,11 @@ class ScheduleResource extends Resource
                                 ->send();
                         }
 
-                        if (!empty($errors)) {
+                        if (! empty($errors)) {
                             Notification::make()
                                 ->warning()
                                 ->title('Algunos empleados no pudieron asignarse')
-                                ->body('Revisar solapamientos en: ' . implode(', ', $errors))
+                                ->body('Revisar solapamientos en: '.implode(', ', $errors))
                                 ->persistent()
                                 ->send();
                         }
@@ -330,6 +333,7 @@ class ScheduleResource extends Resource
 
     /**
      * Define las relaciones disponibles para el recurso, en este caso la relación con los empleados asignados a cada horario.
+     *
      * @return array<int, class-string>
      */
     public static function getRelations(): array
@@ -341,6 +345,7 @@ class ScheduleResource extends Resource
 
     /**
      * Define las páginas disponibles para el recurso, incluyendo la lista de horarios, creación, vista detallada y edición.
+     *
      * @return array<string, class-string>
      */
     public static function getPages(): array

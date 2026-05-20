@@ -31,9 +31,9 @@ class ContractExpirationReport extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Vencimiento de Contratos';
 
-    protected static ?string $navigationGroup = 'Empleados';
+    protected static ?string $navigationGroup = 'Reportes';
 
-    protected static ?int $navigationSort = 100;
+    protected static ?int $navigationSort = 3;
 
     protected static string $view = 'filament.pages.contract-expiration-report';
 
@@ -259,16 +259,20 @@ class ContractExpirationReport extends Page implements HasTable
      */
     private function buildFilters(): array
     {
-        return [
-            SelectFilter::make('company_id')
+        $filters = [];
+
+        if (Company::active()->count() > 1) {
+            $filters[] = SelectFilter::make('company_id')
                 ->label('Empresa')
                 ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->query(fn (Builder $query, array $data) => $data['value']
                     ? $query->where('branches.company_id', $data['value'])
                     : $query
-                ),
+                );
+        }
 
+        return array_merge($filters, [
             SelectFilter::make('branch_id')
                 ->label('Sucursal')
                 ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
@@ -298,7 +302,7 @@ class ContractExpirationReport extends Page implements HasTable
                         ->whereRaw('DATEDIFF(contracts.end_date, CURDATE()) >= 0')
                         ->whereRaw('DATEDIFF(contracts.end_date, CURDATE()) <= ?', [$days]);
                 }),
-        ];
+        ]);
     }
 
     /**

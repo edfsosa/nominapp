@@ -54,9 +54,9 @@ class AdvanceResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-currency-dollar';
 
-    protected static ?string $navigationGroup = 'Nóminas';
+    protected static ?string $navigationGroup = 'Créditos';
 
-    protected static ?int $navigationSort = 6;
+    protected static ?int $navigationSort = 2;
 
     /**
      * Define el formulario de creación/edición de adelantos.

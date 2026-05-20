@@ -37,12 +37,17 @@ class AttendanceReport extends Page implements HasTable
 {
     use InteractsWithTable;
 
-    protected static ?string $navigationIcon  = 'heroicon-o-chart-bar';
-    protected static ?string $navigationLabel = 'Reportes de Asistencia';
-    protected static ?string $navigationGroup = 'Asistencias';
-    protected static ?int    $navigationSort  = 99;
-    protected static string  $view            = 'filament.pages.attendance-report';
-    protected ?string $heading                = 'Reportes de Asistencia';
+    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
+
+    protected static ?string $navigationLabel = 'Reporte de Asistencia';
+
+    protected static ?string $navigationGroup = 'Reportes';
+
+    protected static ?int $navigationSort = 2;
+
+    protected static string $view = 'filament.pages.attendance-report';
+
+    protected ?string $heading = 'Reportes de Asistencia';
 
     /** @var string Tab activo: 'attendance' o 'absence'. */
     public string $activeTab = 'attendance';
@@ -50,8 +55,7 @@ class AttendanceReport extends Page implements HasTable
     /**
      * Cambia el tab activo y reinicia la tabla para aplicar la nueva query y columnas.
      *
-     * @param  string $tab 'attendance' | 'absence'
-     * @return void
+     * @param  string  $tab  'attendance' | 'absence'
      */
     public function setTab(string $tab): void
     {
@@ -61,8 +65,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Retorna el subheading dinámico según el tab activo.
-     *
-     * @return string
      */
     public function getSubheading(): ?string
     {
@@ -73,8 +75,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Define las acciones del encabezado según el tab activo.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -91,9 +91,10 @@ class AttendanceReport extends Page implements HasTable
                     ->action(function () {
                         [$from, $to, $companyId, $branchId, $deptId] = $this->resolveActiveFilters();
                         Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
+
                         return Excel::download(
                             new AttendanceReportSummaryExport($from, $to, $companyId, $branchId, $deptId),
-                            'asistencia_resumen_' . now()->format('Y_m_d') . '.xlsx'
+                            'asistencia_resumen_'.now()->format('Y_m_d').'.xlsx'
                         );
                     }),
 
@@ -108,9 +109,10 @@ class AttendanceReport extends Page implements HasTable
                     ->action(function () {
                         [$from, $to, $companyId, $branchId, $deptId] = $this->resolveActiveFilters();
                         Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
+
                         return Excel::download(
                             new AttendanceReportDetailExport($from, $to, $companyId, $branchId, $deptId),
-                            'asistencia_detalle_' . now()->format('Y_m_d') . '.xlsx'
+                            'asistencia_detalle_'.now()->format('Y_m_d').'.xlsx'
                         );
                     }),
             ];
@@ -128,9 +130,10 @@ class AttendanceReport extends Page implements HasTable
                 ->action(function () {
                     [$from, $to, $companyId, $branchId, $deptId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
+
                     return Excel::download(
                         new AbsenceReportSummaryExport($from, $to, $companyId, $branchId, $deptId),
-                        'ausencias_resumen_' . now()->format('Y_m_d') . '.xlsx'
+                        'ausencias_resumen_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
 
@@ -145,9 +148,10 @@ class AttendanceReport extends Page implements HasTable
                 ->action(function () {
                     [$from, $to, $companyId, $branchId, $deptId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
+
                     return Excel::download(
                         new AbsenceReportDetailExport($from, $to, $companyId, $branchId, $deptId),
-                        'ausencias_detalle_' . now()->format('Y_m_d') . '.xlsx'
+                        'ausencias_detalle_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
         ];
@@ -155,9 +159,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Define la tabla según el tab activo, con filtros compartidos.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -177,9 +178,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Aplica columnas y estado vacío para el tab de asistencias.
-     *
-     * @param  Table $table
-     * @return Table
      */
     private function applyAttendanceTable(Table $table): Table
     {
@@ -187,11 +185,11 @@ class AttendanceReport extends Page implements HasTable
             ->columns([
                 TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->getStateUsing(fn($record) => $record->last_name . ', ' . $record->first_name)
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderBy('employees.last_name', $direction)->orderBy('employees.first_name', $direction))
-                    ->searchable(query: fn(Builder $query, string $search) => $query->where(
-                        fn($q) => $q->where('employees.first_name', 'like', "%{$search}%")
-                                    ->orWhere('employees.last_name', 'like', "%{$search}%")
+                    ->getStateUsing(fn ($record) => $record->last_name.', '.$record->first_name)
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('employees.last_name', $direction)->orderBy('employees.first_name', $direction))
+                    ->searchable(query: fn (Builder $query, string $search) => $query->where(
+                        fn ($q) => $q->where('employees.first_name', 'like', "%{$search}%")
+                            ->orWhere('employees.last_name', 'like', "%{$search}%")
                     ))
                     ->weight('medium'),
 
@@ -216,33 +214,33 @@ class AttendanceReport extends Page implements HasTable
                     ->label('Presentes')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'success' : 'gray'),
+                    ->color(fn ($state) => $state > 0 ? 'success' : 'gray'),
 
                 TextColumn::make('days_absent')
                     ->label('Ausencias')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'danger' : 'gray'),
+                    ->color(fn ($state) => $state > 0 ? 'danger' : 'gray'),
 
                 TextColumn::make('days_leave')
                     ->label('Licencias')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'warning' : 'gray'),
+                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray'),
 
                 TextColumn::make('total_net_hours')
                     ->label('Horas Netas')
                     ->suffix(' h')
                     ->numeric(2)
                     ->alignEnd()
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_net_hours {$direction}")),
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_net_hours {$direction}")),
 
                 TextColumn::make('total_extra_diurnas')
                     ->label('HE Diurnas')
                     ->suffix(' h')
                     ->numeric(2)
                     ->alignEnd()
-                    ->color(fn($state) => $state > 0 ? 'success' : null)
+                    ->color(fn ($state) => $state > 0 ? 'success' : null)
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('total_extra_nocturnas')
@@ -250,7 +248,7 @@ class AttendanceReport extends Page implements HasTable
                     ->suffix(' h')
                     ->numeric(2)
                     ->alignEnd()
-                    ->color(fn($state) => $state > 0 ? 'info' : null)
+                    ->color(fn ($state) => $state > 0 ? 'info' : null)
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('total_late_minutes')
@@ -258,13 +256,13 @@ class AttendanceReport extends Page implements HasTable
                     ->suffix(' min')
                     ->numeric()
                     ->alignEnd()
-                    ->color(fn($state) => $state > 0 ? 'danger' : null)
+                    ->color(fn ($state) => $state > 0 ? 'danger' : null)
                     ->toggleable(),
 
                 TextColumn::make('total_anomalies')
                     ->label('Anomalías')
                     ->badge()
-                    ->color(fn($state) => $state > 0 ? 'warning' : 'gray')
+                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray')
                     ->alignCenter()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
@@ -275,9 +273,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Aplica columnas y estado vacío para el tab de ausencias.
-     *
-     * @param  Table $table
-     * @return Table
      */
     private function applyAbsenceTable(Table $table): Table
     {
@@ -285,11 +280,11 @@ class AttendanceReport extends Page implements HasTable
             ->columns([
                 TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->getStateUsing(fn($record) => $record->last_name . ', ' . $record->first_name)
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderBy('employees.last_name', $direction)->orderBy('employees.first_name', $direction))
-                    ->searchable(query: fn(Builder $query, string $search) => $query->where(
-                        fn($q) => $q->where('employees.first_name', 'like', "%{$search}%")
-                                    ->orWhere('employees.last_name', 'like', "%{$search}%")
+                    ->getStateUsing(fn ($record) => $record->last_name.', '.$record->first_name)
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('employees.last_name', $direction)->orderBy('employees.first_name', $direction))
+                    ->searchable(query: fn (Builder $query, string $search) => $query->where(
+                        fn ($q) => $q->where('employees.first_name', 'like', "%{$search}%")
+                            ->orWhere('employees.last_name', 'like', "%{$search}%")
                     ))
                     ->weight('medium'),
 
@@ -314,35 +309,35 @@ class AttendanceReport extends Page implements HasTable
                     ->label('Total')
                     ->numeric()
                     ->alignCenter()
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_absences {$direction}")),
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_absences {$direction}")),
 
                 TextColumn::make('total_pending')
                     ->label('Pendientes')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'warning' : 'gray')
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_pending {$direction}")),
+                    ->color(fn ($state) => $state > 0 ? 'warning' : 'gray')
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_pending {$direction}")),
 
                 TextColumn::make('total_justified')
                     ->label('Justificadas')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'success' : 'gray')
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_justified {$direction}")),
+                    ->color(fn ($state) => $state > 0 ? 'success' : 'gray')
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_justified {$direction}")),
 
                 TextColumn::make('total_unjustified')
                     ->label('Injustificadas')
                     ->numeric()
                     ->alignCenter()
-                    ->color(fn($state) => $state > 0 ? 'danger' : 'gray')
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_unjustified {$direction}")),
+                    ->color(fn ($state) => $state > 0 ? 'danger' : 'gray')
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_unjustified {$direction}")),
 
                 TextColumn::make('total_deduction_amount')
                     ->label('Deducciones (Gs.)')
                     ->numeric(0, ',', '.')
                     ->alignEnd()
-                    ->color(fn($state) => $state > 0 ? 'danger' : null)
-                    ->sortable(query: fn(Builder $query, string $direction) => $query->orderByRaw("total_deduction_amount {$direction}")),
+                    ->color(fn ($state) => $state > 0 ? 'danger' : null)
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderByRaw("total_deduction_amount {$direction}")),
             ])
             ->emptyStateHeading('Sin ausencias registradas')
             ->emptyStateDescription('No hay ausencias en el período y filtros seleccionados.')
@@ -351,8 +346,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Filtros compartidos entre ambos tabs: período, empresa, sucursal y departamento.
-     *
-     * @return array
      */
     private function sharedFilters(): array
     {
@@ -375,48 +368,51 @@ class AttendanceReport extends Page implements HasTable
                         ->default(now()->endOfMonth()),
                 ])
                 ->columns(2)
-                ->query(fn(Builder $query, array $data) => $query
-                    ->when($data['from_date'] ?? null, fn($q, $v) => $q->where('ad.date', '>=', $v))
-                    ->when($data['to_date']   ?? null, fn($q, $v) => $q->where('ad.date', '<=', $v))
+                ->query(fn (Builder $query, array $data) => $query
+                    ->when($data['from_date'] ?? null, fn ($q, $v) => $q->where('ad.date', '>=', $v))
+                    ->when($data['to_date'] ?? null, fn ($q, $v) => $q->where('ad.date', '<=', $v))
                 )
                 ->indicateUsing(function (array $data): array {
                     $indicators = [];
                     if ($data['from_date'] ?? null) {
-                        $indicators[] = 'Desde: ' . Carbon::parse($data['from_date'])->format('d/m/Y');
+                        $indicators[] = 'Desde: '.Carbon::parse($data['from_date'])->format('d/m/Y');
                     }
                     if ($data['to_date'] ?? null) {
-                        $indicators[] = 'Hasta: ' . Carbon::parse($data['to_date'])->format('d/m/Y');
+                        $indicators[] = 'Hasta: '.Carbon::parse($data['to_date'])->format('d/m/Y');
                     }
+
                     return $indicators;
                 }),
 
-            SelectFilter::make('company_id')
-                ->label('Empresa')
-                ->options(fn() => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn(Builder $query, array $data) => $data['value']
-                    ? $query->whereExists(fn($sub) => $sub->selectRaw(1)
-                        ->from('branches')
-                        ->whereColumn('branches.id', 'employees.branch_id')
-                        ->where('branches.company_id', $data['value']))
-                    : $query
-                ),
+            ...(Company::active()->count() > 1 ? [
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->query(fn (Builder $query, array $data) => $data['value']
+                        ? $query->whereExists(fn ($sub) => $sub->selectRaw(1)
+                            ->from('branches')
+                            ->whereColumn('branches.id', 'employees.branch_id')
+                            ->where('branches.company_id', $data['value']))
+                        : $query
+                    ),
+            ] : []),
 
             SelectFilter::make('branch_id')
                 ->label('Sucursal')
-                ->options(fn() => Branch::orderBy('name')->pluck('name', 'id'))
+                ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(fn(Builder $query, array $data) => $data['value']
+                ->query(fn (Builder $query, array $data) => $data['value']
                     ? $query->where('employees.branch_id', $data['value'])
                     : $query
                 ),
 
             SelectFilter::make('department_id')
                 ->label('Departamento')
-                ->options(fn() => Department::orderBy('name')->pluck('name', 'id'))
+                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(fn(Builder $query, array $data) => $data['value']
-                    ? $query->whereExists(fn($sub) => $sub->selectRaw(1)
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->whereExists(fn ($sub) => $sub->selectRaw(1)
                         ->from('contracts')
                         ->whereColumn('contracts.employee_id', 'employees.id')
                         ->where('contracts.status', 'active')
@@ -428,8 +424,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Query de asistencias: agrega marcaciones por empleado desde attendance_days.
-     *
-     * @return Builder
      */
     private function buildAttendanceQuery(): Builder
     {
@@ -456,8 +450,6 @@ class AttendanceReport extends Page implements HasTable
 
     /**
      * Query de ausencias: agrega registros de la tabla absences por empleado.
-     *
-     * @return Builder
      */
     private function buildAbsenceQuery(): Builder
     {
@@ -492,9 +484,9 @@ class AttendanceReport extends Page implements HasTable
 
         return [
             $f['period']['from_date'] ?? null,
-            $f['period']['to_date']   ?? null,
-            isset($f['company_id']['value'])    ? (int) $f['company_id']['value']    : null,
-            isset($f['branch_id']['value'])     ? (int) $f['branch_id']['value']     : null,
+            $f['period']['to_date'] ?? null,
+            isset($f['company_id']['value']) ? (int) $f['company_id']['value'] : null,
+            isset($f['branch_id']['value']) ? (int) $f['branch_id']['value'] : null,
             isset($f['department_id']['value']) ? (int) $f['department_id']['value'] : null,
         ];
     }

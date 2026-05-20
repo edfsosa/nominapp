@@ -15,6 +15,7 @@ class CheckMissingAttendance extends Command
     protected $signature = 'attendance:check-missing
                             {--date= : Fecha específica a procesar (formato Y-m-d). Si no se especifica, usa hoy}
                             {--dry-run : Ejecutar en modo prueba sin crear registros}';
+
     protected $description = 'Verifica empleados sin marcación y crea registros de ausencia si pasó el tiempo límite';
 
     /**
@@ -33,22 +34,22 @@ class CheckMissingAttendance extends Command
         $dryRun = $this->option('dry-run');
 
         // Mensaje inicial
-        $this->info("🔍 Verificando ausencias para: " . $date->format('d/m/Y H:i'));
+        $this->info('🔍 Verificando ausencias para: '.$date->format('d/m/Y H:i'));
 
         // Indicar modo dry-run
         if ($dryRun) {
-            $this->warn("⚠️  Modo DRY-RUN activado - No se crearán registros");
+            $this->warn('⚠️  Modo DRY-RUN activado - No se crearán registros');
         }
 
         // Obtener el umbral de tiempo para considerar ausencia
-        $thresholdMinutes = config('attendance.absence_threshold_minutes', 30);
+        $thresholdMinutes = app(\App\Settings\GeneralSettings::class)->absence_threshold_minutes;
         $this->info("⏱️  Umbral configurado: {$thresholdMinutes} minutos después de la hora de entrada");
 
         // Obtener empleados activos con horario vigente (asignación nueva o campo legacy)
         $employees = Employee::where('status', 'active')
-            ->where(fn($q) => $q
-                ->whereHas('scheduleAssignments', fn($q) => $q->forDate($date))
-                ->orWhereHas('schedule.days', fn($q) => $q
+            ->where(fn ($q) => $q
+                ->whereHas('scheduleAssignments', fn ($q) => $q->forDate($date))
+                ->orWhereHas('schedule.days', fn ($q) => $q
                     ->where('day_of_week', $date->dayOfWeekIso)
                     ->where('is_active', true)
                 )
@@ -60,13 +61,13 @@ class CheckMissingAttendance extends Command
             ->get();
 
         // Mostrar cantidad de empleados encontrados
-        $this->info("👥 Empleados activos con horario: " . $employees->count());
+        $this->info('👥 Empleados activos con horario: '.$employees->count());
 
         // Contadores para estadísticas
         $processed = 0;
-        $created   = 0;
-        $onLeave   = 0;
-        $skipped   = 0;
+        $created = 0;
+        $onLeave = 0;
+        $skipped = 0;
 
         // Procesar cada empleado
         foreach ($employees as $employee) {
@@ -86,7 +87,7 @@ class CheckMissingAttendance extends Command
 
         // Mostrar resumen de resultados
         $this->newLine();
-        $this->info("✅ Proceso completado:");
+        $this->info('✅ Proceso completado:');
         $this->table(
             ['Métrica', 'Cantidad'],
             [
@@ -96,6 +97,7 @@ class CheckMissingAttendance extends Command
                 ['Omitidos (ya tienen registro o no aplica)', $skipped],
             ]
         );
+
         return Command::SUCCESS;
     }
 
@@ -119,12 +121,12 @@ class CheckMissingAttendance extends Command
         $scheduleDay = $employee->getScheduleForDate($date)?->days->where('day_of_week', $dayOfWeek)->first();
 
         // Verificar si es día libre o no tiene horario
-        if (!$scheduleDay) {
+        if (! $scheduleDay) {
             return 'skipped';
         }
 
         // Verificar si es día libre
-        if (!$scheduleDay->is_active) {
+        if (! $scheduleDay->is_active) {
             return 'skipped';
         }
 
@@ -132,12 +134,12 @@ class CheckMissingAttendance extends Command
         $expectedCheckIn = $scheduleDay->start_time;
 
         // Si no hay hora de entrada esperada, omitir
-        if (!$expectedCheckIn) {
+        if (! $expectedCheckIn) {
             return 'skipped';
         }
 
         // Calcular la hora límite (hora esperada + threshold)
-        $expectedCheckInTime = Carbon::parse($date->toDateString() . ' ' . $expectedCheckIn);
+        $expectedCheckInTime = Carbon::parse($date->toDateString().' '.$expectedCheckIn);
         $thresholdTime = $expectedCheckInTime->copy()->addMinutes($thresholdMinutes);
 
         // Solo crear ausencia si ya pasó el tiempo límite
@@ -147,7 +149,7 @@ class CheckMissingAttendance extends Command
         }
 
         // Crear registro de ausencia
-        if (!$dryRun) {
+        if (! $dryRun) {
             try {
                 $attendanceDay = AttendanceDay::create([
                     'employee_id' => $employee->id,
@@ -164,39 +166,42 @@ class CheckMissingAttendance extends Command
                 $attendanceDay->save();
 
                 if ($attendanceDay->status === 'on_leave') {
-                    Log::info("Licencia registrada automáticamente", [
-                        'employee_id'   => $employee->id,
-                        'employee_name' => $employee->first_name . ' ' . $employee->last_name,
-                        'date'          => $date->toDateString(),
+                    Log::info('Licencia registrada automáticamente', [
+                        'employee_id' => $employee->id,
+                        'employee_name' => $employee->first_name.' '.$employee->last_name,
+                        'date' => $date->toDateString(),
                     ]);
                     $this->line("  ✓ Licencia registrada: {$employee->first_name} {$employee->last_name}");
+
                     return 'on_leave';
                 }
 
                 if ($attendanceDay->status !== 'absent') {
                     // Feriado o fin de semana — el registro existe pero no es una ausencia
                     $this->line("  · Omitido ({$attendanceDay->status}): {$employee->first_name} {$employee->last_name}");
+
                     return 'skipped';
                 }
 
-                Log::info("Ausencia creada automáticamente", [
-                    'employee_id'       => $employee->id,
-                    'employee_name'     => $employee->first_name . ' ' . $employee->last_name,
-                    'date'              => $date->toDateString(),
+                Log::info('Ausencia creada automáticamente', [
+                    'employee_id' => $employee->id,
+                    'employee_name' => $employee->first_name.' '.$employee->last_name,
+                    'date' => $date->toDateString(),
                     'expected_check_in' => $expectedCheckIn,
-                    'threshold_time'    => $thresholdTime->format('H:i'),
+                    'threshold_time' => $thresholdTime->format('H:i'),
                 ]);
 
                 $this->line("  ✓ Ausencia creada: {$employee->first_name} {$employee->last_name} (Esperado: {$expectedCheckIn})");
             } catch (\Exception $e) {
                 // Log de error si falla la creación
-                Log::error("Error creando ausencia automática", [
+                Log::error('Error creando ausencia automática', [
                     'employee_id' => $employee->id,
                     'error' => $e->getMessage(),
                 ]);
 
                 // Mostrar error en consola
                 $this->error("  ✗ Error creando ausencia para: {$employee->first_name} {$employee->last_name}");
+
                 return 'skipped';
             }
         } else {

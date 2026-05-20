@@ -53,7 +53,7 @@ class VacationResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-sun';
 
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 3;
 
     /**
      * Define el formulario para crear/editar solicitudes de vacaciones.

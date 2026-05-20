@@ -11,7 +11,6 @@ use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Resources\Resource;
@@ -27,19 +26,25 @@ use Filament\Tables\Table;
 class RotationPatternResource extends Resource
 {
     protected static ?string $model = RotationPattern::class;
-    protected static ?string $navigationGroup = 'Asistencias';
+
+    protected static ?string $navigationGroup = 'Organización';
+
+    protected static ?string $navigationLabel = 'Patrones de rotación';
+
     protected static ?string $modelLabel = 'Patrón de Rotación';
+
     protected static ?string $pluralModelLabel = 'Patrones de Rotación';
+
     protected static ?string $slug = 'patrones-rotacion';
+
     protected static ?string $navigationIcon = 'heroicon-o-arrow-path';
-    protected static ?int $navigationSort = 21;
+
+    protected static ?int $navigationSort = 7;
+
     protected static ?string $recordTitleAttribute = 'name';
 
     /**
      * Define el formulario de creación y edición de un patrón de rotación.
-     *
-     * @param  Form  $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -86,11 +91,11 @@ class RotationPatternResource extends Resource
                                         $companyId = $get('../../company_id');
 
                                         return ShiftTemplate::query()
-                                            ->when($companyId, fn($q) => $q->where('company_id', $companyId))
+                                            ->when($companyId, fn ($q) => $q->where('company_id', $companyId))
                                             ->where('is_active', true)
                                             ->orderByRaw('is_day_off ASC, name ASC')
                                             ->get()
-                                            ->mapWithKeys(fn($s) => [
+                                            ->mapWithKeys(fn ($s) => [
                                                 $s->id => $s->is_day_off
                                                     ? $s->name
                                                     : "{$s->name} ({$s->start_time} – {$s->end_time})",
@@ -106,14 +111,14 @@ class RotationPatternResource extends Resource
                             ->collapsible()
                             ->minItems(1)
                             ->defaultItems(7)
-                            ->itemLabel(fn(array $state) => filled($state['shift_template_id'] ?? null)
+                            ->itemLabel(fn (array $state) => filled($state['shift_template_id'] ?? null)
                                     ? (ShiftTemplate::find($state['shift_template_id'])?->name ?? 'Turno')
                                     : 'Turno'
-                                )
+                            )
                             ->mutateDehydratedStateUsing(
                                 // Convertir [{shift_template_id: X}, ...] → [X, ...]
-                                fn(array $state) => array_values(
-                                    array_map(fn($item) => (int) $item['shift_template_id'], $state)
+                                fn (array $state) => array_values(
+                                    array_map(fn ($item) => (int) $item['shift_template_id'], $state)
                                 )
                             ),
                     ]),
@@ -131,7 +136,7 @@ class RotationPatternResource extends Resource
     {
         if (isset($data['sequence']) && is_array($data['sequence'])) {
             $data['sequence'] = array_map(
-                fn($id) => ['shift_template_id' => $id],
+                fn ($id) => ['shift_template_id' => $id],
                 $data['sequence']
             );
         }
@@ -141,9 +146,6 @@ class RotationPatternResource extends Resource
 
     /**
      * Define la tabla de listado de patrones de rotación.
-     *
-     * @param  Table  $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -161,7 +163,7 @@ class RotationPatternResource extends Resource
 
                 TextColumn::make('cycle_length')
                     ->label('Días en ciclo')
-                    ->state(fn(RotationPattern $record) => $record->cycle_length)
+                    ->state(fn (RotationPattern $record) => $record->cycle_length)
                     ->suffix(' días')
                     ->badge()
                     ->color('info'),
@@ -169,7 +171,7 @@ class RotationPatternResource extends Resource
                 TextColumn::make('assignments_count')
                     ->label('Empleados activos')
                     ->counts([
-                        'assignments' => fn($q) => $q->whereNull('valid_until')
+                        'assignments' => fn ($q) => $q->whereNull('valid_until')
                             ->orWhere('valid_until', '>=', today()),
                     ])
                     ->badge()
@@ -204,7 +206,7 @@ class RotationPatternResource extends Resource
                     ->modalHeading('Desactivar patrón')
                     ->modalDescription('Los empleados con este patrón activo dejarán de tener turno calculado. ¿Continuar?')
                     ->modalSubmitActionLabel('Sí, desactivar')
-                    ->action(fn(RotationPattern $record) => $record->update(['is_active' => false]))
+                    ->action(fn (RotationPattern $record) => $record->update(['is_active' => false]))
                     ->successNotificationTitle('Patrón desactivado'),
             ])
             ->defaultSort('name');
@@ -216,9 +218,9 @@ class RotationPatternResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListRotationPatterns::route('/'),
+            'index' => Pages\ListRotationPatterns::route('/'),
             'create' => Pages\CreateRotationPattern::route('/create'),
-            'edit'   => Pages\EditRotationPattern::route('/{record}/edit'),
+            'edit' => Pages\EditRotationPattern::route('/{record}/edit'),
         ];
     }
 }

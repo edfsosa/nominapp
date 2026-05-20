@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contract;
-use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
@@ -16,10 +15,9 @@ class ContractController extends Controller
     {
         $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
 
-        $settings = app(GeneralSettings::class);
         $company = $contract->employee?->company;
 
-        $logoPath = $company?->logo ?? $settings->company_logo;
+        $logoPath = $company?->logo;
         $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
 
         // Datos del horario del empleado vigente en la fecha de inicio del contrato
@@ -59,13 +57,13 @@ class ContractController extends Controller
         $pdf = Pdf::loadView('pdf.contract', [
             'contract' => $contract,
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
-            'companyName' => $company?->name ?? $settings->company_name,
-            'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
-            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
-            'companyPhone' => $company?->phone ?? $settings->company_phone ?? '',
-            'companyEmail' => $company?->email ?? $settings->company_email ?? '',
-            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
-            'city' => $company?->city ?? $settings->company_city ?? '',
+            'companyName' => $company?->name ?? '',
+            'companyRuc' => $company?->ruc ?? '',
+            'companyAddress' => $company?->address ?? '',
+            'companyPhone' => $company?->phone ?? '',
+            'companyEmail' => $company?->email ?? '',
+            'employerNumber' => $company?->employer_number ?? '',
+            'city' => $company?->city ?? '',
             'legalRepName' => $company?->legal_rep_name ?? '',
             'legalRepCi' => $company?->legal_rep_ci ?? '',
             'employeeGender' => $genderMap[$employee?->gender] ?? '',

@@ -27,29 +27,35 @@ use Illuminate\Database\Eloquent\Collection;
 class AguinaldoResource extends Resource
 {
     protected static ?string $model = Aguinaldo::class;
+
     protected static ?string $navigationGroup = 'Nóminas';
+
     protected static ?string $navigationLabel = 'Recibos Aguinaldo';
+
     protected static ?string $label = 'Recibo de Aguinaldo';
+
     protected static ?string $pluralLabel = 'Recibos de Aguinaldo';
+
     protected static ?string $slug = 'aguinaldo-recibos';
+
     protected static ?string $navigationIcon = 'heroicon-o-gift';
-    protected static ?int $navigationSort = 7;
+
+    protected static bool $shouldRegisterNavigation = false;
+
+    protected static ?int $navigationSort = 10;
 
     /**
      * Define la tabla de listados para los recibos de aguinaldo, incluyendo columnas, filtros, acciones y estado vacío.
-     *
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn($query) => $query->with(['employee', 'period']))
+            ->modifyQueryUsing(fn ($query) => $query->with(['employee', 'period']))
             ->columns([
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -94,7 +100,7 @@ class AguinaldoResource extends Resource
                 TextColumn::make('months_worked')
                     ->label('Meses')
                     ->alignCenter()
-                    ->formatStateUsing(fn($state) => number_format($state, 0))
+                    ->formatStateUsing(fn ($state) => number_format($state, 0))
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -124,9 +130,9 @@ class AguinaldoResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Aguinaldo::getStatusLabel($state))
-                    ->color(fn(string $state) => Aguinaldo::getStatusColor($state))
-                    ->icon(fn(string $state) => Aguinaldo::getStatusIcon($state))
+                    ->formatStateUsing(fn (string $state) => Aguinaldo::getStatusLabel($state))
+                    ->color(fn (string $state) => Aguinaldo::getStatusColor($state))
+                    ->icon(fn (string $state) => Aguinaldo::getStatusIcon($state))
                     ->sortable(),
 
                 TextColumn::make('paid_at')
@@ -145,12 +151,12 @@ class AguinaldoResource extends Resource
             ->filters([
                 SelectFilter::make('company')
                     ->label('Empresa')
-                    ->options(fn() => Company::active()->get()->mapWithKeys(
-                        fn($c) => [$c->id => $c->name . ($c->trade_name ? ' (' . $c->trade_name . ')' : '')]
+                    ->options(fn () => Company::active()->get()->mapWithKeys(
+                        fn ($c) => [$c->id => $c->name.($c->trade_name ? ' ('.$c->trade_name.')' : '')]
                     ))
                     ->query(function ($query, array $data) {
                         if (filled($data['value'])) {
-                            return $query->whereHas('period', fn($q) => $q->where('company_id', $data['value']));
+                            return $query->whereHas('period', fn ($q) => $q->where('company_id', $data['value']));
                         }
                     })
                     ->searchable()
@@ -159,7 +165,7 @@ class AguinaldoResource extends Resource
                 SelectFilter::make('aguinaldo_period_id')
                     ->label('Período')
                     ->relationship('period', 'year')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->year} - {$record->company->name}")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->year} - {$record->company->name}")
                     ->searchable()
                     ->native(false),
 
@@ -168,7 +174,7 @@ class AguinaldoResource extends Resource
                     ->relationship('employee', 'first_name')
                     ->searchable()
                     ->native(false)
-                    ->getOptionLabelFromRecordUsing(fn($record) => $record->full_name),
+                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name),
             ])
             ->actions([
                 Action::make('mark_paid')
@@ -177,7 +183,7 @@ class AguinaldoResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar como Pagado?')
-                    ->modalDescription(fn(Aguinaldo $record) => "¿Confirmar pago del aguinaldo de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . "?")
+                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirmar pago del aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPaid();
@@ -188,7 +194,7 @@ class AguinaldoResource extends Resource
                             ->body("El aguinaldo de {$record->employee->full_name} ha sido marcado como pagado.")
                             ->send();
                     })
-                    ->visible(fn(Aguinaldo $record) => $record->isPending() && $record->period?->isProcessing()),
+                    ->visible(fn (Aguinaldo $record) => $record->isPending() && $record->period?->isProcessing()),
 
                 Action::make('unmark_paid')
                     ->label('Marcar Pendiente')
@@ -196,7 +202,7 @@ class AguinaldoResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar como Pendiente?')
-                    ->modalDescription(fn(Aguinaldo $record) => "Se revertirá el pago del aguinaldo de {$record->employee->full_name} por " . Aguinaldo::formatCurrency($record->aguinaldo_amount) . " y volverá a estado Pendiente.")
+                    ->modalDescription(fn (Aguinaldo $record) => "Se revertirá el pago del aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).' y volverá a estado Pendiente.')
                     ->modalSubmitActionLabel('Sí, marcar como pendiente')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPending();
@@ -207,7 +213,7 @@ class AguinaldoResource extends Resource
                             ->body("El aguinaldo de {$record->employee->full_name} volvió a estado Pendiente.")
                             ->send();
                     })
-                    ->visible(fn(Aguinaldo $record) => $record->isPaid() && $record->period?->isProcessing()),
+                    ->visible(fn (Aguinaldo $record) => $record->isPaid() && $record->period?->isProcessing()),
 
                 Action::make('regenerate')
                     ->label('Regenerar')
@@ -215,7 +221,7 @@ class AguinaldoResource extends Resource
                     ->color('gray')
                     ->requiresConfirmation()
                     ->modalHeading('¿Regenerar Aguinaldo?')
-                    ->modalDescription(fn(Aguinaldo $record) => "Se recalcularán los valores del aguinaldo de {$record->employee->full_name}. ¿Deseas continuar?")
+                    ->modalDescription(fn (Aguinaldo $record) => "Se recalcularán los valores del aguinaldo de {$record->employee->full_name}. ¿Deseas continuar?")
                     ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (Aguinaldo $record, AguinaldoService $aguinaldoService) {
                         try {
@@ -234,15 +240,15 @@ class AguinaldoResource extends Resource
                                 ->send();
                         }
                     })
-                    ->visible(fn(Aguinaldo $record) => $record->period?->isProcessing()),
+                    ->visible(fn (Aguinaldo $record) => $record->period?->isProcessing()),
 
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn(Aguinaldo $record) => route('aguinaldos.download', $record))
+                    ->url(fn (Aguinaldo $record) => route('aguinaldos.download', $record))
                     ->openUrlInNewTab()
-                    ->visible(fn(Aguinaldo $record) => (bool) $record->pdf_path),
+                    ->visible(fn (Aguinaldo $record) => (bool) $record->pdf_path),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -256,7 +262,7 @@ class AguinaldoResource extends Resource
                         ->modalSubmitActionLabel('Sí, marcar como pagados')
                         ->action(function (Collection $records) {
                             $count = $records
-                                ->filter(fn($r) => $r->isPending() && $r->period->isProcessing())
+                                ->filter(fn ($r) => $r->isPending() && $r->period->isProcessing())
                                 ->each->markAsPaid()
                                 ->count();
 
@@ -278,7 +284,7 @@ class AguinaldoResource extends Resource
                         ->modalSubmitActionLabel('Sí, marcar como pendientes')
                         ->action(function (Collection $records) {
                             $count = $records
-                                ->filter(fn($r) => $r->isPaid() && $r->period->isProcessing())
+                                ->filter(fn ($r) => $r->isPaid() && $r->period->isProcessing())
                                 ->each->markAsPending()
                                 ->count();
 
@@ -302,7 +308,7 @@ class AguinaldoResource extends Resource
                             $success = 0;
                             $errors = 0;
 
-                            foreach ($records->filter(fn($r) => $r->period->isProcessing()) as $record) {
+                            foreach ($records->filter(fn ($r) => $r->period->isProcessing()) as $record) {
                                 try {
                                     $aguinaldoService->regenerateForEmployee($record);
                                     $success++;
@@ -339,7 +345,7 @@ class AguinaldoResource extends Resource
                         ->modalSubmitActionLabel('Sí, eliminar')
                         ->action(function (Collection $records) {
                             $count = $records
-                                ->filter(fn($r) => $r->period->isProcessing())
+                                ->filter(fn ($r) => $r->period->isProcessing())
                                 ->each->delete()
                                 ->count();
 
@@ -406,8 +412,8 @@ class AguinaldoResource extends Resource
                             TextEntry::make('period.status')
                                 ->label('Estado del Período')
                                 ->badge()
-                                ->formatStateUsing(fn(string $state) => AguinaldoPeriod::getStatusLabel($state))
-                                ->color(fn(string $state) => AguinaldoPeriod::getStatusColor($state)),
+                                ->formatStateUsing(fn (string $state) => AguinaldoPeriod::getStatusLabel($state))
+                                ->color(fn (string $state) => AguinaldoPeriod::getStatusColor($state)),
                         ])->columns(3),
                     ]),
 
@@ -421,7 +427,7 @@ class AguinaldoResource extends Resource
 
                             TextEntry::make('months_worked')
                                 ->label('Meses Trabajados')
-                                ->formatStateUsing(fn($state) => number_format($state, 0) . ' meses')
+                                ->formatStateUsing(fn ($state) => number_format($state, 0).' meses')
                                 ->icon('heroicon-o-calendar'),
                         ])->columns(2),
 
@@ -437,9 +443,9 @@ class AguinaldoResource extends Resource
                             TextEntry::make('status')
                                 ->label('Estado de Pago')
                                 ->badge()
-                                ->formatStateUsing(fn(string $state) => Aguinaldo::getStatusLabel($state))
-                                ->color(fn(string $state) => Aguinaldo::getStatusColor($state))
-                                ->icon(fn(string $state) => Aguinaldo::getStatusIcon($state)),
+                                ->formatStateUsing(fn (string $state) => Aguinaldo::getStatusLabel($state))
+                                ->color(fn (string $state) => Aguinaldo::getStatusColor($state))
+                                ->icon(fn (string $state) => Aguinaldo::getStatusIcon($state)),
 
                             TextEntry::make('paid_at')
                                 ->label('Fecha de Pago')
@@ -459,10 +465,10 @@ class AguinaldoResource extends Resource
 
                             TextEntry::make('pdf_path')
                                 ->label('PDF')
-                                ->formatStateUsing(fn($state) => $state ? 'Disponible' : 'No generado')
+                                ->formatStateUsing(fn ($state) => $state ? 'Disponible' : 'No generado')
                                 ->badge()
-                                ->color(fn($state) => $state ? 'success' : 'gray')
-                                ->icon(fn($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+                                ->color(fn ($state) => $state ? 'success' : 'gray')
+                                ->icon(fn ($state) => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
                         ])->columns(2),
                     ])
                     ->collapsed(),
@@ -471,8 +477,6 @@ class AguinaldoResource extends Resource
 
     /**
      * Define las relaciones para el recurso de Aguinaldo, incluyendo el gestor de relación para los ítems del aguinaldo.
-     *
-     * @return array
      */
     public static function getRelations(): array
     {
@@ -483,21 +487,17 @@ class AguinaldoResource extends Resource
 
     /**
      * Define las páginas para el recurso de Aguinaldo, incluyendo la página de listado y la página de vista detallada.
-     *
-     * @return array
      */
     public static function getPages(): array
     {
         return [
             'index' => Pages\ListAguinaldos::route('/'),
-            'view'  => Pages\ViewAguinaldo::route('/{record}'),
+            'view' => Pages\ViewAguinaldo::route('/{record}'),
         ];
     }
 
     /**
      * Deshabilita la creación manual de recibos de aguinaldo desde el panel de administración, ya que estos se generan automáticamente desde los períodos de aguinaldo.
-     *
-     * @return bool
      */
     public static function canCreate(): bool
     {
@@ -506,8 +506,6 @@ class AguinaldoResource extends Resource
 
     /**
      * Define la insignia de navegación para el recurso de Aguinaldo.
-     *
-     * @return string|null
      */
     public static function getNavigationBadge(): ?string
     {
@@ -520,8 +518,6 @@ class AguinaldoResource extends Resource
 
     /**
      * Define el color de la insignia de navegación para el recurso de Aguinaldo.
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeColor(): ?string
     {
@@ -530,8 +526,6 @@ class AguinaldoResource extends Resource
 
     /**
      * Define el tooltip de la insignia de navegación para el recurso de Aguinaldo.
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeTooltip(): ?string
     {

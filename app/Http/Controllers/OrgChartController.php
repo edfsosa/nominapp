@@ -4,7 +4,6 @@ namespace App\Http\Controllers;
 
 use App\Models\Company;
 use App\Models\Position;
-use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 
 class OrgChartController extends Controller
@@ -27,12 +26,10 @@ class OrgChartController extends Controller
      */
     public function exportPdf(Company $company)
     {
-        $settings = app(GeneralSettings::class);
         $orgData = $this->buildOrgChartData($company);
 
-        // Obtener logo
-        $logoPath = $company->logo ?? $settings->company_logo;
-        $companyLogo = $logoPath ? storage_path('app/public/' . $logoPath) : null;
+        $logoPath = $company->logo;
+        $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
         $companyLogo = $companyLogo && file_exists($companyLogo) ? $companyLogo : null;
 
         $pdf = Pdf::loadView('org-chart.pdf', [
@@ -67,9 +64,9 @@ class OrgChartController extends Controller
         foreach ($employees as $employee) {
             $posId = $employee->activeContract?->position_id ?? 0;
             $employeesByPosition[$posId][] = [
-                'id'    => $employee->id,
-                'name'  => $employee->full_name,
-                'photo' => $employee->photo ? asset('storage/' . $employee->photo) : null,
+                'id' => $employee->id,
+                'name' => $employee->full_name,
+                'photo' => $employee->photo ? asset('storage/'.$employee->photo) : null,
             ];
         }
 
@@ -79,19 +76,19 @@ class OrgChartController extends Controller
 
         foreach ($byDepartment as $deptPositions) {
             $deptPositionsKeyed = $deptPositions->keyBy('id');
-            $deptPositionIds    = $deptPositionsKeyed->keys()->toArray();
-            $department         = $deptPositions->first()->department;
+            $deptPositionIds = $deptPositionsKeyed->keys()->toArray();
+            $department = $deptPositions->first()->department;
 
             $tree[] = [
-                'name'      => $department?->name ?? 'Sin Departamento',
+                'name' => $department?->name ?? 'Sin Departamento',
                 'positions' => $this->buildPositionTree($deptPositionsKeyed, $deptPositionIds, $employeesByPosition),
             ];
         }
 
-        usort($tree, fn($a, $b) => strcmp($a['name'], $b['name']));
+        usort($tree, fn ($a, $b) => strcmp($a['name'], $b['name']));
 
         return [
-            'tree'       => $tree,
+            'tree' => $tree,
             'unassigned' => $employeesByPosition[0] ?? [],
         ];
     }
@@ -106,7 +103,7 @@ class OrgChartController extends Controller
         foreach ($positionIds as $posId) {
             $position = Position::find($posId);
             while ($position && $position->parent_id) {
-                if (!in_array($position->parent_id, $allIds)) {
+                if (! in_array($position->parent_id, $allIds)) {
                     $allIds[] = $position->parent_id;
                 }
                 $position = $position->parent;
@@ -127,21 +124,22 @@ class OrgChartController extends Controller
 
         foreach ($positions as $position) {
             $isRoot = $parentId === null
-                ? (is_null($position->parent_id) || !in_array($position->parent_id, $deptPositionIds))
+                ? (is_null($position->parent_id) || ! in_array($position->parent_id, $deptPositionIds))
                 : $position->parent_id === $parentId;
 
             if ($isRoot) {
                 $tree[] = [
-                    'id'         => $position->id,
-                    'name'       => $position->name,
+                    'id' => $position->id,
+                    'name' => $position->name,
                     'department' => $position->department?->name ?? 'Sin Departamento',
-                    'employees'  => $employeesByPosition[$position->id] ?? [],
-                    'children'   => $this->buildPositionTree($positions, $deptPositionIds, $employeesByPosition, $position->id),
+                    'employees' => $employeesByPosition[$position->id] ?? [],
+                    'children' => $this->buildPositionTree($positions, $deptPositionIds, $employeesByPosition, $position->id),
                 ];
             }
         }
 
-        usort($tree, fn($a, $b) => strcmp($a['name'], $b['name']));
+        usort($tree, fn ($a, $b) => strcmp($a['name'], $b['name']));
+
         return $tree;
     }
 }

@@ -30,6 +30,8 @@ class CompanyResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-building-office-2';
 
+    protected static ?string $navigationLabel = 'Empresas';
+
     protected static ?string $navigationGroup = 'Organización';
 
     protected static ?int $navigationSort = 1;

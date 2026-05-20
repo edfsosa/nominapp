@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Advance;
-use App\Settings\GeneralSettings;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 
@@ -19,23 +18,21 @@ class AdvanceController extends Controller
     {
         $advance->load(['employee.activeContract.position.department', 'employee.branch.company', 'approvedBy', 'payroll.period']);
 
-        $settings = app(GeneralSettings::class);
-
         $company = $advance->employee->company;
 
-        $logoPath = $company?->logo ?? $settings->company_logo;
+        $logoPath = $company?->logo;
         $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
 
         $pdf = Pdf::loadView('pdf.advance', [
             'advance' => $advance,
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
-            'companyName' => $company?->name ?? $settings->company_name,
-            'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
-            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
-            'companyPhone' => $company?->phone ?? $settings->company_phone ?? '',
-            'companyEmail' => $company?->email ?? $settings->company_email ?? '',
-            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
-            'city' => $company?->city ?? $settings->company_city ?? '',
+            'companyName' => $company?->name ?? '',
+            'companyRuc' => $company?->ruc ?? '',
+            'companyAddress' => $company?->address ?? '',
+            'companyPhone' => $company?->phone ?? '',
+            'companyEmail' => $company?->email ?? '',
+            'employerNumber' => $company?->employer_number ?? '',
+            'city' => $company?->city ?? '',
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream("adelanto_{$advance->id}_{$advance->employee->ci}.pdf");
@@ -63,24 +60,21 @@ class AdvanceController extends Controller
             abort(404, 'No se encontraron los adelantos solicitados.');
         }
 
-        $settings = app(GeneralSettings::class);
+        $company = $advances->first()->employee->company;
 
-        $firstEmployee = $advances->first()->employee;
-        $company = $firstEmployee->company;
-
-        $logoPath = $company?->logo ?? $settings->company_logo;
+        $logoPath = $company?->logo;
         $companyLogo = $logoPath ? storage_path('app/public/'.$logoPath) : null;
 
         $pdf = Pdf::loadView('pdf.advances-bulk', [
             'advances' => $advances,
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
-            'companyName' => $company?->name ?? $settings->company_name,
-            'companyRuc' => $company?->ruc ?? $settings->company_ruc ?? '',
-            'companyAddress' => $company?->address ?? $settings->company_address ?? '',
-            'companyPhone' => $company?->phone ?? $settings->company_phone ?? '',
-            'companyEmail' => $company?->email ?? $settings->company_email ?? '',
-            'employerNumber' => $company?->employer_number ?? $settings->company_employer_number ?? '',
-            'city' => $company?->city ?? $settings->company_city ?? '',
+            'companyName' => $company?->name ?? '',
+            'companyRuc' => $company?->ruc ?? '',
+            'companyAddress' => $company?->address ?? '',
+            'companyPhone' => $company?->phone ?? '',
+            'companyEmail' => $company?->email ?? '',
+            'employerNumber' => $company?->employer_number ?? '',
+            'city' => $company?->city ?? '',
         ])->setPaper('a4', 'portrait');
 
         return $pdf->stream('adelantos_'.now()->format('Y_m_d_H_i_s').'.pdf');

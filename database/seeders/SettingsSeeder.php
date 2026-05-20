@@ -26,31 +26,22 @@ class SettingsSeeder extends Seeder
     }
 
     /**
-     * Siembra los ajustes generales de la empresa demo.
-     *
-     * Los datos de empresa (nombre, RUC, etc.) son coherentes con CompanySeeder.
+     * Siembra los ajustes generales del sistema.
      */
     private function seedGeneralSettings(): void
     {
         $this->upsertGroup('general', [
-            // Datos de empresa
-            'company_name' => 'Empresa Demo S.A.',
-            'company_logo' => null,
-            'company_ruc' => '80012345-6',
-            'company_employer_number' => '12345',
-            'company_address' => 'Av. Mariscal López 1234, Asunción',
-            'company_phone' => '0211234567',
-            'company_email' => 'info@empresademo.com.py',
-            'company_city' => 'Asunción',
-
             // Configuración laboral
             'timezone' => 'America/Asuncion',
+            'absence_threshold_minutes' => 30,
 
             // Contratos
             'contract_alert_days' => 30,
 
-            // Registro facial
+            // Reconocimiento facial
             'face_enrollment_expiry_hours' => 48,
+            'face_threshold' => 0.45,
+            'face_min_confidence_gap' => 0.1,
         ]);
 
         $this->command->info('GeneralSettings sembrados.');

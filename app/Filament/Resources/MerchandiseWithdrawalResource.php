@@ -43,9 +43,9 @@ class MerchandiseWithdrawalResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-shopping-bag';
 
-    protected static ?string $navigationGroup = 'Nóminas';
+    protected static ?string $navigationGroup = 'Créditos';
 
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 3;
 
     /**
      * Formulario de creación/edición del retiro (cabecera; los productos van en el RM).

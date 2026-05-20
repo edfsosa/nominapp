@@ -41,11 +41,11 @@ class DisbursementBatchResource extends Resource
 
     protected static ?string $slug = 'pagos-bancarios';
 
-    protected static ?string $navigationIcon = 'heroicon-o-building-library';
+    protected static ?string $navigationIcon = 'heroicon-o-credit-card';
 
     protected static ?string $navigationGroup = 'Nóminas';
 
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 3;
 
     /**
      * Define el formulario de creación de un lote.

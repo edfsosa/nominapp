@@ -33,9 +33,9 @@ class AdvanceReport extends Page implements HasTable
 
     protected static ?string $navigationLabel = 'Reporte de Adelantos';
 
-    protected static ?string $navigationGroup = 'Nóminas';
+    protected static ?string $navigationGroup = 'Reportes';
 
-    protected static ?int $navigationSort = 7;
+    protected static ?int $navigationSort = 5;
 
     protected static string $view = 'filament.pages.advance-report';
 
@@ -245,7 +245,7 @@ class AdvanceReport extends Page implements HasTable
      */
     private function buildFilters(): array
     {
-        return [
+        $filters = [
             Filter::make('period')
                 ->label('Período')
                 ->form([
@@ -272,16 +272,20 @@ class AdvanceReport extends Page implements HasTable
 
                     return $indicators;
                 }),
+        ];
 
-            SelectFilter::make('company_id')
+        if (Company::active()->count() > 1) {
+            $filters[] = SelectFilter::make('company_id')
                 ->label('Empresa')
                 ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->query(fn (Builder $query, array $data) => $data['value']
                     ? $query->where('branches.company_id', $data['value'])
                     : $query
-                ),
+                );
+        }
 
+        return array_merge($filters, [
             SelectFilter::make('branch_id')
                 ->label('Sucursal')
                 ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
@@ -322,7 +326,7 @@ class AdvanceReport extends Page implements HasTable
                     ? $query->where('advances.payment_method', $data['value'])
                     : $query
                 ),
-        ];
+        ]);
     }
 
     /**

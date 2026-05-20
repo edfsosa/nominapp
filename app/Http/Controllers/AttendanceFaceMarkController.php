@@ -37,20 +37,19 @@ class AttendanceFaceMarkController extends Controller
      * Muestra la terminal de marcación identificada por su código único.
      * Actualiza last_seen_at en cada carga. Si está inactiva, muestra pantalla de fuera de servicio.
      *
-     * @param  string $code Código único de 8 caracteres de la terminal
-     * @return ViewContract
+     * @param  string  $code  Código único de 8 caracteres de la terminal
      */
     public function terminalByCode(string $code): ViewContract
     {
         $terminal = Terminal::with('branch')->where('code', $code)->first();
 
-        if (!$terminal) {
+        if (! $terminal) {
             abort(404);
         }
 
         if ($terminal->isInactive()) {
             return view('attendances.terminal-inactive', [
-                'title'    => 'Terminal fuera de servicio',
+                'title' => 'Terminal fuera de servicio',
                 'terminal' => $terminal,
             ]);
         }
@@ -58,7 +57,7 @@ class AttendanceFaceMarkController extends Controller
         $terminal->update(['last_seen_at' => now()]);
 
         return view('attendances.terminal', [
-            'title'    => "Terminal — {$terminal->name}",
+            'title' => "Terminal — {$terminal->name}",
             'terminal' => $terminal,
         ]);
     }
@@ -86,7 +85,7 @@ class AttendanceFaceMarkController extends Controller
                 ? json_decode($raw, true, 512, JSON_THROW_ON_ERROR)
                 : (is_array($raw) ? $raw : null);
 
-            if (!is_array($live) || count($live) !== 128) {
+            if (! is_array($live) || count($live) !== 128) {
                 // CORRECCIÓN 2: Verificar que todos los elementos sean numéricos
                 return response()->json([
                     'ok' => false,
@@ -96,7 +95,7 @@ class AttendanceFaceMarkController extends Controller
 
             // CORRECCIÓN 3: Validar que todos los elementos del descriptor sean numéricos
             foreach ($live as $value) {
-                if (!is_numeric($value)) {
+                if (! is_numeric($value)) {
                     return response()->json([
                         'ok' => false,
                         'message' => 'El descriptor facial debe contener solo valores numéricos.',
@@ -112,7 +111,7 @@ class AttendanceFaceMarkController extends Controller
 
         try {
             // CORRECCIÓN 4: Validar que el threshold sea válido
-            $threshold = (float) config('attendance.face_threshold', 0.45);
+            $threshold = (float) app(\App\Settings\GeneralSettings::class)->face_threshold;
             if ($threshold <= 0 || $threshold > 2.0) {
                 Log::warning('Invalid face threshold in config', ['threshold' => $threshold]);
                 $threshold = 0.45; // valor por defecto seguro
@@ -124,29 +123,29 @@ class AttendanceFaceMarkController extends Controller
                 $employee->load('branch');
             }
 
-            if (!$employee) {
-                $failureType = match($reason) {
-                    'ambiguous'      => 'face_ambiguous',
-                    'no_match'       => 'face_no_match',
-                    'no_candidates'  => 'face_no_candidates',
-                    default          => 'internal_error',
+            if (! $employee) {
+                $failureType = match ($reason) {
+                    'ambiguous' => 'face_ambiguous',
+                    'no_match' => 'face_no_match',
+                    'no_candidates' => 'face_no_candidates',
+                    default => 'internal_error',
                 };
 
-                $message = match($reason) {
+                $message = match ($reason) {
                     'ambiguous' => 'Rostro ambiguo. Por favor, reposicione su cara e intente de nuevo.',
-                    'no_match'  => 'No se pudo identificar el rostro. Intente nuevamente.',
-                    default     => 'Error al procesar el rostro.',
+                    'no_match' => 'No se pudo identificar el rostro. Intente nuevamente.',
+                    default => 'Error al procesar el rostro.',
                 };
 
                 $this->recordFailure($request, $failureType, $message, [
                     'best_distance' => $distance !== INF ? round($distance, 4) : null,
-                    'reason'        => $reason,
+                    'reason' => $reason,
                 ]);
 
                 return response()->json([
-                    'ok'      => false,
+                    'ok' => false,
                     'message' => $message,
-                    'reason'  => $reason,
+                    'reason' => $reason,
                 ], 422);
             }
 
@@ -173,17 +172,17 @@ class AttendanceFaceMarkController extends Controller
             return response()->json([
                 'ok' => true,
                 'employee' => [
-                    'id'          => $employee->id,
-                    'first_name'  => $employee->first_name ?? '',
-                    'last_name'   => $employee->last_name ?? '',
-                    'ci'          => $employee->ci ?? null,
+                    'id' => $employee->id,
+                    'first_name' => $employee->first_name ?? '',
+                    'last_name' => $employee->last_name ?? '',
+                    'ci' => $employee->ci ?? null,
                     'branch_name' => $employee->branch?->name ?? null,
-                    'photo_url'   => $photoUrl,
+                    'photo_url' => $photoUrl,
                 ],
                 'distance' => round($distance, 4),
-                'last_event'      => $last?->event_type,
+                'last_event' => $last?->event_type,
                 'last_event_time' => $last?->recorded_at?->format('H:i'),
-                'allowed_events'  => $allowed,
+                'allowed_events' => $allowed,
             ]);
         } catch (Throwable $e) {
             Log::error('identify() error', [
@@ -207,13 +206,13 @@ class AttendanceFaceMarkController extends Controller
             // CORRECCIÓN 6: Validación más robusta con mensajes personalizados
             // TERMINAL MODE: location es ahora opcional (nullable)
             $data = $request->validate([
-                'employee_id'        => ['required', 'integer', 'exists:employees,id'],
-                'event_type'         => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
-                'source'             => ['nullable', 'string', 'in:terminal,mobile,manual'],
-                'terminal_code'      => ['nullable', 'string'],
-                'location'           => ['nullable', 'array'],
-                'location.lat'       => ['required_with:location', 'numeric', 'between:-90,90'],
-                'location.lng'       => ['required_with:location', 'numeric', 'between:-180,180'],
+                'employee_id' => ['required', 'integer', 'exists:employees,id'],
+                'event_type' => ['required', 'string', 'in:check_in,break_start,break_end,check_out'],
+                'source' => ['nullable', 'string', 'in:terminal,mobile,manual'],
+                'terminal_code' => ['nullable', 'string'],
+                'location' => ['nullable', 'array'],
+                'location.lat' => ['required_with:location', 'numeric', 'between:-90,90'],
+                'location.lng' => ['required_with:location', 'numeric', 'between:-180,180'],
             ], [
                 'employee_id.required' => 'ID de empleado es requerido.',
                 'employee_id.exists' => 'El empleado no existe.',
@@ -254,7 +253,7 @@ class AttendanceFaceMarkController extends Controller
 
         // Resolver la terminal si se envió terminal_code
         $terminal = null;
-        if (!empty($data['terminal_code'])) {
+        if (! empty($data['terminal_code'])) {
             $terminal = Terminal::with('branch')->where('code', $data['terminal_code'])->first();
         }
 
@@ -263,7 +262,7 @@ class AttendanceFaceMarkController extends Controller
 
         if (empty($data['location'])) {
             // Verificar que exista sucursal con coordenadas
-            if (!$locationBranch) {
+            if (! $locationBranch) {
                 Log::warning('Marcación fallida: empleado sin sucursal asignada', [
                     'employee_id' => $employee->id,
                     'employee_name' => "{$employee->first_name} {$employee->last_name}",
@@ -281,7 +280,7 @@ class AttendanceFaceMarkController extends Controller
             $branchCoords = $locationBranch->coordinates;
 
             // Verificar que la sucursal tenga coordenadas configuradas
-            if (!$branchCoords || !isset($branchCoords['lat'], $branchCoords['lng'])) {
+            if (! $branchCoords || ! isset($branchCoords['lat'], $branchCoords['lng'])) {
                 Log::warning('Marcación fallida: sucursal sin coordenadas configuradas', [
                     'employee_id' => $employee->id,
                     'employee_name' => "{$employee->first_name} {$employee->last_name}",
@@ -290,7 +289,7 @@ class AttendanceFaceMarkController extends Controller
                 ]);
 
                 $this->recordFailure($request, 'branch_no_coordinates', 'Sucursal sin coordenadas configuradas.', [
-                    'branch_id'   => $locationBranch->id,
+                    'branch_id' => $locationBranch->id,
                     'branch_name' => $locationBranch->name,
                 ], $employee, $locationBranch);
 
@@ -308,9 +307,9 @@ class AttendanceFaceMarkController extends Controller
 
             Log::info('Usando coordenadas de sucursal para marcación', [
                 'employee_id' => $employee->id,
-                'branch_id'   => $locationBranch->id,
+                'branch_id' => $locationBranch->id,
                 'branch_name' => $locationBranch->name,
-                'source'      => $terminal ? 'terminal' : 'employee_branch',
+                'source' => $terminal ? 'terminal' : 'employee_branch',
                 'coordinates' => $location,
             ]);
         } else {
@@ -347,7 +346,7 @@ class AttendanceFaceMarkController extends Controller
 
                 $allowed = $this->allowedNextEvents($last?->event_type);
 
-                if (!in_array($data['event_type'], $allowed, true)) {
+                if (! in_array($data['event_type'], $allowed, true)) {
                     Log::warning('Marcación fallida: secuencia de evento no permitida', [
                         'employee_id' => $employee->id,
                         'employee_name' => "{$employee->first_name} {$employee->last_name}",
@@ -358,15 +357,15 @@ class AttendanceFaceMarkController extends Controller
 
                     // Guardar para persistir fuera de la transacción (evitar rollback del INSERT)
                     $pendingFailure = [
-                        'type'      => 'invalid_event_sequence',
-                        'message'   => 'Secuencia de evento no permitida.',
-                        'metadata'  => [
+                        'type' => 'invalid_event_sequence',
+                        'message' => 'Secuencia de evento no permitida.',
+                        'metadata' => [
                             'attempted_event' => $data['event_type'],
-                            'last_event'      => $last?->event_type,
-                            'allowed_events'  => $allowed,
+                            'last_event' => $last?->event_type,
+                            'allowed_events' => $allowed,
                         ],
-                        'employee'  => $employee,
-                        'branch'    => $employee->branch,
+                        'employee' => $employee,
+                        'branch' => $employee->branch,
                         'eventType' => $data['event_type'],
                     ];
 
@@ -376,7 +375,7 @@ class AttendanceFaceMarkController extends Controller
 
                     $allowedNames = empty($allowed)
                         ? 'ninguno'
-                        : implode(', ', array_map(fn($e) => "'" . ($eventTypeNames[$e] ?? $e) . "'", $allowed));
+                        : implode(', ', array_map(fn ($e) => "'".($eventTypeNames[$e] ?? $e)."'", $allowed));
 
                     // Construir mensaje breve y claro
                     if ($last) {
@@ -405,13 +404,13 @@ class AttendanceFaceMarkController extends Controller
 
                     // Guardar para persistir fuera de la transacción (evitar rollback del INSERT)
                     $pendingFailure = [
-                        'type'      => 'invalid_location',
-                        'message'   => 'Ubicación 0,0 detectada.',
-                        'metadata'  => ['event_type' => $data['event_type']],
-                        'employee'  => $employee,
-                        'branch'    => $employee->branch,
+                        'type' => 'invalid_location',
+                        'message' => 'Ubicación 0,0 detectada.',
+                        'metadata' => ['event_type' => $data['event_type']],
+                        'employee' => $employee,
+                        'branch' => $employee->branch,
                         'eventType' => $data['event_type'],
-                        'location'  => ['lat' => $lat, 'lng' => $lng],
+                        'location' => ['lat' => $lat, 'lng' => $lng],
                     ];
 
                     throw ValidationException::withMessages([
@@ -430,16 +429,16 @@ class AttendanceFaceMarkController extends Controller
 
                 // Registrar el evento de asistencia
                 $event = $day->events()->create([
-                    'event_type'      => $data['event_type'],
-                    'recorded_at'     => $recordedAt,
-                    'source'          => $data['source'] ?? 'manual',
-                    'location'        => ['lat' => $lat, 'lng' => $lng],
-                    'terminal_id'     => $terminal?->id,
+                    'event_type' => $data['event_type'],
+                    'recorded_at' => $recordedAt,
+                    'source' => $data['source'] ?? 'manual',
+                    'location' => ['lat' => $lat, 'lng' => $lng],
+                    'terminal_id' => $terminal?->id,
                     'branch_mismatch' => $branchMismatch,
                 ]);
 
                 // CORRECCIÓN 12: Verificar que el evento se creó correctamente
-                if (!$event || !$event->id) {
+                if (! $event || ! $event->id) {
                     throw new \Exception('No se pudo crear el evento de asistencia.');
                 }
 
@@ -520,16 +519,16 @@ class AttendanceFaceMarkController extends Controller
     protected function identifyEmployeeByDescriptor(array $live, float $threshold = 0.45): array
     {
         try {
-            $candidates = Cache::remember('employees_face_descriptors', 300, fn () =>
-                Employee::query()
-                    ->whereNotNull('face_descriptor')
-                    ->where('status', 'active')
-                    ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
-                    ->get()
+            $candidates = Cache::remember('employees_face_descriptors', 300, fn () => Employee::query()
+                ->whereNotNull('face_descriptor')
+                ->where('status', 'active')
+                ->select('id', 'first_name', 'last_name', 'ci', 'photo', 'face_descriptor')
+                ->get()
             );
 
             if ($candidates->isEmpty()) {
                 Log::warning('No hay empleados con descriptores faciales activos.');
+
                 return [null, INF, 'no_candidates'];
             }
 
@@ -542,8 +541,9 @@ class AttendanceFaceMarkController extends Controller
                 // CORRECCIÓN 15: Mejor manejo del descriptor guardado
                 $saved = $this->parseStoredDescriptor($emp->face_descriptor);
 
-                if (!$saved) {
+                if (! $saved) {
                     Log::warning("Descriptor facial inválido para empleado ID: {$emp->id}");
+
                     continue;
                 }
 
@@ -561,7 +561,7 @@ class AttendanceFaceMarkController extends Controller
             }
 
             // Obtener gap mínimo de configuración
-            $minGap = (float) config('attendance.face_min_confidence_gap', 0.1);
+            $minGap = (float) app(\App\Settings\GeneralSettings::class)->face_min_confidence_gap;
 
             Log::info("Procesados {$processedCount} empleados para identificación facial", [
                 'best_distance' => round($bestDist, 4),
@@ -573,7 +573,7 @@ class AttendanceFaceMarkController extends Controller
             ]);
 
             // Validar que supere el threshold
-            if (!$best || $bestDist > $threshold) {
+            if (! $best || $bestDist > $threshold) {
                 return [null, $bestDist, 'no_match'];
             }
 
@@ -582,13 +582,14 @@ class AttendanceFaceMarkController extends Controller
                 $gap = $secondBestDist - $bestDist;
 
                 if ($gap < $minGap) {
-                    Log::warning("Identificación rechazada por gap insuficiente", [
+                    Log::warning('Identificación rechazada por gap insuficiente', [
                         'employee_id' => $best->id,
                         'best_distance' => round($bestDist, 4),
                         'second_best_distance' => round($secondBestDist, 4),
                         'gap' => round($gap, 4),
                         'min_gap' => $minGap,
                     ]);
+
                     return [null, $bestDist, 'ambiguous'];
                 }
             }
@@ -600,6 +601,7 @@ class AttendanceFaceMarkController extends Controller
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
             ]);
+
             return [null, INF, 'error'];
         }
     }
@@ -614,6 +616,7 @@ class AttendanceFaceMarkController extends Controller
         if (is_string($descriptor)) {
             try {
                 $parsed = json_decode($descriptor, true, 512, JSON_THROW_ON_ERROR);
+
                 return (is_array($parsed) && count($parsed) === 128) ? $parsed : null;
             } catch (JsonException $e) {
                 return null;
@@ -636,7 +639,7 @@ class AttendanceFaceMarkController extends Controller
             $bv = (float) ($b[$i] ?? 0.0);
 
             // CORRECCIÓN 18: Verificar valores numéricos válidos
-            if (!is_finite($av) || !is_finite($bv)) {
+            if (! is_finite($av) || ! is_finite($bv)) {
                 throw new \InvalidArgumentException('Los descriptores contienen valores no finitos.');
             }
 
@@ -647,7 +650,7 @@ class AttendanceFaceMarkController extends Controller
         $distance = sqrt($sum);
 
         // CORRECCIÓN 19: Verificar que el resultado sea finito
-        if (!is_finite($distance)) {
+        if (! is_finite($distance)) {
             throw new \RuntimeException('La distancia euclidiana resultó en un valor no finito.');
         }
 
@@ -660,8 +663,9 @@ class AttendanceFaceMarkController extends Controller
         // CORRECCIÓN 20: Validar tipos de eventos conocidos
         $validEventTypes = ['check_in', 'break_start', 'break_end', 'check_out'];
 
-        if ($last !== null && !in_array($last, $validEventTypes, true)) {
+        if ($last !== null && ! in_array($last, $validEventTypes, true)) {
             Log::warning("Tipo de evento desconocido encontrado: {$last}");
+
             return ['check_in']; // Fallback seguro
         }
 
@@ -670,11 +674,11 @@ class AttendanceFaceMarkController extends Controller
         }
 
         return match ($last) {
-            'check_in'    => ['break_start', 'check_out'],
+            'check_in' => ['break_start', 'check_out'],
             'break_start' => ['break_end'],
-            'break_end'   => ['break_start', 'check_out'],
-            'check_out'   => [], // ya terminó el día
-            default       => ['check_in'], // fallback seguro
+            'break_end' => ['break_start', 'check_out'],
+            'check_out' => [], // ya terminó el día
+            default => ['check_in'], // fallback seguro
         };
     }
 
@@ -682,56 +686,54 @@ class AttendanceFaceMarkController extends Controller
     protected function getEventTypeNames(): array
     {
         return [
-            'check_in'    => 'Entrada',
+            'check_in' => 'Entrada',
             'break_start' => 'Inicio de descanso',
-            'break_end'   => 'Fin de descanso',
-            'check_out'   => 'Salida',
+            'break_end' => 'Fin de descanso',
+            'check_out' => 'Salida',
         ];
     }
 
     /**
      * Persiste un intento fallido de marcación en la base de datos.
      *
-     * @param  Request              $request
-     * @param  string               $failureType  Constante del tipo de fallo (ej. 'face_no_match')
-     * @param  string               $message      Mensaje descriptivo del fallo
-     * @param  array<string, mixed> $metadata     Datos adicionales de contexto
-     * @param  Employee|null        $employee     Empleado identificado (si aplica)
-     * @param  mixed|null           $branch       Sucursal (si aplica)
-     * @param  string|null          $eventType    Tipo de evento intentado (si aplica)
-     * @param  array|null           $location     Coordenadas GPS (si aplica)
-     * @return void
+     * @param  string  $failureType  Constante del tipo de fallo (ej. 'face_no_match')
+     * @param  string  $message  Mensaje descriptivo del fallo
+     * @param  array<string, mixed>  $metadata  Datos adicionales de contexto
+     * @param  Employee|null  $employee  Empleado identificado (si aplica)
+     * @param  mixed|null  $branch  Sucursal (si aplica)
+     * @param  string|null  $eventType  Tipo de evento intentado (si aplica)
+     * @param  array|null  $location  Coordenadas GPS (si aplica)
      */
     protected function recordFailure(
-        Request  $request,
-        string   $failureType,
-        string   $message,
-        array    $metadata    = [],
-        ?Employee $employee   = null,
-        mixed    $branch      = null,
-        ?string  $eventType   = null,
-        ?array   $location    = null,
+        Request $request,
+        string $failureType,
+        string $message,
+        array $metadata = [],
+        ?Employee $employee = null,
+        mixed $branch = null,
+        ?string $eventType = null,
+        ?array $location = null,
     ): void {
         try {
             $source = $request->input('source', 'unknown');
-            $mode   = in_array($source, ['terminal', 'mobile'], true) ? $source : 'unknown';
+            $mode = in_array($source, ['terminal', 'mobile'], true) ? $source : 'unknown';
 
             AttendanceMarkFailure::record([
-                'mode'                  => $mode,
-                'failure_type'          => $failureType,
-                'employee_id'           => $employee?->id,
-                'branch_id'             => $branch?->id,
-                'attempted_event_type'  => $eventType,
-                'failure_message'       => $message,
-                'metadata'              => !empty($metadata) ? $metadata : null,
-                'ip_address'            => $request->ip(),
-                'location'              => $location,
+                'mode' => $mode,
+                'failure_type' => $failureType,
+                'employee_id' => $employee?->id,
+                'branch_id' => $branch?->id,
+                'attempted_event_type' => $eventType,
+                'failure_message' => $message,
+                'metadata' => ! empty($metadata) ? $metadata : null,
+                'ip_address' => $request->ip(),
+                'location' => $location,
             ]);
         } catch (\Throwable $e) {
             // No interrumpir el flujo principal si falla el registro del error
             Log::error('No se pudo persistir el fallo de marcación', [
                 'failure_type' => $failureType,
-                'error'        => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }

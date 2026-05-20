@@ -30,12 +30,18 @@ class EmployeeLeaveResource extends Resource
     protected static ?string $model = EmployeeLeave::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
+
     protected static ?string $navigationLabel = 'Permisos';
+
     protected static ?string $modelLabel = 'permiso';
+
     protected static ?string $pluralModelLabel = 'permisos';
+
     protected static ?string $navigationGroup = 'Empleados';
+
     protected static ?string $slug = 'permisos';
-    protected static ?int $navigationSort = 3;
+
+    protected static ?int $navigationSort = 4;
 
     public static function form(Form $form): Form
     {
@@ -46,7 +52,7 @@ class EmployeeLeaveResource extends Resource
                         Select::make('employee_id')
                             ->label('Empleado')
                             ->relationship('employee', 'first_name')
-                            ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}")
+                            ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}")
                             ->searchable(['first_name', 'last_name', 'email'])
                             ->preload()
                             ->required()
@@ -62,7 +68,7 @@ class EmployeeLeaveResource extends Resource
                             ->default('pending')
                             ->native(false)
                             ->required()
-                            ->disabled(fn(?EmployeeLeave $record) => $record === null)
+                            ->disabled(fn (?EmployeeLeave $record) => $record === null)
                             ->dehydrated()
                             ->columnSpan(1),
 
@@ -107,7 +113,7 @@ class EmployeeLeaveResource extends Resource
                             ->native(false)
                             ->displayFormat('d/m/Y')
                             ->required()
-                            ->minDate(fn(Get $get) => $get('start_date'))
+                            ->minDate(fn (Get $get) => $get('start_date'))
                             ->columnSpan(1),
 
                         Placeholder::make('duration')
@@ -116,14 +122,14 @@ class EmployeeLeaveResource extends Resource
                                 $start = $get('start_date');
                                 $end = $get('end_date');
 
-                                if (!$start || !$end) {
+                                if (! $start || ! $end) {
                                     return '-';
                                 }
 
                                 $days = \Carbon\Carbon::parse($start)
                                     ->diffInDays(\Carbon\Carbon::parse($end)) + 1;
 
-                                return $days . ' ' . ($days === 1 ? 'día' : 'días');
+                                return $days.' '.($days === 1 ? 'día' : 'días');
                             })
                             ->columnSpan(1),
                     ])
@@ -133,7 +139,7 @@ class EmployeeLeaveResource extends Resource
                     ->schema([
                         FileUpload::make('document_path')
                             ->label('Documento de soporte')
-                            ->helperText(fn(Get $get) => $get('type') === 'medical_leave'
+                            ->helperText(fn (Get $get) => $get('type') === 'medical_leave'
                                 ? 'Comprobante médico requerido'
                                 : 'Sube un documento relevante (opcional)')
                             ->disk('public')
@@ -142,7 +148,7 @@ class EmployeeLeaveResource extends Resource
                             ->maxSize(5120)
                             ->downloadable()
                             ->openable()
-                            ->required(fn(Get $get) => $get('type') === 'medical_leave')
+                            ->required(fn (Get $get) => $get('type') === 'medical_leave')
                             ->columnSpanFull(),
                     ])
                     ->collapsible(),
@@ -155,13 +161,13 @@ class EmployeeLeaveResource extends Resource
             ->columns([
                 TextColumn::make('employee.first_name')
                     ->label('Empleado')
-                    ->formatStateUsing(fn($record) => "{$record->employee->first_name} {$record->employee->last_name}")
+                    ->formatStateUsing(fn ($record) => "{$record->employee->first_name} {$record->employee->last_name}")
                     ->searchable(['first_name', 'last_name'])
                     ->sortable(),
 
                 TextColumn::make('type')
                     ->label('Tipo')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
                         'medical_leave' => 'Reposo médico',
                         'vacation' => 'Vacaciones',
                         'day_off' => 'Día libre',
@@ -171,7 +177,7 @@ class EmployeeLeaveResource extends Resource
                         'other' => 'Otro',
                     })
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'medical_leave' => 'danger',
                         'vacation' => 'success',
                         'day_off' => 'info',
@@ -200,6 +206,7 @@ class EmployeeLeaveResource extends Resource
                     ->getStateUsing(function ($record) {
                         $start = \Carbon\Carbon::parse($record->start_date);
                         $end = \Carbon\Carbon::parse($record->end_date);
+
                         return $start->diffInDays($end) + 1;
                     })
                     ->badge()
@@ -208,13 +215,13 @@ class EmployeeLeaveResource extends Resource
 
                 TextColumn::make('status')
                     ->label('Estado')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
                         'pending' => 'Pendiente',
                         'approved' => 'Aprobado',
                         'rejected' => 'Rechazado',
                     })
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'pending' => 'warning',
                         'approved' => 'success',
                         'rejected' => 'danger',
@@ -224,9 +231,9 @@ class EmployeeLeaveResource extends Resource
 
                 TextColumn::make('document_path')
                     ->label('Documento')
-                    ->formatStateUsing(fn($state) => $state ? 'Sí' : 'No')
+                    ->formatStateUsing(fn ($state) => $state ? 'Sí' : 'No')
                     ->badge()
-                    ->color(fn($state) => $state ? 'success' : 'gray')
+                    ->color(fn ($state) => $state ? 'success' : 'gray')
                     ->alignCenter()
                     ->toggleable(),
 
@@ -269,7 +276,7 @@ class EmployeeLeaveResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->first_name} {$record->last_name}")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->first_name} {$record->last_name}")
                     ->searchable()
                     ->preload()
                     ->multiple(),
@@ -309,7 +316,7 @@ class EmployeeLeaveResource extends Resource
                     ->schema([
                         TextEntry::make('employee.first_name')
                             ->label('Nombre completo')
-                            ->formatStateUsing(fn($record) => "{$record->employee->first_name} {$record->employee->last_name}")
+                            ->formatStateUsing(fn ($record) => "{$record->employee->first_name} {$record->employee->last_name}")
                             ->icon('heroicon-o-user')
                             ->columnSpan(1),
 
@@ -339,7 +346,7 @@ class EmployeeLeaveResource extends Resource
                     ->schema([
                         TextEntry::make('type')
                             ->label('Tipo de permiso')
-                            ->formatStateUsing(fn(string $state): string => match ($state) {
+                            ->formatStateUsing(fn (string $state): string => match ($state) {
                                 'medical_leave' => 'Reposo médico',
                                 'vacation' => 'Vacaciones',
                                 'day_off' => 'Día libre',
@@ -349,7 +356,7 @@ class EmployeeLeaveResource extends Resource
                                 'other' => 'Otro',
                             })
                             ->badge()
-                            ->color(fn(string $state): string => match ($state) {
+                            ->color(fn (string $state): string => match ($state) {
                                 'medical_leave' => 'danger',
                                 'vacation' => 'success',
                                 'day_off' => 'info',
@@ -362,18 +369,18 @@ class EmployeeLeaveResource extends Resource
 
                         TextEntry::make('status')
                             ->label('Estado')
-                            ->formatStateUsing(fn(string $state): string => match ($state) {
+                            ->formatStateUsing(fn (string $state): string => match ($state) {
                                 'pending' => 'Pendiente',
                                 'approved' => 'Aprobado',
                                 'rejected' => 'Rechazado',
                             })
                             ->badge()
-                            ->color(fn(string $state): string => match ($state) {
+                            ->color(fn (string $state): string => match ($state) {
                                 'pending' => 'warning',
                                 'approved' => 'success',
                                 'rejected' => 'danger',
                             })
-                            ->icon(fn(string $state): string => match ($state) {
+                            ->icon(fn (string $state): string => match ($state) {
                                 'pending' => 'heroicon-o-clock',
                                 'approved' => 'heroicon-o-check-circle',
                                 'rejected' => 'heroicon-o-x-circle',
@@ -382,13 +389,13 @@ class EmployeeLeaveResource extends Resource
 
                         TextEntry::make('document_path')
                             ->label('Documento adjunto')
-                            ->formatStateUsing(fn($state) => $state ? 'Ver documento' : 'Sin documento adjunto')
-                            ->url(fn($record) => $record->document_path
-                                ? asset('storage/' . $record->document_path)
+                            ->formatStateUsing(fn ($state) => $state ? 'Ver documento' : 'Sin documento adjunto')
+                            ->url(fn ($record) => $record->document_path
+                                ? asset('storage/'.$record->document_path)
                                 : null)
                             ->openUrlInNewTab()
-                            ->icon(fn($state) => $state ? 'heroicon-o-document-text' : 'heroicon-o-x-circle')
-                            ->color(fn($state) => $state ? 'success' : 'gray'),
+                            ->icon(fn ($state) => $state ? 'heroicon-o-document-text' : 'heroicon-o-x-circle')
+                            ->color(fn ($state) => $state ? 'success' : 'gray'),
                     ])
                     ->columns(3),
 
@@ -412,7 +419,8 @@ class EmployeeLeaveResource extends Resource
                                 $start = \Carbon\Carbon::parse($record->start_date);
                                 $end = \Carbon\Carbon::parse($record->end_date);
                                 $days = $start->diffInDays($end) + 1;
-                                return $days . ' ' . ($days === 1 ? 'día' : 'días');
+
+                                return $days.' '.($days === 1 ? 'día' : 'días');
                             })
                             ->badge()
                             ->color('primary')

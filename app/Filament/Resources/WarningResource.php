@@ -43,11 +43,11 @@ class WarningResource extends Resource
 
     protected static ?string $slug = 'amonestaciones';
 
-    protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+    protected static ?string $navigationIcon = 'heroicon-o-flag';
 
     protected static ?string $navigationGroup = 'Empleados';
 
-    protected static ?int $navigationSort = 9;
+    protected static ?int $navigationSort = 5;
 
     /**
      * Define el formulario de creación/edición de amonestaciones.
@@ -63,17 +63,17 @@ class WarningResource extends Resource
                             ->label('Empleado')
                             ->relationship(
                                 name: 'employee',
-                                modifyQueryUsing: fn(Builder $query) => $query
+                                modifyQueryUsing: fn (Builder $query) => $query
                                     ->where('status', 'active')
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
-                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
+                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->full_name_with_ci)
                             ->searchable(['first_name', 'last_name', 'ci'])
                             ->native(false)
                             ->required()
                             ->columnSpanFull()
-                            ->disabled(fn(string $operation) => $operation === 'edit')
+                            ->disabled(fn (string $operation) => $operation === 'edit')
                             ->helperText('Solo se muestran empleados activos.'),
 
                         Select::make('type')
@@ -102,7 +102,7 @@ class WarningResource extends Resource
                             ->label('Emitida por')
                             ->relationship('issuedBy', 'name')
                             ->native(false)
-                            ->default(fn() => Auth::id())
+                            ->default(fn () => Auth::id())
                             ->required()
                             ->visibleOn('edit'),
 
@@ -172,15 +172,15 @@ class WarningResource extends Resource
                             TextEntry::make('type')
                                 ->label('Tipo')
                                 ->badge()
-                                ->formatStateUsing(fn($state) => Warning::getTypeLabel($state))
-                                ->color(fn($state) => Warning::getTypeColor($state))
-                                ->icon(fn($state) => Warning::getTypeIcon($state)),
+                                ->formatStateUsing(fn ($state) => Warning::getTypeLabel($state))
+                                ->color(fn ($state) => Warning::getTypeColor($state))
+                                ->icon(fn ($state) => Warning::getTypeIcon($state)),
 
                             TextEntry::make('reason')
                                 ->label('Motivo')
                                 ->badge()
                                 ->color('gray')
-                                ->formatStateUsing(fn($state) => Warning::getReasonLabel($state)),
+                                ->formatStateUsing(fn ($state) => Warning::getReasonLabel($state)),
 
                             TextEntry::make('issued_at')
                                 ->label('Fecha de emisión')
@@ -205,7 +205,7 @@ class WarningResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn(Builder $query) => $query->with(['employee', 'issuedBy']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['employee', 'issuedBy']))
             ->defaultSort('id', 'desc')
             ->columns([
                 TextColumn::make('id')
@@ -215,7 +215,7 @@ class WarningResource extends Resource
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -238,14 +238,14 @@ class WarningResource extends Resource
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->formatStateUsing(fn($state) => Warning::getTypeLabel($state))
-                    ->color(fn($state) => Warning::getTypeColor($state))
-                    ->icon(fn($state) => Warning::getTypeIcon($state))
+                    ->formatStateUsing(fn ($state) => Warning::getTypeLabel($state))
+                    ->color(fn ($state) => Warning::getTypeColor($state))
+                    ->icon(fn ($state) => Warning::getTypeIcon($state))
                     ->sortable(),
 
                 TextColumn::make('reason')
                     ->label('Motivo')
-                    ->formatStateUsing(fn($state) => Warning::getReasonLabel($state))
+                    ->formatStateUsing(fn ($state) => Warning::getReasonLabel($state))
                     ->sortable()
                     ->toggleable(),
 
@@ -287,7 +287,7 @@ class WarningResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->multiple()
                     ->native(false),
@@ -307,24 +307,24 @@ class WarningResource extends Resource
                             ->closeOnDateSelection(),
                     ])
                     ->columns(2)
-                    ->query(fn(Builder $query, array $data): Builder => $query
-                        ->when($data['from'], fn($q, $date) => $q->whereDate('issued_at', '>=', $date))
-                        ->when($data['until'], fn($q, $date) => $q->whereDate('issued_at', '<=', $date))),
+                    ->query(fn (Builder $query, array $data): Builder => $query
+                        ->when($data['from'], fn ($q, $date) => $q->whereDate('issued_at', '>=', $date))
+                        ->when($data['until'], fn ($q, $date) => $q->whereDate('issued_at', '<=', $date))),
             ])
             ->actions([
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn(Warning $record) => route('warnings.pdf', $record))
+                    ->url(fn (Warning $record) => route('warnings.pdf', $record))
                     ->openUrlInNewTab(),
 
                 Action::make('download_signed')
                     ->label('Firmado')
                     ->icon('heroicon-o-paper-clip')
                     ->color('success')
-                    ->visible(fn(Warning $record) => filled($record->document_path))
-                    ->action(fn(Warning $record) => response()->download(
+                    ->visible(fn (Warning $record) => filled($record->document_path))
+                    ->action(fn (Warning $record) => response()->download(
                         Storage::disk('public')->path($record->document_path)
                     )),
             ])
@@ -333,7 +333,7 @@ class WarningResource extends Resource
                     ExportBulkAction::make()->exports([
                         ExcelExport::make()
                             ->fromTable()
-                            ->withFilename('amonestaciones_' . now()->format('Y_m_d_H_i_s') . '.xlsx'),
+                            ->withFilename('amonestaciones_'.now()->format('Y_m_d_H_i_s').'.xlsx'),
                     ])
                         ->label('Exportar a Excel')
                         ->color('info')

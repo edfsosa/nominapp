@@ -54,7 +54,7 @@ class ContractResource extends Resource
 
     protected static ?string $slug = 'contratos';
 
-    protected static ?string $navigationIcon = 'heroicon-o-document-text';
+    protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?string $navigationGroup = 'Empleados';
 
