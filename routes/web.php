@@ -9,9 +9,11 @@ use App\Http\Controllers\ContractController;
 use App\Http\Controllers\ContractExpirationReportController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeFaceController;
+use App\Http\Controllers\EmployeeReportController;
 use App\Http\Controllers\FaceEnrollmentController;
 use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\MerchandiseReportController;
 use App\Http\Controllers\MerchandiseWithdrawalController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
@@ -133,6 +135,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
     Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
     Route::get('/adelantos/reporte/pdf', [AdvanceReportController::class, 'pdf'])->name('advances.report.pdf');
+    Route::get('/retiros-mercaderia/reporte/pdf', [MerchandiseReportController::class, 'pdf'])->name('merchandise.report.pdf');
+    Route::get('/empleados/reporte/pdf', [EmployeeReportController::class, 'pdf'])->name('employees.report.pdf');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 
     // Reportes de contratos (rutas estáticas deben ir ANTES de /contratos/{contract}/pdf)

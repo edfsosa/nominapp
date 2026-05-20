@@ -42,14 +42,18 @@ class AdminPanelProvider extends PanelProvider
                 'dark' => Color::Slate,
             ])
             ->navigationGroups([
+                NavigationGroup::make('Organización')
+                    ->icon('heroicon-o-building-office'),
                 NavigationGroup::make('Empleados')
                     ->icon('heroicon-o-user-group'),
                 NavigationGroup::make('Asistencias')
                     ->icon('heroicon-o-clock'),
                 NavigationGroup::make('Nóminas')
                     ->icon('heroicon-o-banknotes'),
-                NavigationGroup::make('Organización')
-                    ->icon('heroicon-o-building-office'),
+                NavigationGroup::make('Créditos')
+                    ->icon('heroicon-o-credit-card'),
+                NavigationGroup::make('Reportes')
+                    ->icon('heroicon-o-document-chart-bar'),
                 NavigationGroup::make('Configuración')
                     ->icon('heroicon-o-cog-6-tooth')
                     ->collapsed(),
