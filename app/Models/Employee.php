@@ -27,7 +27,6 @@ class Employee extends Model
         'marital_status',
         'nationality',
         'address',
-        'children_count',
         'branch_id',
         'schedule_id',
         'status',
@@ -246,6 +245,19 @@ class Employee extends Model
     public function warnings(): HasMany
     {
         return $this->hasMany(Warning::class);
+    }
+
+    /** Todos los hijos registrados del empleado. */
+    public function children(): HasMany
+    {
+        return $this->hasMany(EmployeeChild::class);
+    }
+
+    /** Hijos menores de 18 años, elegibles para la bonificación familiar (Arts. 253-262 CLT). */
+    public function eligibleChildren(): HasMany
+    {
+        return $this->hasMany(EmployeeChild::class)
+            ->where('birth_date', '>', now()->subYears(18)->toDateString());
     }
 
     // Obtener todos los eventos de asistencia a través de los días

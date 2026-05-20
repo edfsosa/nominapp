@@ -177,15 +177,6 @@ class EmployeeResource extends Resource
                                                     ->nullable()
                                                     ->helperText('Si se ingresa, debe ser único en el sistema.'),
 
-                                                TextInput::make('children_count')
-                                                    ->label('Hijos a cargo')
-                                                    ->numeric()
-                                                    ->integer()
-                                                    ->minValue(0)
-                                                    ->maxValue(20)
-                                                    ->default(0)
-                                                    ->required()
-                                                    ->helperText('Para bonificación familiar (Arts. 253-262 CLT).'),
                                             ]),
                                     ])
                                     ->columnSpan(3),
@@ -1007,6 +998,7 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\ContractsRelationManager::class,
+            RelationManagers\ChildrenRelationManager::class,
             RelationManagers\ScheduleAssignmentsRelationManager::class,
             RelationManagers\RotationAssignmentsRelationManager::class,
             RelationManagers\ShiftOverridesRelationManager::class,
