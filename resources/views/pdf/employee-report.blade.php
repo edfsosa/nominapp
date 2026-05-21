@@ -227,6 +227,8 @@
         @if($gender) &nbsp;·&nbsp; {{ $genderOptions[$gender] ?? $gender }} @endif
         @if($birthMonth) &nbsp;·&nbsp; Cumpleaños en {{ $monthOptions[$birthMonth] ?? $birthMonth }} @endif
         @if($status) &nbsp;·&nbsp; Estado: {{ $statusOptions[$status] ?? $status }} @endif
+        @if($contractType) &nbsp;·&nbsp; {{ $contractTypes[$contractType] ?? $contractType }} @endif
+        @if($paymentMethod) &nbsp;·&nbsp; {{ $paymentMethods[$paymentMethod] ?? $paymentMethod }} @endif
     </div>
 
     {{-- Resumen --}}
@@ -243,7 +245,7 @@
                 @foreach($genderOptions as $key => $label)
                     @if(($byGender[$key] ?? 0) > 0)
                         {{ $label }}: {{ $byGender[$key] }}
-                        @if(! $loop->last) &nbsp;·&nbsp; @endif
+                        @if(!$loop->last) &nbsp;·&nbsp; @endif
                     @endif
                 @endforeach
             </td>
@@ -271,41 +273,49 @@
     @else
 
         @php
+            $showCol = array_flip($selectedColumns);
+
             /**
-             * Renderiza filas de tabla para una colección de empleados.
-             *
-             * @param \Illuminate\Support\Collection $rows
-             * @param array $genderOptions
-             * @param array $monthOptions
-             * @param array $statusOptions
+             * Renderiza las filas de la tabla de empleados para las columnas seleccionadas.
              */
-            function employeeRows($rows, $genderOptions, $monthOptions, $statusOptions) {
+            function employeeRows($rows, $showCol, $genderOptions, $statusOptions, $contractTypes, $paymentMethods) {
                 $i = 0;
                 foreach ($rows as $e) {
-                    $even = $i % 2 === 1 ? 'background:#fafafa;' : '';
-                    $birthDate = $e->birth_date ? \Carbon\Carbon::parse($e->birth_date) : null;
-                    $hireDate = $e->hire_date ? \Carbon\Carbon::parse($e->hire_date) : null;
-                    $years = $e->years_of_service !== null ? (int) $e->years_of_service : null;
-                    $salaryFormatted = $e->salary
+                    $even        = $i % 2 === 1 ? 'background:#fafafa;' : '';
+                    $birthDate   = $e->birth_date ? \Carbon\Carbon::parse($e->birth_date) : null;
+                    $hireDate    = $e->hire_date  ? \Carbon\Carbon::parse($e->hire_date)  : null;
+                    $years       = $e->years_of_service !== null ? (int) $e->years_of_service : null;
+                    $salaryFmt   = $e->salary
                         ? 'Gs. ' . number_format((float) $e->salary, 0, ',', '.') . ($e->salary_type === 'jornal' ? '/d' : '/m')
                         : '—';
 
                     echo '<tr style="' . $even . '">';
-                    echo '<td>' . e(strtoupper($e->last_name)) . ', ' . e($e->first_name) . '</td>';
-                    echo '<td>' . e($e->ci) . '</td>';
-                    echo '<td>' . e($genderOptions[$e->gender] ?? '—') . '</td>';
-                    echo '<td>' . ($birthDate ? $birthDate->format('d/m/Y') . ' (' . $birthDate->age . 'a)' : '—') . '</td>';
-                    echo '<td>' . ($birthDate ? ($monthOptions[$birthDate->month] ?? '—') : '—') . '</td>';
-                    echo '<td>' . ($hireDate ? $hireDate->format('d/m/Y') : '—') . '</td>';
-                    echo '<td style="text-align:center;">' . ($years !== null ? $years . ' año' . ($years !== 1 ? 's' : '') : '—') . '</td>';
-                    echo '<td style="text-align:right;">' . $salaryFormatted . '</td>';
-                    echo '<td>' . e($e->position_name ?? '—') . '</td>';
-                    echo '<td>' . e($e->branch_name) . '</td>';
-                    echo '<td>' . e($statusOptions[$e->status] ?? $e->status) . '</td>';
+                    if (isset($showCol['employee_name'])) echo '<td>' . e(strtoupper($e->last_name)) . ', ' . e($e->first_name) . '</td>';
+                    if (isset($showCol['ci']))             echo '<td>' . e($e->ci) . '</td>';
+                    if (isset($showCol['gender']))         echo '<td>' . e($genderOptions[$e->gender] ?? '—') . '</td>';
+                    if (isset($showCol['age']))            echo '<td style="text-align:center;">' . ($birthDate ? $birthDate->age . 'a' : '—') . '</td>';
+                    if (isset($showCol['birthday']))       echo '<td>' . ($birthDate ? $birthDate->day . ' de ' . $birthDate->locale("es")->isoFormat("MMMM") : '—') . '</td>';
+                    if (isset($showCol['hire_date']))      echo '<td>' . ($hireDate ? $hireDate->format('d/m/Y') : '—') . '</td>';
+                    if (isset($showCol['years_of_service'])) echo '<td style="text-align:center;">' . ($years !== null ? $years . ' año' . ($years !== 1 ? 's' : '') : '—') . '</td>';
+                    if (isset($showCol['salary']))         echo '<td style="text-align:right;">' . $salaryFmt . '</td>';
+                    if (isset($showCol['contract_type']))  echo '<td>' . e($contractTypes[$e->contract_type] ?? '—') . '</td>';
+                    if (isset($showCol['payment_method'])) echo '<td>' . e($paymentMethods[$e->payment_method] ?? '—') . '</td>';
+                    if (isset($showCol['position_name'])) echo '<td>' . e($e->position_name ?? '—') . '</td>';
+                    if (isset($showCol['department_name'])) echo '<td>' . e($e->department_name ?? '—') . '</td>';
+                    if (isset($showCol['branch_name']))    echo '<td>' . e($e->branch_name) . '</td>';
+                    if (isset($showCol['company_name']))   echo '<td>' . e($e->company_name) . '</td>';
+                    if (isset($showCol['status']))         echo '<td>' . e($statusOptions[$e->status] ?? $e->status) . '</td>';
+                    if (isset($showCol['phone']))          echo '<td>' . e($e->phone ?? '—') . '</td>';
+                    if (isset($showCol['email']))          echo '<td>' . e($e->email ?? '—') . '</td>';
                     echo '</tr>';
                     $i++;
                 }
             }
+        @endphp
+
+        @php
+            $allLabels = $columnLabels;
+            $headers = array_intersect_key($allLabels, $showCol);
         @endphp
 
         @if($groupMode === 'flat')
@@ -313,21 +323,13 @@
             <table class="data-table">
                 <thead>
                     <tr>
-                        <th style="width:18%">Empleado</th>
-                        <th style="width:7%">CI</th>
-                        <th style="width:7%">Género</th>
-                        <th style="width:10%">Nacimiento</th>
-                        <th style="width:7%">Cumpleaños</th>
-                        <th style="width:9%">Ingreso</th>
-                        <th style="width:8%">Antigüedad</th>
-                        <th style="width:10%">Salario</th>
-                        <th style="width:12%">Cargo</th>
-                        <th style="width:7%">Sucursal</th>
-                        <th style="width:5%">Estado</th>
+                        @foreach($headers as $key => $label)
+                            <th>{{ $label }}</th>
+                        @endforeach
                     </tr>
                 </thead>
                 <tbody>
-                    @php employeeRows($employees, $genderOptions, $monthOptions, $statusOptions) @endphp
+                    @php employeeRows($employees, $showCol, $genderOptions, $statusOptions, $contractTypes, $paymentMethods) @endphp
                 </tbody>
             </table>
 
@@ -337,21 +339,13 @@
                 <table class="data-table">
                     <thead>
                         <tr>
-                            <th style="width:18%">Empleado</th>
-                            <th style="width:7%">CI</th>
-                            <th style="width:7%">Género</th>
-                            <th style="width:10%">Nacimiento</th>
-                            <th style="width:7%">Cumpleaños</th>
-                            <th style="width:9%">Ingreso</th>
-                            <th style="width:8%">Antigüedad</th>
-                            <th style="width:10%">Salario</th>
-                            <th style="width:12%">Cargo</th>
-                            <th style="width:7%">Sucursal</th>
-                            <th style="width:5%">Estado</th>
+                            @foreach($headers as $key => $label)
+                                <th>{{ $label }}</th>
+                            @endforeach
                         </tr>
                     </thead>
                     <tbody>
-                        @php employeeRows($rows, $genderOptions, $monthOptions, $statusOptions) @endphp
+                        @php employeeRows($rows, $showCol, $genderOptions, $statusOptions, $contractTypes, $paymentMethods) @endphp
                     </tbody>
                 </table>
                 <div class="subtotal-row">

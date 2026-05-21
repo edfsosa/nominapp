@@ -5,8 +5,11 @@ namespace App\Filament\Pages;
 use App\Exports\EmployeeReportExport;
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\Contract;
+use App\Models\Department;
 use App\Models\Employee;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -22,7 +25,7 @@ use Maatwebsite\Excel\Facades\Excel;
 /**
  * Reporte de empleados: nómina con fecha de ingreso, antigüedad, salario, cumpleaños y género.
  *
- * Los datos de contrato (salario, cargo, fecha de ingreso) provienen del contrato activo.
+ * Los datos de contrato (salario, cargo, departamento, fecha de ingreso) provienen del contrato activo.
  */
 class EmployeeReport extends Page implements HasTable
 {
@@ -50,63 +53,93 @@ class EmployeeReport extends Page implements HasTable
     public function getSubheading(): ?string
     {
         $f = $this->tableFilters ?? [];
+
         $gender = isset($f['gender']['value']) && $f['gender']['value'] !== '' ? $f['gender']['value'] : null;
         $status = isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null;
         $birthMonth = isset($f['birth_month']['value']) && $f['birth_month']['value'] !== '' ? (int) $f['birth_month']['value'] : null;
+        $deptId = isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null;
+        $contractType = isset($f['contract_type']['value']) && $f['contract_type']['value'] !== '' ? $f['contract_type']['value'] : null;
+        $paymentMethod = isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null;
 
         $parts = [];
 
         if ($gender) {
             $parts[] = Employee::getGenderOptions()[$gender] ?? $gender;
         }
-
         if ($status) {
             $parts[] = Employee::getStatusOptions()[$status] ?? $status;
         }
-
         if ($birthMonth) {
-            $months = Employee::getMonthOptions();
-            $parts[] = 'Cumpleaños en '.($months[$birthMonth] ?? $birthMonth);
+            $parts[] = 'Cumpleaños en '.(Employee::getMonthOptions()[$birthMonth] ?? $birthMonth);
+        }
+        if ($deptId) {
+            $parts[] = 'Depto.: '.(Department::find($deptId)?->name ?? $deptId);
+        }
+        if ($contractType) {
+            $parts[] = Contract::getTypeOptions()[$contractType] ?? $contractType;
+        }
+        if ($paymentMethod) {
+            $parts[] = Employee::getPaymentMethodOptions()[$paymentMethod] ?? $paymentMethod;
         }
 
         return $parts ? implode(' · ', $parts) : 'Todos los empleados';
     }
 
     /**
-     * Acciones de exportación (PDF y Excel) con los filtros activos.
+     * Acciones de exportación (PDF y Excel) con selector de columnas y filtros activos.
      *
      * @return array<int, Action>
      */
     protected function getHeaderActions(): array
     {
+        $columnOptions = EmployeeReportExport::availableColumns();
+        $columnDefaults = EmployeeReportExport::defaultColumns();
+
+        $columnField = CheckboxList::make('columns')
+            ->label('Columnas a incluir')
+            ->options($columnOptions)
+            ->default($columnDefaults)
+            ->columns(3)
+            ->required();
+
         return [
             Action::make('export_pdf')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-text')
                 ->color('info')
-                ->url(function () {
-                    [$companyId, $branchId, $gender, $birthMonth, $status] = $this->resolveActiveFilters();
+                ->modalHeading('Exportar reporte en PDF')
+                ->modalSubmitActionLabel('Generar PDF')
+                ->form([$columnField])
+                ->action(function (array $data) {
+                    [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
 
-                    return route('employees.report.pdf', array_filter([
+                    $params = array_filter([
                         'companyId' => $companyId,
                         'branchId' => $branchId,
                         'gender' => $gender,
                         'birthMonth' => $birthMonth,
                         'status' => $status,
-                    ], fn ($v) => $v !== null));
-                })
-                ->openUrlInNewTab(),
+                        'departmentId' => $departmentId,
+                        'contractType' => $contractType,
+                        'paymentMethod' => $paymentMethod,
+                    ], fn ($v) => $v !== null);
+
+                    $params['columns'] = implode(',', $data['columns']);
+
+                    $url = route('employees.report.pdf', $params);
+                    $this->js("window.open('".addslashes($url)."', '_blank')");
+                }),
 
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar reporte de empleados')
-                ->modalDescription('Se exportará una fila por empleado con los filtros seleccionados.')
+                ->modalDescription('Seleccione las columnas a incluir en el archivo Excel.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
-                    [$companyId, $branchId, $gender, $birthMonth, $status] = $this->resolveActiveFilters();
+                ->form([$columnField])
+                ->action(function (array $data) {
+                    [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
 
                     Notification::make()
                         ->success()
@@ -115,7 +148,11 @@ class EmployeeReport extends Page implements HasTable
                         ->send();
 
                     return Excel::download(
-                        new EmployeeReportExport($companyId, $branchId, $gender, $birthMonth, $status),
+                        new EmployeeReportExport(
+                            $companyId, $branchId, $gender, $birthMonth, $status,
+                            $departmentId, $contractType, $paymentMethod,
+                            $data['columns']
+                        ),
                         'empleados_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
@@ -130,7 +167,7 @@ class EmployeeReport extends Page implements HasTable
         return $table
             ->query($this->buildQuery())
             ->filters($this->buildFilters(), layout: FiltersLayout::AboveContent)
-            ->filtersFormColumns(5)
+            ->filtersFormColumns(4)
             ->persistFiltersInSession()
             ->defaultSort('employees.last_name', 'asc')
             ->paginated([25, 50, 100])
@@ -161,6 +198,23 @@ class EmployeeReport extends Page implements HasTable
                     ->badge()
                     ->color(fn ($state) => Employee::getGenderColors()[$state] ?? 'gray')
                     ->icon(fn ($state) => Employee::getGenderIcons()[$state] ?? null),
+
+                TextColumn::make('age')
+                    ->label('Edad')
+                    ->getStateUsing(fn ($record) => $record->birth_date ? $record->birth_date->age.' años' : '—')
+                    ->sortable(query: fn (Builder $query, string $direction) => $query
+                        ->orderBy('employees.birth_date', $direction === 'asc' ? 'desc' : 'asc')),
+
+                TextColumn::make('birthday')
+                    ->label('Cumpleaños')
+                    ->getStateUsing(function ($record) {
+                        if (! $record->birth_date) {
+                            return '—';
+                        }
+
+                        return $record->birth_date->day.' de '.$record->birth_date->locale('es')->isoFormat('MMMM');
+                    })
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('hire_date')
                     ->label('Fecha ingreso')
@@ -201,9 +255,26 @@ class EmployeeReport extends Page implements HasTable
                     ->alignRight()
                     ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('contracts.salary', $direction)),
 
+                TextColumn::make('contract_type')
+                    ->label('Tipo contrato')
+                    ->getStateUsing(fn ($record) => Contract::getTypeOptions()[$record->contract_type] ?? '—')
+                    ->badge()
+                    ->color('gray'),
+
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->getStateUsing(fn ($record) => Employee::getPaymentMethodOptions()[$record->payment_method] ?? '—')
+                    ->badge()
+                    ->color('gray'),
+
                 TextColumn::make('position_name')
                     ->label('Cargo')
                     ->getStateUsing(fn ($record) => $record->position_name ?? '—')
+                    ->sortable(),
+
+                TextColumn::make('department_name')
+                    ->label('Departamento')
+                    ->getStateUsing(fn ($record) => $record->department_name ?? '—')
                     ->sortable(),
 
                 TextColumn::make('branch_name')
@@ -213,39 +284,28 @@ class EmployeeReport extends Page implements HasTable
                     ->color('info')
                     ->sortable(),
 
+                TextColumn::make('company_name')
+                    ->label('Empresa')
+                    ->icon('heroicon-o-building-office-2')
+                    ->badge()
+                    ->color('gray')
+                    ->visible(fn () => Company::active()->count() > 1)
+                    ->sortable(),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->getStateUsing(fn ($record) => $record->status_label)
                     ->badge()
                     ->color(fn ($record) => $record->status_color),
 
-                TextColumn::make('birth_date')
-                    ->label('Fecha nacimiento')
-                    ->getStateUsing(function ($record) {
-                        if (! $record->birth_date) {
-                            return null;
-                        }
-
-                        return $record->birth_date->format('d/m/Y').' ('.$record->birth_date->age.' años)';
-                    })
-                    ->visible(fn ($record) => filled($record?->birth_date))
-                    ->toggleable(isToggledHiddenByDefault: true),
-
-                TextColumn::make('birth_month_name')
-                    ->label('Mes cumpleaños')
-                    ->getStateUsing(function ($record) {
-                        if (! $record->birth_date) {
-                            return null;
-                        }
-                        $months = Employee::getMonthOptions();
-
-                        return $months[$record->birth_date->month] ?? '—';
-                    })
-                    ->toggleable(isToggledHiddenByDefault: true),
-
                 TextColumn::make('phone')
                     ->label('Teléfono')
                     ->getStateUsing(fn ($record) => $record->phone ?? '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('email')
+                    ->label('Email')
+                    ->getStateUsing(fn ($record) => $record->email ?? '—')
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->emptyStateHeading('Sin empleados para los filtros seleccionados')
@@ -254,7 +314,7 @@ class EmployeeReport extends Page implements HasTable
     }
 
     /**
-     * Query base: Employee con join a branches, companies, contrato activo y posición.
+     * Query base: Employee con join a branches, companies, contrato activo, posición y departamento.
      */
     private function buildQuery(): Builder
     {
@@ -268,6 +328,7 @@ class EmployeeReport extends Page implements HasTable
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
+                'employees.email',
                 'employees.branch_id',
                 'branches.name as branch_name',
                 'companies.id as company_id',
@@ -275,7 +336,10 @@ class EmployeeReport extends Page implements HasTable
                 'contracts.start_date as hire_date',
                 'contracts.salary',
                 'contracts.salary_type',
+                'contracts.type as contract_type',
+                'contracts.payment_method',
                 'positions.name as position_name',
+                'departments.name as department_name',
                 DB::raw('TIMESTAMPDIFF(YEAR, contracts.start_date, CURDATE()) AS years_of_service'),
                 DB::raw('MONTH(employees.birth_date) AS birth_month'),
             ])
@@ -285,11 +349,12 @@ class EmployeeReport extends Page implements HasTable
                 $join->on('contracts.employee_id', '=', 'employees.id')
                     ->where('contracts.status', '=', 'active');
             })
-            ->leftJoin('positions', 'positions.id', '=', 'contracts.position_id');
+            ->leftJoin('positions', 'positions.id', '=', 'contracts.position_id')
+            ->leftJoin('departments', 'departments.id', '=', 'contracts.department_id');
     }
 
     /**
-     * Filtros del reporte: empresa, sucursal, género, mes de cumpleaños y estado.
+     * Filtros: empresa, sucursal, departamento, tipo contrato, método de pago, género, cumpleaños, estado.
      *
      * @return array<int, mixed>
      */
@@ -302,11 +367,9 @@ class EmployeeReport extends Page implements HasTable
                 ->label('Empresa')
                 ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(
-                    fn (Builder $query, array $data) => $data['value']
-                        ? $query->where('branches.company_id', $data['value'])
-                        : $query
-                );
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->where('branches.company_id', $data['value'])
+                    : $query);
         }
 
         return array_merge($filters, [
@@ -314,51 +377,64 @@ class EmployeeReport extends Page implements HasTable
                 ->label('Sucursal')
                 ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(
-                    fn (Builder $query, array $data) => $data['value']
-                        ? $query->where('employees.branch_id', $data['value'])
-                        : $query
-                ),
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->where('employees.branch_id', $data['value'])
+                    : $query),
+
+            SelectFilter::make('department_id')
+                ->label('Departamento')
+                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
+                ->searchable()
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->where('contracts.department_id', $data['value'])
+                    : $query),
+
+            SelectFilter::make('contract_type')
+                ->label('Tipo de contrato')
+                ->options(Contract::getTypeOptions())
+                ->native(false)
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('contracts.type', $data['value'])
+                    : $query),
+
+            SelectFilter::make('payment_method')
+                ->label('Método de pago')
+                ->options(Employee::getPaymentMethodOptions())
+                ->native(false)
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('contracts.payment_method', $data['value'])
+                    : $query),
 
             SelectFilter::make('gender')
                 ->label('Género')
                 ->options(Employee::getGenderOptions())
-                ->placeholder('Todos los géneros')
-                ->query(
-                    fn (Builder $query, array $data) => filled($data['value'])
-                        ? $query->where('employees.gender', $data['value'])
-                        : $query
-                )
-                ->native(false),
+                ->native(false)
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('employees.gender', $data['value'])
+                    : $query),
 
             SelectFilter::make('birth_month')
                 ->label('Mes de cumpleaños')
                 ->options(Employee::getMonthOptions())
-                ->placeholder('Todos los meses')
-                ->query(
-                    fn (Builder $query, array $data) => filled($data['value'])
-                        ? $query->whereRaw('MONTH(employees.birth_date) = ?', [$data['value']])
-                        : $query
-                )
-                ->native(false),
+                ->native(false)
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->whereRaw('MONTH(employees.birth_date) = ?', [$data['value']])
+                    : $query),
 
             SelectFilter::make('status')
                 ->label('Estado')
                 ->options(Employee::getStatusOptions())
-                ->placeholder('Todos los estados')
-                ->query(
-                    fn (Builder $query, array $data) => filled($data['value'])
-                        ? $query->where('employees.status', $data['value'])
-                        : $query
-                )
-                ->native(false),
+                ->native(false)
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('employees.status', $data['value'])
+                    : $query),
         ]);
     }
 
     /**
      * Extrae los valores activos de los filtros para pasarlos al export/PDF.
      *
-     * @return array{int|null, int|null, string|null, int|null, string|null}
+     * @return array{int|null, int|null, string|null, int|null, string|null, int|null, string|null, string|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -370,6 +446,9 @@ class EmployeeReport extends Page implements HasTable
             isset($f['gender']['value']) && $f['gender']['value'] !== '' ? $f['gender']['value'] : null,
             isset($f['birth_month']['value']) && $f['birth_month']['value'] !== '' ? (int) $f['birth_month']['value'] : null,
             isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null,
+            isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null,
+            isset($f['contract_type']['value']) && $f['contract_type']['value'] !== '' ? $f['contract_type']['value'] : null,
+            isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null,
         ];
     }
 }
