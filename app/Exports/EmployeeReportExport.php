@@ -63,7 +63,6 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'company_name' => 'Empresa',
             'status' => 'Estado',
             'phone' => 'Teléfono',
-            'email' => 'Email',
         ];
     }
 
@@ -92,7 +91,6 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
-                'employees.email',
                 'branches.name as branch_name',
                 'companies.name as company_name',
                 'contracts.start_date as hire_date',
@@ -156,7 +154,23 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'age' => $row->birth_date ? $row->birth_date->age : '',
             'birthday' => $row->birth_date ? $row->birth_date->day.' de '.$row->birth_date->locale('es')->isoFormat('MMMM') : '',
             'hire_date' => $row->hire_date ? \Carbon\Carbon::parse($row->hire_date)->format('d/m/Y') : '',
-            'years_of_service' => $row->years_of_service ?? '',
+            'years_of_service' => (function () use ($row): string {
+                if (! $row->hire_date || $row->status !== 'active') {
+                    return '';
+                }
+                $hire = \Carbon\Carbon::parse($row->hire_date);
+                $years = (int) $hire->diffInYears(now());
+                if ($years >= 1) {
+                    return $years.' año'.($years !== 1 ? 's' : '');
+                }
+                $months = (int) $hire->diffInMonths(now());
+                if ($months >= 1) {
+                    return $months.' mes'.($months !== 1 ? 'es' : '');
+                }
+                $days = (int) $hire->diffInDays(now());
+
+                return $days.' día'.($days !== 1 ? 's' : '');
+            })(),
             'salary' => $row->salary ? (float) $row->salary : '',
             'contract_type' => $contractTypes[$row->contract_type] ?? '',
             'payment_method' => $paymentMethods[$row->payment_method] ?? '',
@@ -166,7 +180,6 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'company_name' => $row->company_name,
             'status' => $statusOptions[$row->status] ?? $row->status,
             'phone' => $row->phone ?? '',
-            'email' => $row->email ?? '',
         ];
 
         return array_values(array_intersect_key($all, array_flip($this->columns)));

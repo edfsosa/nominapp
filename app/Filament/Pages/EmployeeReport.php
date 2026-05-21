@@ -10,6 +10,9 @@ use App\Models\Department;
 use App\Models\Employee;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -46,6 +49,18 @@ class EmployeeReport extends Page implements HasTable
     protected static string $view = 'filament.pages.employee-report';
 
     protected ?string $heading = 'Reporte de Empleados';
+
+    /**
+     * Inicializa el filtro de estado en 'active' si no está explícitamente establecido en la sesión.
+     *
+     * El trait mountInteractsWithTable() se ejecuta antes de mount() en Livewire 3, por lo que
+     * aquí $tableFilters ya está cargado desde sesión. Si la sesión guardó null para status
+     * (sesión anterior al default o filtro sin selección), lo dejamos en 'active'.
+     */
+    public function mount(): void
+    {
+        $this->tableFilters['status']['value'] ??= 'active';
+    }
 
     /**
      * Retorna el subheading dinámico con los filtros activos.
@@ -94,13 +109,17 @@ class EmployeeReport extends Page implements HasTable
     {
         $columnOptions = EmployeeReportExport::availableColumns();
         $columnDefaults = EmployeeReportExport::defaultColumns();
+        $orientationThreshold = 8;
 
-        $columnField = CheckboxList::make('columns')
-            ->label('Columnas a incluir')
-            ->options($columnOptions)
-            ->default($columnDefaults)
-            ->columns(3)
-            ->required();
+        if (Company::active()->count() <= 1) {
+            unset($columnOptions['company_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
+        }
+
+        if (Branch::whereHas('company', fn ($q) => $q->active())->count() <= 1) {
+            unset($columnOptions['branch_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['branch_name']));
+        }
 
         return [
             Action::make('export_pdf')
@@ -109,7 +128,26 @@ class EmployeeReport extends Page implements HasTable
                 ->color('info')
                 ->modalHeading('Exportar reporte en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
-                ->form([$columnField])
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function (Get $get, Set $set) use ($orientationThreshold) {
+                            $count = count($get('columns') ?? []);
+                            $set('orientation', $count <= $orientationThreshold ? 'portrait' : 'landscape');
+                        }),
+                    Radio::make('orientation')
+                        ->label('Orientación de la página')
+                        ->helperText('Se ajusta automáticamente: Vertical para ≤ '.$orientationThreshold.' columnas, Horizontal para más.')
+                        ->options(['portrait' => 'Vertical', 'landscape' => 'Horizontal'])
+                        ->default(count($columnDefaults) > $orientationThreshold ? 'landscape' : 'portrait')
+                        ->inline()
+                        ->required(),
+                ])
                 ->action(function (array $data) {
                     [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
 
@@ -125,6 +163,7 @@ class EmployeeReport extends Page implements HasTable
                     ], fn ($v) => $v !== null);
 
                     $params['columns'] = implode(',', $data['columns']);
+                    $params['orientation'] = $data['orientation'] ?? 'portrait';
 
                     $url = route('employees.report.pdf', $params);
                     $this->js("window.open('".addslashes($url)."', '_blank')");
@@ -137,7 +176,14 @@ class EmployeeReport extends Page implements HasTable
                 ->modalHeading('Exportar reporte de empleados')
                 ->modalDescription('Seleccione las columnas a incluir en el archivo Excel.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->form([$columnField])
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required(),
+                ])
                 ->action(function (array $data) {
                     [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
 
@@ -225,12 +271,21 @@ class EmployeeReport extends Page implements HasTable
                 TextColumn::make('years_of_service')
                     ->label('Antigüedad')
                     ->getStateUsing(function ($record) {
-                        if ($record->hire_date === null) {
+                        if (! $record->hire_date || $record->status !== 'active') {
                             return '—';
                         }
-                        $years = (int) $record->years_of_service;
+                        $hire = \Carbon\Carbon::parse($record->hire_date);
+                        $years = (int) $hire->diffInYears(now());
+                        if ($years >= 1) {
+                            return $years.' año'.($years !== 1 ? 's' : '');
+                        }
+                        $months = (int) $hire->diffInMonths(now());
+                        if ($months >= 1) {
+                            return $months.' mes'.($months !== 1 ? 'es' : '');
+                        }
+                        $days = (int) $hire->diffInDays(now());
 
-                        return $years === 1 ? '1 año' : $years.' años';
+                        return $days.' día'.($days !== 1 ? 's' : '');
                     })
                     ->badge()
                     ->color(fn ($record) => match (true) {
@@ -244,28 +299,27 @@ class EmployeeReport extends Page implements HasTable
 
                 TextColumn::make('salary')
                     ->label('Salario')
-                    ->getStateUsing(function ($record) {
-                        if ($record->salary === null) {
-                            return '—';
-                        }
-                        $label = $record->salary_type === 'jornal' ? '/día' : '/mes';
-
-                        return 'Gs. '.number_format((float) $record->salary, 0, ',', '.').$label;
-                    })
+                    ->getStateUsing(fn ($record) => $record->salary
+                        ? 'Gs. '.number_format((float) $record->salary, 0, ',', '.')
+                        : '—'
+                    )
                     ->alignRight()
-                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('contracts.salary', $direction)),
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('contracts.salary', $direction))
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('contract_type')
                     ->label('Tipo contrato')
                     ->getStateUsing(fn ($record) => Contract::getTypeOptions()[$record->contract_type] ?? '—')
                     ->badge()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('payment_method')
                     ->label('Método de pago')
                     ->getStateUsing(fn ($record) => Employee::getPaymentMethodOptions()[$record->payment_method] ?? '—')
                     ->badge()
-                    ->color('gray'),
+                    ->color('gray')
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('position_name')
                     ->label('Cargo')
@@ -275,14 +329,16 @@ class EmployeeReport extends Page implements HasTable
                 TextColumn::make('department_name')
                     ->label('Departamento')
                     ->getStateUsing(fn ($record) => $record->department_name ?? '—')
-                    ->sortable(),
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('branch_name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-storefront')
                     ->badge()
                     ->color('info')
-                    ->sortable(),
+                    ->sortable()
+                    ->visible(fn () => Branch::whereHas('company', fn ($q) => $q->active())->count() > 1),
 
                 TextColumn::make('company_name')
                     ->label('Empresa')
@@ -303,10 +359,6 @@ class EmployeeReport extends Page implements HasTable
                     ->getStateUsing(fn ($record) => $record->phone ?? '—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('email')
-                    ->label('Email')
-                    ->getStateUsing(fn ($record) => $record->email ?? '—')
-                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->emptyStateHeading('Sin empleados para los filtros seleccionados')
             ->emptyStateDescription('Ajuste los filtros para ver resultados.')
@@ -328,7 +380,6 @@ class EmployeeReport extends Page implements HasTable
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
-                'employees.email',
                 'employees.branch_id',
                 'branches.name as branch_name',
                 'companies.id as company_id',
@@ -425,6 +476,7 @@ class EmployeeReport extends Page implements HasTable
                 ->label('Estado')
                 ->options(Employee::getStatusOptions())
                 ->native(false)
+                ->default('active')
                 ->query(fn (Builder $query, array $data) => filled($data['value'])
                     ? $query->where('employees.status', $data['value'])
                     : $query),

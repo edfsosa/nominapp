@@ -740,7 +740,7 @@ body {
 
 ### Páginas de reporte con tabla agregada (custom Page + InteractsWithTable)
 
-Para reportes que necesitan filtros prominentes + tabla con datos agregados (ej. `AttendanceReport`):
+Para reportes que necesitan filtros prominentes + tabla con datos agregados (ej. `AttendanceReport`, `EmployeeReport`, `MerchandiseReport`):
 
 **Estructura:**
 ```php
@@ -784,6 +784,129 @@ private function resolveActiveFilters(): array
     ];
 }
 ```
+
+#### Columnas seleccionables en PDF y Excel (reportes)
+
+Para reportes con columnas opcionales, centralizar el catálogo en la clase Export:
+
+```php
+// En FooReportExport
+public static function availableColumns(): array
+{
+    return ['employee_name' => 'Empleado', 'ci' => 'CI', ...];
+}
+
+public static function defaultColumns(): array
+{
+    return array_keys(static::availableColumns());
+}
+```
+
+En la action del modal usar `CheckboxList` con las opciones de `availableColumns()`. El `map()` y `headings()` filtran con `array_intersect_key($all, array_flip($this->columns))`.
+
+**Selector de orientación adaptativo (PDF)**
+
+Combinar `CheckboxList` con `Radio` de orientación usando `->live()` + `->afterStateUpdated()`. El Radio se auto-ajusta según la cantidad de columnas seleccionadas vs. un umbral:
+
+```php
+$orientationThreshold = 8; // ≤8 cols → portrait, >8 → landscape
+
+CheckboxList::make('columns')
+    ->live()
+    ->afterStateUpdated(function (Get $get, Set $set) use ($orientationThreshold) {
+        $count = count($get('columns') ?? []);
+        $set('orientation', $count <= $orientationThreshold ? 'portrait' : 'landscape');
+    }),
+
+Radio::make('orientation')
+    ->options(['portrait' => 'Vertical', 'landscape' => 'Horizontal'])
+    ->default(count($columnDefaults) > $orientationThreshold ? 'landscape' : 'portrait')
+    ->inline()
+    ->required(),
+```
+
+En el controller: `->setPaper('a4', $orientation)`. En el blade PDF: `@page { size: A4 {{ $orientation }}; margin: 0; }`.
+
+#### Columnas y filtros condicionales por empresa/sucursal activa
+
+Ocultar la columna (y el checkbox del export) cuando solo hay una empresa/sucursal activa — el dato es redundante:
+
+```php
+// Al construir opciones de export en getHeaderActions()
+if (Company::active()->count() <= 1) {
+    unset($columnOptions['company_name']);
+    $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
+}
+if (Branch::whereHas('company', fn ($q) => $q->active())->count() <= 1) {
+    unset($columnOptions['branch_name']);
+    $columnDefaults = array_values(array_diff($columnDefaults, ['branch_name']));
+}
+
+// En la columna de la tabla
+TextColumn::make('branch_name')
+    ->visible(fn () => Branch::whereHas('company', fn ($q) => $q->active())->count() > 1),
+
+TextColumn::make('company_name')
+    ->visible(fn () => Company::active()->count() > 1),
+```
+
+El SelectFilter de empresa también se agrega condicionalmente:
+```php
+if (Company::active()->count() > 1) {
+    $filters[] = SelectFilter::make('company_id')->...;
+}
+```
+
+#### `SelectFilter` con default + `persistFiltersInSession()`
+
+`->default('active')` en un `SelectFilter` solo aplica cuando no hay sesión almacenada. Si la sesión ya tiene un valor `null` para el filtro (sesión anterior o filtro nunca configurado), el default no se aplica.
+
+**Fix:** agregar `mount()` en la Page para inicializar el valor nulo con el default deseado. En Livewire 3, los `mountX()` de traits se ejecutan **antes** del `mount()` del componente, por lo que `$this->tableFilters` ya está cargado desde sesión cuando `mount()` corre:
+
+```php
+public function mount(): void
+{
+    // ??= asigna solo si es null; preserva 'inactive', 'suspended', etc.
+    $this->tableFilters['status']['value'] ??= 'active';
+}
+```
+
+Esto significa que si el usuario limpia explícitamente el filtro (session guarda null), al recargar la página el filtro vuelve a 'active'. Para reportes con un default intencional, este comportamiento es aceptable.
+
+### Diferencias de fechas con Carbon 3 (Laravel 12)
+
+Laravel 12 usa Carbon 3, donde `diffInYears()`, `diffInMonths()` y `diffInDays()` **retornan `float`**, no `int`. Siempre castear explícitamente:
+
+```php
+// ❌ En Carbon 3 retorna float: "72.659721891016 meses"
+$months = $hire->diffInMonths(now());
+
+// ✅ Correcto
+$years  = (int) $hire->diffInYears(now());
+$months = (int) $hire->diffInMonths(now());
+$days   = (int) $hire->diffInDays(now());
+```
+
+**Gotcha con LEFT JOIN a contrato activo:** cuando un empleado no tiene contrato activo, la columna calculada `TIMESTAMPDIFF(YEAR, contracts.start_date, CURDATE()) AS years_of_service` retorna `NULL`. `(int) null === 0`, lo que hace que el branch "años" sea falso y se entre incorrectamente al branch "meses". Calcular siempre desde `hire_date` en PHP, no desde el alias SQL:
+
+```php
+// ❌ (int) null = 0 → entra a la rama de meses incorrectamente
+$years = (int) $record->years_of_service;
+
+// ✅ Calcular desde hire_date directamente
+if (! $record->hire_date || $record->status !== 'active') {
+    return '—';
+}
+$hire  = \Carbon\Carbon::parse($record->hire_date);
+$years = (int) $hire->diffInYears(now());
+if ($years >= 1) { return $years.' año'.($years !== 1 ? 's' : ''); }
+$months = (int) $hire->diffInMonths(now());
+if ($months >= 1) { return $months.' mes'.($months !== 1 ? 'es' : ''); }
+$days = (int) $hire->diffInDays(now());
+return $days.' día'.($days !== 1 ? 's' : '');
+```
+
+Aplicar el mismo patrón en la Export class (`map()`) y en el blade PDF.
 
 ### GROUP BY con MySQL ONLY_FULL_GROUP_BY
 

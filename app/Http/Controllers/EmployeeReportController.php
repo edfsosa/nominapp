@@ -37,6 +37,10 @@ class EmployeeReportController extends Controller
             ? explode(',', $columnsParam)
             : array_keys(EmployeeReportExport::availableColumns());
 
+        $orientation = in_array($request->query('orientation'), ['portrait', 'landscape'])
+            ? $request->query('orientation')
+            : 'portrait';
+
         $employees = Employee::query()
             ->select([
                 'employees.id',
@@ -47,7 +51,6 @@ class EmployeeReportController extends Controller
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
-                'employees.email',
                 'branches.name as branch_name',
                 'companies.id as company_id',
                 'companies.name as company_name',
@@ -123,8 +126,8 @@ class EmployeeReportController extends Controller
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'city',
             'monthOptions', 'genderOptions', 'statusOptions', 'contractTypes', 'paymentMethods',
-            'selectedColumns', 'columnLabels'
-        ))->setPaper('a4', 'landscape');
+            'selectedColumns', 'columnLabels', 'orientation'
+        ))->setPaper('a4', $orientation);
 
         $filename = 'reporte-empleados-'.now()->format('Ymd_His').'.pdf';
 

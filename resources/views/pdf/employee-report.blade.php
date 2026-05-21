@@ -6,7 +6,7 @@
     <title>Reporte de Empleados</title>
     <style>
         @page {
-            size: A4 landscape;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -20,7 +20,7 @@
             font-family: Arial, sans-serif;
             font-size: 9px;
             line-height: 1.4;
-            padding: 12mm 15mm;
+            padding: 10mm 12mm;
         }
 
         .company-header {
@@ -82,22 +82,12 @@
             margin-bottom: 0;
         }
 
-        .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 16px;
-        }
-
-        .summary-table td {
-            padding: 4px 8px;
-            border: 1px solid #ccc;
+        .summary-line {
             font-size: 9px;
-        }
-
-        .summary-table .label {
-            font-weight: bold;
+            margin-bottom: 16px;
+            padding: 5px 8px;
+            border: 1px solid #ccc;
             background: #f5f5f5;
-            width: 35%;
         }
 
         table.data-table {
@@ -109,17 +99,17 @@
         table.data-table th {
             background: #f0f0f0;
             font-weight: bold;
-            font-size: 8px;
+            font-size: 9px;
             text-transform: uppercase;
-            padding: 4px 5px;
+            padding: 3px 4px;
             border: 1px solid #ccc;
             text-align: left;
         }
 
         table.data-table td {
-            padding: 3px 5px;
+            padding: 2px 4px;
             border: 1px solid #ccc;
-            font-size: 8px;
+            font-size: 10px;
             vertical-align: middle;
         }
 
@@ -150,29 +140,10 @@
         .grand-total {
             margin-top: 14px;
             border: 2px solid #000;
-            padding: 6px 10px;
+            padding: 5px 10px;
             background-color: #f5f5f5;
+            font-size: 9px;
             page-break-inside: avoid;
-        }
-
-        .grand-total-title {
-            font-weight: bold;
-            font-size: 10px;
-            text-transform: uppercase;
-            margin-bottom: 4px;
-            border-bottom: 1px solid #ccc;
-            padding-bottom: 3px;
-        }
-
-        .grand-total-grid {
-            display: table;
-            width: 100%;
-        }
-
-        .grand-total-item {
-            display: table-cell;
-            width: 20%;
-            padding: 2px 0;
         }
 
         .grand-total-label {
@@ -222,50 +193,34 @@
 
     {{-- Título del documento --}}
     <div class="title">Reporte de Empleados</div>
+    @if($gender || $birthMonth || $status || $contractType || $paymentMethod)
     <div class="subtitle">
-        Generado el {{ now()->format('d/m/Y H:i') }}
-        @if($gender) &nbsp;·&nbsp; {{ $genderOptions[$gender] ?? $gender }} @endif
-        @if($birthMonth) &nbsp;·&nbsp; Cumpleaños en {{ $monthOptions[$birthMonth] ?? $birthMonth }} @endif
-        @if($status) &nbsp;·&nbsp; Estado: {{ $statusOptions[$status] ?? $status }} @endif
-        @if($contractType) &nbsp;·&nbsp; {{ $contractTypes[$contractType] ?? $contractType }} @endif
-        @if($paymentMethod) &nbsp;·&nbsp; {{ $paymentMethods[$paymentMethod] ?? $paymentMethod }} @endif
+        @if($gender) {{ $genderOptions[$gender] ?? $gender }} @endif
+        @if($birthMonth) @if($gender) &nbsp;·&nbsp; @endif Cumpleaños en {{ $monthOptions[$birthMonth] ?? $birthMonth }} @endif
+        @if($status) @if($gender || $birthMonth) &nbsp;·&nbsp; @endif Estado: {{ $statusOptions[$status] ?? $status }} @endif
+        @if($contractType) @if($gender || $birthMonth || $status) &nbsp;·&nbsp; @endif {{ $contractTypes[$contractType] ?? $contractType }} @endif
+        @if($paymentMethod) @if($gender || $birthMonth || $status || $contractType) &nbsp;·&nbsp; @endif {{ $paymentMethods[$paymentMethod] ?? $paymentMethod }} @endif
     </div>
+    @endif
 
     {{-- Resumen --}}
     <div class="section-title">Resumen</div>
-    <table class="summary-table">
-        <tr>
-            <td class="label">Total de empleados</td>
-            <td><strong>{{ $totalCount }}</strong></td>
-        </tr>
-        @if($byGender->isNotEmpty())
-        <tr>
-            <td class="label">Por género</td>
-            <td>
-                @foreach($genderOptions as $key => $label)
-                    @if(($byGender[$key] ?? 0) > 0)
-                        {{ $label }}: {{ $byGender[$key] }}
-                        @if(!$loop->last) &nbsp;·&nbsp; @endif
-                    @endif
-                @endforeach
-            </td>
-        </tr>
-        @endif
+    <div class="summary-line">
+        <strong>{{ $totalCount }} empleados</strong>
+        @foreach($genderOptions as $key => $label)
+            @if(($byGender[$key] ?? 0) > 0)
+                &nbsp;·&nbsp; {{ $label }}: {{ $byGender[$key] }}
+            @endif
+        @endforeach
         @foreach($statusOptions as $key => $label)
             @if(($byStatus[$key] ?? 0) > 0)
-            <tr>
-                <td class="label">{{ $label }}</td>
-                <td>{{ $byStatus[$key] }} empleado(s)</td>
-            </tr>
+                &nbsp;·&nbsp; {{ $label }}: {{ $byStatus[$key] }}
             @endif
         @endforeach
         @if($avgYears !== null)
-        <tr>
-            <td class="label">Antigüedad promedio</td>
-            <td>{{ number_format($avgYears, 1) }} años</td>
-        </tr>
+            &nbsp;·&nbsp; Antigüedad prom.: {{ number_format($avgYears, 1) }} años
         @endif
-    </table>
+    </div>
 
     {{-- Detalle --}}
     @if($employees->isEmpty())
@@ -279,34 +234,58 @@
              * Renderiza las filas de la tabla de empleados para las columnas seleccionadas.
              */
             function employeeRows($rows, $showCol, $genderOptions, $statusOptions, $contractTypes, $paymentMethods) {
+                $contractTypesShort = [
+                    'indefinido'       => 'Indefinido',
+                    'plazo_fijo'       => 'Plazo Fijo',
+                    'obra_determinada' => 'Obra',
+                    'aprendizaje'      => 'Aprendizaje',
+                    'pasantia'         => 'Pasantía',
+                ];
+                $paymentMethodsShort = [
+                    'debit' => 'Débito',
+                    'cash'  => 'Efectivo',
+                    'check' => 'Cheque',
+                ];
                 $i = 0;
                 foreach ($rows as $e) {
                     $even        = $i % 2 === 1 ? 'background:#fafafa;' : '';
                     $birthDate   = $e->birth_date ? \Carbon\Carbon::parse($e->birth_date) : null;
                     $hireDate    = $e->hire_date  ? \Carbon\Carbon::parse($e->hire_date)  : null;
-                    $years       = $e->years_of_service !== null ? (int) $e->years_of_service : null;
-                    $salaryFmt   = $e->salary
-                        ? 'Gs. ' . number_format((float) $e->salary, 0, ',', '.') . ($e->salary_type === 'jornal' ? '/d' : '/m')
-                        : '—';
+                    $salaryFmt   = $e->salary ? number_format((float) $e->salary, 0, ',', '.') : '—';
+
+                    if ($hireDate && $e->status === 'active') {
+                        $years  = (int) $hireDate->diffInYears(now());
+                        $months = (int) $hireDate->diffInMonths(now());
+                        $days   = (int) $hireDate->diffInDays(now());
+                        if ($years >= 1) {
+                            $antiguedadFmt = $years . ' año' . ($years !== 1 ? 's' : '');
+                        } elseif ($months >= 1) {
+                            $antiguedadFmt = $months . ' mes' . ($months !== 1 ? 'es' : '');
+                        } else {
+                            $antiguedadFmt = $days . ' día' . ($days !== 1 ? 's' : '');
+                        }
+                    } else {
+                        $antiguedadFmt = '—';
+                    }
 
                     echo '<tr style="' . $even . '">';
+                    echo '<td style="text-align:center;">' . ($i + 1) . '</td>';
                     if (isset($showCol['employee_name'])) echo '<td>' . e(strtoupper($e->last_name)) . ', ' . e($e->first_name) . '</td>';
                     if (isset($showCol['ci']))             echo '<td>' . e($e->ci) . '</td>';
-                    if (isset($showCol['gender']))         echo '<td>' . e($genderOptions[$e->gender] ?? '—') . '</td>';
-                    if (isset($showCol['age']))            echo '<td style="text-align:center;">' . ($birthDate ? $birthDate->age . 'a' : '—') . '</td>';
-                    if (isset($showCol['birthday']))       echo '<td>' . ($birthDate ? $birthDate->day . ' de ' . $birthDate->locale("es")->isoFormat("MMMM") : '—') . '</td>';
+                    if (isset($showCol['gender']))         { $g = $genderOptions[$e->gender] ?? ''; echo '<td style="text-align:center;">' . e($g ? mb_strtoupper(mb_substr($g, 0, 1)) : '—') . '</td>'; }
+                    if (isset($showCol['age']))            echo '<td style="text-align:center;">' . ($birthDate ? $birthDate->age : '—') . '</td>';
+                    if (isset($showCol['birthday']))       echo '<td style="text-align:center;">' . ($birthDate ? $birthDate->format('d/m') : '—') . '</td>';
                     if (isset($showCol['hire_date']))      echo '<td>' . ($hireDate ? $hireDate->format('d/m/Y') : '—') . '</td>';
-                    if (isset($showCol['years_of_service'])) echo '<td style="text-align:center;">' . ($years !== null ? $years . ' año' . ($years !== 1 ? 's' : '') : '—') . '</td>';
+                    if (isset($showCol['years_of_service'])) echo '<td style="text-align:center;">' . $antiguedadFmt . '</td>';
                     if (isset($showCol['salary']))         echo '<td style="text-align:right;">' . $salaryFmt . '</td>';
-                    if (isset($showCol['contract_type']))  echo '<td>' . e($contractTypes[$e->contract_type] ?? '—') . '</td>';
-                    if (isset($showCol['payment_method'])) echo '<td>' . e($paymentMethods[$e->payment_method] ?? '—') . '</td>';
+                    if (isset($showCol['contract_type']))  echo '<td>' . e($contractTypesShort[$e->contract_type] ?? $contractTypes[$e->contract_type] ?? '—') . '</td>';
+                    if (isset($showCol['payment_method'])) echo '<td>' . e($paymentMethodsShort[$e->payment_method] ?? $paymentMethods[$e->payment_method] ?? '—') . '</td>';
                     if (isset($showCol['position_name'])) echo '<td>' . e($e->position_name ?? '—') . '</td>';
                     if (isset($showCol['department_name'])) echo '<td>' . e($e->department_name ?? '—') . '</td>';
                     if (isset($showCol['branch_name']))    echo '<td>' . e($e->branch_name) . '</td>';
                     if (isset($showCol['company_name']))   echo '<td>' . e($e->company_name) . '</td>';
                     if (isset($showCol['status']))         echo '<td>' . e($statusOptions[$e->status] ?? $e->status) . '</td>';
                     if (isset($showCol['phone']))          echo '<td>' . e($e->phone ?? '—') . '</td>';
-                    if (isset($showCol['email']))          echo '<td>' . e($e->email ?? '—') . '</td>';
                     echo '</tr>';
                     $i++;
                 }
@@ -323,6 +302,7 @@
             <table class="data-table">
                 <thead>
                     <tr>
+                        <th style="width:22px;text-align:center;">#</th>
                         @foreach($headers as $key => $label)
                             <th>{{ $label }}</th>
                         @endforeach
@@ -339,6 +319,7 @@
                 <table class="data-table">
                     <thead>
                         <tr>
+                            <th style="width:22px;text-align:center;">#</th>
                             @foreach($headers as $key => $label)
                                 <th>{{ $label }}</th>
                             @endforeach
@@ -364,24 +345,7 @@
 
         {{-- Gran total --}}
         <div class="grand-total">
-            <div class="grand-total-title">Total General</div>
-            <div class="grand-total-grid">
-                <div class="grand-total-item">
-                    <span class="grand-total-label">Total:</span> {{ $totalCount }} empleados
-                </div>
-                @foreach($genderOptions as $key => $label)
-                    @if(($byGender[$key] ?? 0) > 0)
-                    <div class="grand-total-item">
-                        <span class="grand-total-label">{{ $label }}:</span> {{ $byGender[$key] }}
-                    </div>
-                    @endif
-                @endforeach
-                @if($avgYears !== null)
-                <div class="grand-total-item">
-                    <span class="grand-total-label">Antigüedad prom.:</span> {{ number_format($avgYears, 1) }} años
-                </div>
-                @endif
-            </div>
+            <span class="grand-total-label">Total general:</span> {{ $totalCount }} empleados
         </div>
 
     @endif
