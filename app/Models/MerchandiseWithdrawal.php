@@ -11,8 +11,9 @@ use Illuminate\Support\Facades\DB;
 /**
  * Retiro de mercadería a crédito otorgado a un empleado.
  *
- * Ciclo de vida: pending → approve() → approved → [todas las cuotas pagadas] → paid
- *               pending/approved → cancel() → cancelled
+ * Ciclo de vida: pending → approve()  → approved → [todas las cuotas pagadas] → paid (auto, terminal)
+ *               pending → reject()   → rejected (terminal)
+ *               approved → cancel()  → cancelled (solo si ninguna cuota fue pagada)
  *
  * Múltiples retiros activos por empleado están permitidos.
  */
@@ -28,6 +29,8 @@ class MerchandiseWithdrawal extends Model
         'notes',
         'approved_at',
         'approved_by_id',
+        'rejected_at',
+        'rejected_by_id',
     ];
 
     protected function casts(): array
@@ -37,6 +40,7 @@ class MerchandiseWithdrawal extends Model
             'installment_amount' => 'decimal:2',
             'outstanding_balance' => 'decimal:2',
             'approved_at' => 'date',
+            'rejected_at' => 'date',
         ];
     }
 
@@ -54,6 +58,12 @@ class MerchandiseWithdrawal extends Model
     public function approvedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approved_by_id');
+    }
+
+    /** Usuario que rechazó el retiro. */
+    public function rejectedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'rejected_by_id');
     }
 
     /** Ítems (productos) del retiro. */
@@ -82,6 +92,7 @@ class MerchandiseWithdrawal extends Model
             'approved' => 'Aprobado',
             'paid' => 'Pagado',
             'cancelled' => 'Cancelado',
+            'rejected' => 'Rechazado',
             default => 'Desconocido',
         };
     }
@@ -96,6 +107,7 @@ class MerchandiseWithdrawal extends Model
             'approved' => 'info',
             'paid' => 'success',
             'cancelled' => 'gray',
+            'rejected' => 'danger',
             default => 'gray',
         };
     }
@@ -110,6 +122,7 @@ class MerchandiseWithdrawal extends Model
             'approved' => 'heroicon-o-check-badge',
             'paid' => 'heroicon-o-check-circle',
             'cancelled' => 'heroicon-o-minus-circle',
+            'rejected' => 'heroicon-o-x-circle',
             default => 'heroicon-o-question-mark-circle',
         };
     }
@@ -126,6 +139,7 @@ class MerchandiseWithdrawal extends Model
             'approved' => 'Aprobado',
             'paid' => 'Pagado',
             'cancelled' => 'Cancelado',
+            'rejected' => 'Rechazado',
         ];
     }
 
@@ -151,6 +165,11 @@ class MerchandiseWithdrawal extends Model
     public function isCancelled(): bool
     {
         return $this->status === 'cancelled';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
     }
 
     // =========================================================================
@@ -252,17 +271,59 @@ class MerchandiseWithdrawal extends Model
     }
 
     /**
-     * Cancela el retiro. Las cuotas pendientes se cancelan; las pagadas se conservan.
+     * Rechaza la solicitud de retiro (solo desde estado pending).
+     *
+     * @param  int  $rejectedById  ID del usuario que rechaza.
+     * @param  string|null  $reason  Motivo del rechazo.
+     * @return array{success: bool, message: string}
+     */
+    public function reject(int $rejectedById, ?string $reason = null): array
+    {
+        if (! $this->isPending()) {
+            return [
+                'success' => false,
+                'message' => 'Solo se pueden rechazar retiros en estado Pendiente.',
+            ];
+        }
+
+        $notes = $this->notes;
+        if ($reason) {
+            $notes = $notes ? "{$notes}\n\nRechazo: {$reason}" : "Rechazo: {$reason}";
+        }
+
+        $this->update([
+            'status' => 'rejected',
+            'rejected_at' => now(),
+            'rejected_by_id' => $rejectedById,
+            'notes' => $notes,
+        ]);
+
+        return [
+            'success' => true,
+            'message' => 'El retiro ha sido rechazado.',
+        ];
+    }
+
+    /**
+     * Cancela un retiro aprobado. Solo posible si ninguna cuota fue pagada en nómina.
      *
      * @param  string|null  $reason  Motivo de cancelación.
      * @return array{success: bool, message: string}
      */
     public function cancel(?string $reason = null): array
     {
-        if ($this->isPaid() || $this->isCancelled()) {
+        if (! $this->isApproved()) {
             return [
                 'success' => false,
-                'message' => 'No se puede cancelar un retiro en este estado.',
+                'message' => 'Solo se pueden cancelar retiros en estado Aprobado.',
+            ];
+        }
+
+        $paidCount = $this->paid_installments_count;
+        if ($paidCount > 0) {
+            return [
+                'success' => false,
+                'message' => "No se puede cancelar: {$paidCount} cuota(s) ya fueron descontadas en nómina.",
             ];
         }
 

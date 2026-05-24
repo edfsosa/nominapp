@@ -58,17 +58,58 @@ class ViewMerchandiseWithdrawal extends ViewRecord
                     }
                 }),
 
+            Action::make('reject')
+                ->label('Rechazar')
+                ->icon('heroicon-o-x-circle')
+                ->color('danger')
+                ->visible(fn () => $this->record->isPending())
+                ->requiresConfirmation()
+                ->modalHeading('Rechazar Retiro')
+                ->modalDescription('¿Está seguro de que desea rechazar esta solicitud? El retiro quedará en estado Rechazado.')
+                ->modalSubmitActionLabel('Sí, rechazar')
+                ->form([
+                    Textarea::make('reason')
+                        ->label('Motivo del rechazo')
+                        ->placeholder('Ingrese el motivo...')
+                        ->rows(3),
+                ])
+                ->action(function (array $data) {
+                    $result = $this->record->reject(Auth::id(), $data['reason'] ?? null);
+
+                    if ($result['success']) {
+                        Notification::make()
+                            ->success()
+                            ->title('Retiro Rechazado')
+                            ->body($result['message'])
+                            ->send();
+
+                        $this->redirect($this->getUrl(['record' => $this->record]));
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error')
+                            ->body($result['message'])
+                            ->send();
+                    }
+                }),
+
             Action::make('cancel')
                 ->label('Cancelar')
                 ->icon('heroicon-o-minus-circle')
-                ->color('danger')
-                ->visible(fn () => $this->record->isPending() || $this->record->isApproved())
+                ->color('warning')
+                ->visible(fn () => $this->record->isApproved() && $this->record->paid_installments_count === 0)
                 ->requiresConfirmation()
                 ->modalHeading('Cancelar Retiro')
-                ->modalDescription(fn () => $this->record->isApproved()
-                    ? '¿Está seguro de que desea cancelar el retiro? Se cancelarán '.$this->record->pending_installments_count.' cuota(s) pendiente(s).'
-                    : '¿Está seguro de que desea cancelar el retiro?'
-                )
+                ->modalDescription(function () {
+                    $pending = $this->record->pending_installments_count;
+                    $paid = $this->record->paid_installments_count;
+                    $base = "Se cancelarán {$pending} cuota(s) pendiente(s).";
+                    $warning = $paid > 0
+                        ? " ⚠ No se puede cancelar: {$paid} cuota(s) ya fueron descontadas en nómina."
+                        : '';
+
+                    return $base.$warning;
+                })
                 ->modalSubmitActionLabel('Sí, cancelar')
                 ->form([
                     Textarea::make('reason')

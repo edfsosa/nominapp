@@ -144,7 +144,7 @@
         }
 
         .signature-section {
-            margin-top: 30px;
+            margin-top: 50px;
             display: table;
             width: 100%;
         }
@@ -268,18 +268,6 @@
                         <td class="amount">Gs.
                             {{ number_format((float) $withdrawal->outstanding_balance, 0, ',', '.') }}</td>
                     </tr>
-                    @if ($withdrawal->approved_at)
-                        <tr>
-                            <td style="font-weight: bold;">Fecha de Aprobación:</td>
-                            <td>{{ $withdrawal->approved_at->format('d/m/Y') }}</td>
-                        </tr>
-                    @endif
-                    @if ($withdrawal->approvedBy)
-                        <tr>
-                            <td style="font-weight: bold;">Aprobado por:</td>
-                            <td>{{ $withdrawal->approvedBy->name }}</td>
-                        </tr>
-                    @endif
                 </tbody>
             </table>
         </div>

@@ -51,6 +51,10 @@ class ListMerchandiseWithdrawals extends ListRecords
                 ->badge($counts['cancelled'] ?: null)
                 ->badgeColor('gray')
                 ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'cancelled')),
+            'rejected' => Tab::make('Rechazados')
+                ->badge($counts['rejected'] ?: null)
+                ->badgeColor('danger')
+                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'rejected')),
         ];
     }
 
@@ -74,6 +78,7 @@ class ListMerchandiseWithdrawals extends ListRecords
                 'approved' => $rows['approved'] ?? 0,
                 'paid' => $rows['paid'] ?? 0,
                 'cancelled' => $rows['cancelled'] ?? 0,
+                'rejected' => $rows['rejected'] ?? 0,
             ];
         }
 

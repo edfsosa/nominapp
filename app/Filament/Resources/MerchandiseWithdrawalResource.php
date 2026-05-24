@@ -193,6 +193,23 @@ class MerchandiseWithdrawalResource extends Resource
                         ])->columns(2),
                     ])
                     ->visible(fn (MerchandiseWithdrawal $record) => $record->isApproved() || $record->isPaid()),
+
+                InfolistSection::make('Rechazo')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('rejected_at')
+                                ->label('Fecha de Rechazo')
+                                ->date('d/m/Y')
+                                ->icon('heroicon-o-calendar')
+                                ->placeholder('-'),
+
+                            TextEntry::make('rejectedBy.name')
+                                ->label('Rechazado por')
+                                ->icon('heroicon-o-user-circle')
+                                ->placeholder('-'),
+                        ])->columns(2),
+                    ])
+                    ->visible(fn (MerchandiseWithdrawal $record) => $record->isRejected()),
             ]);
     }
 
@@ -297,6 +314,25 @@ class MerchandiseWithdrawalResource extends Resource
 
                         Notification::make()
                             ->title($result['success'] ? 'Retiro Aprobado' : 'Error')
+                            ->body($result['message'])
+                            ->{$result['success'] ? 'success' : 'danger'}()
+                            ->send();
+                    }),
+
+                Action::make('reject')
+                    ->label('Rechazar')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->visible(fn (MerchandiseWithdrawal $record) => $record->isPending())
+                    ->requiresConfirmation()
+                    ->modalHeading('Rechazar Retiro')
+                    ->modalDescription('¿Está seguro de que desea rechazar esta solicitud? El retiro quedará en estado Rechazado.')
+                    ->modalSubmitActionLabel('Sí, rechazar')
+                    ->action(function (MerchandiseWithdrawal $record) {
+                        $result = $record->reject(Auth::id());
+
+                        Notification::make()
+                            ->title($result['success'] ? 'Retiro Rechazado' : 'Error')
                             ->body($result['message'])
                             ->{$result['success'] ? 'success' : 'danger'}()
                             ->send();
