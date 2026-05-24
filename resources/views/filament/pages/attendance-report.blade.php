@@ -15,6 +15,14 @@
         >
             Ausencias
         </x-filament::tabs.item>
+
+        <x-filament::tabs.item
+            :active="$this->activeTab === 'overtime'"
+            icon="heroicon-o-bolt"
+            wire:click="setTab('overtime')"
+        >
+            Horas Extras y Tardanzas
+        </x-filament::tabs.item>
     </x-filament::tabs>
 
     {{ $this->table }}

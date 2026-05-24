@@ -17,21 +17,23 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Cada fila representa un empleado con los totales agregados del período:
  * días presentes, ausencias, licencias, horas netas, horas extra y tardanza.
  */
-class AttendanceReportSummaryExport implements FromQuery, WithHeadings, WithMapping, WithStyles, ShouldAutoSize
+class AttendanceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
-     * @param  string|null $fromDate     Fecha de inicio del período (Y-m-d).
-     * @param  string|null $toDate       Fecha de fin del período (Y-m-d).
-     * @param  int|null    $companyId    Filtrar por empresa.
-     * @param  int|null    $branchId     Filtrar por sucursal.
-     * @param  int|null    $departmentId Filtrar por departamento (contrato activo).
+     * @param  string|null  $fromDate  Fecha de inicio del período (Y-m-d).
+     * @param  string|null  $toDate  Fecha de fin del período (Y-m-d).
+     * @param  int|null  $companyId  Filtrar por empresa.
+     * @param  int|null  $branchId  Filtrar por sucursal.
+     * @param  int|null  $departmentId  Filtrar por departamento (contrato activo).
+     * @param  int|null  $employeeId  Filtrar por empleado específico.
      */
     public function __construct(
-        protected ?string $fromDate     = null,
-        protected ?string $toDate       = null,
-        protected ?int    $companyId    = null,
-        protected ?int    $branchId     = null,
-        protected ?int    $departmentId = null,
+        protected ?string $fromDate = null,
+        protected ?string $toDate = null,
+        protected ?int $companyId = null,
+        protected ?int $branchId = null,
+        protected ?int $departmentId = null,
+        protected ?int $employeeId = null,
     ) {}
 
     /**
@@ -55,26 +57,24 @@ class AttendanceReportSummaryExport implements FromQuery, WithHeadings, WithMapp
                 DB::raw("COALESCE(SUM(CASE WHEN ad.status = 'on_leave' THEN 1 ELSE 0 END), 0) AS days_leave"),
                 DB::raw("COALESCE(SUM(CASE WHEN ad.status IN ('holiday','weekend') THEN 1 ELSE 0 END), 0) AS days_non_working"),
                 DB::raw('ROUND(COALESCE(SUM(ad.net_hours), 0), 2)             AS total_net_hours'),
-                DB::raw('ROUND(COALESCE(SUM(ad.extra_hours_diurnas), 0), 2)   AS total_extra_diurnas'),
-                DB::raw('ROUND(COALESCE(SUM(ad.extra_hours_nocturnas), 0), 2) AS total_extra_nocturnas'),
-                DB::raw('COALESCE(SUM(ad.late_minutes), 0)                    AS total_late_minutes'),
                 DB::raw('COALESCE(SUM(CASE WHEN ad.anomaly_flag = 1 THEN 1 ELSE 0 END), 0) AS total_anomalies'),
             ])
             ->join('attendance_days as ad', 'ad.employee_id', '=', 'employees.id')
-            ->when($this->fromDate,     fn($q) => $q->where('ad.date', '>=', $this->fromDate))
-            ->when($this->toDate,       fn($q) => $q->where('ad.date', '<=', $this->toDate))
-            ->when($this->branchId,     fn($q) => $q->where('employees.branch_id', $this->branchId))
-            ->when($this->companyId,    fn($q) => $q->whereExists(fn($sub) => $sub->selectRaw(1)
+            ->when($this->fromDate, fn ($q) => $q->where('ad.date', '>=', $this->fromDate))
+            ->when($this->toDate, fn ($q) => $q->where('ad.date', '<=', $this->toDate))
+            ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
+            ->when($this->companyId, fn ($q) => $q->whereExists(fn ($sub) => $sub->selectRaw(1)
                 ->from('branches')
                 ->whereColumn('branches.id', 'employees.branch_id')
                 ->where('branches.company_id', $this->companyId)
             ))
-            ->when($this->departmentId, fn($q) => $q->whereExists(fn($sub) => $sub->selectRaw(1)
+            ->when($this->departmentId, fn ($q) => $q->whereExists(fn ($sub) => $sub->selectRaw(1)
                 ->from('contracts')
                 ->whereColumn('contracts.employee_id', 'employees.id')
                 ->where('contracts.status', 'active')
                 ->where('contracts.department_id', $this->departmentId)
             ))
+            ->when($this->employeeId, fn ($q) => $q->where('employees.id', $this->employeeId))
             ->groupBy('employees.id', 'employees.first_name', 'employees.last_name', 'employees.ci', 'employees.branch_id')
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name');
@@ -98,9 +98,6 @@ class AttendanceReportSummaryExport implements FromQuery, WithHeadings, WithMapp
             'Licencias',
             'No laborables',
             'Horas Netas',
-            'HE Diurnas',
-            'HE Nocturnas',
-            'Tardanza (min)',
             'Anomalías',
         ];
     }
@@ -108,25 +105,22 @@ class AttendanceReportSummaryExport implements FromQuery, WithHeadings, WithMapp
     /**
      * Mapea cada fila del resultado a una fila del Excel.
      *
-     * @param  mixed $employee
+     * @param  mixed  $employee
      * @return array<int, mixed>
      */
     public function map($employee): array
     {
         return [
-            $employee->last_name . ', ' . $employee->first_name,
+            $employee->last_name.', '.$employee->first_name,
             $employee->ci,
-            $employee->branch_name     ?? '—',
+            $employee->branch_name ?? '—',
             $employee->department_name ?? '—',
-            $employee->position_name   ?? '—',
+            $employee->position_name ?? '—',
             (int) $employee->days_present,
             (int) $employee->days_absent,
             (int) $employee->days_leave,
             (int) $employee->days_non_working,
             (float) $employee->total_net_hours,
-            (float) $employee->total_extra_diurnas,
-            (float) $employee->total_extra_nocturnas,
-            (int) $employee->total_late_minutes,
             (int) $employee->total_anomalies,
         ];
     }
@@ -134,7 +128,6 @@ class AttendanceReportSummaryExport implements FromQuery, WithHeadings, WithMapp
     /**
      * Aplica estilos al encabezado de la hoja de cálculo.
      *
-     * @param  Worksheet $sheet
      * @return array<int|string, mixed>
      */
     public function styles(Worksheet $sheet): array

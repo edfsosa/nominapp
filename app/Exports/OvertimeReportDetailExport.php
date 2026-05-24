@@ -2,7 +2,7 @@
 
 namespace App\Exports;
 
-use App\Models\Absence;
+use App\Models\AttendanceDay;
 use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithHeadings;
@@ -11,12 +11,12 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Exporta el detalle de ausencias para el período y filtros dados.
+ * Exporta el detalle diario de horas extras y tardanzas para el período dado.
  *
- * Cada fila representa una ausencia individual con sus datos completos:
- * fecha, motivo, estado, revisión y monto de deducción generada.
+ * Solo incluye días donde el empleado registró horas extras o llegada tarde.
+ * Cada fila representa un día de un empleado con los valores desagregados.
  */
-class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
+class OvertimeReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
      * @param  string|null  $fromDate  Fecha de inicio del período (Y-m-d).
@@ -36,26 +36,21 @@ class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadin
     ) {}
 
     /**
-     * Query con una fila por ausencia, con relaciones eager-loaded.
+     * Query base: días con horas extras o tardanza, con relaciones eager-loaded.
      *
      * @return \Illuminate\Database\Eloquent\Builder
      */
     public function query()
     {
-        return Absence::query()
-            ->with([
-                'employee.branch',
-                'employee.activeContract.position.department',
-                'attendanceDay',
-                'employeeDeduction',
-                'reportedBy',
-                'reviewedBy',
-            ])
-            ->join('employees', 'employees.id', '=', 'absences.employee_id')
-            ->join('attendance_days', 'attendance_days.id', '=', 'absences.attendance_day_id')
-            ->select('absences.*')
-            ->when($this->fromDate, fn ($q) => $q->where('attendance_days.date', '>=', $this->fromDate))
-            ->when($this->toDate, fn ($q) => $q->where('attendance_days.date', '<=', $this->toDate))
+        return AttendanceDay::query()
+            ->with(['employee', 'employee.branch'])
+            ->join('employees', 'employees.id', '=', 'attendance_days.employee_id')
+            ->select('attendance_days.*')
+            ->where(fn ($q) => $q->where('attendance_days.extra_hours', '>', 0)
+                ->orWhere('attendance_days.late_minutes', '>', 0)
+            )
+            ->when($this->fromDate, fn ($q) => $q->whereDate('attendance_days.date', '>=', $this->fromDate))
+            ->when($this->toDate, fn ($q) => $q->whereDate('attendance_days.date', '<=', $this->toDate))
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->companyId, fn ($q) => $q->whereExists(fn ($sub) => $sub->selectRaw(1)
                 ->from('branches')
@@ -85,48 +80,57 @@ class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadin
             'Empleado',
             'CI',
             'Sucursal',
-            'Departamento',
-            'Cargo',
-            'Fecha de Ausencia',
-            'Motivo',
-            'Estado',
-            'Reportado por',
-            'Fecha Reporte',
-            'Revisado por',
-            'Fecha Revisión',
-            'Notas de Revisión',
-            'Deducción (Gs.)',
+            'Fecha',
+            'Día',
+            'Entrada Esperada',
+            'Entrada Real',
+            'Tardanza (min)',
+            'HE Total (h)',
+            'HE Diurnas (h)',
+            'HE Nocturnas (h)',
+            'HE Aprobada',
+            'Límite Excedido',
+            'Trabajo Extraordinario',
+            'Feriado',
         ];
     }
 
     /**
-     * Mapea cada ausencia a una fila del Excel.
+     * Mapea cada día de asistencia a una fila del Excel.
      *
-     * @param  Absence  $absence
+     * @param  AttendanceDay  $day
      * @return array<int, mixed>
      */
-    public function map($absence): array
+    public function map($day): array
     {
-        $employee = $absence->employee;
-        $contract = $employee?->activeContract;
-        $position = $contract?->position;
-        $department = $position?->department;
+        $employee = $day->employee;
+
+        $dayNames = [
+            'Monday' => 'Lunes',
+            'Tuesday' => 'Martes',
+            'Wednesday' => 'Miércoles',
+            'Thursday' => 'Jueves',
+            'Friday' => 'Viernes',
+            'Saturday' => 'Sábado',
+            'Sunday' => 'Domingo',
+        ];
 
         return [
             ($employee?->last_name.', '.$employee?->first_name) ?? '—',
             $employee?->ci ?? '—',
             $employee?->branch?->name ?? '—',
-            $department?->name ?? '—',
-            $position?->name ?? '—',
-            $absence->attendanceDay?->date?->format('d/m/Y') ?? '—',
-            $absence->reason ?? '—',
-            Absence::getStatusLabel($absence->status),
-            $absence->reportedBy?->name ?? 'Sistema',
-            $absence->reported_at?->format('d/m/Y H:i') ?? '—',
-            $absence->reviewedBy?->name ?? '—',
-            $absence->reviewed_at?->format('d/m/Y H:i') ?? '—',
-            $absence->review_notes ?? '—',
-            $absence->employeeDeduction?->custom_amount ?? 0,
+            $day->date?->format('d/m/Y') ?? '',
+            $day->date ? ($dayNames[$day->date->format('l')] ?? $day->date->format('l')) : '',
+            $day->expected_check_in ? \Carbon\Carbon::parse($day->expected_check_in)->format('H:i') : '',
+            $day->check_in_time ? \Carbon\Carbon::parse($day->check_in_time)->format('H:i') : '',
+            (int) ($day->late_minutes ?? 0),
+            (float) ($day->extra_hours ?? 0),
+            (float) ($day->extra_hours_diurnas ?? 0),
+            (float) ($day->extra_hours_nocturnas ?? 0),
+            AttendanceDay::formatBoolean((bool) $day->overtime_approved),
+            AttendanceDay::formatBoolean((bool) $day->overtime_limit_exceeded),
+            AttendanceDay::formatBoolean((bool) $day->is_extraordinary_work),
+            AttendanceDay::formatBoolean((bool) $day->is_holiday),
         ];
     }
 

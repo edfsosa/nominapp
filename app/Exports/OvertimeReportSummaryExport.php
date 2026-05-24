@@ -12,12 +12,12 @@ use Maatwebsite\Excel\Concerns\WithStyles;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Exporta un resumen de ausencias por empleado para el período y filtros dados.
+ * Exporta un resumen de horas extras y tardanzas por empleado para el período dado.
  *
  * Cada fila representa un empleado con los totales agregados del período:
- * pendientes, justificadas, injustificadas y monto total de deducciones generadas.
+ * horas extras diurnas/nocturnas, días con extras, tardanza total, días con tardanza.
  */
-class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
+class OvertimeReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
      * @param  string|null  $fromDate  Fecha de inicio del período (Y-m-d).
@@ -37,7 +37,7 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
     ) {}
 
     /**
-     * Query base con métricas de ausencias agregadas por empleado.
+     * Query base con métricas de horas extras y tardanzas agregadas por empleado.
      *
      * @return \Illuminate\Database\Eloquent\Builder
      */
@@ -52,15 +52,17 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
                 DB::raw('(SELECT b.name FROM branches b WHERE b.id = employees.branch_id) AS branch_name'),
                 DB::raw("(SELECT d.name FROM contracts c INNER JOIN positions p ON p.id = c.position_id INNER JOIN departments d ON d.id = p.department_id WHERE c.employee_id = employees.id AND c.status = 'active' ORDER BY c.start_date DESC LIMIT 1) AS department_name"),
                 DB::raw("(SELECT p.name FROM contracts c INNER JOIN positions p ON p.id = c.position_id WHERE c.employee_id = employees.id AND c.status = 'active' ORDER BY c.start_date DESC LIMIT 1) AS position_name"),
-                DB::raw('COUNT(abs.id) AS total_absences'),
-                DB::raw("COALESCE(SUM(CASE WHEN abs.status = 'pending'     THEN 1 ELSE 0 END), 0) AS total_pending"),
-                DB::raw("COALESCE(SUM(CASE WHEN abs.status = 'justified'   THEN 1 ELSE 0 END), 0) AS total_justified"),
-                DB::raw("COALESCE(SUM(CASE WHEN abs.status = 'unjustified' THEN 1 ELSE 0 END), 0) AS total_unjustified"),
-                DB::raw('COALESCE(SUM(CASE WHEN abs.employee_deduction_id IS NOT NULL THEN ed.custom_amount ELSE 0 END), 0) AS total_deduction_amount'),
+                DB::raw('ROUND(COALESCE(SUM(ad.extra_hours), 0), 2)             AS total_extra_hours'),
+                DB::raw('ROUND(COALESCE(SUM(ad.extra_hours_diurnas), 0), 2)     AS total_extra_diurnas'),
+                DB::raw('ROUND(COALESCE(SUM(ad.extra_hours_nocturnas), 0), 2)   AS total_extra_nocturnas'),
+                DB::raw('COALESCE(SUM(CASE WHEN ad.extra_hours > 0 THEN 1 ELSE 0 END), 0)        AS days_with_extras'),
+                DB::raw('COALESCE(SUM(CASE WHEN ad.overtime_approved = 1 THEN 1 ELSE 0 END), 0)  AS days_approved'),
+                DB::raw('COALESCE(SUM(ad.late_minutes), 0)                                        AS total_late_minutes'),
+                DB::raw('COALESCE(SUM(CASE WHEN ad.late_minutes > 0 THEN 1 ELSE 0 END), 0)       AS days_late'),
+                DB::raw('ROUND(COALESCE(AVG(CASE WHEN ad.late_minutes > 0 THEN ad.late_minutes END), 0), 0) AS avg_late_minutes'),
             ])
-            ->join('absences as abs', 'abs.employee_id', '=', 'employees.id')
-            ->join('attendance_days as ad', 'ad.id', '=', 'abs.attendance_day_id')
-            ->leftJoin('employee_deductions as ed', 'ed.id', '=', 'abs.employee_deduction_id')
+            ->join('attendance_days as ad', 'ad.employee_id', '=', 'employees.id')
+            ->where(fn ($q) => $q->where('ad.extra_hours', '>', 0)->orWhere('ad.late_minutes', '>', 0))
             ->when($this->fromDate, fn ($q) => $q->where('ad.date', '>=', $this->fromDate))
             ->when($this->toDate, fn ($q) => $q->where('ad.date', '<=', $this->toDate))
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
@@ -94,16 +96,19 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
             'Sucursal',
             'Departamento',
             'Cargo',
-            'Total',
-            'Pendientes',
-            'Justificadas',
-            'Injustificadas',
-            'Deducciones Generadas (Gs.)',
+            'HE Total (h)',
+            'HE Diurnas (h)',
+            'HE Nocturnas (h)',
+            'Días con HE',
+            'Días HE Aprobados',
+            'Tardanza Total (min)',
+            'Días con Tardanza',
+            'Tardanza Promedio (min)',
         ];
     }
 
     /**
-     * Mapea cada fila del resultado a una fila del Excel.
+     * Mapea cada empleado a una fila del Excel.
      *
      * @param  mixed  $employee
      * @return array<int, mixed>
@@ -116,11 +121,14 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
             $employee->branch_name ?? '—',
             $employee->department_name ?? '—',
             $employee->position_name ?? '—',
-            (int) $employee->total_absences,
-            (int) $employee->total_pending,
-            (int) $employee->total_justified,
-            (int) $employee->total_unjustified,
-            (float) $employee->total_deduction_amount,
+            (float) $employee->total_extra_hours,
+            (float) $employee->total_extra_diurnas,
+            (float) $employee->total_extra_nocturnas,
+            (int) $employee->days_with_extras,
+            (int) $employee->days_approved,
+            (int) $employee->total_late_minutes,
+            (int) $employee->days_late,
+            (int) $employee->avg_late_minutes,
         ];
     }
 
