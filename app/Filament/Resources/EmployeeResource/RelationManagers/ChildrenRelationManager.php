@@ -25,7 +25,7 @@ class ChildrenRelationManager extends RelationManager
 {
     protected static string $relationship = 'children';
 
-    protected static ?string $title = 'Hijos a Cargo';
+    protected static ?string $title = 'Hijos';
 
     protected static ?string $modelLabel = 'hijo';
 

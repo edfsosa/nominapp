@@ -23,16 +23,16 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Storage;
 
-/** Gestiona los permisos y licencias del empleado desde su vista de detalle. */
+/** Gestiona las licencias del empleado desde su vista de detalle. */
 class LeavesRelationManager extends RelationManager
 {
     protected static string $relationship = 'leaves';
 
-    protected static ?string $title = 'Permisos y Licencias';
+    protected static ?string $title = 'Licencias';
 
-    protected static ?string $modelLabel = 'Permiso';
+    protected static ?string $modelLabel = 'Licencia';
 
-    protected static ?string $pluralModelLabel = 'Permisos';
+    protected static ?string $pluralModelLabel = 'Licencias';
 
     public function isReadOnly(): bool
     {
@@ -40,14 +40,14 @@ class LeavesRelationManager extends RelationManager
     }
 
     /**
-     * Define el formulario para registrar y editar permisos.
+     * Define el formulario para registrar y editar licencias.
      */
     public function form(Form $form): Form
     {
         return $form
             ->schema([
                 Select::make('type')
-                    ->label('Tipo de permiso')
+                    ->label('Tipo de licencia')
                     ->options(EmployeeLeave::getTypeOptions())
                     ->native(false)
                     ->searchable()
@@ -69,17 +69,9 @@ class LeavesRelationManager extends RelationManager
                     ->minDate(fn (Get $get) => $get('start_date'))
                     ->afterOrEqual('start_date'),
 
-                Select::make('status')
-                    ->label('Estado')
-                    ->options(EmployeeLeave::getStatusOptions())
-                    ->native(false)
-                    ->default('pending')
-                    ->required()
-                    ->hiddenOn('create'),
-
                 Textarea::make('reason')
                     ->label('Descripción o motivo')
-                    ->placeholder('Describe el motivo del permiso...')
+                    ->placeholder('Describe el motivo de la licencia...')
                     ->rows(3)
                     ->maxLength(500)
                     ->nullable()
@@ -103,7 +95,7 @@ class LeavesRelationManager extends RelationManager
     }
 
     /**
-     * Define la tabla de permisos con columnas, filtros y acciones.
+     * Define la tabla de licencias con columnas, filtros y acciones.
      */
     public function table(Table $table): Table
     {
@@ -111,7 +103,7 @@ class LeavesRelationManager extends RelationManager
             ->recordTitleAttribute('type')
             ->columns([
                 TextColumn::make('type')
-                    ->label('Tipo de permiso')
+                    ->label('Tipo de licencia')
                     ->formatStateUsing(fn ($state) => EmployeeLeave::getTypeOptions()[$state] ?? $state)
                     ->badge()
                     ->color(fn ($state) => EmployeeLeave::getTypeColors()[$state] ?? 'gray')
@@ -171,7 +163,7 @@ class LeavesRelationManager extends RelationManager
             ])
             ->filters([
                 SelectFilter::make('type')
-                    ->label('Tipo de permiso')
+                    ->label('Tipo de licencia')
                     ->options(EmployeeLeave::getTypeOptions())
                     ->multiple(),
 
@@ -191,9 +183,9 @@ class LeavesRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->label('Nuevo Permiso')
+                    ->label('Nueva Licencia')
                     ->icon('heroicon-o-plus')
-                    ->modalHeading('Registrar nuevo permiso')
+                    ->modalHeading('Registrar nueva licencia')
                     ->modalSubmitActionLabel('Registrar')
                     ->modalWidth('2xl'),
             ])
@@ -204,8 +196,8 @@ class LeavesRelationManager extends RelationManager
                     ->color('success')
                     ->visible(fn ($record) => $record->status === 'pending')
                     ->requiresConfirmation()
-                    ->modalHeading('Aprobar permiso')
-                    ->modalDescription('¿Estás seguro de que deseas aprobar este permiso?')
+                    ->modalHeading('Aprobar licencia')
+                    ->modalDescription('¿Estás seguro de que deseas aprobar esta licencia?')
                     ->modalSubmitActionLabel('Sí, aprobar')
                     ->action(fn ($record) => $record->update(['status' => 'approved'])),
 
@@ -215,8 +207,8 @@ class LeavesRelationManager extends RelationManager
                     ->color('danger')
                     ->visible(fn ($record) => $record->status === 'pending')
                     ->requiresConfirmation()
-                    ->modalHeading('Rechazar permiso')
-                    ->modalDescription('¿Estás seguro de que deseas rechazar este permiso?')
+                    ->modalHeading('Rechazar licencia')
+                    ->modalDescription('¿Estás seguro de que deseas rechazar esta licencia?')
                     ->modalSubmitActionLabel('Sí, rechazar')
                     ->action(fn ($record) => $record->update(['status' => 'rejected'])),
 
@@ -226,20 +218,20 @@ class LeavesRelationManager extends RelationManager
                     ->color('info')
                     ->visible(fn ($record) => $record->document_path !== null)
                     ->action(function ($record) {
-                        return Storage::disk('public')->download(
-                            $record->document_path,
-                            'permiso_'.$record->type.'_'.$record->start_date->format('Y-m-d').'.'.pathinfo($record->document_path, PATHINFO_EXTENSION)
+                        return response()->download(
+                            Storage::disk('public')->path($record->document_path),
+                            'licencia_'.$record->type.'_'.$record->start_date->format('Y-m-d').'.'.pathinfo($record->document_path, PATHINFO_EXTENSION)
                         );
                     }),
 
                 EditAction::make()
-                    ->modalHeading('Editar permiso')
+                    ->modalHeading('Editar licencia')
                     ->modalSubmitActionLabel('Guardar cambios')
                     ->modalWidth('2xl'),
 
                 DeleteAction::make()
-                    ->modalHeading('Eliminar permiso')
-                    ->modalDescription('¿Estás seguro de que deseas eliminar este permiso? Esta acción no se puede deshacer.')
+                    ->modalHeading('Eliminar licencia')
+                    ->modalDescription('¿Estás seguro de que deseas eliminar esta licencia? Esta acción no se puede deshacer.')
                     ->before(function ($record) {
                         if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
                             Storage::disk('public')->delete($record->document_path);
@@ -253,8 +245,8 @@ class LeavesRelationManager extends RelationManager
                         ->icon('heroicon-o-check-circle')
                         ->color('success')
                         ->requiresConfirmation()
-                        ->modalHeading('Aprobar permisos')
-                        ->modalDescription('Se aprobarán los permisos seleccionados que estén en estado pendiente.')
+                        ->modalHeading('Aprobar licencias')
+                        ->modalDescription('Se aprobarán las licencias seleccionadas que estén en estado pendiente.')
                         ->modalSubmitActionLabel('Sí, aprobar')
                         ->action(fn ($records) => $records->each(
                             fn ($record) => $record->status === 'pending' && $record->update(['status' => 'approved'])
@@ -265,16 +257,16 @@ class LeavesRelationManager extends RelationManager
                         ->icon('heroicon-o-x-circle')
                         ->color('danger')
                         ->requiresConfirmation()
-                        ->modalHeading('Rechazar permisos')
-                        ->modalDescription('Se rechazarán los permisos seleccionados que estén en estado pendiente.')
+                        ->modalHeading('Rechazar licencias')
+                        ->modalDescription('Se rechazarán las licencias seleccionadas que estén en estado pendiente.')
                         ->modalSubmitActionLabel('Sí, rechazar')
                         ->action(fn ($records) => $records->each(
                             fn ($record) => $record->status === 'pending' && $record->update(['status' => 'rejected'])
                         )),
 
                     DeleteBulkAction::make()
-                        ->modalHeading('Eliminar permisos')
-                        ->modalDescription('¿Estás seguro de que deseas eliminar estos permisos? Esta acción no se puede deshacer.')
+                        ->modalHeading('Eliminar licencias')
+                        ->modalDescription('¿Estás seguro de que deseas eliminar estas licencias? Esta acción no se puede deshacer.')
                         ->before(function ($records) {
                             foreach ($records as $record) {
                                 if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
@@ -285,12 +277,12 @@ class LeavesRelationManager extends RelationManager
                 ]),
             ])
             ->defaultSort('start_date', 'desc')
-            ->emptyStateHeading('No hay permisos registrados')
-            ->emptyStateDescription('Comienza registrando los permisos y licencias del empleado')
+            ->emptyStateHeading('No hay licencias registradas')
+            ->emptyStateDescription('Comienza registrando las licencias del empleado')
             ->emptyStateIcon('heroicon-o-calendar-days')
             ->emptyStateActions([
                 CreateAction::make()
-                    ->label('Nuevo Permiso')
+                    ->label('Nueva Licencia')
                     ->icon('heroicon-o-plus'),
             ]);
     }

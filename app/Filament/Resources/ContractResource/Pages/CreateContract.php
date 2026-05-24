@@ -14,6 +14,18 @@ class CreateContract extends CreateRecord
     protected static string $resource = ContractResource::class;
 
     /**
+     * Pre-rellena employee_id desde el query param ?employee_id cuando se llega desde la ficha del empleado.
+     */
+    public function mount(): void
+    {
+        parent::mount();
+
+        if ($employeeId = request()->integer('employee_id')) {
+            $this->data['employee_id'] = $employeeId;
+        }
+    }
+
+    /**
      * Antes de crear el contrato, valida que el empleado no tenga un contrato activo y que las fechas no se solapen. También asigna el usuario creador.
      */
     protected function mutateFormDataBeforeCreate(array $data): array

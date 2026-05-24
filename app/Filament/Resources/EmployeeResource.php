@@ -23,6 +23,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Infolists\Components\Actions\Action as InfolistAction;
 use Filament\Infolists\Components\Grid as InfoGrid;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\ImageEntry;
@@ -150,13 +151,6 @@ class EmployeeResource extends Resource
                                                     ->maxLength(60)
                                                     ->default('Paraguaya')
                                                     ->nullable(),
-
-                                                TextInput::make('address')
-                                                    ->label('Domicilio')
-                                                    ->maxLength(200)
-                                                    ->placeholder('Calle, número, barrio...')
-                                                    ->nullable()
-                                                    ->columnSpanFull(),
 
                                                 TextInput::make('phone')
                                                     ->label('Teléfono')
@@ -399,7 +393,8 @@ class EmployeeResource extends Resource
                                 ->defaultImageUrl(fn (Employee $record) => $record->avatar_url)
                                 ->columnSpan(1),
 
-                            InfoGrid::make(4)
+                            InfoGrid::make(3)
+                                ->columnSpan(3)
                                 ->schema([
                                     TextEntry::make('ci')
                                         ->label('Cédula de Identidad')
@@ -442,41 +437,38 @@ class EmployeeResource extends Resource
                                         ->label('Estado civil')
                                         ->getStateUsing(fn (Employee $record) => $record->marital_status_label)
                                         ->placeholder('No registrado'),
+                                ]),
+                        ]),
 
-                                    TextEntry::make('nationality')
-                                        ->label('Nacionalidad')
-                                        ->placeholder('No registrada'),
+                    InfoGrid::make(4)
+                        ->schema([
+                            TextEntry::make('phone')
+                                ->label('Teléfono')
+                                ->icon('heroicon-o-phone')
+                                ->url(fn (Employee $record) => $record->phone ? $record->contact_url : null)
+                                ->openUrlInNewTab()
+                                ->copyable()
+                                ->copyMessage('Teléfono copiado')
+                                ->placeholder('Sin teléfono'),
 
-                                    TextEntry::make('address')
-                                        ->label('Domicilio')
-                                        ->placeholder('No registrado')
-                                        ->columnSpanFull(),
+                            TextEntry::make('email')
+                                ->label('Correo electrónico')
+                                ->icon('heroicon-o-envelope')
+                                ->copyable()
+                                ->copyMessage('Email copiado')
+                                ->placeholder('Sin email'),
 
-                                    TextEntry::make('maternity_protection_until')
-                                        ->label('Protección de maternidad hasta')
-                                        ->date('d/m/Y')
-                                        ->badge()
-                                        ->color(fn (Employee $record) => $record->isUnderMaternityProtection() ? 'danger' : 'gray')
-                                        ->hidden(fn (Employee $record) => $record->maternity_protection_until === null),
+                            TextEntry::make('nationality')
+                                ->label('Nacionalidad')
+                                ->placeholder('No registrada'),
 
-                                    TextEntry::make('phone')
-                                        ->label('Teléfono')
-                                        ->icon('heroicon-o-phone')
-                                        ->getStateUsing(fn (Employee $record) => $record->phone)
-                                        ->url(fn (Employee $record) => $record->phone ? $record->contact_url : null)
-                                        ->openUrlInNewTab()
-                                        ->copyable()
-                                        ->copyMessage('Teléfono copiado')
-                                        ->placeholder('Sin teléfono'),
+                            TextEntry::make('maternity_protection_until')
+                                ->label('Protección de maternidad')
+                                ->date('d/m/Y')
+                                ->badge()
+                                ->color(fn (Employee $record) => $record->isUnderMaternityProtection() ? 'danger' : 'gray')
+                                ->placeholder('No aplica'),
 
-                                    TextEntry::make('email')
-                                        ->label('Correo electrónico')
-                                        ->icon('heroicon-o-envelope')
-                                        ->copyable()
-                                        ->copyMessage('Email copiado')
-                                        ->placeholder('Sin email'),
-                                ])
-                                ->columnSpan(3),
                         ]),
                 ])
                 ->collapsible(),
@@ -486,7 +478,7 @@ class EmployeeResource extends Resource
                 ->columns(3)
                 ->schema([
                     // Aviso cuando no hay contrato activo
-                    TextEntry::make('no_contract_notice')
+                    TextEntry::make('_contract_notice')
                         ->hiddenLabel()
                         ->getStateUsing(fn () => 'Este empleado no tiene un contrato activo. Creá uno desde la pestaña "Contratos".')
                         ->icon('heroicon-o-exclamation-triangle')
@@ -570,7 +562,49 @@ class EmployeeResource extends Resource
 
             InfoSection::make('Reconocimiento Facial')
                 ->icon('heroicon-o-camera')
-                ->columns(2)
+                ->columns(4)
+                ->headerActions([
+                    InfolistAction::make('capture_face')
+                        ->label(fn (Employee $record) => $record->has_face ? 'Actualizar rostro' : 'Enrolar rostro')
+                        ->icon('heroicon-o-camera')
+                        ->color(fn (Employee $record) => $record->has_face ? 'warning' : 'success')
+                        ->url(fn (Employee $record) => route('face.capture', $record))
+                        ->visible(fn (Employee $record) => $record->status === 'active'),
+
+                    InfolistAction::make('generate_enrollment')
+                        ->label('Enlace de enrolamiento')
+                        ->icon('heroicon-o-link')
+                        ->color('info')
+                        ->visible(fn (Employee $record) => $record->status === 'active')
+                        ->requiresConfirmation()
+                        ->modalHeading('Generar Enlace de Registro Facial')
+                        ->modalDescription(fn (Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en ".app(GeneralSettings::class)->face_enrollment_expiry_hours.' horas.')
+                        ->modalSubmitActionLabel('Generar Enlace')
+                        ->action(function (Employee $record) {
+                            $settings = app(GeneralSettings::class);
+                            $enrollment = FaceEnrollment::createForEmployee(
+                                $record,
+                                Auth::id(),
+                                $settings->face_enrollment_expiry_hours
+                            );
+
+                            $url = route('face-enrollment.show', $enrollment->token);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Enlace generado — expira en '.$settings->face_enrollment_expiry_hours.'h')
+                                ->body($url)
+                                ->persistent()
+                                ->actions([
+                                    NotificationAction::make('send_whatsapp')
+                                        ->label('Enviar por WhatsApp')
+                                        ->url('https://api.whatsapp.com/send?phone=595'.ltrim($record->phone ?? '', '0').'&text='.urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
+                                        ->openUrlInNewTab()
+                                        ->visible(fn () => filled($record->phone)),
+                                ])
+                                ->send();
+                        }),
+                ])
                 ->schema([
                     IconEntry::make('has_face')
                         ->label('Rostro registrado')
@@ -582,18 +616,11 @@ class EmployeeResource extends Resource
                         ->falseColor('warning'),
 
                     TextEntry::make('face_tooltip')
-                        ->label('Estado')
+                        ->label('Estado facial')
                         ->getStateUsing(fn (Employee $record) => $record->face_tooltip)
                         ->badge()
                         ->color(fn (Employee $record) => $record->has_face ? 'success' : 'warning'),
-                ])
-                ->collapsible()
-                ->collapsed(fn (Employee $record) => ! $record->has_face),
 
-            InfoSection::make('Registro')
-                ->icon('heroicon-o-clock')
-                ->columns(2)
-                ->schema([
                     TextEntry::make('created_at')
                         ->label('Registrado')
                         ->getStateUsing(fn (Employee $record) => $record->created_at->format('d/m/Y H:i').' · '.$record->created_at_since),
@@ -602,8 +629,7 @@ class EmployeeResource extends Resource
                         ->label('Última actualización')
                         ->getStateUsing(fn (Employee $record) => $record->updated_at->format('d/m/Y H:i').' · '.$record->updated_at_since),
                 ])
-                ->collapsible()
-                ->collapsed(),
+                ->collapsible(),
         ]);
     }
 
@@ -998,10 +1024,8 @@ class EmployeeResource extends Resource
     {
         return [
             RelationManagers\ContractsRelationManager::class,
+            RelationManagers\AddressesRelationManager::class,
             RelationManagers\ChildrenRelationManager::class,
-            RelationManagers\ScheduleAssignmentsRelationManager::class,
-            RelationManagers\RotationAssignmentsRelationManager::class,
-            RelationManagers\ShiftOverridesRelationManager::class,
             RelationManagers\DocumentsRelationManager::class,
             RelationManagers\VacationsRelationManager::class,
             RelationManagers\LeavesRelationManager::class,
@@ -1009,7 +1033,6 @@ class EmployeeResource extends Resource
             RelationManagers\EmployeePerceptionsRelationManager::class,
             RelationManagers\BankAccountsRelationManager::class,
             RelationManagers\WarningsRelationManager::class,
-            RelationManagers\AdvancesRelationManager::class,
         ];
     }
 

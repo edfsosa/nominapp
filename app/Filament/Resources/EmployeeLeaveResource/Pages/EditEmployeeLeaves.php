@@ -16,9 +16,9 @@ class EditEmployeeLeaves extends EditRecord
         return [
             DeleteAction::make()
                 ->label('Eliminar')
-                ->modalHeading('Eliminar permiso de empleado')
-                ->modalDescription('¿Estás seguro de que deseas eliminar este permiso de empleado? Esta acción no se puede deshacer.')
-                ->successNotificationTitle('Permiso de empleado eliminado')
+                ->modalHeading('Eliminar licencia')
+                ->modalDescription('¿Estás seguro de que deseas eliminar esta licencia? Esta acción no se puede deshacer.')
+                ->successNotificationTitle('Licencia eliminada')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];
     }
@@ -27,8 +27,8 @@ class EditEmployeeLeaves extends EditRecord
     {
         return Notification::make()
             ->success()
-            ->title('Permiso de empleado actualizado con éxito')
-            ->body('Los cambios en el permiso de empleado han sido guardados correctamente.')
+            ->title('Licencia actualizada con éxito')
+            ->body('Los cambios en la licencia han sido guardados correctamente.')
             ->duration(5000)
             ->send();
     }

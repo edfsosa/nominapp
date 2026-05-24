@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Filament\Resources\ContractResource;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
 use App\Models\Department;
@@ -22,17 +23,14 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
-use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /** Gestiona los contratos del empleado desde su vista de detalle. */
@@ -48,16 +46,13 @@ class ContractsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'Contratos';
 
-    /** @var array<string, string>|null Datos de cuenta bancaria capturados antes de la creación del contrato. */
-    protected ?array $pendingBankAccountData = null;
-
     public function isReadOnly(): bool
     {
         return false;
     }
 
     /**
-     * Define el formulario para crear y editar contratos.
+     * Define el formulario para editar contratos.
      */
     public function form(Form $form): Form
     {
@@ -185,8 +180,7 @@ class ContractsRelationManager extends RelationManager
                     ->compact()
                     ->visible(fn (Get $get) => $get('payment_method') === 'debit')
                     ->schema(function () {
-                        $employeeId = $this->getOwnerRecord()->id;
-                        $existingAccount = EmployeeBankAccount::where('employee_id', $employeeId)
+                        $existingAccount = EmployeeBankAccount::where('employee_id', $this->getOwnerRecord()->id)
                             ->where('status', 'active')
                             ->first();
 
@@ -204,27 +198,10 @@ class ContractsRelationManager extends RelationManager
                         }
 
                         return [
-                            Select::make('ba_bank')
-                                ->label('Banco')
-                                ->options(EmployeeBankAccount::getBankOptions())
-                                ->native(false)
-                                ->searchable()
-                                ->required(),
-                            Select::make('ba_account_type')
-                                ->label('Tipo de Cuenta')
-                                ->options(EmployeeBankAccount::getAccountTypeOptions())
-                                ->native(false)
-                                ->required(),
-                            TextInput::make('ba_account_number')
-                                ->label('Número de Cuenta')
-                                ->maxLength(30)
-                                ->required(),
-                            TextInput::make('ba_holder_name')
-                                ->label('Titular')
-                                ->required(),
-                            TextInput::make('ba_holder_ci')
-                                ->label('CI del Titular')
-                                ->required(),
+                            Placeholder::make('no_bank_account')
+                                ->label('Sin cuenta bancaria')
+                                ->content('No hay una cuenta bancaria registrada. Puede agregar una desde la pestaña "Cuentas Bancarias".')
+                                ->columnSpanFull(),
                         ];
                     })
                     ->columns(2),
@@ -446,60 +423,13 @@ class ContractsRelationManager extends RelationManager
                     ->icon(fn (string $state): string => Contract::getStatusIcon($state)),
             ])
             ->headerActions([
-                CreateAction::make()
+                Action::make('new_contract')
                     ->label('Nuevo Contrato')
                     ->icon('heroicon-o-plus')
-                    ->modalHeading('Crear Nuevo Contrato')
-                    ->mutateFormDataUsing(function (array $data): array {
-                        $data['created_by_id'] = Auth::id();
-                        if ($data['type'] === 'indefinido') {
-                            $data['end_date'] = null;
-                        }
-                        if (($data['payment_method'] ?? null) === 'debit' && filled($data['ba_bank'] ?? null)) {
-                            $this->pendingBankAccountData = [
-                                'bank' => $data['ba_bank'],
-                                'account_type' => $data['ba_account_type'],
-                                'account_number' => $data['ba_account_number'],
-                                'holder_name' => $data['ba_holder_name'],
-                                'holder_ci' => $data['ba_holder_ci'],
-                            ];
-                        } else {
-                            $this->pendingBankAccountData = null;
-                        }
-                        unset($data['ba_bank'], $data['ba_account_type'], $data['ba_account_number'], $data['ba_holder_name'], $data['ba_holder_ci']);
-
-                        return $data;
-                    })
-                    ->after(function () {
-                        if ($this->pendingBankAccountData) {
-                            EmployeeBankAccount::firstOrCreate(
-                                ['employee_id' => $this->getOwnerRecord()->id, 'status' => 'active'],
-                                array_merge($this->pendingBankAccountData, ['is_primary' => true])
-                            );
-                            $this->pendingBankAccountData = null;
-                        }
-                    })
-                    ->before(function (CreateAction $action) {
-                        // Validar que no tenga contrato activo
-                        $employeeId = $this->getOwnerRecord()->id;
-                        $hasActive = Contract::where('employee_id', $employeeId)
-                            ->where('status', 'active')
-                            ->exists();
-
-                        if ($hasActive) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Contrato activo existente')
-                                ->body('El empleado ya tiene un contrato vigente. Debe terminarlo antes de crear uno nuevo.')
-                                ->persistent()
-                                ->send();
-
-                            $action->halt();
-                        }
-                    }),
+                    ->url(fn () => ContractResource::getUrl('create').'?employee_id='.$this->getOwnerRecord()->id)
+                    ->openUrlInNewTab(),
             ])
             ->actions([
-                // Generar PDF para imprimir
                 Action::make('generate_pdf')
                     ->label('Generar PDF')
                     ->icon('heroicon-o-printer')
@@ -507,7 +437,6 @@ class ContractsRelationManager extends RelationManager
                     ->url(fn (Contract $record) => route('contracts.pdf', $record))
                     ->openUrlInNewTab(),
 
-                // Subir documento firmado (solo contratos activos)
                 Action::make('upload_signed')
                     ->label(fn (Contract $record) => $record->document_path ? 'Reemplazar' : 'Subir Firmado')
                     ->icon(fn (Contract $record) => $record->document_path ? 'heroicon-o-arrow-path' : 'heroicon-o-arrow-up-tray')
@@ -531,14 +460,13 @@ class ContractsRelationManager extends RelationManager
 
                         $record->update(['document_path' => $data['document_path']]);
 
-                        Notification::make()
+                        \Filament\Notifications\Notification::make()
                             ->title('Documento subido')
                             ->body('El contrato firmado se ha guardado correctamente.')
                             ->success()
                             ->send();
                     }),
 
-                // Descargar documento firmado
                 Action::make('download_signed')
                     ->label('Descargar Firmado')
                     ->icon('heroicon-o-arrow-down-tray')

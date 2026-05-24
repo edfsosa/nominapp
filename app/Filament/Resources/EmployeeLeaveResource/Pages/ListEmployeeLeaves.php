@@ -16,7 +16,7 @@ class ListEmployeeLeaves extends ListRecords
     {
         return [
             CreateAction::make()
-                ->label('Nuevo Permiso')
+                ->label('Nueva Licencia')
                 ->icon('heroicon-o-plus'),
         ];
     }
@@ -35,26 +35,26 @@ class ListEmployeeLeaves extends ListRecords
                 ->icon('heroicon-o-document-text'),
 
             'pending' => Tab::make('Pendientes')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'pending'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending'))
                 ->badge($pendingCount)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-clock'),
 
             'approved' => Tab::make('Aprobadas')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'approved'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
                 ->badge($aprovedCount)
                 ->badgeColor('success')
                 ->icon('heroicon-o-check-circle'),
 
             'rejected' => Tab::make('Rechazadas')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'rejected'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected'))
                 ->badge($rejectedCount)
                 ->badgeColor('danger')
                 ->icon('heroicon-o-x-circle'),
         ];
     }
 
-    public function getDefaultActiveTab(): string | int | null
+    public function getDefaultActiveTab(): string|int|null
     {
         return 'all';
     }

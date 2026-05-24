@@ -14,8 +14,8 @@ class CreateEmployeeLeaves extends CreateRecord
     {
         return Notification::make()
             ->success()
-            ->title('Permiso de empleado creado correctamente')
-            ->body('El permiso de empleado ha sido creado exitosamente.')
+            ->title('Licencia registrada correctamente')
+            ->body('La licencia ha sido registrada exitosamente.')
             ->duration(5000)
             ->send();
     }

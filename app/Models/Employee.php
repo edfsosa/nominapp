@@ -26,7 +26,6 @@ class Employee extends Model
         'gender',
         'marital_status',
         'nationality',
-        'address',
         'branch_id',
         'schedule_id',
         'status',
@@ -245,6 +244,12 @@ class Employee extends Model
     public function warnings(): HasMany
     {
         return $this->hasMany(Warning::class);
+    }
+
+    /** Direcciones postales del empleado. */
+    public function addresses(): HasMany
+    {
+        return $this->hasMany(EmployeeAddress::class);
     }
 
     /** Todos los hijos registrados del empleado. */

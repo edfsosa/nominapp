@@ -31,15 +31,15 @@ class EmployeeLeaveResource extends Resource
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
-    protected static ?string $navigationLabel = 'Permisos';
+    protected static ?string $navigationLabel = 'Licencias';
 
-    protected static ?string $modelLabel = 'permiso';
+    protected static ?string $modelLabel = 'licencia';
 
-    protected static ?string $pluralModelLabel = 'permisos';
+    protected static ?string $pluralModelLabel = 'licencias';
 
     protected static ?string $navigationGroup = 'Empleados';
 
-    protected static ?string $slug = 'permisos';
+    protected static ?string $slug = 'licencias';
 
     protected static ?int $navigationSort = 4;
 
@@ -47,7 +47,7 @@ class EmployeeLeaveResource extends Resource
     {
         return $form
             ->schema([
-                Section::make('Información del Permiso')
+                Section::make('Información de la Licencia')
                     ->schema([
                         Select::make('employee_id')
                             ->label('Empleado')
@@ -73,14 +73,14 @@ class EmployeeLeaveResource extends Resource
                             ->columnSpan(1),
 
                         Select::make('type')
-                            ->label('Tipo de permiso')
+                            ->label('Tipo de licencia')
                             ->options([
                                 'medical_leave' => 'Reposo médico',
                                 'vacation' => 'Vacaciones',
                                 'day_off' => 'Día libre',
-                                'maternity_leave' => 'Permiso de maternidad',
-                                'paternity_leave' => 'Permiso de paternidad',
-                                'unpaid_leave' => 'Permiso sin goce de sueldo',
+                                'maternity_leave' => 'Licencia de Maternidad',
+                                'paternity_leave' => 'Licencia de Paternidad',
+                                'unpaid_leave' => 'Sin Goce de Sueldo',
                                 'other' => 'Otro',
                             ])
                             ->native(false)
@@ -90,7 +90,7 @@ class EmployeeLeaveResource extends Resource
                     ])
                     ->columns(3),
 
-                Section::make('Período del Permiso')
+                Section::make('Período de la Licencia')
                     ->schema([
                         DatePicker::make('start_date')
                             ->label('Fecha de inicio')
@@ -252,7 +252,7 @@ class EmployeeLeaveResource extends Resource
             ->defaultSort('start_date', 'desc')
             ->filters([
                 SelectFilter::make('type')
-                    ->label('Tipo de permiso')
+                    ->label('Tipo de licencia')
                     ->options([
                         'medical_leave' => 'Reposo médico',
                         'vacation' => 'Vacaciones',
@@ -303,8 +303,8 @@ class EmployeeLeaveResource extends Resource
                         ->icon('heroicon-o-arrow-down-tray'),
                 ]),
             ])
-            ->emptyStateHeading('No hay permisos registrados')
-            ->emptyStateDescription('Comienza registrando un nuevo permiso o ausencia.')
+            ->emptyStateHeading('No hay licencias registradas')
+            ->emptyStateDescription('Comienza registrando una nueva licencia.')
             ->emptyStateIcon('heroicon-o-calendar-days');
     }
 
@@ -342,17 +342,17 @@ class EmployeeLeaveResource extends Resource
                     ])
                     ->columns(4),
 
-                InfolistSection::make('Detalles del Permiso')
+                InfolistSection::make('Detalles de la Licencia')
                     ->schema([
                         TextEntry::make('type')
-                            ->label('Tipo de permiso')
+                            ->label('Tipo de licencia')
                             ->formatStateUsing(fn (string $state): string => match ($state) {
                                 'medical_leave' => 'Reposo médico',
                                 'vacation' => 'Vacaciones',
                                 'day_off' => 'Día libre',
-                                'maternity_leave' => 'Permiso de maternidad',
-                                'paternity_leave' => 'Permiso de paternidad',
-                                'unpaid_leave' => 'Permiso sin goce de sueldo',
+                                'maternity_leave' => 'Licencia de Maternidad',
+                                'paternity_leave' => 'Licencia de Paternidad',
+                                'unpaid_leave' => 'Sin Goce de Sueldo',
                                 'other' => 'Otro',
                             })
                             ->badge()
@@ -399,7 +399,7 @@ class EmployeeLeaveResource extends Resource
                     ])
                     ->columns(3),
 
-                InfolistSection::make('Período del Permiso')
+                InfolistSection::make('Período de la Licencia')
                     ->schema([
                         TextEntry::make('start_date')
                             ->label('Fecha de inicio')
