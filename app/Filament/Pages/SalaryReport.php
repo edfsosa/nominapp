@@ -17,6 +17,7 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
@@ -251,11 +252,11 @@ class SalaryReport extends Page implements HasTable
                 'employees.last_name',
                 'employees.ci',
                 'branches.name as branch_name',
-                \DB::raw('(SELECT positions.name FROM contracts INNER JOIN positions ON positions.id = contracts.position_id WHERE contracts.employee_id = employees.id AND contracts.status = \'active\' LIMIT 1) as position_name'),
-                \DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'legal\') as ips_amount'),
-                \DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'loan\') as loan_amount'),
-                \DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'judicial\') as judicial_amount'),
-                \DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'voluntary\') as voluntary_amount'),
+                DB::raw('(SELECT positions.name FROM contracts INNER JOIN positions ON positions.id = contracts.position_id WHERE contracts.employee_id = employees.id AND contracts.status = \'active\' LIMIT 1) as position_name'),
+                DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'legal\') as ips_amount'),
+                DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'loan\') as loan_amount'),
+                DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'judicial\') as judicial_amount'),
+                DB::raw('(SELECT COALESCE(SUM(pi.amount),0) FROM payroll_items pi WHERE pi.payroll_id = payrolls.id AND pi.type = \'deduction\' AND pi.deduction_type = \'voluntary\') as voluntary_amount'),
             ])
             ->join('employees', 'employees.id', '=', 'payrolls.employee_id')
             ->join('branches', 'branches.id', '=', 'employees.branch_id');
@@ -269,15 +270,17 @@ class SalaryReport extends Page implements HasTable
         $filters = [
             SelectFilter::make('period_id')
                 ->label('Planilla')
-                ->options(fn () => PayrollPeriod::orderByDesc('start_date')
-                    ->get()
-                    ->mapWithKeys(fn ($p) => [$p->id => $p->name])
-                    ->toArray()
+                ->options(
+                    fn () => PayrollPeriod::orderByDesc('start_date')
+                        ->get()
+                        ->mapWithKeys(fn ($p) => [$p->id => $p->name])
+                        ->toArray()
                 )
                 ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('payrolls.payroll_period_id', $data['value'])
-                    : $query->whereRaw('1=0')
+                ->query(
+                    fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('payrolls.payroll_period_id', $data['value'])
+                        : $query->whereRaw('1=0')
                 ),
         ];
 
@@ -286,9 +289,10 @@ class SalaryReport extends Page implements HasTable
                 ->label('Empresa')
                 ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('branches.company_id', $data['value'])
-                    : $query
+                ->query(
+                    fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('branches.company_id', $data['value'])
+                        : $query
                 );
         }
 
@@ -297,25 +301,28 @@ class SalaryReport extends Page implements HasTable
                 ->label('Sucursal')
                 ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('employees.branch_id', $data['value'])
-                    : $query
+                ->query(
+                    fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('employees.branch_id', $data['value'])
+                        : $query
                 ),
 
             SelectFilter::make('status')
                 ->label('Estado')
                 ->options(Payroll::getStatusLabels())
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('payrolls.status', $data['value'])
-                    : $query
+                ->query(
+                    fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('payrolls.status', $data['value'])
+                        : $query
                 ),
 
             SelectFilter::make('payment_method')
                 ->label('Método de pago')
                 ->options(Payroll::getPaymentMethodOptions())
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('payrolls.payment_method', $data['value'])
-                    : $query
+                ->query(
+                    fn (Builder $query, array $data) => $data['value']
+                        ? $query->where('payrolls.payment_method', $data['value'])
+                        : $query
                 ),
         ]);
     }

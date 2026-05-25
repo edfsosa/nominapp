@@ -8,7 +8,6 @@ use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollService;
 use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -70,6 +69,13 @@ class PayrollPeriodResource extends Resource
                             ->required()
                             ->reactive()
                             ->columnSpan(1),
+
+                        Textarea::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Observaciones o comentarios sobre este período')
+                            ->rows(3)
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
                     ])
                     ->columns(3),
 
@@ -96,8 +102,6 @@ class PayrollPeriodResource extends Resource
                             ->helperText('La fecha de fin debe ser posterior a la fecha de inicio')
                             ->rules([
                                 function ($get, $record) {
-                                    // Valida que no exista otro período con la misma frecuencia y rango de fechas.
-                                    // Al editar, se excluye el registro actual ($record->id) para no compararlo consigo mismo.
                                     return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
                                         $query = PayrollPeriod::where('frequency', $get('frequency'))
                                             ->where('start_date', $get('start_date'))
@@ -114,33 +118,6 @@ class PayrollPeriodResource extends Resource
                                 },
                             ])
                             ->columnSpan(1),
-                    ])
-                    ->columns(2),
-
-                Section::make('Estado y Notas')
-                    ->schema([
-                        Select::make('status')
-                            ->label('Estado')
-                            ->options(PayrollPeriod::statusOptions())
-                            ->native(false)
-                            ->default('draft')
-                            ->required()
-                            ->columnSpan(1),
-
-                        DateTimePicker::make('closed_at')
-                            ->label('Fecha de Cierre')
-                            ->displayFormat('d/m/Y H:i')
-                            ->native(false)
-                            ->disabled()
-                            ->helperText('Se establece automáticamente al cerrar el período')
-                            ->columnSpan(1),
-
-                        Textarea::make('notes')
-                            ->label('Notas')
-                            ->placeholder('Observaciones o comentarios sobre este período')
-                            ->rows(3)
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
