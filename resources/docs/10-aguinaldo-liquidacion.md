@@ -27,11 +27,10 @@ Borrador → En Proceso → Cerrado
 
 ### Paso 2 — Generar los aguinaldos individuales
 
-1. Ir a **Nóminas → Recibos Aguinaldo**
-2. Clic en **Nuevo aguinaldo**
-3. Seleccionar el período de aguinaldo
-4. El sistema calcula un registro por cada empleado activo con contrato vigente durante el año
-5. Revisar los montos calculados
+1. Abrir el período de aguinaldo desde **Nóminas → Aguinaldo**
+2. Clic en el botón **Generar** en el encabezado
+3. El sistema calcula un registro por cada empleado activo con contrato vigente durante el año
+4. Revisar los montos calculados en la sección **Aguinaldos** del período
 
 ### Paso 3 — Emitir recibos y registrar el pago
 
@@ -73,7 +72,7 @@ Todos los tipos incluyen: salario pendiente proporcional, vacaciones no gozadas 
 
 ### Crear una liquidación
 
-1. Ir a **Asistencias → Liquidaciones**
+1. Ir a **Nóminas → Liquidaciones**
 2. Clic en **Nueva liquidación**
 3. Seleccionar el empleado y completar:
    - **Fecha de terminación**
@@ -109,9 +108,14 @@ Desde la vista de la liquidación:
 - **Ver en PDF:** abre el recibo de finiquito en el navegador
 - **Descargar PDF:** descarga el documento para firmar
 
-### Después de crear la liquidación
+### Después de cerrar la liquidación
 
-Recuerde **cambiar el estado del contrato** del empleado a "Terminado" desde su perfil, y actualizar el **estado del empleado** a "Inactivo".
+Al ejecutar la acción **Cerrar liquidación**, el sistema automáticamente:
+- Marca el contrato activo del empleado como **Terminado**
+- Actualiza el estado del empleado a **Inactivo**
+- Cancela todos los préstamos activos pendientes
+
+No es necesario hacer estos cambios manualmente.
 
 ### Parámetros de cálculo
 

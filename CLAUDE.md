@@ -497,6 +497,29 @@ Las acciones Filament corren via Livewire (AJAX) y **no pueden retornar respuest
 - Usar `attachment` solo cuando se quiere forzar la descarga al disco (sin abrir en el navegador)
 - Regla general del proyecto: **los PDFs se abren en nueva pestaña** (`inline`)
 
+**`response()->file()` y caché del navegador**
+`response()->file()` no agrega headers no-cache por defecto. Si el archivo en disco puede cambiar (PDF regenerado), el navegador puede servir una versión cacheada. Siempre agregar estos headers cuando el archivo es mutable:
+
+```php
+return response()->file($path, [
+    'Content-Type'  => 'application/pdf',
+    'Cache-Control' => 'no-store, no-cache, must-revalidate',
+    'Pragma'        => 'no-cache',
+]);
+```
+
+**`$this->js("window.open(url, '_blank')")` para URLs dinámicas post-modal**
+Cuando la URL del PDF depende de datos del formulario del modal (ej. selección de modo), no se puede usar `->url()->openUrlInNewTab()` (que es estático). En su lugar:
+
+```php
+->action(function (array $data) {
+    $url = route('foo.download', ['record' => $this->record, 'mode' => $data['mode']]);
+    $this->js("window.open('{$url}', '_blank')");
+})
+```
+
+Funciona tanto en Pages (`ViewRecord`) como en RelationManagers — ambos son componentes Livewire.
+
 ### Nombres de archivo en FileUpload
 
 Los archivos subidos por el usuario deben tener nombres legibles e identificables, no el hash aleatorio que genera Filament por defecto. Usar siempre `->getUploadedFileNameForStorageUsing()` con el patrón:
@@ -657,6 +680,27 @@ Action::make('add_items')
 
 Regla: siempre llamar `$form->fill()` en el path normal — Filament lo necesita para inicializar el formulario. Omitirlo resulta en un form vacío.
 
+**Advertencias no-bloqueantes en modales de confirmación**
+`->before()` con `$action->halt()` es para bloqueos hard (el usuario no puede continuar). Para casos donde el usuario *puede* continuar pero conviene informarle (ej. hay empleados sin recibo al cerrar la planilla), agregar la advertencia dentro de `->modalDescription()` con closure — no bloquear:
+
+```php
+->modalDescription(function () {
+    $base = 'Se cerrará la planilla con X recibos aprobados.';
+    $missingCount = /* consulta */;
+    if ($missingCount > 0) {
+        $base .= " Atención: {$missingCount} empleado(s) activos no tienen recibo.";
+    }
+    return $base;
+})
+// ->before() solo para bloqueo real (draft/approved pendientes, etc.)
+->before(function (Action $action) {
+    if ($this->record->payrolls()->whereIn('status', ['draft', 'approved'])->exists()) {
+        Notification::make()->danger()->title('No se puede cerrar')->send();
+        $action->halt();
+    }
+})
+```
+
 **BulkActions de cambio de estado deben filtrar antes de actualizar**
 Nunca hacer `$records->each->update([...])` sin verificar el estado esperado. Siempre filtrar:
 ```php
@@ -737,6 +781,34 @@ body {
 - Relaciones via `activeContract.position` — nunca `employee->position` (campo legacy)
 - PDFs compactos (ej. asistencia diaria): pueden usar `padding: 12mm 15mm` y `font-size: 10px` como excepción justificada
 - Pseudo-selector `:last-child` no funciona en DomPDF — usar clase explícita (`.metric-last`, etc.)
+
+**Layout multicolumna en DomPDF (ej. 2 copias side-by-side)**
+Usar tabla HTML con `width: 50%` en cada `<td>`. La línea de corte vertical va como `border-right: 1px dashed #888` en el primer `<td>`. **No agregar `height` a la tabla** — DomPDF hace overflow de una fracción de punto y genera una página en blanco extra:
+
+```html
+<table style="width: 100%; border-collapse: collapse;">
+    <tr>
+        <td style="width: 50%; vertical-align: top; padding: 7mm 9mm; border-right: 1px dashed #888;">
+            {{-- COPIA EMPLEADO --}}
+        </td>
+        <td style="width: 50%; vertical-align: top; padding: 7mm 9mm;">
+            {{-- COPIA EMPRESA --}}
+        </td>
+    </tr>
+</table>
+```
+
+**Partials PDF para contenido repetido (`_nombre.blade.php`)**
+Cuando el mismo bloque se renderiza N veces en un PDF (ej. 2 copias en landscape), extraerlo a un partial `resources/views/pdf/_nombre.blade.php` e incluirlo con `@include('pdf._nombre')`. Las variables del scope padre están disponibles automáticamente en el partial:
+
+```blade
+{{-- payroll.blade.php --}}
+@foreach (['COPIA EMPLEADO', 'COPIA EMPRESA'] as $copyLabel)
+    <td ...>
+        @include('pdf._payroll-copy')   {{-- recibe $copyLabel y todas las vars del padre --}}
+    </td>
+@endforeach
+```
 
 ### Páginas de reporte con tabla agregada (custom Page + InteractsWithTable)
 

@@ -61,14 +61,18 @@ Los permisos registran ausencias planificadas y autorizadas (reposo médico, mat
 
 ### Registrar un permiso
 
-1. Ir a **Empleados → Permisos**
+1. Ir a **Empleados → Licencias**
 2. Clic en **Nuevo permiso**
 3. Seleccionar empleado, tipo, fechas y subir documento de respaldo si aplica
 4. Guardar
 
 ### Estados del permiso
 
-Pending (Pendiente) → Approved (Aprobado) / Rejected (Rechazado).
+| Estado | Descripción |
+|--------|-------------|
+| **Pendiente** | Creado, esperando aprobación |
+| **Aprobado** | Autorizado |
+| **Rechazado** | No autorizado |
 
 ---
 

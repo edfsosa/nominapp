@@ -48,7 +48,7 @@ El contrato activo define el **salario, cargo y fecha de ingreso** del empleado.
 - **Salario:** monto en Guaraníes
 - **Frecuencia de nómina:** Mensual, Quincenal o Semanal
 - **Departamento y Cargo**
-- **Método de pago:** débito, efectivo o cheque
+- **Método de pago:** Tarjeta de Débito o Efectivo
 - **Notas**
 
 ### Tipos de contrato

@@ -12,7 +12,8 @@ El sistema cubre el ciclo completo de gestión del personal:
 - **Nóminas:** liquidación mensual/quincenal/semanal con percepciones, deducciones y recibos en PDF
 - **Vacaciones y permisos:** solicitudes, aprobaciones y saldo de días por año
 - **Ausencias:** registro y justificación de inasistencias con descuento automático
-- **Préstamos y adelantos:** gestión de cuotas con descuento automático en nómina
+- **Créditos:** préstamos, adelantos de salario y retiros de mercadería con descuento automático en nómina
+- **Amonestaciones:** registro documental de sanciones disciplinarias
 - **Aguinaldo:** cálculo y emisión del 13.° salario
 - **Liquidaciones:** finiquito al término de la relación laboral
 - **Configuración:** usuarios, feriados y parámetros del sistema

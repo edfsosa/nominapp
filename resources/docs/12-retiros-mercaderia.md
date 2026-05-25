@@ -11,11 +11,12 @@ A diferencia de los préstamos, un empleado puede tener varios retiros activos a
 | **Pendiente** | Creado, con productos cargados. Puede editarse, completarse o cancelarse. |
 | **Aprobado** | Aprobado, con cuotas generadas. Los descuentos se aplican automáticamente en nómina. |
 | **Pagado** | Todas las cuotas fueron descontadas. Estado final. |
-| **Cancelado** | Cancelado antes de completarse. Estado final. |
+| **Rechazado** | Rechazado por el administrador. Estado final. |
+| **Cancelado** | Cancelado antes de completarse (solo si no hay cuotas ya descontadas). Estado final. |
 
 ## Crear un retiro
 
-1. Ir a **Nóminas → Retiros de Mercadería**
+1. Ir a **Créditos → Retiros de Mercadería**
 2. Clic en **Nuevo Retiro**
 3. Completar:
    - **Empleado**
@@ -43,10 +44,11 @@ Después de crear el retiro, ir a la pestaña **Productos** para cargar los íte
 
 **Desde Pendiente:**
 - **Aprobar** — genera las cuotas y habilita el descuento en nómina. El monto de cada cuota es `total ÷ cantidad de cuotas`.
+- **Rechazar** — rechaza el retiro.
 - **Cancelar** — cancela el retiro.
 
 **Desde Aprobado:**
-- **Cancelar** — cancela el retiro; las cuotas pendientes se anulan.
+- **Cancelar** — cancela el retiro y anula las cuotas pendientes. Solo disponible si ninguna cuota fue descontada aún en nómina.
 - **Descargar PDF** — genera el documento del retiro con los productos y el plan de cuotas.
 
 > El retiro pasa a **Pagado** automáticamente al procesar en nómina la última cuota pendiente.

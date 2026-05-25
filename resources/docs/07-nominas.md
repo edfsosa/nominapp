@@ -5,16 +5,16 @@ El módulo de Nóminas gestiona la liquidación salarial de los empleados por pe
 ## Conceptos clave
 
 - **Período de nómina:** rango de fechas al que corresponde la liquidación
-- **Nómina individual:** liquidación generada para un empleado en un período
-- **Ítem de nómina:** cada línea de percepción o deducción dentro de una nómina
-- **Percepción:** ingreso adicional al salario base (bono, horas extra, comisión, etc.)
+- **Recibo de salario:** liquidación generada para un empleado dentro de un período
+- **Ítem de nómina:** cada línea de percepción o deducción dentro de un recibo
+- **Percepción:** ingreso adicional al salario base (bono, horas extra, viáticos, etc.)
 - **Deducción:** descuento aplicado al salario (IPS, préstamo, ausencia, etc.)
 
 ---
 
 ## Períodos de Nómina
 
-Los períodos definen el rango de fechas de cada liquidación.
+Los períodos definen el rango de fechas de cada liquidación. Todo el proceso de nómina se gestiona desde **Nóminas → Períodos**.
 
 ### Crear un período
 
@@ -32,9 +32,91 @@ Los períodos definen el rango de fechas de cada liquidación.
 
 | Estado | Descripción |
 |--------|-------------|
-| **Borrador** | Período creado, sin nóminas procesadas |
-| **En Proceso** | Con nóminas en curso |
-| **Cerrado** | Período finalizado |
+| **Borrador** | Período creado, sin recibos generados |
+| **En Proceso** | Con recibos en curso |
+| **Cerrado** | Período finalizado — los recibos no pueden modificarse |
+
+### Generar recibos del período
+
+Desde la vista del período (clic en el período para abrirlo):
+
+1. Clic en **Generar Recibos** para procesar todos los empleados activos que corresponden a la frecuencia del período
+2. El sistema calcula automáticamente para cada empleado:
+   - Salario base (proporcional si el período es parcial)
+   - Percepciones activas en el período
+   - Horas extra desde las asistencias registradas
+   - Día de descanso semanal remunerado (para jornaleros)
+   - Deducciones activas (IPS, préstamos, adelantos, retiros de mercadería, ausencias injustificadas)
+   - Bonificación familiar IPS
+
+Para agregar un empleado que no estaba incluido: clic en **Agregar Recibo** y seleccionar el empleado.
+
+### Cerrar un período
+
+Al cerrar el período los recibos quedan bloqueados. El botón **Cerrar Período** solo está disponible cuando no hay recibos en estado Borrador o Aprobado pendientes.
+
+> Si hay empleados activos sin recibo al momento de cerrar, el sistema lo informa como advertencia en el modal de confirmación, pero permite continuar.
+
+---
+
+## Recibos de Salario
+
+Cada recibo corresponde a la liquidación de un empleado en un período.
+
+### Flujo de estados
+
+El flujo varía según el método de pago del recibo:
+
+**Acreditación bancaria (transferencia):**
+```
+Borrador → Aprobado → Acreditado → Pagado
+```
+
+**Efectivo:**
+```
+Borrador → Aprobado → Pagado
+```
+
+| Estado | Descripción |
+|--------|-------------|
+| **Borrador** | Generado, pendiente de revisión. Se puede regenerar o editar. |
+| **Aprobado** | Revisado y aprobado. Para transferencias, pasa a Acreditado al confirmarse el depósito. Para efectivo, pasa directo a Pagado. |
+| **Acreditado** | El monto fue depositado en la cuenta bancaria del empleado (solo transferencias). |
+| **Pagado** | Pago registrado y completado. |
+
+### Acciones disponibles por estado
+
+Desde la vista del recibo o desde la tabla de recibos del período:
+
+| Estado | Acciones disponibles |
+|--------|---------------------|
+| Borrador | Aprobar, Regenerar, Editar (método de pago y notas), Eliminar |
+| Aprobado | Marcar Acreditado (transferencia), Marcar Pagado (efectivo), Desaprobar, Descargar PDF |
+| Acreditado | Marcar Pagado, Revertir a Aprobado (si no está en un lote bancario), Descargar PDF |
+| Pagado | Revertir Pago, Descargar PDF |
+
+### Aprobar todos los recibos del período
+
+Desde la vista del período, el botón **Aprobar Todos** aprueba en un solo paso todos los recibos en estado Borrador.
+
+### Marcar como pagados
+
+El botón **Marcar Todos Pagados** (en la vista del período) marca como pagados:
+- Recibos de **efectivo** en estado Aprobado
+- Recibos de **transferencia** en estado Acreditado
+
+---
+
+## Descarga del recibo en PDF
+
+Desde la vista de un recibo o desde la tabla del período (botón **PDF** en la fila), se abre un modal para elegir el formato:
+
+| Formato | Descripción |
+|---------|-------------|
+| **Para imprimir** | Hoja A4 horizontal con dos copias: *COPIA EMPLEADO* y *COPIA EMPRESA*, separadas por una línea punteada de corte |
+| **Para empleado** | Hoja A4 vertical con una sola copia, ideal para enviar por correo electrónico |
+
+También es posible descargar los PDFs de varios recibos a la vez seleccionándolos en la tabla y usando la acción **Descargar PDFs** (bulk action). Si se selecciona un solo recibo se descarga el PDF directamente; si son varios, se genera un archivo ZIP.
 
 ---
 
@@ -76,58 +158,11 @@ Las deducciones son descuentos aplicados al salario.
 3. Completar nombre, código, tipo de cálculo (fijo o porcentaje), y si es **obligatoria**
 4. Guardar
 
-> Las deducciones marcadas como **obligatorias** se asignan automáticamente a nuevos empleados.
+> Las deducciones marcadas como **obligatorias** se asignan automáticamente a todos los empleados.
 
 ### Asignar una deducción a un empleado
 
 Misma lógica que las percepciones: desde el perfil del empleado, pestaña **Deducciones**.
-
----
-
-## Generar una nómina
-
-1. Ir a **Nóminas → Recibos**
-2. Clic en **Nueva nómina**
-3. Seleccionar el **período** y el **empleado** (o procesar por sucursal)
-4. El sistema calcula automáticamente:
-   - Salario base (proporcional si el empleado no trabajó el período completo)
-   - Percepciones activas en el período
-   - Horas extra (diurnas, nocturnas, feriados) desde las asistencias
-   - Deducciones activas (incluyendo cuotas de préstamos y descuentos por ausencia)
-5. Revisar los ítems de la nómina
-6. Si todo es correcto, aprobar
-
-### Flujo de estados de la nómina
-
-```
-Borrador → En Proceso → Aprobada → Pagada
-```
-
-| Estado | Descripción |
-|--------|-------------|
-| **Borrador** | Generada, pendiente de revisión |
-| **En Proceso** | En revisión o ajuste |
-| **Aprobada** | Confirmada — ya no puede modificarse |
-| **Pagada** | Pago registrado |
-
-> Una nómina en estado **Aprobada** o **Pagada** no puede eliminarse.
-
----
-
-## Recibo de salario
-
-Desde la lista de nóminas, clic en **Ver recibo** para abrir el recibo de salario individual en PDF. El documento incluye:
-
-- Datos del empleado y período
-- Salario base
-- Detalle de percepciones y deducciones
-- Salario bruto, total de deducciones y **salario neto a pagar**
-
----
-
-## Exportar nómina
-
-Desde **Nóminas → Recibos**, el botón **Exportar Excel** genera un archivo con el resumen de todas las nóminas del período seleccionado.
 
 ---
 
@@ -138,3 +173,9 @@ Las horas extra calculadas automáticamente desde las asistencias se incluyen co
 - Hora extra diurna: 1.5×
 - Hora extra nocturna: 1.67×
 - Hora extra en feriado: 2.0×
+
+---
+
+## Exportar nómina
+
+Desde la tabla de recibos de un período, el botón **Exportar Excel** genera un archivo con el resumen de todos los recibos del período. También es posible exportar solo los recibos seleccionados usando la acción bulk **Exportar Seleccionados**.

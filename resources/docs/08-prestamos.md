@@ -6,15 +6,15 @@ El módulo de préstamos permite otorgar créditos a empleados con descuento aut
 
 | Estado | Descripción |
 |--------|-------------|
-| **Pendiente** | Creado, aún no activado. Puede editarse o cancelarse. |
-| **Activo** | Activado, con cuotas descontándose en nómina. |
-| **En Mora** | Tiene cuotas vencidas sin pagar. |
-| **Pagado** | Todas las cuotas fueron saldadas. Estado final. |
+| **Pendiente** | Creado, aún no aprobado. Puede editarse, rechazarse o cancelarse. |
+| **Aprobado** | Aprobado, con cuotas activas descontándose en nómina. |
+| **Pagado** | Todas las cuotas fueron saldadas. Estado final automático. |
+| **Rechazado** | Rechazado por el administrador. Estado final. |
 | **Cancelado** | Cancelado antes de completarse. Estado final. |
 
 ## Crear un préstamo
 
-1. Ir a **Nóminas → Préstamos**
+1. Ir a **Créditos → Préstamos**
 2. Clic en **Nuevo Préstamo**
 3. Completar:
    - **Empleado**
@@ -28,17 +28,20 @@ El módulo de préstamos permite otorgar créditos a empleados con descuento aut
 
 ## Ciclo de vida y acciones
 
+```
+Pendiente → Aprobado → Pagado (automático)
+          ↘ Rechazado
+          ↘ Cancelado
+Aprobado  → Cancelado
+```
+
 **Desde Pendiente:**
-- **Activar** — aprueba el préstamo y habilita el descuento de cuotas en nómina. Valida que la cuota no supere el 25% del salario del empleado (Art. 245 CLT).
+- **Aprobar** — activa el préstamo y habilita el descuento de cuotas en nómina. Valida que la cuota no supere el 25% del salario del empleado (Art. 245 CLT).
+- **Rechazar** — rechaza el préstamo; se puede registrar un motivo.
 - **Cancelar** — cancela el préstamo.
 
-**Desde Activo:**
-- **Marcar en Mora** — registra el préstamo como moroso. Requiere ingresar un motivo.
+**Desde Aprobado:**
 - **Cancelar** — cancela el préstamo; las cuotas pendientes se anulan.
-
-**Desde En Mora:**
-- **Reactivar** — vuelve a estado Activo para retomar los descuentos.
-- **Cancelar** — cancela definitivamente.
 
 > El préstamo pasa a **Pagado** automáticamente al procesar en nómina la última cuota pendiente.
 
@@ -58,5 +61,4 @@ Desde la vista del préstamo, el botón **Descargar PDF** genera el contrato del
 
 ## Límites
 
-- **Cuota máxima:** el monto de cada cuota no puede superar el **25% del salario mensual** del empleado (Art. 245 CLT). El sistema lo valida al activar el préstamo.
-- El límite de cuota se configura en **Configuración → Configuración de Nómina**, sección **Préstamos**.
+- **Cuota máxima:** el monto de cada cuota no puede superar el **25% del salario mensual** del empleado (Art. 245 CLT). El sistema lo valida al aprobar el préstamo.
