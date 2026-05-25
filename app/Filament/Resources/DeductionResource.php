@@ -3,6 +3,8 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\DeductionResource\Pages;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Deduction;
 use App\Models\Employee;
 use Filament\Forms\Components\Section;
@@ -27,22 +29,27 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
 
+/** Gestiona el catálogo de deducciones salariales. */
 class DeductionResource extends Resource
 {
     protected static ?string $model = Deduction::class;
+
     protected static ?string $navigationGroup = 'Nóminas';
+
     protected static ?string $navigationLabel = 'Deducciones';
+
     protected static ?string $label = 'Deducción';
+
     protected static ?string $pluralLabel = 'Deducciones';
+
     protected static ?string $slug = 'deducciones';
+
     protected static ?string $navigationIcon = 'heroicon-o-minus-circle';
+
     protected static ?int $navigationSort = 4;
 
     /**
-     * Define el formulario para crear y editar deducciones
-     *
-     * @param Form $form
-     * @return Form
+     * Define el formulario para crear y editar deducciones.
      */
     public static function form(Form $form): Form
     {
@@ -73,8 +80,6 @@ class DeductionResource extends Resource
                             ->required()
                             ->live()
                             ->afterStateUpdated(function (string $state, Set $set) {
-                                // Al cambiar a judicial, activar el tope legal por defecto (embargo)
-                                // Al salir de judicial, limpiar el flag
                                 $set('apply_judicial_limit', $state === 'judicial');
                             })
                             ->columnSpan(1),
@@ -93,14 +98,14 @@ class DeductionResource extends Resource
                         Select::make('calculation')
                             ->label('Tipo de Cálculo')
                             ->options([
-                                'fixed'      => 'Monto Fijo',
+                                'fixed' => 'Monto Fijo',
                                 'percentage' => 'Porcentaje del Salario',
                             ])
                             ->default('fixed')
                             ->native(false)
                             ->live()
                             ->required()
-                            ->helperText('Define cómo se calculará esta deducción')
+                            ->helperText('Define cómo se calculará esta deducción.')
                             ->columnSpan(1),
 
                         TextInput::make('amount')
@@ -110,9 +115,9 @@ class DeductionResource extends Resource
                             ->maxValue(999999999)
                             ->step(1)
                             ->prefix('₲')
-                            ->visible(fn(Get $get) => $get('calculation') === 'fixed')
-                            ->required(fn(Get $get) => $get('calculation') === 'fixed')
-                            ->helperText('Monto que se descontará del salario')
+                            ->visible(fn (Get $get) => $get('calculation') === 'fixed')
+                            ->required(fn (Get $get) => $get('calculation') === 'fixed')
+                            ->helperText('Monto que se descontará del salario.')
                             ->columnSpan(1),
 
                         TextInput::make('percent')
@@ -122,9 +127,9 @@ class DeductionResource extends Resource
                             ->maxValue(100)
                             ->step(0.01)
                             ->suffix('%')
-                            ->visible(fn(Get $get) => $get('calculation') === 'percentage')
-                            ->required(fn(Get $get) => $get('calculation') === 'percentage')
-                            ->helperText('Porcentaje del salario base que se descontará')
+                            ->visible(fn (Get $get) => $get('calculation') === 'percentage')
+                            ->required(fn (Get $get) => $get('calculation') === 'percentage')
+                            ->helperText('Porcentaje del salario base que se descontará.')
                             ->columnSpan(1),
                     ])
                     ->columns(2),
@@ -136,34 +141,30 @@ class DeductionResource extends Resource
                             ->helperText('Limita el embargo al 25% del excedente del salario mínimo. Desactivar para prestaciones alimentarias.')
                             ->default(false)
                             ->inline(false)
-                            ->visible(fn(Get $get) => $get('type') === 'judicial')
+                            ->visible(fn (Get $get) => $get('type') === 'judicial')
                             ->columnSpanFull(),
 
                         Toggle::make('is_mandatory')
                             ->label('Deducción Obligatoria')
-                            ->helperText('Se aplicará automáticamente a todos los empleados')
-                            ->default(false)
-                            ->inline(false)
-                            ->columnSpan(1),
-
-                        Toggle::make('affects_irp')
-                            ->label('Afecta IRP')
-                            ->helperText('Esta deducción afecta el cálculo del IRP')
+                            ->helperText('Indica que esta deducción debe aplicarse a todos los empleados.')
                             ->default(false)
                             ->inline(false)
                             ->columnSpan(1),
 
                         Toggle::make('is_active')
                             ->label('Activo')
-                            ->helperText('Habilitar o deshabilitar esta deducción')
+                            ->helperText('Habilitar o deshabilitar esta deducción.')
                             ->default(true)
                             ->inline(false)
                             ->columnSpan(1),
                     ])
-                    ->columns(3),
+                    ->columns(2),
             ]);
     }
 
+    /**
+     * Define la tabla para listar deducciones.
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -185,22 +186,22 @@ class DeductionResource extends Resource
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->formatStateUsing(fn($state) => Deduction::getTypeLabels()[$state] ?? $state)
-                    ->color(fn($state) => Deduction::getTypeColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn ($state) => Deduction::getTypeLabels()[$state] ?? $state)
+                    ->color(fn ($state) => Deduction::getTypeColors()[$state] ?? 'gray')
                     ->sortable(),
 
                 TextColumn::make('calculation')
                     ->label('Cálculo')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'fixed'      => 'Fijo',
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'fixed' => 'Fijo',
                         'percentage' => 'Porcentaje',
-                        default      => '-',
+                        default => '-',
                     })
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'fixed'      => 'primary',
+                    ->color(fn ($state) => match ($state) {
+                        'fixed' => 'primary',
                         'percentage' => 'info',
-                        default      => 'gray',
+                        default => 'gray',
                     })
                     ->sortable(),
 
@@ -213,7 +214,7 @@ class DeductionResource extends Resource
 
                 TextColumn::make('percent')
                     ->label('Porcentaje')
-                    ->formatStateUsing(fn($state) => Deduction::formatPercent($state))
+                    ->formatStateUsing(fn ($state) => Deduction::formatPercent($state))
                     ->placeholder('-')
                     ->sortable()
                     ->toggleable(),
@@ -226,7 +227,7 @@ class DeductionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('danger')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
 
                 IconColumn::make('is_active')
                     ->label('Estado')
@@ -236,7 +237,7 @@ class DeductionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('danger')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
 
                 TextColumn::make('active_employees_count')
                     ->label('Empleados')
@@ -260,13 +261,13 @@ class DeductionResource extends Resource
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo de Deducción')
-                    ->options(Deduction::getTypeOptions())
+                    ->options(Deduction::getTypeLabels())
                     ->native(false),
 
                 SelectFilter::make('calculation')
                     ->label('Tipo de Cálculo')
                     ->options([
-                        'fixed'      => 'Monto Fijo',
+                        'fixed' => 'Monto Fijo',
                         'percentage' => 'Porcentaje',
                     ])
                     ->native(false),
@@ -276,13 +277,6 @@ class DeductionResource extends Resource
                     ->placeholder('Todos')
                     ->trueLabel('Obligatorios')
                     ->falseLabel('No Obligatorios')
-                    ->native(false),
-
-                TernaryFilter::make('affects_irp')
-                    ->label('Afecta IRP')
-                    ->placeholder('Todos')
-                    ->trueLabel('Afecta IRP')
-                    ->falseLabel('No Afecta IRP')
                     ->native(false),
 
                 TernaryFilter::make('is_active')
@@ -297,28 +291,55 @@ class DeductionResource extends Resource
                     ->label('Asignar a Todos')
                     ->icon('heroicon-o-users')
                     ->color('success')
-                    ->visible(fn(Deduction $record) => $record->is_active)
-                    ->requiresConfirmation()
-                    ->modalHeading('Asignar Deducción a Todos los Empleados')
-                    ->modalDescription(fn(Deduction $record) => "¿Está seguro de que desea asignar la deducción \"{$record->name}\" a TODOS los empleados activos que aún no la tienen?")
-                    ->modalSubmitActionLabel('Sí, asignar a todos')
-                    ->action(function (Deduction $record) {
+                    ->visible(fn (Deduction $record) => $record->is_active)
+                    ->modalHeading('Asignar Deducción a Empleados')
+                    ->modalDescription(fn (Deduction $record) => "Asigna \"{$record->name}\" a todos los empleados activos que aún no la tienen. Filtrá opcionalmente por empresa o sucursal.")
+                    ->modalSubmitActionLabel('Sí, asignar')
+                    ->form([
+                        Select::make('company_id')
+                            ->label('Empresa')
+                            ->options(fn () => Company::active()->pluck('name', 'id'))
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('branch_id', null))
+                            ->placeholder('Todas las empresas'),
+
+                        Select::make('branch_id')
+                            ->label('Sucursal')
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Branch::where('company_id', $get('company_id'))->pluck('name', 'id')
+                                : [])
+                            ->native(false)
+                            ->placeholder('Todas las sucursales')
+                            ->disabled(fn (Get $get) => ! $get('company_id')),
+                    ])
+                    ->action(function (Deduction $record, array $data) {
                         try {
-                            $allActiveIds = Employee::where('status', 'active')->pluck('id');
+                            $query = Employee::where('status', 'active');
+
+                            if (! empty($data['branch_id'])) {
+                                $query->where('branch_id', $data['branch_id']);
+                            } elseif (! empty($data['company_id'])) {
+                                $query->whereHas('branch', fn ($q) => $q->where('company_id', $data['company_id']));
+                            }
+
+                            $allActiveIds = $query->pluck('id');
 
                             if ($allActiveIds->isEmpty()) {
                                 Notification::make()
                                     ->warning()
                                     ->title('No hay empleados activos')
-                                    ->body('No hay empleados activos para asignar la deducción.')
+                                    ->body('No hay empleados activos para el filtro seleccionado.')
                                     ->send();
+
                                 return;
                             }
 
                             $alreadyActiveIds = DB::table('employee_deductions')
                                 ->where('deduction_id', $record->id)
                                 ->where('start_date', '<=', now())
-                                ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                ->whereIn('employee_id', $allActiveIds)
                                 ->pluck('employee_id');
 
                             $toProcessIds = $allActiveIds->diff($alreadyActiveIds);
@@ -330,11 +351,12 @@ class DeductionResource extends Resource
                                     ->title('Sin cambios')
                                     ->body('Todos los empleados activos ya tienen esta deducción asignada.')
                                     ->send();
+
                                 return;
                             }
 
                             DB::transaction(function () use ($record, $toProcessIds) {
-                                $now   = now();
+                                $now = now();
                                 $today = $now->toDateString();
 
                                 $reactivateIds = DB::table('employee_deductions')
@@ -349,24 +371,25 @@ class DeductionResource extends Resource
                                         ->whereIn('employee_id', $reactivateIds)
                                         ->whereDate('start_date', $today)
                                         ->update([
-                                            'end_date'   => null,
-                                            'notes'      => 'Reasignado masivamente desde el panel de deducciones',
+                                            'end_date' => null,
+                                            'notes' => 'Reasignado masivamente desde el panel de deducciones',
                                             'updated_at' => $now,
                                         ]);
                                 }
 
                                 $newIds = $toProcessIds->diff($reactivateIds);
+
                                 if ($newIds->isNotEmpty()) {
                                     DB::table('employee_deductions')->insert(
-                                        $newIds->map(fn($id) => [
-                                            'employee_id'   => $id,
-                                            'deduction_id'  => $record->id,
-                                            'start_date'    => $today,
-                                            'end_date'      => null,
+                                        $newIds->map(fn ($id) => [
+                                            'employee_id' => $id,
+                                            'deduction_id' => $record->id,
+                                            'start_date' => $today,
+                                            'end_date' => null,
                                             'custom_amount' => null,
-                                            'notes'         => 'Asignado masivamente desde el panel de deducciones',
-                                            'created_at'    => $now,
-                                            'updated_at'    => $now,
+                                            'notes' => 'Asignado masivamente desde el panel de deducciones',
+                                            'created_at' => $now,
+                                            'updated_at' => $now,
                                         ])->values()->toArray()
                                     );
                                 }
@@ -375,7 +398,7 @@ class DeductionResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('Deducción asignada exitosamente')
-                                ->body("La deducción \"{$record->name}\" fue asignada a {$toProcessIds->count()} empleado(s). {$alreadyAssigned} empleado(s) ya tenían esta deducción.")
+                                ->body("La deducción \"{$record->name}\" fue asignada a {$toProcessIds->count()} empleado(s). {$alreadyAssigned} empleado(s) ya la tenían.")
                                 ->send();
                         } catch (\Exception $e) {
                             Notification::make()
@@ -390,30 +413,62 @@ class DeductionResource extends Resource
                     ->label('Remover de Todos')
                     ->icon('heroicon-o-user-group')
                     ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Remover Deducción de Todos los Empleados')
-                    ->modalDescription(fn(Deduction $record) => "¿Está seguro de que desea remover la deducción \"{$record->name}\" de TODOS los empleados que la tienen asignada?")
-                    ->modalSubmitActionLabel('Sí, remover de todos')
-                    ->action(function (Deduction $record) {
+                    ->modalHeading('Remover Deducción de Empleados')
+                    ->modalDescription(fn (Deduction $record) => "Remueve \"{$record->name}\" de todos los empleados que la tienen asignada. Filtrá opcionalmente por empresa o sucursal.")
+                    ->modalSubmitActionLabel('Sí, remover')
+                    ->form([
+                        Select::make('company_id')
+                            ->label('Empresa')
+                            ->options(fn () => Company::active()->pluck('name', 'id'))
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('branch_id', null))
+                            ->placeholder('Todas las empresas'),
+
+                        Select::make('branch_id')
+                            ->label('Sucursal')
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Branch::where('company_id', $get('company_id'))->pluck('name', 'id')
+                                : [])
+                            ->native(false)
+                            ->placeholder('Todas las sucursales')
+                            ->disabled(fn (Get $get) => ! $get('company_id')),
+                    ])
+                    ->action(function (Deduction $record, array $data) {
                         try {
-                            $activeAssignments = $record->activeEmployeeDeductions()->count();
+                            $employeeIds = null;
+
+                            if (! empty($data['branch_id'])) {
+                                $employeeIds = Employee::where('branch_id', $data['branch_id'])->pluck('id');
+                            } elseif (! empty($data['company_id'])) {
+                                $employeeIds = Employee::whereHas('branch', fn ($q) => $q->where('company_id', $data['company_id']))->pluck('id');
+                            }
+
+                            $activeAssignments = DB::table('employee_deductions')
+                                ->where('deduction_id', $record->id)
+                                ->where('start_date', '<=', now())
+                                ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
+                                ->count();
 
                             if ($activeAssignments === 0) {
                                 Notification::make()
                                     ->info()
                                     ->title('Sin asignaciones activas')
-                                    ->body('Esta deducción no está asignada a ningún empleado actualmente.')
+                                    ->body('Esta deducción no está asignada a ningún empleado en el filtro seleccionado.')
                                     ->send();
+
                                 return;
                             }
 
                             DB::table('employee_deductions')
                                 ->where('deduction_id', $record->id)
                                 ->where('start_date', '<=', now())
-                                ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()))
+                                ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
                                 ->update([
-                                    'end_date'   => now(),
-                                    'notes'      => 'Removido masivamente desde el panel de deducciones',
+                                    'end_date' => now()->toDateString(),
+                                    'notes' => 'Removido masivamente desde el panel de deducciones',
                                     'updated_at' => now(),
                                 ]);
 
@@ -437,6 +492,9 @@ class DeductionResource extends Resource
             ->emptyStateIcon('heroicon-o-minus-circle');
     }
 
+    /**
+     * Define el infolist para visualizar una deducción.
+     */
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -456,44 +514,46 @@ class DeductionResource extends Resource
                         TextEntry::make('type')
                             ->label('Tipo')
                             ->badge()
-                            ->formatStateUsing(fn($state) => Deduction::getTypeLabels()[$state] ?? $state)
-                            ->color(fn($state) => Deduction::getTypeColors()[$state] ?? 'gray'),
+                            ->formatStateUsing(fn ($state) => Deduction::getTypeLabels()[$state] ?? $state)
+                            ->color(fn ($state) => Deduction::getTypeColors()[$state] ?? 'gray'),
 
                         TextEntry::make('description')
                             ->label('Descripción')
                             ->placeholder('Sin descripción')
                             ->columnSpanFull(),
                     ])
-                    ->columns(3),
+                    ->columns(3)
+                    ->collapsible(),
 
                 InfoSection::make('Configuración de Cálculo')
                     ->schema([
                         TextEntry::make('calculation')
                             ->label('Tipo de Cálculo')
                             ->badge()
-                            ->formatStateUsing(fn($state) => match ($state) {
-                                'fixed'      => 'Monto Fijo',
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                'fixed' => 'Monto Fijo',
                                 'percentage' => 'Porcentaje del Salario',
-                                default      => '-',
+                                default => '-',
                             })
-                            ->color(fn($state) => match ($state) {
-                                'fixed'      => 'success',
-                                'percentage' => 'warning',
-                                default      => 'gray',
+                            ->color(fn ($state) => match ($state) {
+                                'fixed' => 'primary',
+                                'percentage' => 'info',
+                                default => 'gray',
                             }),
 
                         TextEntry::make('amount')
                             ->label('Monto Fijo')
                             ->money('PYG', locale: 'es_PY')
                             ->placeholder('-')
-                            ->visible(fn(Deduction $record) => $record->calculation === 'fixed'),
+                            ->visible(fn (Deduction $record) => $record->calculation === 'fixed'),
 
                         TextEntry::make('percent')
                             ->label('Porcentaje')
-                            ->formatStateUsing(fn($state) => $state ? number_format($state, 2) . '%' : '-')
-                            ->visible(fn(Deduction $record) => $record->calculation === 'percentage'),
+                            ->formatStateUsing(fn ($state) => $state ? number_format($state, 2).'%' : '-')
+                            ->visible(fn (Deduction $record) => $record->calculation === 'percentage'),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->collapsible(),
 
                 InfoSection::make('Configuración Adicional')
                     ->schema([
@@ -504,18 +564,11 @@ class DeductionResource extends Resource
                             ->falseIcon('heroicon-o-minus-circle')
                             ->trueColor('warning')
                             ->falseColor('gray')
-                            ->visible(fn(Deduction $record) => $record->type === 'judicial'),
+                            ->visible(fn (Deduction $record) => $record->type === 'judicial')
+                            ->columnSpanFull(),
 
                         IconEntry::make('is_mandatory')
                             ->label('Deducción Obligatoria')
-                            ->boolean()
-                            ->trueIcon('heroicon-o-check-circle')
-                            ->falseIcon('heroicon-o-x-circle')
-                            ->trueColor('success')
-                            ->falseColor('danger'),
-
-                        IconEntry::make('affects_irp')
-                            ->label('Afecta IRP')
                             ->boolean()
                             ->trueIcon('heroicon-o-check-circle')
                             ->falseIcon('heroicon-o-x-circle')
@@ -530,7 +583,8 @@ class DeductionResource extends Resource
                             ->trueColor('success')
                             ->falseColor('danger'),
                     ])
-                    ->columns(3),
+                    ->columns(2)
+                    ->collapsible(),
 
                 InfoSection::make('Auditoría')
                     ->schema([
@@ -543,10 +597,13 @@ class DeductionResource extends Resource
                             ->dateTime('d/m/Y H:i'),
                     ])
                     ->columns(2)
-                    ->collapsed(),
+                    ->collapsible(),
             ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public static function getPages(): array
     {
         return [

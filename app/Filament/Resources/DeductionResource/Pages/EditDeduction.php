@@ -3,34 +3,44 @@
 namespace App\Filament\Resources\DeductionResource\Pages;
 
 use App\Filament\Resources\DeductionResource;
+use App\Models\Deduction;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
+/** Página de edición de una deducción. */
 class EditDeduction extends EditRecord
 {
     protected static string $resource = DeductionResource::class;
 
     /**
-     * Obtiene las acciones que se mostrarán en el encabezado de la página de edición.
+     * Acciones del encabezado: ver y eliminar.
      *
-     * @return array
+     * @return array<int, mixed>
      */
     protected function getHeaderActions(): array
     {
         return [
+            ViewAction::make()
+                ->icon('heroicon-o-eye')
+                ->color('primary'),
+
             DeleteAction::make()
+                ->label('Eliminar')
                 ->icon('heroicon-o-trash')
-                ->modalHeading('¿Estás seguro de que deseas eliminar esta deducción?')
-                ->modalDescription('Esta acción no se puede deshacer. Asegúrate de que no haya empleados asignados a esta deducción antes de eliminarla.')
-                ->before(function ($record, DeleteAction $action) {
+                ->color('danger')
+                ->modalHeading('Eliminar deducción')
+                ->modalDescription('Esta acción no se puede deshacer. Asegurate de que no haya empleados asignados antes de eliminarla.')
+                ->modalSubmitActionLabel('Sí, eliminar')
+                ->before(function (Deduction $record, DeleteAction $action) {
                     $count = $record->activeEmployees()->count();
 
                     if ($count > 0) {
                         Notification::make()
                             ->danger()
                             ->title('No se puede eliminar esta deducción')
-                            ->body("La deducción \"{$record->name}\" tiene {$count} empleado(s) con asignación activa. Para eliminarla, primero debés remover todos los empleados desde la pestaña \"Empleados Asignados\" o usar la acción \"Remover de Todos\" en el listado.")
+                            ->body("La deducción \"{$record->name}\" tiene {$count} empleado(s) con asignación activa. Primero remové todos los empleados desde \"Empleados Asignados\" o usá \"Remover de Todos\" en el listado.")
                             ->persistent()
                             ->send();
 
@@ -41,29 +51,23 @@ class EditDeduction extends EditRecord
     }
 
     /**
-     * Obtiene la URL a la que se redirigirá después de actualizar el registro.
-     *
-     * @return string
+     * Redirige al view del record tras guardar.
      */
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 
-    /**
-     * Obtiene el título de la notificación que se mostrará después de actualizar el registro.
-     *
-     * @return string|null
-     */
-    protected function getSavedNotificationTitle(): ?string
+    protected function getSavedNotification(): ?Notification
     {
-        return 'Deducción actualizada exitosamente';
+        return Notification::make()
+            ->success()
+            ->title('Deducción actualizada')
+            ->body('Los cambios fueron guardados exitosamente.');
     }
 
     /**
-     * Obtiene los gestores de relaciones que se mostrarán en la página de edición.
-     *
-     * @return array
+     * @return array<int, mixed>
      */
     public function getRelationManagers(): array
     {

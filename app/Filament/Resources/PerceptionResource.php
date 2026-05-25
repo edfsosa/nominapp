@@ -3,8 +3,10 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PerceptionResource\Pages;
-use App\Models\Perception;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Employee;
+use App\Models\Perception;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -27,22 +29,27 @@ use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\DB;
 
+/** Gestiona el catálogo de percepciones salariales y no salariales. */
 class PerceptionResource extends Resource
 {
     protected static ?string $model = Perception::class;
+
     protected static ?string $navigationGroup = 'Nóminas';
+
     protected static ?string $navigationLabel = 'Percepciones';
+
     protected static ?string $label = 'Percepción';
+
     protected static ?string $pluralLabel = 'Percepciones';
+
     protected static ?string $slug = 'percepciones';
+
     protected static ?string $navigationIcon = 'heroicon-o-plus-circle';
+
     protected static ?int $navigationSort = 3;
 
     /**
-     * Define el formulario para crear y editar percepciones
-     *
-     * @param Form $form
-     * @return Form
+     * Define el formulario para crear y editar percepciones.
      */
     public static function form(Form $form): Form
     {
@@ -79,14 +86,14 @@ class PerceptionResource extends Resource
                         Select::make('calculation')
                             ->label('Tipo de Cálculo')
                             ->options([
-                                'fixed'      => 'Monto Fijo',
+                                'fixed' => 'Monto Fijo',
                                 'percentage' => 'Porcentaje del Salario',
                             ])
                             ->default('fixed')
                             ->native(false)
                             ->live()
                             ->required()
-                            ->helperText('Define cómo se calculará esta percepción')
+                            ->helperText('Define cómo se calculará esta percepción.')
                             ->columnSpan(1),
 
                         TextInput::make('amount')
@@ -96,9 +103,9 @@ class PerceptionResource extends Resource
                             ->maxValue(999999999.99)
                             ->step(1)
                             ->prefix('₲')
-                            ->visible(fn(Get $get) => $get('calculation') === 'fixed')
-                            ->required(fn(Get $get) => $get('calculation') === 'fixed')
-                            ->helperText('Monto que se agregará al salario')
+                            ->visible(fn (Get $get) => $get('calculation') === 'fixed')
+                            ->required(fn (Get $get) => $get('calculation') === 'fixed')
+                            ->helperText('Monto que se agregará al salario.')
                             ->columnSpan(1),
 
                         TextInput::make('percent')
@@ -108,9 +115,9 @@ class PerceptionResource extends Resource
                             ->maxValue(100)
                             ->step(0.01)
                             ->suffix('%')
-                            ->visible(fn(Get $get) => $get('calculation') === 'percentage')
-                            ->required(fn(Get $get) => $get('calculation') === 'percentage')
-                            ->helperText('Porcentaje del salario base que se agregará')
+                            ->visible(fn (Get $get) => $get('calculation') === 'percentage')
+                            ->required(fn (Get $get) => $get('calculation') === 'percentage')
+                            ->helperText('Porcentaje del salario base que se agregará.')
                             ->columnSpan(1),
                     ])
                     ->columns(2),
@@ -130,7 +137,7 @@ class PerceptionResource extends Resource
                                 }
                             })
                             ->required()
-                            ->helperText('Determina automáticamente si la percepción aplica a IPS/aguinaldo.')
+                            ->helperText('Determina automáticamente si la percepción aplica a IPS.')
                             ->columnSpanFull(),
 
                         Toggle::make('affects_ips')
@@ -138,39 +145,22 @@ class PerceptionResource extends Resource
                             ->helperText('Solo editable para el tipo "Otro". Para los demás tipos se asigna automáticamente.')
                             ->default(true)
                             ->inline(false)
-                            ->disabled(fn(Get $get) => $get('type') !== 'other')
-                            ->columnSpan(1),
-
-                        Toggle::make('is_taxable')
-                            ->label('Gravable')
-                            ->helperText('Esta percepción está sujeta a impuestos')
-                            ->default(false)
-                            ->inline(false)
-                            ->columnSpan(1),
-
-                        Toggle::make('affects_irp')
-                            ->label('Afecta IRP')
-                            ->helperText('Esta percepción afecta el cálculo del IRP')
-                            ->default(false)
-                            ->inline(false)
+                            ->disabled(fn (Get $get) => $get('type') !== 'other')
                             ->columnSpan(1),
 
                         Toggle::make('is_active')
                             ->label('Activo')
-                            ->helperText('Habilitar o deshabilitar esta percepción')
+                            ->helperText('Habilitar o deshabilitar esta percepción.')
                             ->default(true)
                             ->inline(false)
                             ->columnSpan(1),
                     ])
-                    ->columns(4),
+                    ->columns(2),
             ]);
     }
 
     /**
-     * Define la tabla para listar percepciones
-     *
-     * @param Table $table
-     * @return Table
+     * Define la tabla para listar percepciones.
      */
     public static function table(Table $table): Table
     {
@@ -191,24 +181,24 @@ class PerceptionResource extends Resource
                     ->wrap(),
 
                 TextColumn::make('type')
-                    ->label('Tipo')
-                    ->formatStateUsing(fn($state) => Perception::getTypeLabels()[$state] ?? $state)
+                    ->label('Percepción')
+                    ->formatStateUsing(fn ($state) => Perception::getTypeLabels()[$state] ?? $state)
                     ->badge()
-                    ->color(fn($state) => Perception::getTypeColors()[$state] ?? 'gray')
+                    ->color(fn ($state) => Perception::getTypeColors()[$state] ?? 'gray')
                     ->sortable(),
 
                 TextColumn::make('calculation')
-                    ->label('Tipo')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'fixed'      => 'Fijo',
+                    ->label('Cálculo')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'fixed' => 'Fijo',
                         'percentage' => 'Porcentaje',
-                        default      => '-',
+                        default => '-',
                     })
                     ->badge()
-                    ->color(fn($state) => match ($state) {
-                        'fixed'      => 'primary',
-                        'percentage' => 'secondary',
-                        default      => 'gray',
+                    ->color(fn ($state) => match ($state) {
+                        'fixed' => 'primary',
+                        'percentage' => 'info',
+                        default => 'gray',
                     })
                     ->sortable(),
 
@@ -221,20 +211,19 @@ class PerceptionResource extends Resource
 
                 TextColumn::make('percent')
                     ->label('Porcentaje')
-                    ->formatStateUsing(fn($state) => Perception::formatPercent($state))
+                    ->formatStateUsing(fn ($state) => Perception::formatPercent($state))
                     ->placeholder('-')
                     ->sortable()
                     ->toggleable(),
 
-                IconColumn::make('is_taxable')
-                    ->label('Gravable')
+                IconColumn::make('affects_ips')
+                    ->label('IPS')
                     ->boolean()
                     ->trueIcon('heroicon-o-check-circle')
                     ->falseIcon('heroicon-o-x-circle')
                     ->trueColor('success')
                     ->falseColor('danger')
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->sortable(),
 
                 IconColumn::make('is_active')
                     ->label('Estado')
@@ -244,7 +233,7 @@ class PerceptionResource extends Resource
                     ->trueColor('success')
                     ->falseColor('danger')
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(),
 
                 TextColumn::make('active_employees_count')
                     ->label('Empleados')
@@ -274,16 +263,9 @@ class PerceptionResource extends Resource
                 SelectFilter::make('calculation')
                     ->label('Tipo de Cálculo')
                     ->options([
-                        'fixed'      => 'Monto Fijo',
+                        'fixed' => 'Monto Fijo',
                         'percentage' => 'Porcentaje',
                     ])
-                    ->native(false),
-
-                TernaryFilter::make('is_taxable')
-                    ->label('Gravable')
-                    ->placeholder('Todos')
-                    ->trueLabel('Gravables')
-                    ->falseLabel('No Gravables')
                     ->native(false),
 
                 TernaryFilter::make('affects_ips')
@@ -291,13 +273,6 @@ class PerceptionResource extends Resource
                     ->placeholder('Todos')
                     ->trueLabel('Afecta IPS')
                     ->falseLabel('No Afecta IPS')
-                    ->native(false),
-
-                TernaryFilter::make('affects_irp')
-                    ->label('Afecta IRP')
-                    ->placeholder('Todos')
-                    ->trueLabel('Afecta IRP')
-                    ->falseLabel('No Afecta IRP')
                     ->native(false),
 
                 TernaryFilter::make('is_active')
@@ -312,27 +287,54 @@ class PerceptionResource extends Resource
                     ->label('Asignar a Todos')
                     ->icon('heroicon-o-users')
                     ->color('success')
-                    ->visible(fn(Perception $record) => $record->is_active)
-                    ->requiresConfirmation()
-                    ->modalHeading('Asignar Percepción a Todos los Empleados')
-                    ->modalDescription(fn(Perception $record) => "¿Está seguro de que desea asignar la percepción \"{$record->name}\" a TODOS los empleados activos que aún no la tienen?")
-                    ->modalSubmitActionLabel('Sí, asignar a todos')
-                    ->action(function (Perception $record) {
+                    ->visible(fn (Perception $record) => $record->is_active)
+                    ->modalHeading('Asignar Percepción a Empleados')
+                    ->modalDescription(fn (Perception $record) => "Asigna \"{$record->name}\" a todos los empleados activos que aún no la tienen. Filtrá opcionalmente por empresa o sucursal.")
+                    ->modalSubmitActionLabel('Sí, asignar')
+                    ->form([
+                        Select::make('company_id')
+                            ->label('Empresa')
+                            ->options(fn () => Company::active()->pluck('name', 'id'))
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('branch_id', null))
+                            ->placeholder('Todas las empresas'),
+
+                        Select::make('branch_id')
+                            ->label('Sucursal')
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Branch::where('company_id', $get('company_id'))->pluck('name', 'id')
+                                : [])
+                            ->native(false)
+                            ->placeholder('Todas las sucursales')
+                            ->disabled(fn (Get $get) => ! $get('company_id')),
+                    ])
+                    ->action(function (Perception $record, array $data) {
                         try {
-                            $allActiveIds = Employee::where('status', 'active')->pluck('id');
+                            $query = Employee::where('status', 'active');
+
+                            if (! empty($data['branch_id'])) {
+                                $query->where('branch_id', $data['branch_id']);
+                            } elseif (! empty($data['company_id'])) {
+                                $query->whereHas('branch', fn ($q) => $q->where('company_id', $data['company_id']));
+                            }
+
+                            $allActiveIds = $query->pluck('id');
 
                             if ($allActiveIds->isEmpty()) {
                                 Notification::make()
                                     ->warning()
                                     ->title('No hay empleados activos')
-                                    ->body('No hay empleados activos para asignar la percepción.')
+                                    ->body('No hay empleados activos para el filtro seleccionado.')
                                     ->send();
+
                                 return;
                             }
 
                             $alreadyActiveIds = DB::table('employee_perceptions')
                                 ->where('perception_id', $record->id)
                                 ->whereNull('end_date')
+                                ->whereIn('employee_id', $allActiveIds)
                                 ->pluck('employee_id');
 
                             $toProcessIds = $allActiveIds->diff($alreadyActiveIds);
@@ -344,14 +346,14 @@ class PerceptionResource extends Resource
                                     ->title('Sin cambios')
                                     ->body('Todos los empleados activos ya tienen esta percepción asignada.')
                                     ->send();
+
                                 return;
                             }
 
                             DB::transaction(function () use ($record, $toProcessIds) {
-                                $now   = now();
+                                $now = now();
                                 $today = $now->toDateString();
 
-                                // Reactivar registros con fecha de inicio hoy (edge case histórico)
                                 $reactivateIds = DB::table('employee_perceptions')
                                     ->where('perception_id', $record->id)
                                     ->whereIn('employee_id', $toProcessIds)
@@ -364,25 +366,25 @@ class PerceptionResource extends Resource
                                         ->whereIn('employee_id', $reactivateIds)
                                         ->whereDate('start_date', $today)
                                         ->update([
-                                            'end_date'   => null,
-                                            'notes'      => 'Reasignado masivamente desde el panel de percepciones',
+                                            'end_date' => null,
+                                            'notes' => 'Reasignado masivamente desde el panel de percepciones',
                                             'updated_at' => $now,
                                         ]);
                                 }
 
-                                // Insertar nuevos registros en bulk
                                 $newIds = $toProcessIds->diff($reactivateIds);
+
                                 if ($newIds->isNotEmpty()) {
                                     DB::table('employee_perceptions')->insert(
-                                        $newIds->map(fn($id) => [
-                                            'employee_id'   => $id,
+                                        $newIds->map(fn ($id) => [
+                                            'employee_id' => $id,
                                             'perception_id' => $record->id,
-                                            'start_date'    => $today,
-                                            'end_date'      => null,
+                                            'start_date' => $today,
+                                            'end_date' => null,
                                             'custom_amount' => null,
-                                            'notes'         => 'Asignado masivamente desde el panel de percepciones',
-                                            'created_at'    => $now,
-                                            'updated_at'    => $now,
+                                            'notes' => 'Asignado masivamente desde el panel de percepciones',
+                                            'created_at' => $now,
+                                            'updated_at' => $now,
                                         ])->values()->toArray()
                                     );
                                 }
@@ -391,7 +393,7 @@ class PerceptionResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('Percepción asignada exitosamente')
-                                ->body("La percepción \"{$record->name}\" fue asignada a {$toProcessIds->count()} empleado(s). {$alreadyAssigned} empleado(s) ya tenían esta percepción.")
+                                ->body("La percepción \"{$record->name}\" fue asignada a {$toProcessIds->count()} empleado(s). {$alreadyAssigned} empleado(s) ya la tenían.")
                                 ->send();
                         } catch (\Exception $e) {
                             Notification::make()
@@ -406,29 +408,60 @@ class PerceptionResource extends Resource
                     ->label('Remover de Todos')
                     ->icon('heroicon-o-user-group')
                     ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Remover Percepción de Todos los Empleados')
-                    ->modalDescription(fn(Perception $record) => "¿Está seguro de que desea remover la percepción \"{$record->name}\" de TODOS los empleados que la tienen asignada?")
-                    ->modalSubmitActionLabel('Sí, remover de todos')
-                    ->action(function (Perception $record) {
+                    ->modalHeading('Remover Percepción de Empleados')
+                    ->modalDescription(fn (Perception $record) => "Remueve \"{$record->name}\" de todos los empleados que la tienen asignada. Filtrá opcionalmente por empresa o sucursal.")
+                    ->modalSubmitActionLabel('Sí, remover')
+                    ->form([
+                        Select::make('company_id')
+                            ->label('Empresa')
+                            ->options(fn () => Company::active()->pluck('name', 'id'))
+                            ->native(false)
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('branch_id', null))
+                            ->placeholder('Todas las empresas'),
+
+                        Select::make('branch_id')
+                            ->label('Sucursal')
+                            ->options(fn (Get $get) => $get('company_id')
+                                ? Branch::where('company_id', $get('company_id'))->pluck('name', 'id')
+                                : [])
+                            ->native(false)
+                            ->placeholder('Todas las sucursales')
+                            ->disabled(fn (Get $get) => ! $get('company_id')),
+                    ])
+                    ->action(function (Perception $record, array $data) {
                         try {
-                            $activeAssignments = $record->activeEmployees()->count();
+                            $employeeIds = null;
+
+                            if (! empty($data['branch_id'])) {
+                                $employeeIds = Employee::where('branch_id', $data['branch_id'])->pluck('id');
+                            } elseif (! empty($data['company_id'])) {
+                                $employeeIds = Employee::whereHas('branch', fn ($q) => $q->where('company_id', $data['company_id']))->pluck('id');
+                            }
+
+                            $activeAssignments = DB::table('employee_perceptions')
+                                ->where('perception_id', $record->id)
+                                ->whereNull('end_date')
+                                ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
+                                ->count();
 
                             if ($activeAssignments === 0) {
                                 Notification::make()
                                     ->info()
                                     ->title('Sin asignaciones activas')
-                                    ->body('Esta percepción no está asignada a ningún empleado actualmente.')
+                                    ->body('Esta percepción no está asignada a ningún empleado en el filtro seleccionado.')
                                     ->send();
+
                                 return;
                             }
 
                             DB::table('employee_perceptions')
                                 ->where('perception_id', $record->id)
                                 ->whereNull('end_date')
+                                ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
                                 ->update([
-                                    'end_date'   => now(),
-                                    'notes'      => 'Removido masivamente desde el panel de percepciones',
+                                    'end_date' => now()->toDateString(),
+                                    'notes' => 'Removido masivamente desde el panel de percepciones',
                                     'updated_at' => now(),
                                 ]);
 
@@ -452,6 +485,9 @@ class PerceptionResource extends Resource
             ->emptyStateIcon('heroicon-o-plus-circle');
     }
 
+    /**
+     * Define el infolist para visualizar una percepción.
+     */
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -473,63 +509,49 @@ class PerceptionResource extends Resource
                             ->placeholder('Sin descripción')
                             ->columnSpanFull(),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->collapsible(),
 
                 InfoSection::make('Configuración de Cálculo')
                     ->schema([
                         TextEntry::make('calculation')
                             ->label('Tipo de Cálculo')
                             ->badge()
-                            ->formatStateUsing(fn($state) => match ($state) {
-                                'fixed'      => 'Monto Fijo',
+                            ->formatStateUsing(fn ($state) => match ($state) {
+                                'fixed' => 'Monto Fijo',
                                 'percentage' => 'Porcentaje del Salario',
-                                default      => '-',
+                                default => '-',
                             })
-                            ->color(fn($state) => match ($state) {
-                                'fixed'      => 'success',
-                                'percentage' => 'warning',
-                                default      => 'gray',
+                            ->color(fn ($state) => match ($state) {
+                                'fixed' => 'primary',
+                                'percentage' => 'info',
+                                default => 'gray',
                             }),
 
                         TextEntry::make('amount')
                             ->label('Monto Fijo')
                             ->money('PYG', locale: 'es_PY')
                             ->placeholder('-')
-                            ->visible(fn(Perception $record) => $record->calculation === 'fixed'),
+                            ->visible(fn (Perception $record) => $record->calculation === 'fixed'),
 
                         TextEntry::make('percent')
                             ->label('Porcentaje')
-                            ->formatStateUsing(fn($state) => $state ? number_format($state, 2) . '%' : '-')
-                            ->visible(fn(Perception $record) => $record->calculation === 'percentage'),
+                            ->formatStateUsing(fn ($state) => $state ? number_format($state, 2).'%' : '-')
+                            ->visible(fn (Perception $record) => $record->calculation === 'percentage'),
                     ])
-                    ->columns(2),
+                    ->columns(2)
+                    ->collapsible(),
 
                 InfoSection::make('Configuración Adicional')
                     ->schema([
                         TextEntry::make('type')
                             ->label('Tipo de percepción')
                             ->badge()
-                            ->formatStateUsing(fn($state) => Perception::getTypeLabels()[$state] ?? $state)
-                            ->color(fn($state) => Perception::getTypeColors()[$state] ?? 'gray'),
-
-                        IconEntry::make('is_taxable')
-                            ->label('Gravable')
-                            ->boolean()
-                            ->trueIcon('heroicon-o-check-circle')
-                            ->falseIcon('heroicon-o-x-circle')
-                            ->trueColor('success')
-                            ->falseColor('danger'),
+                            ->formatStateUsing(fn ($state) => Perception::getTypeLabels()[$state] ?? $state)
+                            ->color(fn ($state) => Perception::getTypeColors()[$state] ?? 'gray'),
 
                         IconEntry::make('affects_ips')
                             ->label('Afecta IPS')
-                            ->boolean()
-                            ->trueIcon('heroicon-o-check-circle')
-                            ->falseIcon('heroicon-o-x-circle')
-                            ->trueColor('success')
-                            ->falseColor('danger'),
-
-                        IconEntry::make('affects_irp')
-                            ->label('Afecta IRP')
                             ->boolean()
                             ->trueIcon('heroicon-o-check-circle')
                             ->falseIcon('heroicon-o-x-circle')
@@ -544,7 +566,8 @@ class PerceptionResource extends Resource
                             ->trueColor('success')
                             ->falseColor('danger'),
                     ])
-                    ->columns(4),
+                    ->columns(3)
+                    ->collapsible(),
 
                 InfoSection::make('Auditoría')
                     ->schema([
@@ -557,17 +580,20 @@ class PerceptionResource extends Resource
                             ->dateTime('d/m/Y H:i'),
                     ])
                     ->columns(2)
-                    ->collapsed(),
+                    ->collapsible(),
             ]);
     }
 
+    /**
+     * @return array<string, mixed>
+     */
     public static function getPages(): array
     {
         return [
-            'index'  => Pages\ListPerceptions::route('/'),
+            'index' => Pages\ListPerceptions::route('/'),
             'create' => Pages\CreatePerception::route('/create'),
-            'view'   => Pages\ViewPerception::route('/{record}'),
-            'edit'   => Pages\EditPerception::route('/{record}/edit'),
+            'view' => Pages\ViewPerception::route('/{record}'),
+            'edit' => Pages\EditPerception::route('/{record}/edit'),
         ];
     }
 }
