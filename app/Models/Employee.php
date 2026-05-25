@@ -1145,7 +1145,7 @@ class Employee extends Model
                     'start_date' => $today,
                     'end_date' => null,
                     'custom_amount' => null,
-                    'notes' => 'Deducción obligatoria asignada automáticamente',
+                    'notes' => null,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ])->values()->toArray()

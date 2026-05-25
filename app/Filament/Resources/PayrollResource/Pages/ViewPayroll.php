@@ -6,7 +6,9 @@ use App\Filament\Resources\PayrollResource;
 use App\Models\Payroll;
 use App\Services\PayrollService;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
 use Illuminate\Support\Facades\Auth;
@@ -22,8 +24,22 @@ class ViewPayroll extends ViewRecord
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->url(fn () => route('payrolls.download', $this->record))
-                ->openUrlInNewTab(),
+                ->form([
+                    Radio::make('mode')
+                        ->label('Formato')
+                        ->options([
+                            'print' => 'Para imprimir — 2 copias en hoja horizontal (A4 landscape)',
+                            'employee' => 'Para empleado — 1 copia en hoja vertical (A4 portrait)',
+                        ])
+                        ->default('print')
+                        ->required(),
+                ])
+                ->modalHeading('Descargar Recibo PDF')
+                ->modalSubmitActionLabel('Descargar')
+                ->action(function (array $data) {
+                    $url = route('payrolls.download', ['payroll' => $this->record, 'mode' => $data['mode']]);
+                    $this->js("window.open('{$url}', '_blank')");
+                }),
 
             Action::make('approve')
                 ->label('Aprobar')
@@ -195,14 +211,42 @@ class ViewPayroll extends ViewRecord
                 })
                 ->visible(fn () => $this->record->status === 'draft'),
 
-            DeleteAction::make()
-                ->visible(fn () => $this->record->status === 'draft')
-                ->successNotification(
+            Action::make('edit_draft')
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary')
+                ->fillForm(fn () => [
+                    'payment_method' => $this->record->payment_method,
+                    'notes' => $this->record->notes,
+                ])
+                ->form([
+                    Select::make('payment_method')
+                        ->label('Método de pago')
+                        ->options(Payroll::getPaymentMethodOptions())
+                        ->native(false)
+                        ->required(),
+
+                    Textarea::make('notes')
+                        ->label('Notas')
+                        ->placeholder('Observaciones opcionales...')
+                        ->rows(3),
+                ])
+                ->modalHeading('Editar Recibo')
+                ->modalSubmitActionLabel('Guardar cambios')
+                ->action(function (array $data) {
+                    $this->record->update([
+                        'payment_method' => $data['payment_method'],
+                        'notes' => $data['notes'],
+                    ]);
+
                     Notification::make()
                         ->success()
-                        ->title('Recibo eliminado')
-                        ->body('El recibo ha sido eliminado correctamente.')
-                ),
+                        ->title('Recibo actualizado')
+                        ->send();
+
+                    $this->refreshFormData(['payment_method', 'notes']);
+                })
+                ->visible(fn () => $this->record->status === 'draft'),
         ];
     }
 }

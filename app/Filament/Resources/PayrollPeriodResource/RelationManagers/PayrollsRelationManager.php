@@ -2,10 +2,15 @@
 
 namespace App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 
+use App\Filament\Resources\PayrollResource;
+use App\Models\Branch;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Payroll;
 use App\Models\Position;
 use App\Services\PayrollService;
-use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select as FormSelect;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
@@ -13,14 +18,13 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup as TableActionGroup;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -156,28 +160,6 @@ class PayrollsRelationManager extends RelationManager
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
-                SelectFilter::make('employee_id')
-                    ->label('Empleado')
-                    ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
-                    ->searchable(['first_name', 'last_name'])
-                    ->preload()
-                    ->native(false),
-
-                SelectFilter::make('position')
-                    ->label('Cargo')
-                    ->options(fn () => Position::pluck('name', 'id'))
-                    ->query(function (Builder $query, array $data) {
-                        if (filled($data['value'])) {
-                            return $query->whereHas('employee.activeContract', function (Builder $query) use ($data) {
-                                $query->where('position_id', $data['value']);
-                            });
-                        }
-                    })
-                    ->searchable()
-                    ->preload()
-                    ->native(false),
-
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(Payroll::getStatusLabels())
@@ -188,57 +170,51 @@ class PayrollsRelationManager extends RelationManager
                     ->options(Payroll::getPaymentMethodOptions())
                     ->native(false),
 
-                Filter::make('generated_at')
-                    ->label('Fecha de generación')
-                    ->form([
-                        DatePicker::make('generated_from')
-                            ->label('Desde')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                        DatePicker::make('generated_until')
-                            ->label('Hasta')
-                            ->native(false)
-                            ->closeOnDateSelection(),
-                    ])
-                    ->columns(2)
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['generated_from'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('generated_at', '>=', $date),
-                            )
-                            ->when(
-                                $data['generated_until'],
-                                fn (Builder $query, $date): Builder => $query->whereDate('generated_at', '<=', $date),
+                SelectFilter::make('department_id')
+                    ->label('Departamento')
+                    ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
+                    ->query(function (Builder $query, array $data): void {
+                        if (filled($data['value'])) {
+                            $query->whereHas(
+                                'employee.activeContract.position',
+                                fn (Builder $q) => $q->where('department_id', $data['value'])
                             );
-                    }),
+                        }
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->native(false),
 
-                Filter::make('net_salary_range')
-                    ->label('Rango de salario neto')
-                    ->form([
-                        \Filament\Forms\Components\TextInput::make('net_salary_from')
-                            ->label('Desde')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->placeholder('0'),
-                        \Filament\Forms\Components\TextInput::make('net_salary_to')
-                            ->label('Hasta')
-                            ->numeric()
-                            ->prefix('₲')
-                            ->placeholder('999999999'),
-                    ])
-                    ->columns(2)
-                    ->query(function (Builder $query, array $data): Builder {
-                        return $query
-                            ->when(
-                                $data['net_salary_from'],
-                                fn (Builder $query, $amount): Builder => $query->where('net_salary', '>=', $amount),
-                            )
-                            ->when(
-                                $data['net_salary_to'],
-                                fn (Builder $query, $amount): Builder => $query->where('net_salary', '<=', $amount),
+                SelectFilter::make('branch_id')
+                    ->label('Sucursal')
+                    ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
+                    ->query(function (Builder $query, array $data): void {
+                        if (filled($data['value'])) {
+                            $query->whereHas(
+                                'employee',
+                                fn (Builder $q) => $q->where('branch_id', $data['value'])
                             );
-                    }),
+                        }
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->native(false)
+                    ->visible(fn () => Branch::count() > 1),
+
+                SelectFilter::make('position')
+                    ->label('Cargo')
+                    ->options(fn () => Position::orderBy('name')->pluck('name', 'id'))
+                    ->query(function (Builder $query, array $data): void {
+                        if (filled($data['value'])) {
+                            $query->whereHas(
+                                'employee.activeContract',
+                                fn (Builder $q) => $q->where('position_id', $data['value'])
+                            );
+                        }
+                    })
+                    ->searchable()
+                    ->preload()
+                    ->native(false),
             ])
             ->headerActions([
                 Action::make('approve_all')
@@ -296,9 +272,10 @@ class PayrollsRelationManager extends RelationManager
                     })
                     ->action(function () {
                         $count = $this->getOwnerRecord()->payrolls()
-                            ->where(fn ($q) => $q
-                                ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
-                                ->orWhere('status', 'disbursed')
+                            ->where(
+                                fn ($q) => $q
+                                    ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
+                                    ->orWhere('status', 'disbursed')
                             )
                             ->update(['status' => 'paid']);
 
@@ -309,9 +286,10 @@ class PayrollsRelationManager extends RelationManager
                     })
                     ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
                         && $this->getOwnerRecord()->payrolls()
-                            ->where(fn ($q) => $q
-                                ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
-                                ->orWhere('status', 'disbursed')
+                            ->where(
+                                fn ($q) => $q
+                                    ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
+                                    ->orWhere('status', 'disbursed')
                             )->exists()),
 
                 ExportAction::make()
@@ -324,185 +302,287 @@ class PayrollsRelationManager extends RelationManager
                     ->label('Exportar a Excel')
                     ->color('info')
                     ->icon('heroicon-o-arrow-down-tray'),
+
+                Action::make('generate_for_employee')
+                    ->label('Agregar Recibo')
+                    ->icon('heroicon-o-user-plus')
+                    ->color('primary')
+                    ->mountUsing(function (?\Filament\Forms\Form $form, Action $action) {
+                        $period = $this->getOwnerRecord();
+                        $existingIds = $period->payrolls()->pluck('employee_id');
+
+                        $hasAvailable = Employee::where('status', 'active')
+                            ->whereHas(
+                                'activeContract',
+                                fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
+                            )
+                            ->whereNotIn('id', $existingIds)
+                            ->exists();
+
+                        if (! $hasAvailable) {
+                            Notification::make()
+                                ->warning()
+                                ->title('Sin empleados disponibles')
+                                ->body('Todos los empleados activos ya tienen recibo en esta planilla.')
+                                ->send();
+
+                            $action->halt();
+
+                            return;
+                        }
+
+                        $form?->fill();
+                    })
+                    ->modalHeading('Agregar Recibo para Empleado')
+                    ->modalSubmitActionLabel('Generar')
+                    ->form(function () {
+                        $period = $this->getOwnerRecord();
+                        $existingIds = $period->payrolls()->pluck('employee_id');
+
+                        return [
+                            FormSelect::make('employee_id')
+                                ->label('Empleado')
+                                ->options(
+                                    Employee::where('status', 'active')
+                                        ->whereHas(
+                                            'activeContract',
+                                            fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
+                                        )
+                                        ->whereNotIn('id', $existingIds)
+                                        ->get()
+                                        ->mapWithKeys(fn ($e) => [$e->id => "{$e->full_name} — CI: {$e->ci}"])
+                                        ->toArray()
+                                )
+                                ->searchable()
+                                ->native(false)
+                                ->required()
+                                ->placeholder('Seleccione un empleado sin recibo en esta planilla'),
+                        ];
+                    })
+                    ->action(function (array $data, PayrollService $payrollService) {
+                        $period = $this->getOwnerRecord();
+
+                        try {
+                            $employee = Employee::findOrFail($data['employee_id']);
+                            $payrollService->generateForEmployee($employee, $period);
+
+                            if ($period->status === 'draft') {
+                                $period->update(['status' => 'processing']);
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo generado')
+                                ->body("El recibo de {$employee->full_name} fue generado exitosamente.")
+                                ->send();
+                        } catch (\InvalidArgumentException $e) {
+                            Notification::make()
+                                ->danger()
+                                ->title('No se pudo generar el recibo')
+                                ->body($e->getMessage())
+                                ->persistent()
+                                ->send();
+                        }
+                    })
+                    ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
             ])
             ->actions([
-                ViewAction::make()
-                    ->url(fn (Payroll $record) => route('filament.admin.resources.recibos.view', ['record' => $record]))
+                Action::make('view')
+                    ->label('Ver')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->url(fn (Payroll $record) => PayrollResource::getUrl('view', ['record' => $record]))
                     ->openUrlInNewTab(),
 
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('info')
-                    ->url(fn (Payroll $record) => route('payrolls.download', $record))
-                    ->openUrlInNewTab(),
+                    ->form([
+                        Radio::make('mode')
+                            ->label('Formato')
+                            ->options([
+                                'print' => 'Para imprimir — 2 copias en hoja horizontal',
+                                'employee' => 'Para empleado — 1 copia en hoja vertical',
+                            ])
+                            ->default('print')
+                            ->required(),
+                    ])
+                    ->modalHeading('Descargar Recibo PDF')
+                    ->modalSubmitActionLabel('Descargar')
+                    ->action(function (array $data, Payroll $record) {
+                        $url = route('payrolls.download', ['payroll' => $record, 'mode' => $data['mode']]);
+                        $this->js("window.open('{$url}', '_blank')");
+                    }),
 
-                Action::make('approve')
-                    ->label('Aprobar')
-                    ->icon('heroicon-o-check-circle')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Aprobar Recibo')
-                    ->modalDescription(fn (Payroll $record) => "¿Aprobar el recibo de {$record->employee->full_name} por ".Payroll::formatCurrency($record->net_salary).'?')
-                    ->modalSubmitActionLabel('Sí, aprobar')
-                    ->action(function (Payroll $record) {
-                        $record->update([
-                            'status' => 'approved',
-                            'approved_by_id' => Auth::id(),
-                            'approved_at' => now(),
-                        ]);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Recibo aprobado')
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
-
-                // Transición manual approved → disbursed para transferencias (sin lote bancario)
-                Action::make('mark_disbursed')
-                    ->label('Marcar Acreditado')
-                    ->icon('heroicon-o-building-library')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->modalHeading('Marcar como Acreditado')
-                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} fue acreditado en cuenta bancaria?")
-                    ->modalSubmitActionLabel('Sí, marcar como acreditado')
-                    ->action(function (Payroll $record) {
-                        $record->update(['status' => 'disbursed']);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Recibo marcado como acreditado')
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'approved'
-                        && $record->payment_method === 'transfer'
-                        && $this->getOwnerRecord()->status !== 'closed'),
-
-                // Marca como pagado: efectivo aprobado (sin pasar por disbursed) o transferencia ya acreditada
-                Action::make('mark_paid')
-                    ->label('Marcar Pagado')
-                    ->icon('heroicon-o-banknotes')
-                    ->color('primary')
-                    ->requiresConfirmation()
-                    ->modalHeading('Marcar como Pagado')
-                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
-                    ->modalSubmitActionLabel('Sí, marcar como pagado')
-                    ->action(function (Payroll $record) {
-                        $record->update(['status' => 'paid']);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Recibo marcado como pagado')
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $this->getOwnerRecord()->status !== 'closed'
-                        && (
-                            ($record->status === 'approved' && $record->payment_method === 'cash')
-                            || $record->status === 'disbursed'
-                        )),
-
-                // Revierte disbursed → approved solo si no está en un lote bancario
-                Action::make('revert_disbursed')
-                    ->label('Revertir Acreditación')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Revertir Acreditación')
-                    ->modalDescription(fn (Payroll $record) => "¿Revertir el recibo de {$record->employee->full_name} a Aprobado? Se quitará el estado de acreditado.")
-                    ->modalSubmitActionLabel('Sí, revertir')
-                    ->action(function (Payroll $record) {
-                        $record->update(['status' => 'approved']);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Acreditación revertida')
-                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'disbursed'
-                        && $record->disbursement_batch_id === null
-                        && $this->getOwnerRecord()->status !== 'closed'),
-
-                // Revierte paid → disbursed (transferencia) o paid → approved (efectivo)
-                Action::make('revert_paid')
-                    ->label('Revertir Pago')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Revertir Pago')
-                    ->modalDescription(fn (Payroll $record) => $record->payment_method === 'transfer'
-                        ? "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Acreditado."
-                        : "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Aprobado.")
-                    ->modalSubmitActionLabel('Sí, revertir')
-                    ->action(function (Payroll $record) {
-                        $newStatus = $record->payment_method === 'transfer' ? 'disbursed' : 'approved';
-                        $record->update(['status' => $newStatus]);
-
-                        $label = $newStatus === 'disbursed' ? 'Acreditado' : 'Aprobado';
-
-                        Notification::make()
-                            ->success()
-                            ->title('Pago revertido')
-                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado {$label}.")
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'paid' && $this->getOwnerRecord()->status !== 'closed'),
-
-                Action::make('unapprove')
-                    ->label('Desaprobar')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Desaprobar Recibo')
-                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
-                    ->modalSubmitActionLabel('Sí, desaprobar')
-                    ->action(function (Payroll $record) {
-                        $record->update([
-                            'status' => 'draft',
-                            'approved_by_id' => null,
-                            'approved_at' => null,
-                        ]);
-
-                        Notification::make()
-                            ->success()
-                            ->title('Recibo desaprobado')
-                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Borrador.")
-                            ->send();
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
-
-                Action::make('regenerate')
-                    ->label('Regenerar')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Regenerar Recibo')
-                    ->modalDescription(fn (Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
-                    ->modalSubmitActionLabel('Sí, regenerar')
-                    ->action(function (Payroll $record, PayrollService $payrollService) {
-                        try {
-                            $payrollService->regenerateForEmployee($record);
+                TableActionGroup::make([
+                    Action::make('approve')
+                        ->label('Aprobar')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar Recibo')
+                        ->modalDescription(fn (Payroll $record) => "¿Aprobar el recibo de {$record->employee->full_name} por ".Payroll::formatCurrency($record->net_salary).'?')
+                        ->modalSubmitActionLabel('Sí, aprobar')
+                        ->action(function (Payroll $record) {
+                            $record->update([
+                                'status' => 'approved',
+                                'approved_by_id' => Auth::id(),
+                                'approved_at' => now(),
+                            ]);
 
                             Notification::make()
                                 ->success()
-                                ->title('Recibo regenerado')
-                                ->body("El recibo de {$record->employee->full_name} ha sido recalculado exitosamente.")
+                                ->title('Recibo aprobado')
                                 ->send();
-                        } catch (\Throwable $e) {
-                            Notification::make()
-                                ->danger()
-                                ->title('Error al regenerar')
-                                ->body('Ocurrió un error al regenerar el recibo: '.$e->getMessage())
-                                ->send();
-                        }
-                    })
-                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
 
-                DeleteAction::make()
-                    ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status === 'draft')
-                    ->successNotificationTitle('Recibo eliminado exitosamente'),
+                    // Transición manual approved → disbursed para transferencias (sin lote bancario)
+                    Action::make('mark_disbursed')
+                        ->label('Marcar Acreditado')
+                        ->icon('heroicon-o-building-library')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Marcar como Acreditado')
+                        ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} fue acreditado en cuenta bancaria?")
+                        ->modalSubmitActionLabel('Sí, marcar como acreditado')
+                        ->action(function (Payroll $record) {
+                            $record->update(['status' => 'disbursed']);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo marcado como acreditado')
+                                ->send();
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'approved'
+                            && $record->payment_method === 'transfer'
+                            && $this->getOwnerRecord()->status !== 'closed'),
+
+                    // Marca como pagado: efectivo aprobado (sin pasar por disbursed) o transferencia ya acreditada
+                    Action::make('mark_paid')
+                        ->label('Marcar Pagado')
+                        ->icon('heroicon-o-banknotes')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Marcar como Pagado')
+                        ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                        ->modalSubmitActionLabel('Sí, marcar como pagado')
+                        ->action(function (Payroll $record) {
+                            $record->update(['status' => 'paid']);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo marcado como pagado')
+                                ->send();
+                        })
+                        ->visible(fn (Payroll $record) => $this->getOwnerRecord()->status !== 'closed'
+                            && (
+                                ($record->status === 'approved' && $record->payment_method === 'cash')
+                                || $record->status === 'disbursed'
+                            )),
+
+                    // Revierte disbursed → approved solo si no está en un lote bancario
+                    Action::make('revert_disbursed')
+                        ->label('Revertir Acreditación')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Revertir Acreditación')
+                        ->modalDescription(fn (Payroll $record) => "¿Revertir el recibo de {$record->employee->full_name} a Aprobado? Se quitará el estado de acreditado.")
+                        ->modalSubmitActionLabel('Sí, revertir')
+                        ->action(function (Payroll $record) {
+                            $record->update(['status' => 'approved']);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Acreditación revertida')
+                                ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
+                                ->send();
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'disbursed'
+                            && $record->disbursement_batch_id === null
+                            && $this->getOwnerRecord()->status !== 'closed'),
+
+                    // Revierte paid → disbursed (transferencia) o paid → approved (efectivo)
+                    Action::make('revert_paid')
+                        ->label('Revertir Pago')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Revertir Pago')
+                        ->modalDescription(fn (Payroll $record) => $record->payment_method === 'transfer'
+                            ? "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Acreditado."
+                            : "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                        ->modalSubmitActionLabel('Sí, revertir')
+                        ->action(function (Payroll $record) {
+                            $newStatus = $record->payment_method === 'transfer' ? 'disbursed' : 'approved';
+                            $record->update(['status' => $newStatus]);
+
+                            $label = $newStatus === 'disbursed' ? 'Acreditado' : 'Aprobado';
+
+                            Notification::make()
+                                ->success()
+                                ->title('Pago revertido')
+                                ->body("El recibo de {$record->employee->full_name} ha vuelto a estado {$label}.")
+                                ->send();
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'paid' && $this->getOwnerRecord()->status !== 'closed'),
+
+                    Action::make('unapprove')
+                        ->label('Desaprobar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Desaprobar Recibo')
+                        ->modalDescription(fn (Payroll $record) => "¿Está seguro de desaprobar el recibo de {$record->employee->full_name}? Volverá a estado Borrador.")
+                        ->modalSubmitActionLabel('Sí, desaprobar')
+                        ->action(function (Payroll $record) {
+                            $record->update([
+                                'status' => 'draft',
+                                'approved_by_id' => null,
+                                'approved_at' => null,
+                            ]);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Recibo desaprobado')
+                                ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Borrador.")
+                                ->send();
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
+
+                    Action::make('regenerate')
+                        ->label('Regenerar')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Regenerar Recibo')
+                        ->modalDescription(fn (Payroll $record) => "Se recalcularán todos los ítems del recibo de {$record->employee->full_name}. Esta acción reemplazará los valores actuales.")
+                        ->modalSubmitActionLabel('Sí, regenerar')
+                        ->action(function (Payroll $record, PayrollService $payrollService) {
+                            try {
+                                $payrollService->regenerateForEmployee($record);
+
+                                Notification::make()
+                                    ->success()
+                                    ->title('Recibo regenerado')
+                                    ->body("El recibo de {$record->employee->full_name} ha sido recalculado exitosamente.")
+                                    ->send();
+                            } catch (\Throwable $e) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('Error al regenerar')
+                                    ->body('Ocurrió un error al regenerar el recibo: '.$e->getMessage())
+                                    ->send();
+                            }
+                        })
+                        ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
+
+                    DeleteAction::make()
+                        ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed')
+                        ->successNotificationTitle('Recibo eliminado exitosamente'),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -647,21 +727,22 @@ class PayrollsRelationManager extends RelationManager
                         ->label('Descargar PDFs')
                         ->icon('heroicon-o-document-arrow-down')
                         ->color('info')
-                        ->action(function (Collection $records) {
-                            $records->load('employee');
-                            $validRecords = $records->filter(
-                                fn (Payroll $r) => $r->pdf_path && Storage::disk('public')->exists($r->pdf_path)
-                            );
-
-                            if ($validRecords->isEmpty()) {
-                                Notification::make()
-                                    ->warning()
-                                    ->title('Sin PDFs disponibles')
-                                    ->body('Ninguno de los recibos seleccionados tiene PDF generado.')
-                                    ->send();
-
-                                return;
-                            }
+                        ->form([
+                            Radio::make('mode')
+                                ->label('Formato')
+                                ->options([
+                                    'print' => 'Para imprimir — 2 copias por hoja (A4 horizontal)',
+                                    'employee' => 'Para empleado — 1 copia por hoja (A4 vertical)',
+                                ])
+                                ->default('print')
+                                ->required(),
+                        ])
+                        ->modalHeading('Descargar PDFs Seleccionados')
+                        ->modalSubmitActionLabel('Descargar')
+                        ->action(function (Collection $records, array $data) {
+                            $records->load(['employee.activeContract.position.department', 'items']);
+                            $mode = $data['mode'];
+                            $generator = app(\App\Services\PayrollPDFGenerator::class);
 
                             $tempDir = storage_path('app/public/temp');
                             if (! is_dir($tempDir)) {
@@ -674,21 +755,49 @@ class PayrollsRelationManager extends RelationManager
                                 }
                             }
 
-                            $uniqueId = \Illuminate\Support\Str::uuid();
+                            $pdfs = [];
+                            foreach ($records as $record) {
+                                try {
+                                    if ($mode === 'print') {
+                                        if (! $record->pdf_path || ! Storage::disk('public')->exists($record->pdf_path)) {
+                                            $pdfPath = $generator->generate($record);
+                                            $record->update(['pdf_path' => $pdfPath]);
+                                            $record->pdf_path = $pdfPath;
+                                        }
+                                        if ($record->pdf_path && Storage::disk('public')->exists($record->pdf_path)) {
+                                            $pdfs[] = ['ci' => $record->employee->ci, 'id' => $record->id, 'content' => Storage::disk('public')->get($record->pdf_path)];
+                                        }
+                                    } else {
+                                        $pdfs[] = ['ci' => $record->employee->ci, 'id' => $record->id, 'content' => $generator->generateContent($record, 'employee')];
+                                    }
+                                } catch (\Throwable) {
+                                    // continúa con los que sí se pueden generar
+                                }
+                            }
 
-                            if ($validRecords->count() === 1) {
-                                $record = $validRecords->first();
-                                $filename = $uniqueId.'_recibo_'.$record->employee->ci.'.pdf';
-                                copy(Storage::disk('public')->path($record->pdf_path), $tempDir.'/'.$filename);
+                            if (empty($pdfs)) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Sin PDFs disponibles')
+                                    ->body('No se pudieron generar los PDFs de los recibos seleccionados.')
+                                    ->send();
+
+                                return;
+                            }
+
+                            $uniqueId = \Illuminate\Support\Str::uuid();
+                            $suffix = $mode === 'employee' ? '_empleado' : '';
+
+                            if (count($pdfs) === 1) {
+                                $pdf = $pdfs[0];
+                                $filename = $uniqueId.'_recibo'.$suffix.'_'.$pdf['ci'].'.pdf';
+                                file_put_contents($tempDir.'/'.$filename, $pdf['content']);
                             } else {
-                                $filename = $uniqueId.'_recibos_'.now()->format('d_m_Y_H_i_s').'.zip';
+                                $filename = $uniqueId.'_recibos'.$suffix.'_'.now()->format('d_m_Y_H_i_s').'.zip';
                                 $zip = new \ZipArchive;
                                 $zip->open($tempDir.'/'.$filename, \ZipArchive::CREATE | \ZipArchive::OVERWRITE);
-                                foreach ($validRecords as $record) {
-                                    $zip->addFromString(
-                                        'recibo_'.$record->employee->ci.'_'.$record->id.'.pdf',
-                                        Storage::disk('public')->get($record->pdf_path)
-                                    );
+                                foreach ($pdfs as $pdf) {
+                                    $zip->addFromString('recibo'.$suffix.'_'.$pdf['ci'].'_'.$pdf['id'].'.pdf', $pdf['content']);
                                 }
                                 $zip->close();
                             }

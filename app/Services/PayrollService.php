@@ -29,7 +29,7 @@ class PayrollService
         protected PayrollPDFGenerator $payrollPDFGenerator,
     ) {}
 
-    public function generateForPeriod(PayrollPeriod $period): int
+    public function generateForPeriod(PayrollPeriod $period, ?int $companyId = null): int
     {
         // Validar estado del período
         if (! in_array($period->status, ['draft', 'processing'])) {
@@ -42,8 +42,8 @@ class PayrollService
 
         $employees = Employee::query()
             ->where('status', 'active')
-            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
-            )
+            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary'))
+            ->when($companyId, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $companyId)))
             ->with('activeContract')
             ->get();
 

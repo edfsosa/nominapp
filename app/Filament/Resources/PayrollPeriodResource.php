@@ -20,12 +20,8 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -60,7 +56,7 @@ class PayrollPeriodResource extends Resource
                             ->placeholder('Se generará automáticamente según la frecuencia y fechas')
                             ->maxLength(255)
                             ->hiddenOn('create')
-                            ->columnSpan(2),
+                            ->columnSpan(1),
 
                         Select::make('frequency')
                             ->label('Frecuencia')
@@ -68,7 +64,7 @@ class PayrollPeriodResource extends Resource
                             ->native(false)
                             ->required()
                             ->live()
-                            ->columnSpan(fn (string $operation) => $operation === 'create' ? 3 : 1)
+                            ->columnSpan(fn (string $operation) => $operation === 'create' ? 2 : 1)
                             ->afterStateUpdated(function (?string $state, callable $set) {
                                 $now = now();
                                 match ($state) {
@@ -91,28 +87,16 @@ class PayrollPeriodResource extends Resource
                                     ],
                                     default => null,
                                 };
-                            })
-                            ->columnSpan(1),
+                            }),
 
-                        Textarea::make('notes')
-                            ->label('Notas')
-                            ->placeholder('Observaciones o comentarios sobre este período')
-                            ->rows(3)
-                            ->maxLength(65535)
-                            ->columnSpanFull(),
-                    ])
-                    ->columns(3),
-
-                Section::make('Fechas del Período')
-                    ->schema([
                         DatePicker::make('start_date')
                             ->label('Fecha de Inicio')
                             ->displayFormat('d/m/Y')
                             ->native(false)
                             ->closeOnDateSelection()
                             ->required()
-                            ->reactive()
-                            ->afterStateUpdated(fn ($state, callable $set) => $set('end_date', null))
+                            ->live()
+                            ->afterStateUpdated(fn (callable $set) => $set('end_date', null))
                             ->columnSpan(1),
 
                         DatePicker::make('end_date')
@@ -126,7 +110,7 @@ class PayrollPeriodResource extends Resource
                             ->helperText('La fecha de fin debe ser posterior a la fecha de inicio')
                             ->rules([
                                 function ($get, $record) {
-                                    return function (string $attribute, $value, \Closure $fail) use ($get, $record) {
+                                    return function (string $_attribute, $value, \Closure $fail) use ($get, $record) {
                                         $query = PayrollPeriod::where('frequency', $get('frequency'))
                                             ->where('start_date', $get('start_date'))
                                             ->where('end_date', $value);
@@ -142,6 +126,13 @@ class PayrollPeriodResource extends Resource
                                 },
                             ])
                             ->columnSpan(1),
+
+                        Textarea::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Observaciones o comentarios sobre este período')
+                            ->rows(1)
+                            ->maxLength(65535)
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
             ]);
@@ -318,7 +309,8 @@ class PayrollPeriodResource extends Resource
                     ->color('danger')
                     ->requiresConfirmation()
                     ->modalHeading('Cerrar Período de Nómina')
-                    ->modalDescription(fn (PayrollPeriod $record) => "¿Está seguro de cerrar el período {$record->name}? Una vez cerrado, no se podrán generar más recibos para este período."
+                    ->modalDescription(
+                        fn (PayrollPeriod $record) => "¿Está seguro de cerrar el período {$record->name}? Una vez cerrado, no se podrán generar más recibos para este período."
                     )
                     ->before(function (PayrollPeriod $record, Action $action) {
                         // Regla 1: no se puede cerrar si quedan recibos en borrador sin aprobar.
@@ -342,9 +334,11 @@ class PayrollPeriodResource extends Resource
                         $payrollEmployeeIds = $record->payrolls()->pluck('employee_id');
 
                         $missingCount = Employee::where('status', 'active')
-                            ->whereHas('activeContract', fn ($q) => $q
-                                ->where('payroll_type', $record->frequency)
-                                ->whereNotNull('salary')
+                            ->whereHas(
+                                'activeContract',
+                                fn ($q) => $q
+                                    ->where('payroll_type', $record->frequency)
+                                    ->whereNotNull('salary')
                             )
                             ->whereNotIn('id', $payrollEmployeeIds)
                             ->count();
@@ -381,7 +375,8 @@ class PayrollPeriodResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Reabrir Período de Nómina')
-                    ->modalDescription(fn (PayrollPeriod $record) => "¿Está seguro de reabrir el período {$record->name}? Esto permitirá generar o modificar recibos nuevamente."
+                    ->modalDescription(
+                        fn (PayrollPeriod $record) => "¿Está seguro de reabrir el período {$record->name}? Esto permitirá generar o modificar recibos nuevamente."
                     )
                     ->action(function (PayrollPeriod $record) {
                         $record->update([
@@ -396,19 +391,6 @@ class PayrollPeriodResource extends Resource
                             ->send();
                     })
                     ->visible(fn (PayrollPeriod $record) => $record->status === 'closed'),
-
-                ActionGroup::make([
-                    ViewAction::make(),
-
-                    // Períodos cerrados no son editables para proteger la integridad del flujo de nómina.
-                    EditAction::make()
-                        ->visible(fn (PayrollPeriod $record) => $record->status !== 'closed')
-                        ->color('primary'),
-
-                    // Solo se permiten eliminar períodos en borrador para evitar pérdida de datos importantes.
-                    DeleteAction::make()
-                        ->visible(fn (PayrollPeriod $record) => $record->status === 'draft'),
-                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -476,7 +458,8 @@ class PayrollPeriodResource extends Resource
                                 ->date('d/m/Y')
                                 ->icon('heroicon-o-calendar'),
                         ])->columns(2),
-                    ]),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Estado del Período')
                     ->schema([
@@ -498,7 +481,8 @@ class PayrollPeriodResource extends Resource
                             ->label('Notas')
                             ->placeholder('Sin notas')
                             ->columnSpanFull(),
-                    ]),
+                    ])
+                    ->collapsible(),
 
                 InfolistSection::make('Información del Sistema')
                     ->schema([
@@ -512,7 +496,7 @@ class PayrollPeriodResource extends Resource
                                 ->dateTime('d/m/Y H:i'),
                         ])->columns(2),
                     ])
-                    ->collapsed(),
+                    ->collapsible(),
             ]);
     }
 

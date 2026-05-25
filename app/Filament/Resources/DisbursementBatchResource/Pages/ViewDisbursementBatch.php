@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DisbursementBatchResource\Pages;
 
 use App\Filament\Resources\DisbursementBatchResource;
+use App\Filament\Resources\PayrollPeriodResource;
 use App\Models\CompanyBankAccount;
 use App\Models\DisbursementBatch;
 use App\Services\BankPaymentExportService;
@@ -217,7 +218,7 @@ class ViewDisbursementBatch extends ViewRecord
                             ->body($result['message'])
                             ->send();
 
-                        $this->refreshFormData(['status', 'confirmed_at', 'confirmed_by_id', 'bank_confirmation_path']);
+                        $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                     } else {
                         Notification::make()
                             ->danger()
@@ -258,6 +259,20 @@ class ViewDisbursementBatch extends ViewRecord
                             ->send();
                     }
                 }),
+
+            Action::make('view_period')
+                ->label('Ver Planilla')
+                ->icon('heroicon-o-arrow-top-right-on-square')
+                ->color('gray')
+                ->url(function () {
+                    $periodId = $this->record->payrolls()->value('payroll_period_id');
+
+                    return $periodId
+                        ? PayrollPeriodResource::getUrl('view', ['record' => $periodId])
+                        : null;
+                })
+                ->visible(fn () => $this->record->type === 'payroll'
+                    && $this->record->payrolls()->exists()),
         ];
     }
 }
