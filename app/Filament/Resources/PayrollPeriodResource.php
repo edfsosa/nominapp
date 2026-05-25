@@ -57,9 +57,9 @@ class PayrollPeriodResource extends Resource
                     ->schema([
                         TextInput::make('name')
                             ->label('Nombre')
-                            ->placeholder('Ejemplo: Enero 2024')
-                            ->helperText('Si se deja vacío, se generará automáticamente según la frecuencia y fechas.')
+                            ->placeholder('Se generará automáticamente según la frecuencia y fechas')
                             ->maxLength(255)
+                            ->hiddenOn('create')
                             ->columnSpan(2),
 
                         Select::make('frequency')
@@ -67,7 +67,31 @@ class PayrollPeriodResource extends Resource
                             ->options(PayrollPeriod::frequencyOptions())
                             ->native(false)
                             ->required()
-                            ->reactive()
+                            ->live()
+                            ->columnSpan(fn (string $operation) => $operation === 'create' ? 3 : 1)
+                            ->afterStateUpdated(function (?string $state, callable $set) {
+                                $now = now();
+                                match ($state) {
+                                    'monthly' => [
+                                        $set('start_date', $now->copy()->startOfMonth()->toDateString()),
+                                        $set('end_date', $now->copy()->endOfMonth()->toDateString()),
+                                    ],
+                                    'biweekly' => $now->day <= 15
+                                        ? [
+                                            $set('start_date', $now->copy()->startOfMonth()->toDateString()),
+                                            $set('end_date', $now->copy()->setDay(15)->toDateString()),
+                                        ]
+                                        : [
+                                            $set('start_date', $now->copy()->setDay(16)->toDateString()),
+                                            $set('end_date', $now->copy()->endOfMonth()->toDateString()),
+                                        ],
+                                    'weekly' => [
+                                        $set('start_date', $now->copy()->startOfWeek()->toDateString()),
+                                        $set('end_date', $now->copy()->endOfWeek()->toDateString()),
+                                    ],
+                                    default => null,
+                                };
+                            })
                             ->columnSpan(1),
 
                         Textarea::make('notes')

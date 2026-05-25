@@ -32,18 +32,11 @@ class CreatePayrollPeriod extends CreateRecord
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Limpiar espacios en blanco
-        if (isset($data['name'])) {
-            $data['name'] = trim($data['name']);
-        }
-
-        // Si no se proporciona un nombre, generar uno automáticamente
-        if (empty($data['name'])) {
-            $startDate = Carbon::parse($data['start_date']);
-            $endDate = Carbon::parse($data['end_date']);
-
-            $data['name'] = PayrollPeriod::generateName($data['frequency'], $startDate, $endDate);
-        }
+        $data['name'] = PayrollPeriod::generateName(
+            $data['frequency'],
+            Carbon::parse($data['start_date']),
+            Carbon::parse($data['end_date']),
+        );
 
         return $data;
     }
