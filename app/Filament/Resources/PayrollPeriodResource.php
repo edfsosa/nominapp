@@ -40,11 +40,11 @@ class PayrollPeriodResource extends Resource
 
     protected static ?string $navigationLabel = 'Planillas';
 
-    protected static ?string $label = 'Período';
+    protected static ?string $label = 'Planilla';
 
-    protected static ?string $pluralLabel = 'Períodos';
+    protected static ?string $pluralLabel = 'Planillas';
 
-    protected static ?string $slug = 'periodos';
+    protected static ?string $slug = 'planillas';
 
     protected static ?string $navigationIcon = 'heroicon-o-calendar-days';
 
