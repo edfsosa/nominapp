@@ -344,6 +344,7 @@ class DisbursementBatchResource extends Resource
     {
         return [
             RelationManagers\AdvancesRelationManager::class,
+            RelationManagers\PayrollsRelationManager::class,
         ];
     }
 

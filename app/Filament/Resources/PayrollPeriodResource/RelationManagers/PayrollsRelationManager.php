@@ -32,6 +32,7 @@ use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
+/** Muestra y gestiona los recibos de nómina de una planilla. */
 class PayrollsRelationManager extends RelationManager
 {
     protected static string $relationship = 'payrolls';
@@ -82,6 +83,14 @@ class PayrollsRelationManager extends RelationManager
                     ->badge()
                     ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
                     ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state)
+                    ->sortable(),
+
+                TextColumn::make('payment_method')
+                    ->label('Método')
+                    ->badge()
+                    ->color(fn (?string $state) => $state ? (Payroll::getPaymentMethodColors()[$state] ?? 'gray') : 'gray')
+                    ->icon(fn (?string $state) => $state ? (Payroll::getPaymentMethodIcons()[$state] ?? null) : null)
+                    ->formatStateUsing(fn (?string $state) => $state ? (Payroll::getPaymentMethodLabels()[$state] ?? $state) : '—')
                     ->sortable(),
 
                 TextColumn::make('base_salary')
@@ -157,9 +166,7 @@ class PayrollsRelationManager extends RelationManager
 
                 SelectFilter::make('position')
                     ->label('Cargo')
-                    ->options(function () {
-                        return Position::pluck('name', 'id');
-                    })
+                    ->options(fn () => Position::pluck('name', 'id'))
                     ->query(function (Builder $query, array $data) {
                         if (filled($data['value'])) {
                             return $query->whereHas('employee.activeContract', function (Builder $query) use ($data) {
@@ -174,6 +181,11 @@ class PayrollsRelationManager extends RelationManager
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(Payroll::getStatusLabels())
+                    ->native(false),
+
+                SelectFilter::make('payment_method')
+                    ->label('Método de pago')
+                    ->options(Payroll::getPaymentMethodOptions())
                     ->native(false),
 
                 Filter::make('generated_at')
@@ -258,6 +270,7 @@ class PayrollsRelationManager extends RelationManager
                     ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
                         && $this->getOwnerRecord()->payrolls()->where('status', 'draft')->exists()),
 
+                // Marca como pagados los recibos en efectivo (approved) y los ya acreditados (disbursed)
                 Action::make('mark_all_paid')
                     ->label('Marcar Todos Pagados')
                     ->icon('heroicon-o-banknotes')
@@ -266,13 +279,27 @@ class PayrollsRelationManager extends RelationManager
                     ->modalHeading('Marcar Todos como Pagados')
                     ->modalSubmitActionLabel('Sí, marcar como pagados')
                     ->modalDescription(function () {
-                        $count = $this->getOwnerRecord()->payrolls()->where('status', 'approved')->count();
+                        $cashCount = $this->getOwnerRecord()->payrolls()
+                            ->where('status', 'approved')->where('payment_method', 'cash')->count();
+                        $disbursedCount = $this->getOwnerRecord()->payrolls()
+                            ->where('status', 'disbursed')->count();
 
-                        return "Se marcarán {$count} recibos aprobados como pagados. ¿Desea continuar?";
+                        $parts = [];
+                        if ($cashCount > 0) {
+                            $parts[] = "{$cashCount} en efectivo aprobados";
+                        }
+                        if ($disbursedCount > 0) {
+                            $parts[] = "{$disbursedCount} acreditados";
+                        }
+
+                        return 'Se marcarán como pagados: '.implode(' y ', $parts).'. ¿Desea continuar?';
                     })
                     ->action(function () {
                         $count = $this->getOwnerRecord()->payrolls()
-                            ->where('status', 'approved')
+                            ->where(fn ($q) => $q
+                                ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
+                                ->orWhere('status', 'disbursed')
+                            )
                             ->update(['status' => 'paid']);
 
                         Notification::make()
@@ -281,7 +308,11 @@ class PayrollsRelationManager extends RelationManager
                             ->send();
                     })
                     ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
-                        && $this->getOwnerRecord()->payrolls()->where('status', 'approved')->exists()),
+                        && $this->getOwnerRecord()->payrolls()
+                            ->where(fn ($q) => $q
+                                ->where(fn ($q) => $q->where('status', 'approved')->where('payment_method', 'cash'))
+                                ->orWhere('status', 'disbursed')
+                            )->exists()),
 
                 ExportAction::make()
                     ->exports([
@@ -328,6 +359,28 @@ class PayrollsRelationManager extends RelationManager
                     })
                     ->visible(fn (Payroll $record) => $record->status === 'draft' && $this->getOwnerRecord()->status !== 'closed'),
 
+                // Transición manual approved → disbursed para transferencias (sin lote bancario)
+                Action::make('mark_disbursed')
+                    ->label('Marcar Acreditado')
+                    ->icon('heroicon-o-building-library')
+                    ->color('primary')
+                    ->requiresConfirmation()
+                    ->modalHeading('Marcar como Acreditado')
+                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} fue acreditado en cuenta bancaria?")
+                    ->modalSubmitActionLabel('Sí, marcar como acreditado')
+                    ->action(function (Payroll $record) {
+                        $record->update(['status' => 'disbursed']);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Recibo marcado como acreditado')
+                            ->send();
+                    })
+                    ->visible(fn (Payroll $record) => $record->status === 'approved'
+                        && $record->payment_method === 'transfer'
+                        && $this->getOwnerRecord()->status !== 'closed'),
+
+                // Marca como pagado: efectivo aprobado (sin pasar por disbursed) o transferencia ya acreditada
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
                     ->icon('heroicon-o-banknotes')
@@ -344,23 +397,55 @@ class PayrollsRelationManager extends RelationManager
                             ->title('Recibo marcado como pagado')
                             ->send();
                     })
-                    ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
+                    ->visible(fn (Payroll $record) => $this->getOwnerRecord()->status !== 'closed'
+                        && (
+                            ($record->status === 'approved' && $record->payment_method === 'cash')
+                            || $record->status === 'disbursed'
+                        )),
 
-                Action::make('revert_paid')
-                    ->label('Revertir Pago')
+                // Revierte disbursed → approved solo si no está en un lote bancario
+                Action::make('revert_disbursed')
+                    ->label('Revertir Acreditación')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
                     ->requiresConfirmation()
-                    ->modalHeading('Revertir Pago')
-                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalHeading('Revertir Acreditación')
+                    ->modalDescription(fn (Payroll $record) => "¿Revertir el recibo de {$record->employee->full_name} a Aprobado? Se quitará el estado de acreditado.")
                     ->modalSubmitActionLabel('Sí, revertir')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'approved']);
 
                         Notification::make()
                             ->success()
-                            ->title('Pago revertido')
+                            ->title('Acreditación revertida')
                             ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
+                            ->send();
+                    })
+                    ->visible(fn (Payroll $record) => $record->status === 'disbursed'
+                        && $record->disbursement_batch_id === null
+                        && $this->getOwnerRecord()->status !== 'closed'),
+
+                // Revierte paid → disbursed (transferencia) o paid → approved (efectivo)
+                Action::make('revert_paid')
+                    ->label('Revertir Pago')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Revertir Pago')
+                    ->modalDescription(fn (Payroll $record) => $record->payment_method === 'transfer'
+                        ? "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Acreditado."
+                        : "¿Revertir el pago de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalSubmitActionLabel('Sí, revertir')
+                    ->action(function (Payroll $record) {
+                        $newStatus = $record->payment_method === 'transfer' ? 'disbursed' : 'approved';
+                        $record->update(['status' => $newStatus]);
+
+                        $label = $newStatus === 'disbursed' ? 'Acreditado' : 'Aprobado';
+
+                        Notification::make()
+                            ->success()
+                            ->title('Pago revertido')
+                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado {$label}.")
                             ->send();
                     })
                     ->visible(fn (Payroll $record) => $record->status === 'paid' && $this->getOwnerRecord()->status !== 'closed'),
@@ -450,18 +535,46 @@ class PayrollsRelationManager extends RelationManager
                         ->deselectRecordsAfterCompletion()
                         ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
 
+                    BulkAction::make('mark_disbursed_selected')
+                        ->label('Marcar Acreditados')
+                        ->icon('heroicon-o-building-library')
+                        ->color('primary')
+                        ->requiresConfirmation()
+                        ->modalHeading('Marcar como Acreditados')
+                        ->modalDescription('Solo se marcarán los recibos de transferencia en estado "Aprobado".')
+                        ->modalSubmitActionLabel('Sí, marcar como acreditados')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'approved' && $record->payment_method === 'transfer') {
+                                    $record->update(['status' => 'disbursed']);
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} recibos marcados como acreditados")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion()
+                        ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'),
+
+                    // Marca como pagados: efectivo aprobado o cualquier recibo acreditado
                     BulkAction::make('mark_paid_selected')
                         ->label('Marcar Pagados')
                         ->icon('heroicon-o-banknotes')
                         ->color('info')
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Pagados')
-                        ->modalDescription('Solo se marcarán los recibos en estado "Aprobado".')
+                        ->modalDescription('Se marcarán como pagados los recibos en efectivo "Aprobados" y los "Acreditados".')
                         ->modalSubmitActionLabel('Sí, marcar como pagados')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if ($record->status === 'approved') {
+                                $eligible = ($record->status === 'approved' && $record->payment_method === 'cash')
+                                    || $record->status === 'disbursed';
+                                if ($eligible) {
                                     $record->update(['status' => 'paid']);
                                     $count++;
                                 }
@@ -474,19 +587,21 @@ class PayrollsRelationManager extends RelationManager
                         })
                         ->deselectRecordsAfterCompletion(),
 
+                    // Revierte paid → disbursed (transferencia) o paid → approved (efectivo)
                     BulkAction::make('revert_paid_selected')
                         ->label('Revertir Pagos')
                         ->icon('heroicon-o-arrow-uturn-left')
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Revertir Pagos Seleccionados')
-                        ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Aprobado.')
+                        ->modalDescription('Las transferencias volverán a "Acreditado"; los recibos de efectivo volverán a "Aprobado".')
                         ->modalSubmitActionLabel('Sí, revertir')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
                                 if ($record->status === 'paid') {
-                                    $record->update(['status' => 'approved']);
+                                    $newStatus = $record->payment_method === 'transfer' ? 'disbursed' : 'approved';
+                                    $record->update(['status' => $newStatus]);
                                     $count++;
                                 }
                             }
@@ -553,7 +668,6 @@ class PayrollsRelationManager extends RelationManager
                                 mkdir($tempDir, 0755, true);
                             }
 
-                            // Limpiar archivos temporales de más de 1 hora
                             foreach (glob($tempDir.'/*.{pdf,zip}', GLOB_BRACE) as $file) {
                                 if (is_file($file) && (time() - filemtime($file)) > 3600) {
                                     @unlink($file);
@@ -602,7 +716,7 @@ class PayrollsRelationManager extends RelationManager
                 ]),
             ])
             ->emptyStateHeading('No hay recibos generados')
-            ->emptyStateDescription('Los recibos aparecerán aquí una vez que se generen desde el período.')
+            ->emptyStateDescription('Los recibos aparecerán aquí una vez que se generen desde la planilla.')
             ->emptyStateIcon('heroicon-o-document-text')
             ->defaultSort('generated_at', 'desc');
     }
@@ -687,10 +801,16 @@ class PayrollsRelationManager extends RelationManager
                                 ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
                                 ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
 
+                            TextEntry::make('payment_method')
+                                ->label('Método de Pago')
+                                ->badge()
+                                ->color(fn (?string $state) => $state ? (Payroll::getPaymentMethodColors()[$state] ?? 'gray') : 'gray')
+                                ->formatStateUsing(fn (?string $state) => $state ? (Payroll::getPaymentMethodLabels()[$state] ?? $state) : '—'),
+
                             TextEntry::make('approvedBy.name')
                                 ->label('Aprobado por')
                                 ->placeholder('Sin aprobar'),
-                        ])->columns(2),
+                        ])->columns(3),
                     ]),
 
                 Section::make('Información Adicional')

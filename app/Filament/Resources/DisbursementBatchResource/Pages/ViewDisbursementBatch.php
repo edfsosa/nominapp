@@ -80,12 +80,21 @@ class ViewDisbursementBatch extends ViewRecord
                 ->modalHeading('Generar archivo TXT Itaú')
                 ->modalDescription(function () {
                     $batch = $this->record;
-                    $advances = $batch->advances()->where('status', 'approved');
-                    $count = $advances->count();
-                    $total = number_format((float) $advances->sum('amount'), 0, ',', '.');
                     $fecha = $batch->fecha_credito->format('d/m/Y');
 
-                    return "Se generará el archivo para acreditación bancaria del {$fecha} con {$count} ".($count === 1 ? 'adelanto' : 'adelantos')." por un total de Gs. {$total}.";
+                    if ($batch->type === 'payroll') {
+                        $items = $batch->payrolls()->where('status', 'approved');
+                        $count = $items->count();
+                        $total = number_format((float) $items->sum('net_salary'), 0, ',', '.');
+                        $noun = $count === 1 ? 'recibo' : 'recibos';
+                    } else {
+                        $items = $batch->advances()->where('status', 'approved');
+                        $count = $items->count();
+                        $total = number_format((float) $items->sum('amount'), 0, ',', '.');
+                        $noun = $count === 1 ? 'adelanto' : 'adelantos';
+                    }
+
+                    return "Se generará el archivo para acreditación bancaria del {$fecha} con {$count} {$noun} por un total de Gs. {$total}.";
                 })
                 ->modalSubmitActionLabel('Descargar')
                 ->action(function (Action $action) {
@@ -117,15 +126,28 @@ class ViewDisbursementBatch extends ViewRecord
                         return;
                     }
 
-                    $advances = $batch->advances()
-                        ->where('status', 'approved')
-                        ->with(['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')])
-                        ->get();
+                    $withBankAccounts = ['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')];
 
-                    if ($advances->isEmpty()) {
+                    if ($batch->type === 'payroll') {
+                        $items = $batch->payrolls()
+                            ->where('status', 'approved')
+                            ->with($withBankAccounts)
+                            ->get();
+                        $emptyMessage = 'No hay recibos aprobados en este lote para generar el TXT.';
+                        $emptyTitle = 'Sin recibos disponibles';
+                    } else {
+                        $items = $batch->advances()
+                            ->where('status', 'approved')
+                            ->with($withBankAccounts)
+                            ->get();
+                        $emptyMessage = 'No hay adelantos aprobados en este lote para generar el TXT.';
+                        $emptyTitle = 'Sin adelantos disponibles';
+                    }
+
+                    if ($items->isEmpty()) {
                         Notification::make()->warning()
-                            ->title('Sin adelantos disponibles')
-                            ->body('No hay adelantos aprobados en este lote para generar el TXT.')
+                            ->title($emptyTitle)
+                            ->body($emptyMessage)
                             ->send();
                         $action->halt();
 
@@ -140,7 +162,7 @@ class ViewDisbursementBatch extends ViewRecord
                         'fecha_credito' => $batch->fecha_credito->format('Y-m-d'),
                     ];
 
-                    $content = app(BankPaymentExportService::class)->generateTxt($params, $advances, stampDate: false);
+                    $content = app(BankPaymentExportService::class)->generateTxt($params, $items, stampDate: false);
 
                     // Guarda el TXT en storage y registra la ruta en el lote.
                     $filename = 'TRANSFER_'.$batch->id.'_'.now()->format('Y_m_d_H_i_s').'.txt';
@@ -162,7 +184,10 @@ class ViewDisbursementBatch extends ViewRecord
                 ->color('success')
                 ->visible(fn () => $this->record->isPending())
                 ->modalHeading('Confirmar resultado bancario')
-                ->modalDescription(fn () => 'Adjuntá el comprobante del banco y marcá los adelantos rechazados desde la tabla antes de confirmar. Los adelantos no rechazados quedarán como Entregados.')
+                ->modalDescription(fn () => $this->record->type === 'payroll'
+                    ? 'Adjuntá el comprobante del banco. Los recibos no rechazados quedarán como Acreditados.'
+                    : 'Adjuntá el comprobante del banco y marcá los adelantos rechazados desde la tabla antes de confirmar. Los adelantos no rechazados quedarán como Entregados.'
+                )
                 ->modalSubmitActionLabel('Confirmar')
                 ->form([
                     FileUpload::make('bank_confirmation_path')
@@ -209,7 +234,10 @@ class ViewDisbursementBatch extends ViewRecord
                 ->visible(fn () => $this->record->isPending())
                 ->requiresConfirmation()
                 ->modalHeading('Cancelar lote de pago')
-                ->modalDescription(fn () => 'Se cancelará el lote y los adelantos incluidos quedarán disponibles para ser asignados a otro lote. ¿Confirmar?')
+                ->modalDescription(fn () => $this->record->type === 'payroll'
+                    ? 'Se cancelará el lote y los recibos incluidos quedarán disponibles para ser asignados a otro lote. ¿Confirmar?'
+                    : 'Se cancelará el lote y los adelantos incluidos quedarán disponibles para ser asignados a otro lote. ¿Confirmar?'
+                )
                 ->modalSubmitActionLabel('Sí, cancelar lote')
                 ->action(function () {
                     $result = $this->record->cancel();

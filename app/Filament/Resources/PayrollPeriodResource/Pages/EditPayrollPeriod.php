@@ -29,9 +29,8 @@ class EditPayrollPeriod extends EditRecord
                 ->requiresConfirmation()
                 ->modalHeading('Generar Recibos de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de generar los recibos de nómina para el período {$this->record->name}? " .
-                        "Esta acción creará recibos para los empleados activos que aún no tengan uno en este período."
+                    fn () => "¿Está seguro de generar los recibos de nómina para la planilla {$this->record->name}? ".
+                        'Esta acción creará recibos para los empleados activos que aún no tengan uno en este período.'
                 )
                 ->action(function (PayrollService $payrollService) {
                     $count = $payrollService->generateForPeriod($this->record);
@@ -55,11 +54,11 @@ class EditPayrollPeriod extends EditRecord
                         Notification::make()
                             ->warning()
                             ->title('No se generaron recibos')
-                            ->body('Todos los empleados activos ya tienen recibo en este período.')
+                            ->body('Todos los empleados activos ya tienen recibo en esta planilla.')
                             ->send();
                     }
                 })
-                ->visible(fn() => in_array($this->record->status, ['draft', 'processing'])),
+                ->visible(fn () => in_array($this->record->status, ['draft', 'processing'])),
 
             Action::make('regenerate_payrolls')
                 ->label('Regenerar Recibos')
@@ -68,9 +67,8 @@ class EditPayrollPeriod extends EditRecord
                 ->requiresConfirmation()
                 ->modalHeading('Regenerar Todos los Recibos')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de regenerar TODOS los recibos del período {$this->record->name}? " .
-                        "Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador."
+                    fn () => "¿Está seguro de regenerar TODOS los recibos de la planilla {$this->record->name}? ".
+                        'Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador.'
                 )
                 ->action(function (PayrollService $payrollService) {
                     $payrolls = $this->record->payrolls()->where('status', 'draft')->with('employee')->get();
@@ -81,6 +79,7 @@ class EditPayrollPeriod extends EditRecord
                             ->title('Sin recibos para regenerar')
                             ->body('No hay recibos en estado borrador para regenerar.')
                             ->send();
+
                         return;
                     }
 
@@ -96,11 +95,11 @@ class EditPayrollPeriod extends EditRecord
                         }
                     }
 
-                    if (!empty($failedEmployees)) {
+                    if (! empty($failedEmployees)) {
                         $names = implode(', ', $failedEmployees);
                         Notification::make()
                             ->warning()
-                            ->title("Regeneración parcial")
+                            ->title('Regeneración parcial')
                             ->body("Se regeneraron {$count} recibos. Fallaron: {$names}. Revise el log para más detalles.")
                             ->duration(10000)
                             ->send();
@@ -112,26 +111,27 @@ class EditPayrollPeriod extends EditRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
+                ->visible(fn () => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
 
             Action::make('revert_to_draft')
                 ->label('Revertir a Borrador')
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('gray')
                 ->requiresConfirmation()
-                ->modalHeading('Revertir período a Borrador')
+                ->modalHeading('Revertir planilla a Borrador')
                 ->modalDescription(function () {
                     $draftCount = $this->record->payrolls()->where('status', 'draft')->count();
-                    return "Esta acción revertirá el período \"{$this->record->name}\" a estado Borrador " .
-                        "y eliminará los {$draftCount} recibo(s) en borrador. " .
-                        "Los recibos aprobados o pagados impiden esta acción.";
+
+                    return "Esta acción revertirá la planilla \"{$this->record->name}\" a estado Borrador ".
+                        "y eliminará los {$draftCount} recibo(s) en borrador. ".
+                        'Los recibos aprobados o pagados impiden esta acción.';
                 })
                 ->before(function (Action $action) {
                     $blockedCount = $this->record->payrolls()->whereIn('status', ['approved', 'paid'])->count();
                     if ($blockedCount > 0) {
                         Notification::make()
                             ->danger()
-                            ->title('No se puede revertir el período')
+                            ->title('No se puede revertir la planilla')
                             ->body("Hay {$blockedCount} recibo(s) aprobado(s) o pagado(s). Solo se puede revertir si todos los recibos están en borrador.")
                             ->duration(10000)
                             ->send();
@@ -144,24 +144,23 @@ class EditPayrollPeriod extends EditRecord
 
                     Notification::make()
                         ->success()
-                        ->title('Período revertido a Borrador')
-                        ->body("Se eliminaron {$deleted} recibo(s) en borrador y el período volvió a estado Borrador.")
+                        ->title('Planilla revertida a Borrador')
+                        ->body("Se eliminaron {$deleted} recibo(s) en borrador y la planilla volvió a estado Borrador.")
                         ->send();
 
                     $this->refreshFormData(['status', 'updated_at']);
                 })
-                ->visible(fn() => $this->record->status === 'processing'),
+                ->visible(fn () => $this->record->status === 'processing'),
 
             Action::make('close_period')
-                ->label('Cerrar Período')
+                ->label('Cerrar Planilla')
                 ->icon('heroicon-o-lock-closed')
                 ->color('danger')
                 ->requiresConfirmation()
-                ->modalHeading('Cerrar Período de Nómina')
+                ->modalHeading('Cerrar Planilla de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de cerrar el período {$this->record->name}? " .
-                        "Una vez cerrado, no se podrán generar más recibos ni realizar modificaciones."
+                    fn () => "¿Está seguro de cerrar la planilla {$this->record->name}? ".
+                        'Una vez cerrada, no se podrán generar más recibos ni realizar modificaciones.'
                 )
                 ->before(function (Action $action) {
                     // Regla 1: no se puede cerrar si quedan recibos sin pagar.
@@ -170,21 +169,22 @@ class EditPayrollPeriod extends EditRecord
                     if ($unpaidCount > 0) {
                         Notification::make()
                             ->danger()
-                            ->title('No se puede cerrar el período')
-                            ->body("Hay {$unpaidCount} recibo(s) que aún no están en estado pagado. Pague todos los recibos antes de cerrar el período.")
+                            ->title('No se puede cerrar la planilla')
+                            ->body("Hay {$unpaidCount} recibo(s) que aún no están en estado pagado. Pague todos los recibos antes de cerrar la planilla.")
                             ->duration(10000)
                             ->send();
 
                         $action->cancel();
+
                         return;
                     }
 
-                    // Regla 2: no se puede cerrar si hay empleados activos sin recibo en este período.
+                    // Regla 2: no se puede cerrar si hay empleados activos sin recibo en esta planilla.
                     // Usa los mismos filtros que generateForPeriod() para garantizar consistencia.
                     $payrollEmployeeIds = $this->record->payrolls()->pluck('employee_id');
 
                     $missingCount = Employee::where('status', 'active')
-                        ->whereHas('activeContract', fn($q) => $q
+                        ->whereHas('activeContract', fn ($q) => $q
                             ->where('payroll_type', $this->record->frequency)
                             ->whereNotNull('salary')
                         )
@@ -195,7 +195,7 @@ class EditPayrollPeriod extends EditRecord
                         Notification::make()
                             ->warning()
                             ->title('Hay empleados sin recibo')
-                            ->body("Hay {$missingCount} empleado(s) activo(s) sin recibo en este período. Use 'Generar Recibos' antes de cerrar.")
+                            ->body("Hay {$missingCount} empleado(s) activo(s) sin recibo en esta planilla. Use 'Generar Recibos' antes de cerrar.")
                             ->duration(10000)
                             ->send();
 
@@ -210,27 +210,26 @@ class EditPayrollPeriod extends EditRecord
 
                     Notification::make()
                         ->success()
-                        ->title('Período cerrado')
-                        ->body("El período {$this->record->name} ha sido cerrado exitosamente.")
+                        ->title('Planilla cerrada')
+                        ->body("La planilla {$this->record->name} ha sido cerrada exitosamente.")
                         ->send();
 
                     return redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
                 // Visible solo cuando todos los recibos del período están pagados.
-                ->visible(fn() => $this->record->status === 'processing'
+                ->visible(fn () => $this->record->status === 'processing'
                     && $this->record->payrolls()->exists()
                     && $this->record->payrolls()->whereNot('status', 'paid')->doesntExist()),
 
             Action::make('reopen_period')
-                ->label('Reabrir Período')
+                ->label('Reabrir Planilla')
                 ->icon('heroicon-o-lock-open')
                 ->color('warning')
                 ->requiresConfirmation()
-                ->modalHeading('Reabrir Período de Nómina')
+                ->modalHeading('Reabrir Planilla de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de reabrir el período {$this->record->name}? " .
-                        "Esto permitirá realizar modificaciones nuevamente."
+                    fn () => "¿Está seguro de reabrir la planilla {$this->record->name}? ".
+                        'Esto permitirá realizar modificaciones nuevamente.'
                 )
                 ->action(function () {
                     $this->record->update([
@@ -240,8 +239,8 @@ class EditPayrollPeriod extends EditRecord
 
                     Notification::make()
                         ->success()
-                        ->title('Período reabierto')
-                        ->body("El período {$this->record->name} ha sido reabierto exitosamente.")
+                        ->title('Planilla reabierta')
+                        ->body("La planilla {$this->record->name} ha sido reabierta exitosamente.")
                         ->send();
 
                     $this->refreshFormData([
@@ -250,22 +249,21 @@ class EditPayrollPeriod extends EditRecord
                         'updated_at',
                     ]);
                 })
-                ->visible(fn() => $this->record->status === 'closed'),
+                ->visible(fn () => $this->record->status === 'closed'),
 
             DeleteAction::make()
-                ->visible(fn() => $this->record->status === 'draft')
+                ->visible(fn () => $this->record->status === 'draft')
                 ->requiresConfirmation()
-                ->modalHeading('Eliminar Período de Nómina')
+                ->modalHeading('Eliminar Planilla de Nómina')
                 ->modalDescription(
-                    fn() =>
-                    "¿Está seguro de eliminar el período {$this->record->name}? " .
-                        "Esta acción no se puede deshacer."
+                    fn () => "¿Está seguro de eliminar la planilla {$this->record->name}? ".
+                        'Esta acción no se puede deshacer.'
                 )
                 ->successNotification(
                     Notification::make()
                         ->success()
-                        ->title('Período eliminado')
-                        ->body('El período ha sido eliminado correctamente.')
+                        ->title('Planilla eliminada')
+                        ->body('La planilla ha sido eliminada correctamente.')
                 ),
         ];
     }
@@ -274,8 +272,8 @@ class EditPayrollPeriod extends EditRecord
     {
         return Notification::make()
             ->success()
-            ->title('Período actualizado')
-            ->body("El período \"{$this->record->name}\" ha sido actualizado correctamente.");
+            ->title('Planilla actualizada')
+            ->body("La planilla \"{$this->record->name}\" ha sido actualizada correctamente.");
     }
 
     protected function mutateFormDataBeforeSave(array $data): array
@@ -299,12 +297,12 @@ class EditPayrollPeriod extends EditRecord
 
     protected function mutateFormDataBeforeFill(array $data): array
     {
-        // Evitar que se modifiquen períodos cerrados
+        // Evitar que se modifiquen planillas cerradas
         if ($this->record->status === 'closed') {
             Notification::make()
                 ->warning()
-                ->title('Período cerrado')
-                ->body('Este período está cerrado y no puede ser modificado.')
+                ->title('Planilla cerrada')
+                ->body('Esta planilla está cerrada y no puede ser modificada.')
                 ->persistent()
                 ->send();
         }

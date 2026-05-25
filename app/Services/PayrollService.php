@@ -122,6 +122,7 @@ class PayrollService
                     'gross_salary' => $baseSalary + $totalPerceptions,
                     'generated_at' => now(),
                     'status' => 'draft',
+                    'payment_method' => $employee->activeContract?->payment_method === 'cash' ? 'cash' : 'transfer',
                 ]);
 
                 // Ítems: percepciones (incluyendo descanso remunerado y bonificación familiar si aplican)
@@ -286,6 +287,7 @@ class PayrollService
                 'net_salary' => $netSalary,
                 'generated_at' => now(),
                 'status' => 'draft',
+                'payment_method' => $employee->activeContract?->payment_method === 'cash' ? 'cash' : 'transfer',
             ]);
 
             foreach (array_merge($perceptions['items'], $extras['items'], $restDay['items'], $familyBonus['items']) as $item) {

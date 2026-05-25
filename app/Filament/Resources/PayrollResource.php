@@ -84,6 +84,14 @@ class PayrollResource extends Resource
                     ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state)
                     ->sortable(),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->color(fn ($state) => Payroll::getPaymentMethodColors()[$state] ?? 'gray')
+                    ->formatStateUsing(fn ($state) => $state ? (Payroll::getPaymentMethodLabels()[$state] ?? $state) : '—')
+                    ->icon(fn ($state) => Payroll::getPaymentMethodIcons()[$state] ?? null)
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('base_salary')
                     ->label('Salario Base / Jornal')
                     ->money('PYG', locale: 'es_PY')
@@ -172,6 +180,11 @@ class PayrollResource extends Resource
                     ->options(Payroll::getStatusLabels())
                     ->native(false),
 
+                SelectFilter::make('payment_method')
+                    ->label('Método de pago')
+                    ->options(Payroll::getPaymentMethodOptions())
+                    ->native(false),
+
                 Filter::make('current_year')
                     ->label('Año Actual')
                     ->query(fn ($query) => $query->whereHas('period', function ($q) {
@@ -209,13 +222,32 @@ class PayrollResource extends Resource
                     })
                     ->visible(fn (Payroll $record) => $record->status === 'draft'),
 
+                Action::make('mark_disbursed')
+                    ->label('Marcar Acreditado')
+                    ->icon('heroicon-o-building-library')
+                    ->color('info')
+                    ->requiresConfirmation()
+                    ->modalHeading('Marcar como Acreditado')
+                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el pago de {$record->employee->full_name} fue acreditado/entregado?")
+                    ->modalSubmitActionLabel('Sí, acreditar')
+                    ->action(function (Payroll $record) {
+                        $result = $record->markAsDisbursed(Auth::id());
+
+                        Notification::make()
+                            ->{$result['success'] ? 'success' : 'danger'}()
+                            ->title($result['success'] ? 'Recibo acreditado' : 'Error')
+                            ->body($result['message'])
+                            ->send();
+                    })
+                    ->visible(fn (Payroll $record) => $record->isApproved()),
+
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
                     ->icon('heroicon-o-banknotes')
-                    ->color('info')
+                    ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('Marcar como Pagado')
-                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
+                    ->modalDescription(fn (Payroll $record) => "¿Confirma que el banco acreditó el pago de {$record->employee->full_name}?")
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Payroll $record) {
                         $record->update(['status' => 'paid']);
@@ -225,7 +257,7 @@ class PayrollResource extends Resource
                             ->title('Recibo marcado como pagado')
                             ->send();
                     })
-                    ->visible(fn (Payroll $record) => $record->status === 'approved'),
+                    ->visible(fn (Payroll $record) => $record->isDisbursed()),
 
                 Action::make('revert_paid')
                     ->label('Revertir Pago')
@@ -233,18 +265,37 @@ class PayrollResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Revertir Pago')
-                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Aprobado.")
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el pago del recibo de {$record->employee->full_name}? Volverá a estado Acreditado.")
                     ->modalSubmitActionLabel('Sí, revertir')
                     ->action(function (Payroll $record) {
-                        $record->update(['status' => 'approved']);
+                        $record->update(['status' => 'disbursed']);
 
                         Notification::make()
                             ->success()
                             ->title('Pago revertido')
-                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Aprobado.")
+                            ->body("El recibo de {$record->employee->full_name} ha vuelto a estado Acreditado.")
                             ->send();
                     })
-                    ->visible(fn (Payroll $record) => $record->status === 'paid'),
+                    ->visible(fn (Payroll $record) => $record->isPaid()),
+
+                Action::make('revert_to_approved')
+                    ->label('Revertir a Aprobado')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('Revertir a Aprobado')
+                    ->modalDescription(fn (Payroll $record) => "¿Está seguro de revertir el recibo de {$record->employee->full_name} a estado Aprobado?")
+                    ->modalSubmitActionLabel('Sí, revertir')
+                    ->action(function (Payroll $record) {
+                        $result = $record->revertToApproved();
+
+                        Notification::make()
+                            ->{$result['success'] ? 'success' : 'danger'}()
+                            ->title($result['success'] ? 'Recibo revertido' : 'No se pudo revertir')
+                            ->body($result['message'])
+                            ->send();
+                    })
+                    ->visible(fn (Payroll $record) => $record->isDisbursed() && $record->disbursement_batch_id === null),
 
                 Action::make('unapprove')
                     ->label('Desaprobar')
@@ -329,18 +380,42 @@ class PayrollResource extends Resource
                         })
                         ->deselectRecordsAfterCompletion(),
 
+                    BulkAction::make('mark_disbursed_selected')
+                        ->label('Marcar Acreditados')
+                        ->icon('heroicon-o-building-library')
+                        ->color('info')
+                        ->requiresConfirmation()
+                        ->modalHeading('Marcar como Acreditados')
+                        ->modalDescription('¿Confirma que los recibos seleccionados fueron acreditados/entregados? Solo se procesarán los que estén en estado "Aprobado".')
+                        ->modalSubmitActionLabel('Sí, acreditar')
+                        ->action(function (Collection $records) {
+                            $count = 0;
+                            foreach ($records as $record) {
+                                if ($record->isApproved()) {
+                                    $record->markAsDisbursed(Auth::id());
+                                    $count++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title("{$count} recibos marcados como acreditados")
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     BulkAction::make('mark_paid_selected')
                         ->label('Marcar Pagados')
                         ->icon('heroicon-o-banknotes')
-                        ->color('info')
+                        ->color('success')
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Pagados')
-                        ->modalDescription('¿Confirma que los recibos seleccionados han sido pagados? Solo se marcarán los que estén en estado "Aprobado".')
+                        ->modalDescription('¿Confirma que los recibos seleccionados han sido pagados? Solo se marcarán los que estén en estado "Acreditado".')
                         ->modalSubmitActionLabel('Sí, marcar como pagados')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if ($record->status === 'approved') {
+                                if ($record->isDisbursed()) {
                                     $record->update(['status' => 'paid']);
                                     $count++;
                                 }
@@ -359,20 +434,20 @@ class PayrollResource extends Resource
                         ->color('warning')
                         ->requiresConfirmation()
                         ->modalHeading('Revertir Pagos Seleccionados')
-                        ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Aprobado.')
+                        ->modalDescription('¿Está seguro? Solo se revertirán los recibos en estado "Pagado". Volverán a estado Acreditado.')
                         ->modalSubmitActionLabel('Sí, revertir')
                         ->action(function (Collection $records) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if ($record->status === 'paid') {
-                                    $record->update(['status' => 'approved']);
+                                if ($record->isPaid()) {
+                                    $record->update(['status' => 'disbursed']);
                                     $count++;
                                 }
                             }
 
                             Notification::make()
                                 ->success()
-                                ->title("{$count} pagos revertidos")
+                                ->title("{$count} pagos revertidos a Acreditado")
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),

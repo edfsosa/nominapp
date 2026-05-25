@@ -50,13 +50,34 @@ class ViewPayroll extends ViewRecord
                 })
                 ->visible(fn () => $this->record->status === 'draft'),
 
+            Action::make('mark_disbursed')
+                ->label('Marcar Acreditado')
+                ->icon('heroicon-o-building-library')
+                ->color('info')
+                ->requiresConfirmation()
+                ->modalHeading('Marcar como Acreditado')
+                ->modalDescription(fn () => "¿Confirma que el pago de {$this->record->employee->full_name} fue acreditado o entregado?")
+                ->modalSubmitActionLabel('Sí, acreditar')
+                ->action(function () {
+                    $result = $this->record->markAsDisbursed(Auth::id());
+
+                    Notification::make()
+                        ->{$result['success'] ? 'success' : 'danger'}()
+                        ->title($result['success'] ? 'Recibo acreditado' : 'Error')
+                        ->body($result['message'])
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                })
+                ->visible(fn () => $this->record->isApproved()),
+
             Action::make('mark_paid')
                 ->label('Marcar Pagado')
                 ->icon('heroicon-o-banknotes')
-                ->color('info')
+                ->color('success')
                 ->requiresConfirmation()
                 ->modalHeading('Marcar como Pagado')
-                ->modalDescription(fn () => "¿Confirma que el recibo de {$this->record->employee->full_name} ha sido pagado?")
+                ->modalDescription(fn () => "¿Confirma que el banco procesó el pago de {$this->record->employee->full_name}?")
                 ->modalSubmitActionLabel('Sí, marcar como pagado')
                 ->action(function () {
                     $this->record->update(['status' => 'paid']);
@@ -68,7 +89,7 @@ class ViewPayroll extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn () => $this->record->status === 'approved'),
+                ->visible(fn () => $this->record->isDisbursed()),
 
             Action::make('revert_paid')
                 ->label('Revertir Pago')
@@ -76,20 +97,41 @@ class ViewPayroll extends ViewRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('Revertir Pago')
-                ->modalDescription(fn () => "¿Está seguro de revertir el pago del recibo de {$this->record->employee->full_name}? Volverá a estado Aprobado.")
+                ->modalDescription(fn () => "¿Está seguro de revertir el pago del recibo de {$this->record->employee->full_name}? Volverá a estado Acreditado.")
                 ->modalSubmitActionLabel('Sí, revertir')
                 ->action(function () {
-                    $this->record->update(['status' => 'approved']);
+                    $this->record->update(['status' => 'disbursed']);
 
                     Notification::make()
                         ->success()
                         ->title('Pago revertido')
-                        ->body('El recibo ha vuelto a estado Aprobado.')
+                        ->body('El recibo ha vuelto a estado Acreditado.')
                         ->send();
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn () => $this->record->status === 'paid'),
+                ->visible(fn () => $this->record->isPaid()),
+
+            Action::make('revert_to_approved')
+                ->label('Revertir a Aprobado')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('gray')
+                ->requiresConfirmation()
+                ->modalHeading('Revertir a Aprobado')
+                ->modalDescription(fn () => "¿Está seguro de revertir el recibo de {$this->record->employee->full_name} a estado Aprobado?")
+                ->modalSubmitActionLabel('Sí, revertir')
+                ->action(function () {
+                    $result = $this->record->revertToApproved();
+
+                    Notification::make()
+                        ->{$result['success'] ? 'success' : 'danger'}()
+                        ->title($result['success'] ? 'Recibo revertido' : 'No se pudo revertir')
+                        ->body($result['message'])
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                })
+                ->visible(fn () => $this->record->isDisbursed() && $this->record->disbursement_batch_id === null),
 
             Action::make('unapprove')
                 ->label('Desaprobar')
@@ -114,7 +156,7 @@ class ViewPayroll extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn () => $this->record->status === 'approved'),
+                ->visible(fn () => $this->record->isApproved()),
 
             Action::make('regenerate')
                 ->label('Regenerar')

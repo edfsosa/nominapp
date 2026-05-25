@@ -54,6 +54,12 @@ class DisbursementBatch extends Model
         return $this->hasMany(Advance::class);
     }
 
+    /** Recibos de nómina incluidos en el lote. */
+    public function payrolls(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Payroll::class);
+    }
+
     /** Usuario que creó el lote. */
     public function createdBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -156,6 +162,7 @@ class DisbursementBatch extends Model
     {
         return [
             'advances' => 'Adelantos de salario',
+            'payroll' => 'Planilla de salarios',
         ];
     }
 
@@ -163,6 +170,7 @@ class DisbursementBatch extends Model
     {
         return match ($type) {
             'advances' => 'Adelantos',
+            'payroll' => 'Planilla',
             default => $type,
         };
     }
@@ -188,15 +196,17 @@ class DisbursementBatch extends Model
             ];
         }
 
-        $this->advances()->update([
-            'disbursement_batch_id' => null,
-        ]);
+        // Desvincular adelantos y nóminas del lote
+        $this->advances()->update(['disbursement_batch_id' => null]);
+        $this->payrolls()->update(['disbursement_batch_id' => null]);
 
         $this->update(['status' => 'cancelled']);
 
+        $entity = $this->type === 'payroll' ? 'Los recibos volvieron al estado Aprobado.' : 'Los adelantos volvieron al estado Aprobado.';
+
         return [
             'success' => true,
-            'message' => 'El lote fue cancelado. Los adelantos volvieron al estado Aprobado.',
+            'message' => "El lote fue cancelado. {$entity}",
         ];
     }
 
@@ -211,10 +221,21 @@ class DisbursementBatch extends Model
      * @param  array<int, string>  $rejectionReasons  Mapa id => bank_rejection_reason para los rechazados.
      * @return array{success: bool, message: string}
      */
+    /**
+     * Confirma el resultado bancario del lote.
+     *
+     * Para lotes de adelantos: marca los aceptados como 'disbursed'.
+     * Para lotes de nómina: marca los aceptados como 'disbursed'.
+     * Los rechazados (si los hay) vuelven a 'approved' con bank_rejection_reason.
+     *
+     * @param  array<int>  $rejectedIds  IDs de registros rechazados por el banco.
+     * @param  array<int, string>  $rejectionReasons  Mapa id => bank_rejection_reason.
+     * @return array{success: bool, message: string}
+     */
     public function confirm(
         int $confirmedById,
         string $bankConfirmationPath,
-        array $rejectedAdvanceIds = [],
+        array $rejectedIds = [],
         array $rejectionReasons = [],
     ): array {
         if (! $this->isPending()) {
@@ -224,10 +245,20 @@ class DisbursementBatch extends Model
             ];
         }
 
+        if ($this->type === 'payroll') {
+            return $this->confirmPayrolls($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons);
+        }
+
+        return $this->confirmAdvances($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons);
+    }
+
+    /** @param array<int> $rejectedIds @param array<int,string> $rejectionReasons */
+    private function confirmAdvances(int $confirmedById, string $bankConfirmationPath, array $rejectedIds, array $rejectionReasons): array
+    {
         $advances = $this->advances()->where('status', 'approved')->get();
 
         foreach ($advances as $advance) {
-            if (in_array($advance->id, $rejectedAdvanceIds)) {
+            if (in_array($advance->id, $rejectedIds)) {
                 $advance->update([
                     'disbursement_batch_id' => null,
                     'bank_rejection_reason' => $rejectionReasons[$advance->id] ?? 'otro',
@@ -242,10 +273,10 @@ class DisbursementBatch extends Model
             }
         }
 
-        $allRejected = count($rejectedAdvanceIds) === $advances->count();
-        $someRejected = count($rejectedAdvanceIds) > 0;
-
+        $allRejected = count($rejectedIds) === $advances->count();
+        $someRejected = count($rejectedIds) > 0;
         $status = $allRejected ? 'cancelled' : ($someRejected ? 'partially_confirmed' : 'confirmed');
+        $disbursedCount = $advances->count() - count($rejectedIds);
 
         $this->update([
             'status' => $status,
@@ -254,11 +285,48 @@ class DisbursementBatch extends Model
             'confirmed_at' => now(),
         ]);
 
-        $disbursedCount = $advances->count() - count($rejectedAdvanceIds);
+        return [
+            'success' => true,
+            'message' => "Se acreditaron {$disbursedCount} adelantos. ".count($rejectedIds).' rechazados por el banco.',
+        ];
+    }
+
+    /** @param array<int> $rejectedIds @param array<int,string> $rejectionReasons */
+    private function confirmPayrolls(int $confirmedById, string $bankConfirmationPath, array $rejectedIds, array $rejectionReasons): array
+    {
+        $payrolls = $this->payrolls()->where('status', 'approved')->get();
+
+        foreach ($payrolls as $payroll) {
+            if (in_array($payroll->id, $rejectedIds)) {
+                $payroll->update([
+                    'disbursement_batch_id' => null,
+                    'bank_rejection_reason' => $rejectionReasons[$payroll->id] ?? 'otro',
+                ]);
+            } else {
+                $payroll->update([
+                    'status' => 'disbursed',
+                    'disbursed_at' => now(),
+                    'disbursed_by_id' => $confirmedById,
+                    'bank_rejection_reason' => null,
+                ]);
+            }
+        }
+
+        $allRejected = count($rejectedIds) === $payrolls->count();
+        $someRejected = count($rejectedIds) > 0;
+        $status = $allRejected ? 'cancelled' : ($someRejected ? 'partially_confirmed' : 'confirmed');
+        $disbursedCount = $payrolls->count() - count($rejectedIds);
+
+        $this->update([
+            'status' => $status,
+            'bank_confirmation_path' => $bankConfirmationPath,
+            'confirmed_by_id' => $confirmedById,
+            'confirmed_at' => now(),
+        ]);
 
         return [
             'success' => true,
-            'message' => "Se acreditaron {$disbursedCount} adelantos. ".count($rejectedAdvanceIds).' rechazados por el banco.',
+            'message' => "Se acreditaron {$disbursedCount} recibos de nómina. ".count($rejectedIds).' rechazados por el banco.',
         ];
     }
 }

@@ -29,6 +29,11 @@ class Payroll extends Model
         'approved_by_id',
         'approved_at',
         'bank_account_id',
+        'payment_method',
+        'disbursed_at',
+        'disbursed_by_id',
+        'disbursement_batch_id',
+        'bank_rejection_reason',
     ];
 
     protected $casts = [
@@ -40,12 +45,13 @@ class Payroll extends Model
         'net_salary' => 'decimal:2',
         'generated_at' => 'datetime',
         'approved_at' => 'datetime',
+        'disbursed_at' => 'datetime',
     ];
 
     protected static function booted(): void
     {
         static::deleting(function (Payroll $payroll) {
-            if (in_array($payroll->status, ['approved', 'paid'])) {
+            if (in_array($payroll->status, ['approved', 'disbursed', 'paid'])) {
                 throw new \Exception("No se puede eliminar una nómina con estado '{$payroll->status}'.");
             }
 
@@ -180,6 +186,158 @@ class Payroll extends Model
         return $this->belongsTo(EmployeeBankAccount::class, 'bank_account_id');
     }
 
+    /** Usuario que registró la acreditación/entrega del pago. */
+    public function disbursedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'disbursed_by_id');
+    }
+
+    /** Lote bancario al que pertenece este recibo (solo para pagos por transferencia). */
+    public function disbursementBatch(): BelongsTo
+    {
+        return $this->belongsTo(DisbursementBatch::class, 'disbursement_batch_id');
+    }
+
+    // -------------------------------------------------------------------------
+    // Verificadores de estado
+    // -------------------------------------------------------------------------
+
+    public function isDraft(): bool
+    {
+        return $this->status === 'draft';
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isDisbursed(): bool
+    {
+        return $this->status === 'disbursed';
+    }
+
+    public function isPaid(): bool
+    {
+        return $this->status === 'paid';
+    }
+
+    // -------------------------------------------------------------------------
+    // Transiciones de estado
+    // -------------------------------------------------------------------------
+
+    /**
+     * Marca el recibo como acreditado/entregado (approved → disbursed).
+     * Para pagos en efectivo: el usuario lo marca manualmente.
+     * Para transferencias: lo hace DisbursementBatch::confirm().
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function markAsDisbursed(?int $disbursedById = null, ?string $disbursedAt = null): array
+    {
+        if (! $this->isApproved()) {
+            return ['success' => false, 'message' => 'Solo se pueden acreditar recibos aprobados.'];
+        }
+
+        $this->update([
+            'status' => 'disbursed',
+            'disbursed_at' => $disbursedAt ? \Carbon\Carbon::parse($disbursedAt) : now(),
+            'disbursed_by_id' => $disbursedById,
+        ]);
+
+        return ['success' => true, 'message' => 'Recibo marcado como acreditado.'];
+    }
+
+    /**
+     * Revierte el recibo de disbursed a approved.
+     * Solo posible si no pertenece a un lote bancario confirmado y no está descontado en nómina.
+     *
+     * @return array{success: bool, message: string}
+     */
+    public function revertToApproved(): array
+    {
+        if (! $this->isDisbursed()) {
+            return ['success' => false, 'message' => 'Solo se pueden revertir recibos en estado acreditado.'];
+        }
+
+        if ($this->disbursement_batch_id !== null) {
+            return ['success' => false, 'message' => 'El recibo pertenece a un lote bancario y no puede revertirse individualmente.'];
+        }
+
+        $this->update([
+            'status' => 'approved',
+            'disbursed_at' => null,
+            'disbursed_by_id' => null,
+        ]);
+
+        return ['success' => true, 'message' => 'Recibo revertido a aprobado.'];
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers estáticos de métodos de pago
+    // -------------------------------------------------------------------------
+
+    /** @return array<string, string> */
+    public static function getPaymentMethodLabels(): array
+    {
+        return [
+            'transfer' => 'Acreditación bancaria',
+            'cash' => 'Efectivo',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function getPaymentMethodColors(): array
+    {
+        return [
+            'transfer' => 'info',
+            'cash' => 'success',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function getPaymentMethodIcons(): array
+    {
+        return [
+            'transfer' => 'heroicon-o-building-library',
+            'cash' => 'heroicon-o-banknotes',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function getPaymentMethodOptions(): array
+    {
+        return [
+            'transfer' => 'Acreditación bancaria',
+            'cash' => 'Efectivo',
+        ];
+    }
+
+    /** @return array<string, string> */
+    public static function getBankRejectionReasonOptions(): array
+    {
+        return [
+            'cuenta_inexistente' => 'Cuenta inexistente',
+            'cuenta_bloqueada' => 'Cuenta bloqueada',
+            'datos_incorrectos' => 'Datos incorrectos',
+            'otro' => 'Otro',
+        ];
+    }
+
+    public static function getBankRejectionReasonLabel(?string $reason): string
+    {
+        if ($reason === null) {
+            return '-';
+        }
+
+        return match ($reason) {
+            'cuenta_inexistente' => 'Cuenta inexistente',
+            'cuenta_bloqueada' => 'Cuenta bloqueada',
+            'datos_incorrectos' => 'Datos incorrectos',
+            default => 'Otro',
+        };
+    }
+
     // Accesor para mostrar nombre
     public function getTitleAttribute(): string
     {
@@ -192,6 +350,7 @@ class Payroll extends Model
         return [
             'draft' => 'Borrador',
             'approved' => 'Aprobado',
+            'disbursed' => 'Acreditado',
             'paid' => 'Pagado',
         ];
     }
@@ -201,9 +360,30 @@ class Payroll extends Model
     {
         return [
             'draft' => 'gray',
-            'approved' => 'success',
-            'paid' => 'info',
+            'approved' => 'warning',
+            'disbursed' => 'info',
+            'paid' => 'success',
         ];
+    }
+
+    /** @return array<string, string> */
+    public static function getStatusIcons(): array
+    {
+        return [
+            'draft' => 'heroicon-o-pencil',
+            'approved' => 'heroicon-o-check-circle',
+            'disbursed' => 'heroicon-o-building-library',
+            'paid' => 'heroicon-o-banknotes',
+        ];
+    }
+
+    /**
+     * Alias de net_salary para compatibilidad con BankPaymentExportService,
+     * que espera un campo `amount` genérico en los modelos que procesa.
+     */
+    public function getAmountAttribute(): float
+    {
+        return (float) $this->net_salary;
     }
 
     /**

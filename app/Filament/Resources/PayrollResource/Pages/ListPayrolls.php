@@ -22,7 +22,7 @@ class ListPayrolls extends ListRecords
                 ->exports([
                     ExcelExport::make()
                         ->fromTable()
-                        ->withFilename(fn() => 'recibos_nomina_' . now()->format('d_m_Y_H_i_s'))
+                        ->withFilename(fn () => 'recibos_nomina_'.now()->format('d_m_Y_H_i_s'))
                         ->withWriterType(Excel::XLSX),
                 ])
                 ->label('Exportar a Excel')
@@ -38,6 +38,7 @@ class ListPayrolls extends ListRecords
             COUNT(*) as total,
             SUM(status = "draft") as draft,
             SUM(status = "approved") as approved,
+            SUM(status = "disbursed") as disbursed,
             SUM(status = "paid") as paid
         ')->first();
 
@@ -46,23 +47,28 @@ class ListPayrolls extends ListRecords
                 ->badge($counts->total),
 
             'draft' => Tab::make('Borradores')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'draft'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'draft'))
                 ->badge($counts->draft)
                 ->badgeColor('gray'),
 
             'approved' => Tab::make('Aprobados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'approved'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
                 ->badge($counts->approved)
-                ->badgeColor('success'),
+                ->badgeColor('warning'),
+
+            'disbursed' => Tab::make('Acreditados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'disbursed'))
+                ->badge($counts->disbursed)
+                ->badgeColor('info'),
 
             'paid' => Tab::make('Pagados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('status', 'paid'))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))
                 ->badge($counts->paid)
-                ->badgeColor('info'),
+                ->badgeColor('success'),
         ];
     }
 
-    public function getDefaultActiveTab(): string | int | null
+    public function getDefaultActiveTab(): string|int|null
     {
         return 'all';
     }

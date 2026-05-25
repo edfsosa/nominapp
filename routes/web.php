@@ -18,6 +18,7 @@ use App\Http\Controllers\MerchandiseReportController;
 use App\Http\Controllers\MerchandiseWithdrawalController;
 use App\Http\Controllers\OrgChartController;
 use App\Http\Controllers\PayrollController;
+use App\Http\Controllers\SalaryReportController;
 use App\Http\Controllers\ScheduleEmployeeController;
 use App\Http\Controllers\ShiftPlannerController;
 use App\Http\Controllers\VacationDocumentController;
@@ -136,6 +137,7 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
     Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
     Route::get('/adelantos/reporte/pdf', [AdvanceReportController::class, 'pdf'])->name('advances.report.pdf');
+    Route::get('/nominas/reporte/salarios/pdf', [SalaryReportController::class, 'pdf'])->name('salary-report.pdf');
     Route::get('/asistencia/reporte/asistencias/pdf', [AttendancePdfReportController::class, 'attendance'])->name('attendance.report.attendance.pdf');
     Route::get('/asistencia/reporte/ausencias/pdf', [AttendancePdfReportController::class, 'absence'])->name('attendance.report.absence.pdf');
     Route::get('/asistencia/reporte/overtime/pdf', [AttendancePdfReportController::class, 'overtime'])->name('attendance.report.overtime.pdf');
