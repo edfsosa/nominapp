@@ -14,6 +14,12 @@ class Employee extends Model
 {
     use HasFactory;
 
+    /**
+     * Cuando es true, el EmployeeObserver omite la asignación automática de deducciones obligatorias.
+     * Usado por CreateEmployee para controlar cuáles se asignan según la selección del formulario.
+     */
+    public static bool $skipMandatoryDeductions = false;
+
     protected $fillable = [
         'photo',
         'first_name',
@@ -1081,14 +1087,20 @@ class Employee extends Model
 
     /**
      * Asigna todas las deducciones obligatorias activas que el empleado aún no tenga.
+     * Si se pasa $restrictToIds, solo asigna las que estén en ese array.
      *
+     * @param  array<int>|null  $restrictToIds  IDs de deducciones a asignar; null = todas las obligatorias activas.
      * @return int Cantidad de deducciones asignadas (0 si ya las tenía todas)
      */
-    public function assignMandatoryDeductions(): int
+    public function assignMandatoryDeductions(?array $restrictToIds = null): int
     {
-        $mandatoryIds = Deduction::where('is_mandatory', true)
-            ->where('is_active', true)
-            ->pluck('id');
+        $query = Deduction::where('is_mandatory', true)->where('is_active', true);
+
+        if ($restrictToIds !== null) {
+            $query->whereIn('id', $restrictToIds);
+        }
+
+        $mandatoryIds = $query->pluck('id');
 
         if ($mandatoryIds->isEmpty()) {
             return 0;

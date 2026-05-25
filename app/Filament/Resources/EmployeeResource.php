@@ -7,12 +7,14 @@ use App\Filament\Resources\EmployeeResource\RelationManagers;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Contract;
+use App\Models\Deduction;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\FaceEnrollment;
 use App\Models\Position;
 use App\Models\Schedule;
 use App\Settings\GeneralSettings;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
@@ -370,6 +372,26 @@ class EmployeeResource extends Resource
                                 ->native(false)
                                 ->dehydrated(false),
                         ]),
+                    ]),
+
+                Section::make('Deducciones Iniciales')
+                    ->description('Las deducciones marcadas se asignarán al empleado desde hoy. Podés gestionarlas después desde la pestaña "Deducciones".')
+                    ->icon('heroicon-o-minus-circle')
+                    ->visibleOn('create')
+                    ->schema([
+                        CheckboxList::make('mandatory_deduction_ids')
+                            ->label('')
+                            ->options(fn () => Deduction::where('is_mandatory', true)
+                                ->where('is_active', true)
+                                ->orderBy('name')
+                                ->pluck('name', 'id')
+                                ->toArray())
+                            ->default(fn () => Deduction::where('is_mandatory', true)
+                                ->where('is_active', true)
+                                ->pluck('id')
+                                ->toArray())
+                            ->columns(2)
+                            ->dehydrated(false),
                     ]),
 
             ])
