@@ -55,10 +55,6 @@
             <td>{{ $payroll->employee->activeContract?->position?->department?->name ?? 'N/A' }}</td>
         </tr>
         <tr>
-            <th>Tipo de Remuneración:</th>
-            <td>{{ $isDayLaborer ? 'Jornalero (Jornal Diario)' : 'Mensualizado (Sueldo)' }}</td>
-        </tr>
-        <tr>
             <th>Período:</th>
             <td>
                 @if ($payroll->period)
@@ -89,7 +85,7 @@
                     @if ($showGroups)
                         <tr>
                             <td colspan="2"
-                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0;">
                                 {{ $perceptionTypeLabels[$groupKey] ?? 'Otros' }}
                             </td>
                         </tr>
@@ -122,7 +118,7 @@
                     @if ($showDeductionGroups)
                         <tr>
                             <td colspan="2"
-                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0; border-bottom: 1px solid #ddd;">
+                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0;">
                                 {{ $deductionTypeLabels[$groupKey] ?? 'Otras' }}
                             </td>
                         </tr>

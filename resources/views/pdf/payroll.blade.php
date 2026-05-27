@@ -18,8 +18,8 @@
 
         body {
             font-family: Arial, sans-serif;
-            font-size: {{ $mode === 'print' ? '8px' : '9px' }};
-            line-height: 1.4;
+            font-size: 9px;
+            line-height: 1.2;
         }
 
         .copy-label {
@@ -40,13 +40,13 @@
         }
 
         .company-logo {
-            max-height: {{ $mode === 'print' ? '24px' : '28px' }};
+            max-height: 28px;
             max-width: 90px;
             margin-bottom: 3px;
         }
 
         .company-name {
-            font-size: {{ $mode === 'print' ? '10px' : '11px' }};
+            font-size: 11px;
             font-weight: bold;
             text-transform: uppercase;
             margin-bottom: 2px;
@@ -58,10 +58,10 @@
 
         .title {
             text-align: center;
-            font-size: {{ $mode === 'print' ? '9px' : '10px' }};
+            font-size: 10px;
             font-weight: bold;
             text-transform: uppercase;
-            margin: 5px 0 2px 0;
+            margin: 6px 0 2px 0;
         }
 
         .subtitle {
@@ -71,7 +71,7 @@
         }
 
         .section {
-            margin-bottom: {{ $mode === 'print' ? '4px' : '6px' }};
+            margin-bottom: {{ $mode === 'print' ? '8px' : '6px' }};
         }
 
         .section-title {
@@ -92,16 +92,16 @@
         table.info-table th {
             text-align: left;
             font-weight: bold;
-            width: {{ $mode === 'print' ? '110px' : '130px' }};
-            padding: 3px 6px;
-            border: 1px solid #000;
-            font-size: {{ $mode === 'print' ? '8px' : '9px' }};
+            width: {{ $mode === 'print' ? '120px' : '130px' }};
+            padding: {{ $mode === 'print' ? '4px 6px' : '3px 6px' }};
+            border-bottom: 1px solid #eee;
+            font-size: 9px;
         }
 
         table.info-table td {
-            padding: 3px 6px;
-            border: 1px solid #000;
-            font-size: {{ $mode === 'print' ? '8px' : '9px' }};
+            padding: {{ $mode === 'print' ? '4px 6px' : '3px 6px' }};
+            border-bottom: 1px solid #eee;
+            font-size: 9px;
         }
 
         table {
@@ -112,9 +112,9 @@
 
         th,
         td {
-            border: 1px solid #000;
-            padding: 3px 5px;
-            font-size: 7px;
+            border-bottom: 1px solid #eee;
+            padding: {{ $mode === 'print' ? '4px 5px' : '3px 5px' }};
+            font-size: {{ $mode === 'print' ? '8px' : '7px' }};
         }
 
         th {
@@ -133,9 +133,8 @@
         }
 
         .summary-section {
-            margin: {{ $mode === 'print' ? '4px' : '6px' }} 0;
-            padding: {{ $mode === 'print' ? '4px' : '6px' }};
-            border: 1px solid #000;
+            margin: {{ $mode === 'print' ? '8px' : '6px' }} 0;
+            padding: {{ $mode === 'print' ? '8px' : '6px' }} 0;
         }
 
         .summary-title {
@@ -172,12 +171,12 @@
         }
 
         .total-label {
-            font-size: {{ $mode === 'print' ? '9px' : '10px' }};
+            font-size: 10px;
             font-weight: bold;
         }
 
         .total-value {
-            font-size: {{ $mode === 'print' ? '9px' : '10px' }};
+            font-size: 10px;
             font-weight: bold;
         }
 
@@ -185,13 +184,12 @@
             margin-top: 4px;
             font-size: 6px;
             text-align: justify;
-            padding: 4px 6px;
-            border: 1px solid #ccc;
+            padding: 4px 0;
         }
 
         table.signature-table {
             width: 100%;
-            margin-top: {{ $mode === 'print' ? '10px' : '18px' }};
+            margin-top: {{ $mode === 'print' ? '55px' : '18px' }};
             border-collapse: collapse;
         }
 
@@ -265,7 +263,7 @@
         <table style="width: 100%; border-collapse: collapse;">
             <tr>
                 @foreach (['COPIA EMPLEADO', 'COPIA EMPRESA'] as $copyLabel)
-                    <td style="width: 50%; vertical-align: top; padding: 7mm 9mm 5mm 9mm; {{ ! $loop->last ? 'border-right: 1px dashed #888;' : '' }}">
+                    <td style="width: 50%; vertical-align: top; padding: 9mm 11mm 7mm 11mm; {{ ! $loop->last ? 'border-right: 1px dashed #888;' : '' }}">
                         @include('pdf._payroll-copy')
                     </td>
                 @endforeach

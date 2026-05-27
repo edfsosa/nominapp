@@ -5,6 +5,7 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
 use App\Models\Company;
+use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Group;
+use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -359,6 +361,65 @@ class PayrollPeriodResource extends Resource
                         ])->columns(4),
                     ])
                     ->collapsible(),
+
+                InfolistSection::make('Resumen de Nómina')
+                    ->schema([
+                        RepeatableEntry::make('perception_summary')
+                            ->label('Percepciones')
+                            ->getStateUsing(fn ($record) => PayrollItem::whereHas(
+                                'payroll', fn ($q) => $q->where('payroll_period_id', $record->id)
+                            )
+                                ->where('type', 'perception')
+                                ->selectRaw('description, count(*) as employees_count, sum(amount) as total_amount')
+                                ->groupBy('description')
+                                ->orderByDesc('employees_count')
+                                ->get()
+                                ->map(fn ($i) => [
+                                    'description' => $i->description,
+                                    'employees_count' => (int) $i->employees_count,
+                                    'total_amount' => (float) $i->total_amount,
+                                ])
+                                ->toArray()
+                            )
+                            ->schema([
+                                TextEntry::make('description')->label('Concepto'),
+                                TextEntry::make('employees_count')->label('Empleados'),
+                                TextEntry::make('total_amount')
+                                    ->label('Total')
+                                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.')),
+                            ])
+                            ->columns(3)
+                            ->columnSpanFull(),
+
+                        RepeatableEntry::make('deduction_summary')
+                            ->label('Deducciones')
+                            ->getStateUsing(fn ($record) => PayrollItem::whereHas(
+                                'payroll', fn ($q) => $q->where('payroll_period_id', $record->id)
+                            )
+                                ->where('type', 'deduction')
+                                ->selectRaw('description, count(*) as employees_count, sum(amount) as total_amount')
+                                ->groupBy('description')
+                                ->orderByDesc('employees_count')
+                                ->get()
+                                ->map(fn ($i) => [
+                                    'description' => $i->description,
+                                    'employees_count' => (int) $i->employees_count,
+                                    'total_amount' => (float) $i->total_amount,
+                                ])
+                                ->toArray()
+                            )
+                            ->schema([
+                                TextEntry::make('description')->label('Concepto'),
+                                TextEntry::make('employees_count')->label('Empleados'),
+                                TextEntry::make('total_amount')
+                                    ->label('Total')
+                                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.')),
+                            ])
+                            ->columns(3)
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->visible(fn ($record) => $record->payrolls()->exists()),
 
                 InfolistSection::make('Información del Sistema')
                     ->schema([

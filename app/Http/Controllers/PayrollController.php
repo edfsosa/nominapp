@@ -42,8 +42,11 @@ class PayrollController extends Controller
 
         $path = Storage::disk('public')->path($payroll->pdf_path);
 
+        $filename = 'recibo_salario_'.$payroll->id.'_'.$payroll->employee->ci.'.pdf';
+
         return response()->file($path, [
             'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$filename.'"',
             'Cache-Control' => 'no-store, no-cache, must-revalidate',
             'Pragma' => 'no-cache',
         ]);
