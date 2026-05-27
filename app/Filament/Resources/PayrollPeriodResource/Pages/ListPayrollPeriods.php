@@ -25,15 +25,12 @@ class ListPayrollPeriods extends ListRecords
 
     public function getTabs(): array
     {
-        // Una query para conteos por estado/frecuencia + una query para conteos por empresa.
+        // Una query para conteos por estado + una query para conteos por empresa.
         $counts = PayrollPeriod::selectRaw('
             COUNT(*) as total,
             SUM(status = "draft") as draft,
             SUM(status = "processing") as processing,
-            SUM(status = "closed") as closed,
-            SUM(frequency = "monthly") as monthly,
-            SUM(frequency = "biweekly") as biweekly,
-            SUM(frequency = "weekly") as weekly
+            SUM(status = "closed") as closed
         ')->first();
 
         $tabs = [
@@ -70,21 +67,6 @@ class ListPayrollPeriods extends ListRecords
             ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'closed'))
             ->badge($counts->closed)
             ->badgeColor('success');
-
-        $tabs['monthly'] = Tab::make('Mensuales')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('frequency', 'monthly'))
-            ->badge($counts->monthly)
-            ->badgeColor('info');
-
-        $tabs['biweekly'] = Tab::make('Quincenales')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('frequency', 'biweekly'))
-            ->badge($counts->biweekly)
-            ->badgeColor('info');
-
-        $tabs['weekly'] = Tab::make('Semanales')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('frequency', 'weekly'))
-            ->badge($counts->weekly)
-            ->badgeColor('info');
 
         return $tabs;
     }
