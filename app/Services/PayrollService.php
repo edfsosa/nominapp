@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Advance;
+use App\Models\Deduction;
 use App\Models\Employee;
 use App\Models\EmployeeDeduction;
 use App\Models\LoanInstallment;
@@ -412,28 +413,44 @@ class PayrollService
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
                 ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
 
-            // Eliminar EmployeeDeductions de adelantos antes de revertirlos:
-            // AdvanceCalculator usa employee_deduction_id para detectar si ya existe el registro
-            // (idempotencia). Si se limpia la FK sin borrar el registro, el siguiente calculate()
-            // intenta INSERT y choca con la unique constraint (employee_id, deduction_id, start_date).
-            $advanceDeductionIds = Advance::where('employee_id', $employee->id)
+            // Eliminar EmployeeDeductions de adelantos antes de revertirlos.
+            // Caso normal: el FK employee_deduction_id apunta al registro → borramos por ID.
+            // Caso huérfano: un intento previo fallido ya limpió el FK pero dejó el registro en BD.
+            //   En ese caso buscamos por (employee_id, ADE001, approved_at) para garantizar limpieza.
+            $advancesToRevert = Advance::where('employee_id', $employee->id)
                 ->where('payroll_id', $payroll->id)
-                ->whereNotNull('employee_deduction_id')
-                ->pluck('employee_deduction_id');
+                ->get();
 
-            if ($advanceDeductionIds->isNotEmpty()) {
-                EmployeeDeduction::whereIn('id', $advanceDeductionIds)->delete();
+            if ($advancesToRevert->isNotEmpty()) {
+                $byId = $advancesToRevert->pluck('employee_deduction_id')->filter();
+                if ($byId->isNotEmpty()) {
+                    EmployeeDeduction::whereIn('id', $byId)->delete();
+                }
+
+                $ade001Id = Deduction::where('code', 'ADE001')->value('id');
+                if ($ade001Id !== null) {
+                    $approvedDates = $advancesToRevert
+                        ->pluck('approved_at')
+                        ->filter()
+                        ->map(fn ($d) => $d->toDateString())
+                        ->unique();
+                    if ($approvedDates->isNotEmpty()) {
+                        EmployeeDeduction::where('employee_id', $employee->id)
+                            ->where('deduction_id', $ade001Id)
+                            ->whereIn('start_date', $approvedDates)
+                            ->delete();
+                    }
+                }
+
+                // Revertir adelantos a disbursed para que AdvanceCalculator los reprocese
+                Advance::where('employee_id', $employee->id)
+                    ->where('payroll_id', $payroll->id)
+                    ->update([
+                        'status' => 'disbursed',
+                        'payroll_id' => null,
+                        'employee_deduction_id' => null,
+                    ]);
             }
-
-            // Revertir adelantos descontados en esta nómina (a disbursed, no a approved,
-            // para que AdvanceCalculator los vuelva a procesar en la regeneración)
-            Advance::where('employee_id', $employee->id)
-                ->where('payroll_id', $payroll->id)
-                ->update([
-                    'status' => 'disbursed',
-                    'payroll_id' => null,
-                    'employee_deduction_id' => null,
-                ]);
 
             // Revertir remuneraciones vacacionales pagadas en esta nómina
             Vacation::where('employee_id', $employee->id)

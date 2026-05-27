@@ -441,8 +441,9 @@ class ViewPayrollPeriod extends ViewRecord
                     ->modalHeading('Regenerar Todos los Recibos')
                     ->modalDescription(
                         fn () => "¿Está seguro de regenerar TODOS los recibos de la planilla {$this->record->name}? ".
-                            'Se recalcularán percepciones, deducciones, horas extras, ausencias y cuotas de préstamos. Solo se regenerarán los recibos en estado borrador.'
+                            'Se recalcularán percepciones, deducciones, horas extras, ausencias, cuotas de préstamos, adelantos y cuotas de retiro de mercaderías. Solo se regenerarán los recibos en estado borrador.'
                     )
+                    ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (PayrollService $payrollService) {
                         $payrolls = $this->record->payrolls()->where('status', 'draft')->with('employee')->get();
 
