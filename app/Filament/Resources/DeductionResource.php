@@ -111,13 +111,15 @@ class DeductionResource extends Resource
                         TextInput::make('amount')
                             ->label('Monto Fijo')
                             ->numeric()
-                            ->minValue(1)
+                            ->minValue(fn (Get $get) => $get('type') !== 'loan' ? 1 : null)
                             ->maxValue(999999999)
                             ->step(1)
                             ->prefix('₲')
                             ->visible(fn (Get $get) => $get('calculation') === 'fixed')
-                            ->required(fn (Get $get) => $get('calculation') === 'fixed')
-                            ->helperText('Monto que se descontará del salario.')
+                            ->required(fn (Get $get) => $get('calculation') === 'fixed' && $get('type') !== 'loan')
+                            ->helperText(fn (Get $get) => $get('type') === 'loan'
+                                ? 'Dejar vacío — el monto se fija automáticamente por cada cuota/adelanto.'
+                                : 'Monto que se descontará del salario.')
                             ->columnSpan(1),
 
                         TextInput::make('percent')
