@@ -188,6 +188,7 @@ class EditPayrollPeriod extends EditRecord
                             ->where('payroll_type', $this->record->frequency)
                             ->whereNotNull('salary')
                         )
+                        ->when($this->record->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $this->record->company_id)))
                         ->whereNotIn('id', $payrollEmployeeIds)
                         ->count();
 

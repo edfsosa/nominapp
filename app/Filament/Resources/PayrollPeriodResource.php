@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\PayrollPeriod;
 use App\Services\PayrollService;
@@ -51,6 +52,14 @@ class PayrollPeriodResource extends Resource
             ->schema([
                 Section::make('Información del Período')
                     ->schema([
+                        Select::make('company_id')
+                            ->label('Empresa')
+                            ->options(Company::active()->orderBy('name')->pluck('name', 'id'))
+                            ->native(false)
+                            ->required()
+                            ->searchable()
+                            ->columnSpanFull(),
+
                         TextInput::make('name')
                             ->label('Nombre')
                             ->placeholder('Se generará automáticamente según la frecuencia y fechas')
@@ -111,7 +120,8 @@ class PayrollPeriodResource extends Resource
                             ->rules([
                                 function ($get, $record) {
                                     return function (string $_attribute, $value, \Closure $fail) use ($get, $record) {
-                                        $query = PayrollPeriod::where('frequency', $get('frequency'))
+                                        $query = PayrollPeriod::where('company_id', $get('company_id'))
+                                            ->where('frequency', $get('frequency'))
                                             ->where('start_date', $get('start_date'))
                                             ->where('end_date', $value);
 
@@ -120,7 +130,7 @@ class PayrollPeriodResource extends Resource
                                         }
 
                                         if ($query->exists()) {
-                                            $fail('Ya existe un período con esta frecuencia y fechas.');
+                                            $fail('Ya existe un período con esta frecuencia y fechas para esa empresa.');
                                         }
                                     };
                                 },
@@ -149,6 +159,12 @@ class PayrollPeriodResource extends Resource
                     ->weight('bold')
                     ->icon('heroicon-o-calendar-days')
                     ->iconColor('primary'),
+
+                TextColumn::make('company.name')
+                    ->label('Empresa')
+                    ->icon('heroicon-o-building-office-2')
+                    ->sortable()
+                    ->visible(fn () => Company::active()->count() > 1),
 
                 TextColumn::make('frequency')
                     ->label('Frecuencia')
@@ -200,7 +216,14 @@ class PayrollPeriodResource extends Resource
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->filters([
+            ->filters(array_filter([
+                Company::active()->count() > 1
+                    ? SelectFilter::make('company_id')
+                        ->label('Empresa')
+                        ->options(Company::active()->orderBy('name')->pluck('name', 'id'))
+                        ->native(false)
+                    : null,
+
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(PayrollPeriod::statusOptions())
@@ -215,7 +238,7 @@ class PayrollPeriodResource extends Resource
                     ->label('Año Actual')
                     ->query(fn ($query) => $query->whereYear('start_date', now()->year))
                     ->default(),
-            ])
+            ]))
             ->actions([
                 Action::make('generate_payrolls')
                     ->label('Generar Recibos')
@@ -340,6 +363,7 @@ class PayrollPeriodResource extends Resource
                                     ->where('payroll_type', $record->frequency)
                                     ->whereNotNull('salary')
                             )
+                            ->when($record->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $record->company_id)))
                             ->whereNotIn('id', $payrollEmployeeIds)
                             ->count();
 
@@ -436,6 +460,11 @@ class PayrollPeriodResource extends Resource
                 InfolistSection::make('Información del Período')
                     ->schema([
                         Group::make([
+                            TextEntry::make('company.name')
+                                ->label('Empresa')
+                                ->icon('heroicon-o-building-office-2')
+                                ->placeholder('Sin empresa'),
+
                             TextEntry::make('name')
                                 ->label('Nombre')
                                 ->icon('heroicon-o-calendar-days'),
@@ -445,7 +474,7 @@ class PayrollPeriodResource extends Resource
                                 ->badge()
                                 ->color('info')
                                 ->formatStateUsing(fn (string $state): string => PayrollPeriod::frequencyOptions()[$state] ?? $state),
-                        ])->columns(2),
+                        ])->columns(3),
 
                         Group::make([
                             TextEntry::make('start_date')

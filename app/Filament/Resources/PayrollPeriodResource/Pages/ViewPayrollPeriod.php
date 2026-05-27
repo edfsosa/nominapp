@@ -42,6 +42,7 @@ class ViewPayrollPeriod extends ViewRecord
                             'activeContract',
                             fn ($q) => $q->where('payroll_type', $this->record->frequency)->whereNotNull('salary')
                         )
+                        ->when($this->record->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $this->record->company_id)))
                         ->whereNotIn('id', $existingIds)
                         ->count();
 
@@ -61,55 +62,31 @@ class ViewPayrollPeriod extends ViewRecord
                 })
                 ->modalHeading('Generar Recibos de Nómina')
                 ->modalSubmitActionLabel('Generar')
-                ->form(function () {
-                    $companies = Company::active()->orderBy('name')->pluck('name', 'id');
-
-                    if ($companies->count() <= 1) {
-                        return [];
-                    }
-
-                    return [
-                        Select::make('company_id')
-                            ->label('Empresa')
-                            ->options($companies)
-                            ->native(false)
-                            ->required()
-                            ->placeholder('Seleccione la empresa'),
-                    ];
-                })
                 ->modalDescription(function () {
-                    $companies = Company::active()->orderBy('name')->pluck('name', 'id');
                     $existingIds = $this->record->payrolls()->pluck('employee_id');
 
-                    if ($companies->count() <= 1) {
-                        $company = Company::active()->first();
-                        $pending = Employee::where('status', 'active')
-                            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $this->record->frequency)->whereNotNull('salary'))
-                            ->when($company, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $company->id)))
-                            ->whereNotIn('id', $existingIds)
-                            ->count();
+                    $pending = Employee::where('status', 'active')
+                        ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $this->record->frequency)->whereNotNull('salary'))
+                        ->when($this->record->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $this->record->company_id)))
+                        ->whereNotIn('id', $existingIds)
+                        ->count();
 
-                        $companyLabel = $company ? "Empresa: {$company->name}" : '';
-                        $employeeLabel = $pending === 1 ? '1 empleado sin recibo' : "{$pending} empleados sin recibo";
+                    $companyName = $this->record->company?->name;
+                    $companyLabel = $companyName ? "Empresa: {$companyName}" : '';
+                    $employeeLabel = $pending === 1 ? '1 empleado sin recibo' : "{$pending} empleados sin recibo";
 
-                        return implode(' · ', array_filter([$companyLabel, $employeeLabel]));
-                    }
-
-                    return 'Se crearán recibos para los empleados activos de la empresa seleccionada que aún no tengan recibo en esta planilla.';
+                    return implode(' · ', array_filter([$companyLabel, $employeeLabel]));
                 })
-                ->action(function (array $data, PayrollService $payrollService) {
-                    $companyId = $data['company_id'] ?? (Company::active()->count() === 1 ? Company::active()->value('id') : null);
-
-                    $count = $payrollService->generateForPeriod($this->record, $companyId ?: null);
+                ->action(function (PayrollService $payrollService) {
+                    $count = $payrollService->generateForPeriod($this->record);
 
                     if ($count > 0) {
                         $this->record->update(['status' => 'processing']);
 
-                        $company = $companyId ? Company::find($companyId) : Company::active()->first();
                         $reciboLabel = $count === 1 ? '1 recibo generado' : "{$count} recibos generados";
                         $bodyParts = [$this->record->name];
-                        if ($company) {
-                            $bodyParts[] = $company->name;
+                        if ($this->record->company) {
+                            $bodyParts[] = $this->record->company->name;
                         }
 
                         Notification::make()
@@ -156,6 +133,7 @@ class ViewPayrollPeriod extends ViewRecord
                                 ->where('payroll_type', $this->record->frequency)
                                 ->whereNotNull('salary')
                         )
+                        ->when($this->record->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $this->record->company_id)))
                         ->whereNotIn('id', $payrollEmployeeIds)
                         ->count();
 

@@ -4,11 +4,13 @@ namespace App\Models;
 
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class PayrollPeriod extends Model
 {
     protected $fillable = [
+        'company_id',
         'name',
         'start_date',
         'end_date',
@@ -20,9 +22,14 @@ class PayrollPeriod extends Model
 
     protected $casts = [
         'start_date' => 'date',
-        'end_date'   => 'date',
-        'closed_at'  => 'datetime',
+        'end_date' => 'date',
+        'closed_at' => 'datetime',
     ];
+
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
+    }
 
     public function payrolls(): HasMany
     {
@@ -32,27 +39,27 @@ class PayrollPeriod extends Model
     public static function frequencyOptions(): array
     {
         return [
-            'monthly'  => 'Mensual',
+            'monthly' => 'Mensual',
             'biweekly' => 'Quincenal',
-            'weekly'   => 'Semanal',
+            'weekly' => 'Semanal',
         ];
     }
 
     public static function statusOptions(): array
     {
         return [
-            'draft'      => 'Borrador',
+            'draft' => 'Borrador',
             'processing' => 'En Proceso',
-            'closed'     => 'Cerrado',
+            'closed' => 'Cerrado',
         ];
     }
 
     public static function statusColors(): array
     {
         return [
-            'draft'      => 'gray',
+            'draft' => 'gray',
             'processing' => 'warning',
-            'closed'     => 'success',
+            'closed' => 'success',
         ];
     }
 
@@ -66,10 +73,10 @@ class PayrollPeriod extends Model
     public static function generateName(string $frequency, Carbon $start, Carbon $end): string
     {
         return match ($frequency) {
-            'monthly'  => ucfirst($start->locale('es')->isoFormat('MMMM YYYY')),
-            'biweekly' => 'Quincena ' . $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
-            'weekly'   => 'Semana del ' . $start->format('d/m/Y') . ' al ' . $end->format('d/m/Y'),
-            default    => $start->format('d/m/Y') . ' - ' . $end->format('d/m/Y'),
+            'monthly' => ucfirst($start->locale('es')->isoFormat('MMMM YYYY')),
+            'biweekly' => 'Quincena '.$start->format('d/m/Y').' - '.$end->format('d/m/Y'),
+            'weekly' => 'Semana del '.$start->format('d/m/Y').' al '.$end->format('d/m/Y'),
+            default => $start->format('d/m/Y').' - '.$end->format('d/m/Y'),
         };
     }
 }
