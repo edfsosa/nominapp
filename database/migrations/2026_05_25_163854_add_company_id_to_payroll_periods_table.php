@@ -11,6 +11,9 @@ return new class extends Migration
     {
         Schema::table('payroll_periods', function (Blueprint $table) {
             $table->foreignId('company_id')->nullable()->after('id')->constrained()->nullOnDelete();
+            // Drop the old unique constraint before the backfill so that inserting
+            // new per-company periods doesn't violate the (frequency, start, end) index.
+            $table->dropUnique(['frequency', 'start_date', 'end_date']);
         });
 
         // Backfill: for each period, detect which companies have payrolls in it.
@@ -65,8 +68,6 @@ return new class extends Migration
         });
 
         Schema::table('payroll_periods', function (Blueprint $table) {
-            // Drop the old unique constraint that had no company scope.
-            $table->dropUnique(['frequency', 'start_date', 'end_date']);
             // New constraint: one period per company + frequency + date range.
             $table->unique(['company_id', 'frequency', 'start_date', 'end_date']);
         });
