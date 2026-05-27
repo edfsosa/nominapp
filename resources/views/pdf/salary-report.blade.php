@@ -179,6 +179,17 @@
         &nbsp;|&nbsp; Generado el {{ now()->format('d/m/Y H:i') }}
     </div>
 
+    {{-- Filtros aplicados --}}
+    @if(count($appliedFilters) > 0)
+    <div style="background: #f8f8f8; border: 1px solid #ddd; padding: 5px 10px; font-size: 8px; margin-bottom: 14px;">
+        <strong>Filtros aplicados:</strong>
+        @foreach($appliedFilters as $label => $value)
+            {{ $label }}: <strong>{{ $value }}</strong>
+            @if(! $loop->last) &nbsp;|&nbsp; @endif
+        @endforeach
+    </div>
+    @endif
+
     {{-- Resumen --}}
     <div class="summary">
         <div class="summary-item">
@@ -214,7 +225,7 @@
                 <th style="width:8%">Salario Base</th>
                 <th style="width:7%">+Percepciones</th>
                 <th style="width:7%">IPS</th>
-                <th style="width:8%">Prést./Adelantos</th>
+                <th style="width:8%">Desc. por Deuda</th>
                 <th style="width:6%">Judiciales</th>
                 <th style="width:6%">Voluntarias</th>
                 <th style="width:8%">-Deducciones</th>
@@ -282,6 +293,88 @@
             @endif
         </tbody>
     </table>
+
+    {{-- Desglose de percepciones, deducciones y método de pago --}}
+    @if($perceptionSummary->isNotEmpty() || $deductionSummary->isNotEmpty() || $paymentMethodSummary->isNotEmpty())
+    <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
+        <tr>
+            {{-- Percepciones --}}
+            <td style="width: 38%; vertical-align: top; padding-right: 10px;">
+                <div class="section-title">Desglose de Percepciones</div>
+                <table style="margin-bottom: 0;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 58%;">Concepto</th>
+                            <th style="width: 18%;">Empleados</th>
+                            <th style="width: 24%;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($perceptionSummary as $item)
+                        <tr>
+                            <td>{{ $item->description }}</td>
+                            <td class="text-center">{{ $item->employees_count }}</td>
+                            <td class="text-right">{{ number_format($item->total_amount, 0, ',', '.') }}</td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="3" class="text-center" style="color:#888;">Sin percepciones</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </td>
+
+            {{-- Deducciones --}}
+            <td style="width: 38%; vertical-align: top; padding: 0 10px; border-left: 1px solid #ddd;">
+                <div class="section-title">Desglose de Deducciones</div>
+                <table style="margin-bottom: 0;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 58%;">Concepto</th>
+                            <th style="width: 18%;">Empleados</th>
+                            <th style="width: 24%;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($deductionSummary as $item)
+                        <tr>
+                            <td>{{ $item->description }}</td>
+                            <td class="text-center">{{ $item->employees_count }}</td>
+                            <td class="text-right">{{ number_format($item->total_amount, 0, ',', '.') }}</td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="3" class="text-center" style="color:#888;">Sin deducciones</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </td>
+
+            {{-- Método de pago --}}
+            <td style="width: 24%; vertical-align: top; padding-left: 10px; border-left: 1px solid #ddd;">
+                <div class="section-title">Por Método de Pago</div>
+                <table style="margin-bottom: 0;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; width: 40%;">Método</th>
+                            <th style="width: 20%;">Empl.</th>
+                            <th style="width: 40%;">Neto a Pagar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse($paymentMethodSummary as $item)
+                        <tr>
+                            <td>{{ $item['label'] }}</td>
+                            <td class="text-center">{{ $item['count'] }}</td>
+                            <td class="text-right">{{ number_format($item['total_net'], 0, ',', '.') }}</td>
+                        </tr>
+                        @empty
+                        <tr><td colspan="3" class="text-center" style="color:#888;">—</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </td>
+        </tr>
+    </table>
+    @endif
 
     <div class="footer">
         Reporte generado el {{ now()->format('d/m/Y \a \l\a\s H:i') }} · {{ config('app.name') }}

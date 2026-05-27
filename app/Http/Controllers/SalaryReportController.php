@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Payroll;
+use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
@@ -61,6 +63,23 @@ class SalaryReportController extends Controller
             ->orderBy('employees.first_name')
             ->get();
 
+        // Desglose agrupado por concepto (percepciones y deducciones)
+        $payrollIds = $payrolls->pluck('id');
+
+        $perceptionSummary = PayrollItem::whereIn('payroll_id', $payrollIds)
+            ->where('type', 'perception')
+            ->selectRaw('description, COUNT(DISTINCT payroll_id) as employees_count, SUM(amount) as total_amount')
+            ->groupBy('description')
+            ->orderByDesc('total_amount')
+            ->get();
+
+        $deductionSummary = PayrollItem::whereIn('payroll_id', $payrollIds)
+            ->where('type', 'deduction')
+            ->selectRaw('description, COUNT(DISTINCT payroll_id) as employees_count, SUM(amount) as total_amount')
+            ->groupBy('description')
+            ->orderByDesc('total_amount')
+            ->get();
+
         // Totales generales
         $totalBaseSalary = $payrolls->sum('base_salary');
         $totalPerceptions = $payrolls->sum('total_perceptions');
@@ -88,12 +107,44 @@ class SalaryReportController extends Controller
         $companyRuc = $company?->ruc ?? '';
         $companyAddress = $company?->address ?? '';
 
+        // Filtros aplicados para mostrar en el PDF
+        $appliedFilters = [];
+        if ($period) {
+            $appliedFilters['Planilla'] = $period->name.' ('.$period->start_date->format('d/m/Y').' — '.$period->end_date->format('d/m/Y').')';
+        }
+        if ($companyId && $company) {
+            $appliedFilters['Empresa'] = $company->name;
+        }
+        if ($branchId) {
+            $appliedFilters['Sucursal'] = Branch::find($branchId)?->name ?? 'ID '.$branchId;
+        }
+        if ($status) {
+            $appliedFilters['Estado'] = Payroll::getStatusLabels()[$status] ?? $status;
+        }
+        if ($paymentMethod) {
+            $appliedFilters['Método de pago'] = Payroll::getPaymentMethodLabels()[$paymentMethod] ?? $paymentMethod;
+        }
+
+        // Resumen por método de pago
+        $paymentMethodSummary = $payrolls
+            ->groupBy('payment_method')
+            ->map(fn ($group, $method) => [
+                'label'     => Payroll::getPaymentMethodLabels()[$method] ?? $method,
+                'count'     => $group->count(),
+                'total_net' => $group->sum('net_salary'),
+            ])
+            ->values()
+            ->sortByDesc('total_net')
+            ->values();
+
         $pdf = Pdf::loadView('pdf.salary-report', compact(
             'payrolls', 'period',
             'totalBaseSalary', 'totalPerceptions',
             'totalIps', 'totalLoans', 'totalJudicial', 'totalVoluntary',
             'totalDeductions', 'totalNet', 'totalEmployees',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
+            'perceptionSummary', 'deductionSummary',
+            'appliedFilters', 'paymentMethodSummary',
         ))->setPaper('a4', 'landscape');
 
         $periodSlug = $period ? str_replace(' ', '_', $period->name) : 'reporte';
