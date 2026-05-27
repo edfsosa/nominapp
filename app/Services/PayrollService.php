@@ -413,10 +413,7 @@ class PayrollService
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
                 ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
 
-            // Eliminar EmployeeDeductions de adelantos antes de revertirlos.
-            // Caso normal: el FK employee_deduction_id apunta al registro → borramos por ID.
-            // Caso huérfano: un intento previo fallido ya limpió el FK pero dejó el registro en BD.
-            //   En ese caso buscamos por (employee_id, ADE001, approved_at) para garantizar limpieza.
+            // Revertir adelantos asociados a esta nómina (caso normal)
             $advancesToRevert = Advance::where('employee_id', $employee->id)
                 ->where('payroll_id', $payroll->id)
                 ->get();
@@ -427,22 +424,6 @@ class PayrollService
                     EmployeeDeduction::whereIn('id', $byId)->delete();
                 }
 
-                $ade001Id = Deduction::where('code', 'ADE001')->value('id');
-                if ($ade001Id !== null) {
-                    $approvedDates = $advancesToRevert
-                        ->pluck('approved_at')
-                        ->filter()
-                        ->map(fn ($d) => $d->toDateString())
-                        ->unique();
-                    if ($approvedDates->isNotEmpty()) {
-                        EmployeeDeduction::where('employee_id', $employee->id)
-                            ->where('deduction_id', $ade001Id)
-                            ->whereIn('start_date', $approvedDates)
-                            ->delete();
-                    }
-                }
-
-                // Revertir adelantos a disbursed para que AdvanceCalculator los reprocese
                 Advance::where('employee_id', $employee->id)
                     ->where('payroll_id', $payroll->id)
                     ->update([
@@ -450,6 +431,27 @@ class PayrollService
                         'payroll_id' => null,
                         'employee_deduction_id' => null,
                     ]);
+            }
+
+            // Limpieza de EmployeeDeductions huérfanas para adelantos disbursed sin nómina asignada.
+            // Cubre el caso donde un intento de regeneración previo ya revirtió el payroll_id pero
+            // no eliminó el registro EmployeeDeduction (el advance.employee_deduction_id ya es null).
+            $ade001Id = Deduction::where('code', 'ADE001')->value('id');
+            if ($ade001Id !== null) {
+                $disbursedDates = Advance::where('employee_id', $employee->id)
+                    ->where('status', 'disbursed')
+                    ->whereNull('payroll_id')
+                    ->pluck('approved_at')
+                    ->filter()
+                    ->map(fn ($d) => $d->toDateString())
+                    ->unique();
+
+                if ($disbursedDates->isNotEmpty()) {
+                    EmployeeDeduction::where('employee_id', $employee->id)
+                        ->where('deduction_id', $ade001Id)
+                        ->whereIn('start_date', $disbursedDates)
+                        ->delete();
+                }
             }
 
             // Revertir remuneraciones vacacionales pagadas en esta nómina
