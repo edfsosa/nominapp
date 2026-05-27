@@ -26,9 +26,9 @@ use Filament\Infolists\Infolist;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\Indicator;
@@ -287,7 +287,7 @@ class AdvanceResource extends Resource
                                 ->placeholder('-'),
 
                             TextEntry::make('payroll.period.name')
-                                ->label('Nómina')
+                                ->label('Período de Nómina')
                                 ->icon('heroicon-o-document-text')
                                 ->placeholder('Pendiente de nómina'),
                         ])->columns(4),
@@ -342,12 +342,6 @@ class AdvanceResource extends Resource
                 TextColumn::make('id')
                     ->label('ID')
                     ->sortable(),
-
-                ImageColumn::make('employee.photo')
-                    ->label('Foto')
-                    ->circular()
-                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
-                    ->toggleable(),
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
@@ -510,148 +504,150 @@ class AdvanceResource extends Resource
                         ->when($data['until'], fn ($q, $date) => $q->whereDate('approved_at', '<=', $date))),
             ])
             ->actions([
-                Action::make('approve')
-                    ->label('Aprobar')
-                    ->icon('heroicon-o-check')
-                    ->color('success')
-                    ->visible(fn (Advance $record) => $record->isPending())
-                    ->modalHeading('Aprobar Adelanto')
-                    ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
-                    ->modalSubmitActionLabel('Sí, aprobar')
-                    ->form([
-                        Select::make('payment_method')
-                            ->label('Método de pago')
-                            ->options(Advance::getPaymentMethodOptions())
-                            ->default(fn (Advance $record) => $record->payment_method)
-                            ->required()
-                            ->native(false),
-                    ])
-                    ->action(function (Advance $record, array $data) {
-                        $result = $record->approve(Auth::id(), $data['payment_method']);
+                ActionGroup::make([
+                    Action::make('approve')
+                        ->label('Aprobar')
+                        ->icon('heroicon-o-check')
+                        ->color('success')
+                        ->visible(fn (Advance $record) => $record->isPending())
+                        ->modalHeading('Aprobar Adelanto')
+                        ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
+                        ->modalSubmitActionLabel('Sí, aprobar')
+                        ->form([
+                            Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Advance::getPaymentMethodOptions())
+                                ->default(fn (Advance $record) => $record->payment_method)
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Advance $record, array $data) {
+                            $result = $record->approve(Auth::id(), $data['payment_method']);
 
-                        Notification::make()
-                            ->title($result['success'] ? 'Adelanto Aprobado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'success' : 'danger'}()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($result['success'] ? 'Adelanto Aprobado' : 'Error')
+                                ->body($result['message'])
+                                ->{$result['success'] ? 'success' : 'danger'}()
+                                ->send();
+                        }),
 
-                Action::make('reject')
-                    ->label('Rechazar')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('warning')
-                    ->visible(fn (Advance $record) => $record->isPending())
-                    ->requiresConfirmation()
-                    ->modalHeading('Rechazar Adelanto')
-                    ->modalDescription(fn (Advance $record) => 'Se rechazará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. El adelanto quedará en estado Rechazado.')
-                    ->modalSubmitActionLabel('Sí, rechazar')
-                    ->form([
-                        Textarea::make('reason')
-                            ->label('Motivo del rechazo')
-                            ->placeholder('Ingrese el motivo...')
-                            ->rows(3),
-                    ])
-                    ->action(function (Advance $record, array $data) {
-                        $result = $record->reject($data['reason'] ?? null);
+                    Action::make('reject')
+                        ->label('Rechazar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('warning')
+                        ->visible(fn (Advance $record) => $record->isPending())
+                        ->requiresConfirmation()
+                        ->modalHeading('Rechazar Adelanto')
+                        ->modalDescription(fn (Advance $record) => 'Se rechazará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. El adelanto quedará en estado Rechazado.')
+                        ->modalSubmitActionLabel('Sí, rechazar')
+                        ->form([
+                            Textarea::make('reason')
+                                ->label('Motivo del rechazo')
+                                ->placeholder('Ingrese el motivo...')
+                                ->rows(3),
+                        ])
+                        ->action(function (Advance $record, array $data) {
+                            $result = $record->reject($data['reason'] ?? null);
 
-                        Notification::make()
-                            ->title($result['success'] ? 'Adelanto Rechazado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'warning' : 'danger'}()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($result['success'] ? 'Adelanto Rechazado' : 'Error')
+                                ->body($result['message'])
+                                ->{$result['success'] ? 'warning' : 'danger'}()
+                                ->send();
+                        }),
 
-                Action::make('revert_to_pending')
-                    ->label('Desaprobar')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(fn (Advance $record) => $record->isApproved() && $record->disbursement_batch_id === null)
-                    ->requiresConfirmation()
-                    ->modalHeading('Desaprobar adelanto')
-                    ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. de '.$record->employee->full_name.' volverá a estado Pendiente.')
-                    ->modalSubmitActionLabel('Sí, desaprobar')
-                    ->action(function (Advance $record) {
-                        $result = $record->revertToPending();
+                    Action::make('revert_to_pending')
+                        ->label('Desaprobar')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->visible(fn (Advance $record) => $record->isApproved() && $record->disbursement_batch_id === null)
+                        ->requiresConfirmation()
+                        ->modalHeading('Desaprobar adelanto')
+                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. de '.$record->employee->full_name.' volverá a estado Pendiente.')
+                        ->modalSubmitActionLabel('Sí, desaprobar')
+                        ->action(function (Advance $record) {
+                            $result = $record->revertToPending();
 
-                        Notification::make()
-                            ->title($result['success'] ? 'Adelanto desaprobado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'warning' : 'danger'}()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($result['success'] ? 'Adelanto desaprobado' : 'Error')
+                                ->body($result['message'])
+                                ->{$result['success'] ? 'warning' : 'danger'}()
+                                ->send();
+                        }),
 
-                Action::make('mark_disbursed')
-                    ->label('Marcar Entregado')
-                    ->icon('heroicon-o-banknotes')
-                    ->color('primary')
-                    ->visible(fn (Advance $record) => $record->isApproved())
-                    ->modalHeading('Marcar Adelanto como Entregado')
-                    ->modalDescription(fn (Advance $record) => 'Se confirmará que el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. fue entregado a '.$record->employee->full_name.'. Se descontará en la próxima liquidación de nómina.')
-                    ->modalSubmitActionLabel('Sí, marcar como entregado')
-                    ->form(fn (Advance $record) => [
-                        DateTimePicker::make('disbursed_at')
-                            ->label('Fecha y hora de Entrega')
-                            ->required()
-                            ->native(false)
-                            ->default(now())
-                            ->displayFormat('d/m/Y H:i'),
-                        \Filament\Forms\Components\FileUpload::make('transfer_receipt_path')
-                            ->label('Comprobante')
-                            ->disk('public')
-                            ->directory('advances/receipts')
-                            ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
-                            ->maxSize(5120)
-                            ->required($record->payment_method === 'transfer')
-                            ->getUploadedFileNameForStorageUsing(function ($file) use ($record): string {
-                                $ext = $file->getClientOriginalExtension();
+                    Action::make('mark_disbursed')
+                        ->label('Marcar Entregado')
+                        ->icon('heroicon-o-banknotes')
+                        ->color('primary')
+                        ->visible(fn (Advance $record) => $record->isApproved())
+                        ->modalHeading('Marcar Adelanto como Entregado')
+                        ->modalDescription(fn (Advance $record) => 'Se confirmará que el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. fue entregado a '.$record->employee->full_name.'. Se descontará en la próxima liquidación de nómina.')
+                        ->modalSubmitActionLabel('Sí, marcar como entregado')
+                        ->form(fn (Advance $record) => [
+                            DateTimePicker::make('disbursed_at')
+                                ->label('Fecha y hora de Entrega')
+                                ->required()
+                                ->native(false)
+                                ->default(now())
+                                ->displayFormat('d/m/Y H:i'),
+                            \Filament\Forms\Components\FileUpload::make('transfer_receipt_path')
+                                ->label('Comprobante')
+                                ->disk('public')
+                                ->directory('advances/receipts')
+                                ->acceptedFileTypes(['application/pdf', 'image/jpeg', 'image/png', 'image/webp'])
+                                ->maxSize(5120)
+                                ->required($record->payment_method === 'transfer')
+                                ->getUploadedFileNameForStorageUsing(function ($file) use ($record): string {
+                                    $ext = $file->getClientOriginalExtension();
 
-                                return 'comprobante_adelanto_'.$record->id.'_'.now()->format('Y-m-d_H-i-s').'.'.$ext;
-                            })
-                            ->helperText(($record->payment_method === 'transfer'
-                                ? 'Obligatorio para acreditación bancaria. '
-                                : 'Opcional. ')
-                                .'Formatos aceptados: PDF, JPG, PNG, WEBP. Tamaño máximo: 5 MB.'),
-                    ])
-                    ->action(function (Advance $record, array $data) {
-                        $result = $record->markAsDisbursed(
-                            $data['disbursed_at'],
-                            Auth::id(),
-                            $data['transfer_receipt_path'] ?? null,
-                        );
+                                    return 'comprobante_adelanto_'.$record->id.'_'.now()->format('Y-m-d_H-i-s').'.'.$ext;
+                                })
+                                ->helperText(($record->payment_method === 'transfer'
+                                    ? 'Obligatorio para acreditación bancaria. '
+                                    : 'Opcional. ')
+                                    .'Formatos aceptados: PDF, JPG, PNG, WEBP. Tamaño máximo: 5 MB.'),
+                        ])
+                        ->action(function (Advance $record, array $data) {
+                            $result = $record->markAsDisbursed(
+                                $data['disbursed_at'],
+                                Auth::id(),
+                                $data['transfer_receipt_path'] ?? null,
+                            );
 
-                        Notification::make()
-                            ->title($result['success'] ? 'Adelanto Entregado' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'success' : 'danger'}()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($result['success'] ? 'Adelanto Entregado' : 'Error')
+                                ->body($result['message'])
+                                ->{$result['success'] ? 'success' : 'danger'}()
+                                ->send();
+                        }),
 
-                Action::make('revert_to_approved')
-                    ->label('Revertir')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(fn (Advance $record) => $record->isDisbursed() && $record->payroll_id === null)
-                    ->requiresConfirmation()
-                    ->modalHeading('Revertir Adelanto a Aprobado')
-                    ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.' volverá al estado Aprobado.')
-                    ->modalSubmitActionLabel('Sí, revertir')
-                    ->action(function (Advance $record) {
-                        $result = $record->revertToApproved();
+                    Action::make('revert_to_approved')
+                        ->label('Revertir')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->visible(fn (Advance $record) => $record->isDisbursed() && $record->payroll_id === null)
+                        ->requiresConfirmation()
+                        ->modalHeading('Revertir Adelanto a Aprobado')
+                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.' volverá al estado Aprobado.')
+                        ->modalSubmitActionLabel('Sí, revertir')
+                        ->action(function (Advance $record) {
+                            $result = $record->revertToApproved();
 
-                        Notification::make()
-                            ->title($result['success'] ? 'Adelanto Revertido' : 'Error')
-                            ->body($result['message'])
-                            ->{$result['success'] ? 'warning' : 'danger'}()
-                            ->send();
-                    }),
+                            Notification::make()
+                                ->title($result['success'] ? 'Adelanto Revertido' : 'Error')
+                                ->body($result['message'])
+                                ->{$result['success'] ? 'warning' : 'danger'}()
+                                ->send();
+                        }),
 
-                Action::make('export_pdf')
-                    ->label('PDF')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
-                    ->visible(fn (Advance $record) => $record->isApproved() || $record->isDisbursed() || $record->isPaid())
-                    ->url(fn (Advance $record) => route('advances.pdf', $record))
-                    ->openUrlInNewTab(),
+                    Action::make('export_pdf')
+                        ->label('PDF')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->color('info')
+                        ->visible(fn (Advance $record) => $record->isApproved() || $record->isDisbursed() || $record->isPaid())
+                        ->url(fn (Advance $record) => route('advances.pdf', $record))
+                        ->openUrlInNewTab(),
+                ])->tooltip('Acciones'),
 
             ])
             ->bulkActions([

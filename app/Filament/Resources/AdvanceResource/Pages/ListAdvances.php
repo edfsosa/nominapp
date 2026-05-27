@@ -661,49 +661,68 @@ class ListAdvances extends ListRecords
     }
 
     /**
-     * Define las pestañas de filtrado por estado.
+     * Define las pestañas: por empresa si hay más de una activa, por estado si hay una sola.
      *
      * @return array<string, Tab>
      */
     public function getTabs(): array
     {
+        $companies = Company::active()->orderBy('name')->get();
         $counts = $this->getAdvanceCounts();
-        $byStatus = $counts['by_status'];
+        $tabs = ['all' => Tab::make('Todos')->badge($counts['total'])];
 
-        return [
-            'all' => Tab::make('Todos')
-                ->badge($counts['total']),
+        if ($companies->count() > 1) {
+            $companyCounts = Advance::query()
+                ->selectRaw('branches.company_id, COUNT(*) as total')
+                ->join('employees', 'advances.employee_id', '=', 'employees.id')
+                ->join('branches', 'employees.branch_id', '=', 'branches.id')
+                ->groupBy('branches.company_id')
+                ->pluck('total', 'company_id');
 
-            'pending' => Tab::make('Pendientes')
+            foreach ($companies as $company) {
+                $tabs["company_{$company->id}"] = Tab::make($company->name)
+                    ->modifyQueryUsing(fn (Builder $query) => $query->whereHas(
+                        'employee.branch',
+                        fn ($q) => $q->where('company_id', $company->id)
+                    ))
+                    ->badge($companyCounts[$company->id] ?? 0)
+                    ->icon('heroicon-o-building-office-2');
+            }
+        } else {
+            $byStatus = $counts['by_status'];
+
+            $tabs['pending'] = Tab::make('Pendientes')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending'))
                 ->badge($byStatus['pending'] ?? 0)
-                ->badgeColor('warning'),
+                ->badgeColor('warning');
 
-            'approved' => Tab::make('Aprobados')
+            $tabs['approved'] = Tab::make('Aprobados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
                 ->badge($byStatus['approved'] ?? 0)
-                ->badgeColor('info'),
+                ->badgeColor('info');
 
-            'disbursed' => Tab::make('Entregados')
+            $tabs['disbursed'] = Tab::make('Entregados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'disbursed'))
                 ->badge($byStatus['disbursed'] ?? 0)
-                ->badgeColor('primary'),
+                ->badgeColor('primary');
 
-            'paid' => Tab::make('Descontados')
+            $tabs['paid'] = Tab::make('Descontados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))
                 ->badge($byStatus['paid'] ?? 0)
-                ->badgeColor('success'),
+                ->badgeColor('success');
 
-            'rejected' => Tab::make('Rechazados')
+            $tabs['rejected'] = Tab::make('Rechazados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected'))
                 ->badge($byStatus['rejected'] ?? 0)
-                ->badgeColor('danger'),
+                ->badgeColor('danger');
 
-            'cancelled' => Tab::make('Cancelados')
+            $tabs['cancelled'] = Tab::make('Cancelados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'cancelled'))
                 ->badge($byStatus['cancelled'] ?? 0)
-                ->badgeColor('gray'),
-        ];
+                ->badgeColor('gray');
+        }
+
+        return $tabs;
     }
 
     /**
