@@ -2,15 +2,22 @@
 
 namespace App\Filament\Resources\DisbursementBatchResource\RelationManagers;
 
+use App\Filament\Resources\PayrollResource;
 use App\Models\DisbursementBatch;
 use App\Models\Payroll;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup as TableActionGroup;
+use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Maatwebsite\Excel\Excel;
+use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
+use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 /**
  * Muestra los recibos de nómina incluidos en el lote y permite agregar, remover y marcar rechazos bancarios.
@@ -47,26 +54,35 @@ class PayrollsRelationManager extends RelationManager
 
         return $table
             ->modifyQueryUsing(fn ($query) => $query->with([
+                'employee.activeContract.position',
                 'employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active'),
                 'period',
             ]))
             ->columns([
-                TextColumn::make('id')
-                    ->label('ID')
-                    ->sortable(),
+                TextColumn::make('employee.ci')
+                    ->label('CI')
+                    ->sortable()
+                    ->searchable()
+                    ->copyable()
+                    ->copyMessage('CI copiado')
+                    ->badge()
+                    ->color('gray'),
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
+                    ->sortable()
+                    ->wrap()
                     ->searchable(query: fn ($query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
                             ->orWhere('last_name', 'like', "%{$search}%")
                     )),
 
-                TextColumn::make('employee.ci')
-                    ->label('CI')
+                TextColumn::make('employee.activeContract.position.name')
+                    ->label('Cargo')
                     ->badge()
-                    ->color('gray'),
+                    ->color('info')
+                    ->toggleable(),
 
                 TextColumn::make('bank_account')
                     ->label('Cuenta bancaria')
@@ -79,7 +95,14 @@ class PayrollsRelationManager extends RelationManager
                 TextColumn::make('net_salary')
                     ->label('Neto a pagar')
                     ->money('PYG', locale: 'es_PY')
-                    ->sortable(),
+                    ->sortable()
+                    ->weight('bold')
+                    ->color('success')
+                    ->summarize([
+                        Sum::make()
+                            ->money('PYG', locale: 'es_PY')
+                            ->label('Total a acreditar'),
+                    ]),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -96,6 +119,17 @@ class PayrollsRelationManager extends RelationManager
                     ->placeholder('-'),
             ])
             ->headerActions([
+                ExportAction::make()
+                    ->exports([
+                        ExcelExport::make()
+                            ->fromTable()
+                            ->withFilename(fn () => 'recibos_lote_'.$batch->id.'_'.now()->format('d_m_Y_H_i_s'))
+                            ->withWriterType(Excel::XLSX),
+                    ])
+                    ->label('Exportar a Excel')
+                    ->color('info')
+                    ->icon('heroicon-o-arrow-down-tray'),
+
                 Action::make('add_payrolls')
                     ->label('Agregar recibos')
                     ->icon('heroicon-o-plus-circle')
@@ -167,54 +201,87 @@ class PayrollsRelationManager extends RelationManager
                     }),
             ])
             ->actions([
-                Action::make('remove_from_batch')
-                    ->label('Remover')
-                    ->icon('heroicon-o-arrow-uturn-left')
-                    ->color('warning')
-                    ->visible(fn (Payroll $record) => $batch->isPending() && $record->isApproved())
-                    ->requiresConfirmation()
-                    ->modalHeading('Remover recibo del lote')
-                    ->modalDescription(fn (Payroll $record) => 'El recibo de '.$record->employee->full_name.' (Gs. '.number_format((float) $record->net_salary, 0, ',', '.').' neto) quedará disponible para asignarse a otro lote.')
-                    ->modalSubmitActionLabel('Sí, remover')
-                    ->action(function (Payroll $record) {
-                        $record->update(['disbursement_batch_id' => null]);
+                Action::make('view')
+                    ->label('Ver')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->url(fn (Payroll $record) => PayrollResource::getUrl('view', ['record' => $record]))
+                    ->openUrlInNewTab(),
 
-                        Notification::make()
-                            ->warning()
-                            ->title('Recibo removido')
-                            ->body('El recibo fue removido del lote y quedó disponible.')
-                            ->send();
-                    }),
-
-                Action::make('mark_rejected')
-                    ->label('Marcar Rechazado')
-                    ->icon('heroicon-o-x-circle')
-                    ->color('danger')
-                    ->visible(fn (Payroll $record) => $batch->isPending() && $record->isApproved())
-                    ->modalHeading('Marcar recibo como rechazado por el banco')
-                    ->modalDescription(fn (Payroll $record) => 'El recibo de '.$record->employee->full_name.' volverá a estado Aprobado con la razón de rechazo indicada.')
-                    ->modalSubmitActionLabel('Marcar rechazado')
+                Action::make('download_pdf')
+                    ->label('PDF')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('info')
                     ->form([
-                        Select::make('bank_rejection_reason')
-                            ->label('Motivo de rechazo')
-                            ->options(Payroll::getBankRejectionReasonOptions())
-                            ->required()
-                            ->native(false),
+                        Radio::make('mode')
+                            ->label('Formato')
+                            ->options([
+                                'print'    => 'Para imprimir — 2 copias en hoja horizontal',
+                                'employee' => 'Para empleado — 1 copia en hoja vertical',
+                            ])
+                            ->default('print')
+                            ->required(),
                     ])
-                    ->action(function (Payroll $record, array $data) {
-                        $record->update([
-                            'disbursement_batch_id' => null,
-                            'bank_rejection_reason' => $data['bank_rejection_reason'],
-                        ]);
-
-                        Notification::make()
-                            ->warning()
-                            ->title('Recibo rechazado')
-                            ->body('El recibo fue removido del lote y quedó en estado Aprobado.')
-                            ->send();
+                    ->modalHeading('Descargar Recibo PDF')
+                    ->modalSubmitActionLabel('Descargar')
+                    ->action(function (array $data, Payroll $record) {
+                        $url = route('payrolls.download', ['payroll' => $record, 'mode' => $data['mode']]);
+                        $this->js("window.open('{$url}', '_blank')");
                     }),
+
+                TableActionGroup::make([
+                    Action::make('remove_from_batch')
+                        ->label('Remover del lote')
+                        ->icon('heroicon-o-arrow-uturn-left')
+                        ->color('warning')
+                        ->visible(fn (Payroll $record) => $batch->isPending() && $record->isApproved())
+                        ->requiresConfirmation()
+                        ->modalHeading('Remover recibo del lote')
+                        ->modalDescription(fn (Payroll $record) => 'El recibo de '.$record->employee->full_name.' (Gs. '.number_format((float) $record->net_salary, 0, ',', '.').' neto) quedará disponible para asignarse a otro lote.')
+                        ->modalSubmitActionLabel('Sí, remover')
+                        ->action(function (Payroll $record) {
+                            $record->update(['disbursement_batch_id' => null]);
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Recibo removido')
+                                ->body('El recibo fue removido del lote y quedó disponible.')
+                                ->send();
+                        }),
+
+                    Action::make('mark_rejected')
+                        ->label('Marcar Rechazado')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->visible(fn (Payroll $record) => $batch->isPending() && $record->isApproved())
+                        ->modalHeading('Marcar recibo como rechazado por el banco')
+                        ->modalDescription(fn (Payroll $record) => 'El recibo de '.$record->employee->full_name.' volverá a estado Aprobado con la razón de rechazo indicada.')
+                        ->modalSubmitActionLabel('Marcar rechazado')
+                        ->form([
+                            Select::make('bank_rejection_reason')
+                                ->label('Motivo de rechazo')
+                                ->options(Payroll::getBankRejectionReasonOptions())
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Payroll $record, array $data) {
+                            $record->update([
+                                'disbursement_batch_id'  => null,
+                                'bank_rejection_reason'  => $data['bank_rejection_reason'],
+                            ]);
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Recibo rechazado')
+                                ->body('El recibo fue removido del lote y quedó en estado Aprobado.')
+                                ->send();
+                        }),
+                ]),
             ])
+            ->paginationPageOptions([10, 25, 50, 100])
+            ->defaultSort('id', 'desc')
             ->emptyStateHeading('Sin recibos en este lote')
+            ->emptyStateDescription('Agregá recibos aprobados por transferencia usando el botón "Agregar recibos".')
             ->emptyStateIcon('heroicon-o-document-text');
     }
 }
