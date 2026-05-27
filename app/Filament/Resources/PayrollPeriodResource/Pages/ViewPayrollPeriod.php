@@ -375,7 +375,7 @@ class ViewPayrollPeriod extends ViewRecord
 
                         $this->redirect(DisbursementBatchResource::getUrl('view', ['record' => $batch]));
                     })
-                    ->visible(fn () => in_array($this->record->status, ['processing', 'closed'])),
+                    ->visible(fn () => $this->record->status === 'processing'),
 
                 Action::make('mark_cash_paid')
                     ->label('Marcar Efectivo como Pagado')

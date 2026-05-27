@@ -26,9 +26,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
-/**
- * Recurso Filament para gestionar lotes de acreditación bancaria masiva de adelantos.
- */
+/** Recurso Filament para gestionar lotes de acreditación bancaria masiva de adelantos y nóminas. */
 class DisbursementBatchResource extends Resource
 {
     protected static ?string $model = DisbursementBatch::class;
@@ -175,15 +173,22 @@ class DisbursementBatchResource extends Resource
                                 ->icon(fn (string $state) => DisbursementBatch::getStatusIcon($state))
                                 ->badge(),
 
-                            TextEntry::make('advances_count')
-                                ->label('Cantidad de adelantos')
+                            TextEntry::make('items_count')
+                                ->label(fn (DisbursementBatch $record) => $record->type === 'payroll' ? 'Cantidad de recibos' : 'Cantidad de adelantos')
                                 ->icon('heroicon-o-banknotes')
-                                ->getStateUsing(fn (DisbursementBatch $record) => $record->advances()->count()),
+                                ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
+                                    ? $record->payrolls()->count()
+                                    : $record->advances()->count()),
 
-                            TextEntry::make('advances_total')
+                            TextEntry::make('items_total')
                                 ->label('Monto total')
                                 ->icon('heroicon-o-currency-dollar')
-                                ->getStateUsing(fn (DisbursementBatch $record) => 'Gs. '.number_format((float) $record->advances()->sum('amount'), 0, ',', '.')),
+                                ->getStateUsing(fn (DisbursementBatch $record) => 'Gs. '.number_format(
+                                    (float) ($record->type === 'payroll'
+                                        ? $record->payrolls()->sum('net_salary')
+                                        : $record->advances()->sum('amount')),
+                                    0, ',', '.'
+                                )),
                         ])->columns(3),
 
                         TextEntry::make('notes')
@@ -267,7 +272,12 @@ class DisbursementBatchResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['company', 'createdBy']))
+            ->modifyQueryUsing(fn (Builder $query) => $query
+                ->with(['company', 'createdBy'])
+                ->withCount(['advances', 'payrolls'])
+                ->withSum('advances', 'amount')
+                ->withSum('payrolls', 'net_salary')
+            )
             ->columns([
                 TextColumn::make('id')
                     ->label('ID')
@@ -275,6 +285,13 @@ class DisbursementBatchResource extends Resource
 
                 TextColumn::make('company.name')
                     ->label('Empresa')
+                    ->sortable(),
+
+                TextColumn::make('type')
+                    ->label('Tipo')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => DisbursementBatch::getTypeLabel($state))
+                    ->color(fn (string $state) => $state === 'payroll' ? 'info' : 'success')
                     ->sortable(),
 
                 TextColumn::make('fecha_credito')
@@ -290,16 +307,22 @@ class DisbursementBatchResource extends Resource
                     ->icon(fn (string $state) => DisbursementBatch::getStatusIcon($state))
                     ->sortable(),
 
-                TextColumn::make('advances_count')
-                    ->label('Adelantos')
-                    ->counts('advances')
-                    ->sortable(),
+                TextColumn::make('items_count')
+                    ->label('Ítems')
+                    ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
+                        ? $record->payrolls_count
+                        : $record->advances_count)
+                    ->badge()
+                    ->color('gray')
+                    ->sortable(false),
 
-                TextColumn::make('advances_sum_amount')
+                TextColumn::make('items_total')
                     ->label('Total (Gs.)')
-                    ->sum('advances', 'amount')
+                    ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
+                        ? $record->payrolls_sum_net_salary
+                        : $record->advances_sum_amount)
                     ->numeric(0, ',', '.')
-                    ->sortable(),
+                    ->sortable(false),
 
                 TextColumn::make('createdBy.name')
                     ->label('Creado por')
@@ -313,6 +336,11 @@ class DisbursementBatchResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                SelectFilter::make('type')
+                    ->label('Tipo')
+                    ->options(DisbursementBatch::getTypeOptions())
+                    ->native(false),
+
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(DisbursementBatch::getStatusOptions())
@@ -333,7 +361,7 @@ class DisbursementBatchResource extends Resource
             ->bulkActions([])
             ->defaultSort('id', 'desc')
             ->emptyStateHeading('No hay lotes de pago registrados')
-            ->emptyStateDescription('Creá un lote para gestionar la acreditación bancaria masiva de adelantos.')
+            ->emptyStateDescription('Creá un lote para gestionar la acreditación bancaria masiva de adelantos o nóminas.')
             ->emptyStateIcon('heroicon-o-building-library');
     }
 

@@ -6,8 +6,10 @@ use App\Filament\Resources\DisbursementBatchResource;
 use App\Filament\Resources\PayrollPeriodResource;
 use App\Models\CompanyBankAccount;
 use App\Models\DisbursementBatch;
+use App\Models\Payroll;
 use App\Services\BankPaymentExportService;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Textarea;
@@ -186,7 +188,7 @@ class ViewDisbursementBatch extends ViewRecord
                 ->visible(fn () => $this->record->isPending())
                 ->modalHeading('Confirmar resultado bancario')
                 ->modalDescription(fn () => $this->record->type === 'payroll'
-                    ? 'Adjuntá el comprobante del banco. Los recibos no rechazados quedarán como Acreditados.'
+                    ? 'Adjuntá el comprobante del banco. Marcá los recibos rechazados (si los hay); los demás quedarán como Acreditados.'
                     : 'Adjuntá el comprobante del banco y marcá los adelantos rechazados desde la tabla antes de confirmar. Los adelantos no rechazados quedarán como Entregados.'
                 )
                 ->modalSubmitActionLabel('Confirmar')
@@ -204,11 +206,31 @@ class ViewDisbursementBatch extends ViewRecord
                             return 'confirmacion_lote_'.$this->record->id.'_'.now()->format('Y-m-d_H-i-s').'.'.$ext;
                         })
                         ->helperText('Obligatorio. Formatos aceptados: PDF, JPG, PNG, WEBP. Tamaño máximo: 10 MB.'),
+
+                    CheckboxList::make('rejected_payroll_ids')
+                        ->label('Recibos rechazados por el banco')
+                        ->options(fn () => $this->record->payrolls()
+                            ->where('status', 'approved')
+                            ->with('employee')
+                            ->get()
+                            ->mapWithKeys(fn (Payroll $p) => [
+                                $p->id => $p->employee->full_name
+                                    .' — CI: '.$p->employee->ci
+                                    .' — Gs. '.number_format((float) $p->net_salary, 0, ',', '.'),
+                            ])
+                            ->toArray()
+                        )
+                        ->helperText('Marcá los recibos que el banco rechazó. Los no marcados quedarán como Acreditados.')
+                        ->visible(fn () => $this->record->type === 'payroll'),
                 ])
                 ->action(function (array $data) {
+                    $rejectedIds = array_map('intval', $data['rejected_payroll_ids'] ?? []);
+
                     $result = $this->record->confirm(
                         confirmedById: Auth::id(),
                         bankConfirmationPath: $data['bank_confirmation_path'],
+                        rejectedIds: $rejectedIds,
+                        rejectionReasons: array_fill_keys($rejectedIds, 'otro'),
                     );
 
                     if ($result['success']) {
