@@ -95,7 +95,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->body(implode(' · ', $bodyParts))
                             ->send();
 
-                        $this->refreshFormData(['status', 'updated_at']);
+                        $this->js('window.location.reload()');
                     } else {
                         Notification::make()
                             ->warning()

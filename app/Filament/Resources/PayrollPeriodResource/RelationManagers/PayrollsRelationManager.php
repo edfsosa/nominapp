@@ -26,6 +26,7 @@ use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\Summarizers\Sum;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group as TableGroup;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -250,11 +251,11 @@ class PayrollsRelationManager extends RelationManager
 
                 // Marca como pagados los recibos en efectivo (approved) y los ya acreditados (disbursed)
                 Action::make('mark_all_paid')
-                    ->label('Marcar Todos Pagados')
+                    ->label('Marcar Pagados')
                     ->icon('heroicon-o-banknotes')
                     ->color('info')
                     ->requiresConfirmation()
-                    ->modalHeading('Marcar Todos como Pagados')
+                    ->modalHeading('Marcar recibos como Pagados')
                     ->modalSubmitActionLabel('Sí, marcar como pagados')
                     ->modalDescription(function () {
                         $cashCount = $this->getOwnerRecord()->payrolls()
@@ -264,13 +265,13 @@ class PayrollsRelationManager extends RelationManager
 
                         $parts = [];
                         if ($cashCount > 0) {
-                            $parts[] = "{$cashCount} en efectivo aprobados";
+                            $parts[] = "{$cashCount} en efectivo (Aprobados → Pagados)";
                         }
                         if ($disbursedCount > 0) {
-                            $parts[] = "{$disbursedCount} acreditados";
+                            $parts[] = "{$disbursedCount} por transferencia ya acreditados (Acreditados → Pagados)";
                         }
 
-                        return 'Se marcarán como pagados: '.implode(' y ', $parts).'. ¿Desea continuar?';
+                        return 'Se marcarán como Pagados: '.implode(' y ', $parts).'. Los recibos en otros estados no se modifican.';
                     })
                     ->action(function () {
                         $count = $this->getOwnerRecord()->payrolls()
@@ -833,7 +834,14 @@ class PayrollsRelationManager extends RelationManager
             ->emptyStateHeading('No hay recibos generados')
             ->emptyStateDescription('Los recibos aparecerán aquí una vez que se generen desde la planilla.')
             ->emptyStateIcon('heroicon-o-document-text')
-            ->defaultSort('generated_at', 'desc');
+            ->defaultSort('generated_at', 'desc')
+            ->defaultGroup('payment_method')
+            ->groups([
+                TableGroup::make('payment_method')
+                    ->label('Método de pago')
+                    ->getTitleFromRecordUsing(fn (Payroll $record) => Payroll::getPaymentMethodLabels()[$record->payment_method] ?? '—')
+                    ->collapsible(),
+            ]);
     }
 
     public function infolist(Infolist $infolist): Infolist

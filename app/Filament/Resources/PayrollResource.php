@@ -710,6 +710,13 @@ class PayrollResource extends Resource
                                 ->color(fn ($state) => Payroll::getStatusColors()[$state] ?? 'gray')
                                 ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
 
+                            TextEntry::make('payment_method')
+                                ->label('Método de pago')
+                                ->badge()
+                                ->color(fn (?string $state) => Payroll::getPaymentMethodColors()[$state] ?? 'gray')
+                                ->icon(fn (?string $state) => Payroll::getPaymentMethodIcons()[$state] ?? null)
+                                ->formatStateUsing(fn (?string $state) => Payroll::getPaymentMethodLabels()[$state] ?? '—'),
+
                             TextEntry::make('approvedBy.name')
                                 ->label('Aprobado por')
                                 ->placeholder('Sin aprobar')
@@ -720,7 +727,7 @@ class PayrollResource extends Resource
                                 ->dateTime('d/m/Y H:i')
                                 ->placeholder('Sin aprobar')
                                 ->icon('heroicon-o-clock'),
-                        ])->columns(3),
+                        ])->columns(4),
                     ])
                     ->collapsible(),
 

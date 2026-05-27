@@ -411,14 +411,22 @@ class PayrollService
                 ->whereBetween('due_date', [$period->start_date, $period->end_date])
                 ->update(['status' => 'pending', 'paid_at' => null, 'payroll_id' => null]);
 
-            // Revertir adelantos descontados en esta nómina
+            // Revertir adelantos descontados en esta nómina (a disbursed, no a approved,
+            // para que AdvanceCalculator los vuelva a procesar en la regeneración)
             Advance::where('employee_id', $employee->id)
                 ->where('payroll_id', $payroll->id)
                 ->update([
-                    'status' => 'approved',
+                    'status' => 'disbursed',
                     'payroll_id' => null,
                     'employee_deduction_id' => null,
                 ]);
+
+            // Revertir remuneraciones vacacionales pagadas en esta nómina
+            Vacation::where('employee_id', $employee->id)
+                ->where('payment_method', 'with_payroll')
+                ->where('payment_status', 'paid')
+                ->whereBetween('start_date', [$period->start_date, $period->end_date])
+                ->update(['payment_status' => 'unpaid', 'paid_at' => null]);
 
             // Eliminar ítems existentes
             $payroll->items()->delete();
@@ -440,7 +448,7 @@ class PayrollService
                 $baseSalary = $employee->base_salary;
             }
 
-            // Recalcular con los 8 calculadores — extras antes de deducciones para base IPS correcta
+            // Recalcular con todos los calculadores — extras antes de deducciones para base IPS correcta
             $perceptions = $this->perceptionCalculator->calculate($employee, $period);
             $extras = $this->extraHourCalculator->calculate($employee, $period);
             $restDay = $this->restDayCalculator->calculate($employee, $period);
@@ -451,8 +459,9 @@ class PayrollService
             $deductions = $this->deductionCalculator->calculate($employee, $period, $ipsBase);
             $absences = $this->absencePenaltyCalculator->calculate($employee, $period);
             $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
+            $vacationPays = $this->resolveVacationPays($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'];
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'] + $vacationPays['total'];
             $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
             $totalDeductions = $deductions['total'] + $absences['total'];
             $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
@@ -474,6 +483,16 @@ class PayrollService
                     'payroll_id' => $payroll->id,
                     'type' => 'perception',
                     'perception_type' => $item['perception_type'] ?? null,
+                    'description' => $item['description'],
+                    'amount' => $item['amount'],
+                ]);
+            }
+
+            // Recrear ítems: remuneración vacacional with_payroll
+            foreach ($vacationPays['items'] as $item) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => 'perception',
                     'description' => $item['description'],
                     'amount' => $item['amount'],
                 ]);
@@ -506,6 +525,11 @@ class PayrollService
             if ($merchandiseInstallments['installments']->isNotEmpty()) {
                 $merchandiseIds = $merchandiseInstallments['installments']->pluck('id')->toArray();
                 $this->merchandiseInstallmentCalculator->markInstallmentsAsPaid($merchandiseIds, $payroll->id);
+            }
+
+            // Marcar remuneraciones vacacionales como pagadas
+            foreach ($vacationPays['vacations'] as $vacation) {
+                VacationService::recordPayment($vacation, now());
             }
 
             // Regenerar PDF
