@@ -334,6 +334,32 @@ class PayrollPeriodResource extends Resource
                     ])
                     ->collapsible(),
 
+                InfolistSection::make('Recibos')
+                    ->schema([
+                        Group::make([
+                            TextEntry::make('total_payrolls_count')
+                                ->label('Con recibo')
+                                ->icon('heroicon-o-users')
+                                ->suffix(' empleados'),
+
+                            TextEntry::make('draft_payrolls_count')
+                                ->label('Borrador')
+                                ->badge()
+                                ->color('gray'),
+
+                            TextEntry::make('approved_payrolls_count')
+                                ->label('Aprobados')
+                                ->badge()
+                                ->color('warning'),
+
+                            TextEntry::make('paid_payrolls_count')
+                                ->label('Pagados')
+                                ->badge()
+                                ->color('success'),
+                        ])->columns(4),
+                    ])
+                    ->collapsible(),
+
                 InfolistSection::make('Información del Sistema')
                     ->schema([
                         Group::make([

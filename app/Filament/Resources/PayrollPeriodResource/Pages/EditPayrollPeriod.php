@@ -66,19 +66,26 @@ class EditPayrollPeriod extends EditRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('Regenerar Todos los Recibos')
-                ->modalDescription(
-                    fn () => "¿Está seguro de regenerar TODOS los recibos de la planilla {$this->record->name}? ".
-                        'Se recalcularán percepciones, deducciones, horas extras, ausencias, cuotas de préstamos, adelantos y cuotas de retiro de mercaderías. Solo se regenerarán los recibos en estado borrador.'
-                )
+                ->modalDescription(function () {
+                    $approved = $this->record->payrolls()->where('status', 'approved')->count();
+                    $base = "¿Está seguro de regenerar TODOS los recibos de la planilla {$this->record->name}? ".
+                        'Se recalcularán percepciones, deducciones, horas extras, ausencias, cuotas de préstamos, adelantos y cuotas de retiro de mercaderías.';
+                    if ($approved > 0) {
+                        $noun = $approved === 1 ? 'recibo aprobado será revertido' : 'recibos aprobados serán revertidos';
+                        $base .= " Atención: {$approved} {$noun} a borrador y requerirán nueva aprobación.";
+                    }
+
+                    return $base;
+                })
                 ->modalSubmitActionLabel('Sí, regenerar')
                 ->action(function (PayrollService $payrollService) {
-                    $payrolls = $this->record->payrolls()->where('status', 'draft')->with('employee')->get();
+                    $payrolls = $this->record->payrolls()->whereIn('status', ['draft', 'approved'])->with('employee')->get();
 
                     if ($payrolls->isEmpty()) {
                         Notification::make()
                             ->warning()
                             ->title('Sin recibos para regenerar')
-                            ->body('No hay recibos en estado borrador para regenerar.')
+                            ->body('No hay recibos en estado borrador o aprobado para regenerar.')
                             ->send();
 
                         return;
@@ -89,9 +96,12 @@ class EditPayrollPeriod extends EditRecord
 
                     foreach ($payrolls as $payroll) {
                         try {
+                            if ($payroll->status === 'approved') {
+                                $payroll->update(['status' => 'draft']);
+                            }
                             $payrollService->regenerateForEmployee($payroll);
                             $count++;
-                        } catch (\Throwable $e) {
+                        } catch (\Throwable) {
                             $failedEmployees[] = $payroll->employee->full_name;
                         }
                     }
@@ -112,7 +122,7 @@ class EditPayrollPeriod extends EditRecord
                             ->send();
                     }
                 })
-                ->visible(fn () => $this->record->status === 'processing' && $this->record->payrolls()->where('status', 'draft')->exists()),
+                ->visible(fn () => $this->record->status === 'processing' && $this->record->payrolls()->whereIn('status', ['draft', 'approved'])->exists()),
 
             Action::make('revert_to_draft')
                 ->label('Revertir a Borrador')
