@@ -336,7 +336,7 @@ class AdvanceResource extends Resource
     {
         return $table
             ->modifyQueryUsing(
-                fn (Builder $query) => $query->with(['employee', 'approvedBy'])
+                fn (Builder $query) => $query->with(['employee', 'approvedBy', 'payroll.period'])
             )
             ->columns([
                 TextColumn::make('id')
@@ -389,6 +389,12 @@ class AdvanceResource extends Resource
                     ->formatStateUsing(fn (string $state) => Advance::getPaymentMethodLabel($state))
                     ->color(fn (string $state) => Advance::getPaymentMethodColor($state))
                     ->icon(fn (string $state) => Advance::getPaymentMethodIcon($state))
+                    ->toggleable(),
+
+                TextColumn::make('payroll.period.name')
+                    ->label('Período descontado')
+                    ->icon('heroicon-o-document-text')
+                    ->placeholder('-')
                     ->toggleable(),
 
                 TextColumn::make('approved_at')
