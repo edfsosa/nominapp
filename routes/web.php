@@ -134,6 +134,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Préstamos y adelantos (rutas estáticas deben ir ANTES de las dinámicas con {advance})
     Route::get('/prestamos/{loan}/pdf', [LoanController::class, 'show'])->name('loans.pdf');
+    Route::get('/retiros-mercaderia/reporte/pdf', [MerchandiseReportController::class, 'pdf'])->name('merchandise.report.pdf');
     Route::get('/retiros-mercaderia/{merchandiseWithdrawal}/pdf', [MerchandiseWithdrawalController::class, 'show'])->name('merchandise-withdrawals.pdf');
     Route::get('/adelantos/pdf/masivo', [AdvanceController::class, 'bulkPdf'])->name('advances.pdf.bulk');
     Route::get('/adelantos/reporte/pdf', [AdvanceReportController::class, 'pdf'])->name('advances.report.pdf');
@@ -141,7 +142,6 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/asistencia/reporte/asistencias/pdf', [AttendancePdfReportController::class, 'attendance'])->name('attendance.report.attendance.pdf');
     Route::get('/asistencia/reporte/ausencias/pdf', [AttendancePdfReportController::class, 'absence'])->name('attendance.report.absence.pdf');
     Route::get('/asistencia/reporte/overtime/pdf', [AttendancePdfReportController::class, 'overtime'])->name('attendance.report.overtime.pdf');
-    Route::get('/retiros-mercaderia/reporte/pdf', [MerchandiseReportController::class, 'pdf'])->name('merchandise.report.pdf');
     Route::get('/empleados/reporte/pdf', [EmployeeReportController::class, 'pdf'])->name('employees.report.pdf');
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 

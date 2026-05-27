@@ -2,49 +2,57 @@
 
 namespace App\Filament\Resources;
 
+use App\Filament\Resources\AbsenceResource\Pages;
 use App\Models\Absence;
+use App\Models\AttendanceDay;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Section;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
-use App\Models\AttendanceDay;
+use Filament\Infolists\Components\Section as InfoSection;
+use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Auth;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Section;
-use Filament\Forms\Components\Textarea;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
+use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
-use Illuminate\Database\Eloquent\Model;
-use Filament\Notifications\Notification;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\FileUpload;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
-use Filament\Tables\Actions\BulkAction;
-use Filament\Tables\Actions\BulkActionGroup;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Infolists\Components\TextEntry;
-use Filament\Infolists\Components\Section as InfoSection;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
-use App\Filament\Resources\AbsenceResource\Pages;
 
 class AbsenceResource extends Resource
 {
     protected static ?string $model = Absence::class;
+
     protected static ?string $navigationLabel = 'Ausencias';
+
     protected static ?string $label = 'ausencia';
+
     protected static ?string $pluralLabel = 'ausencias';
+
     protected static ?string $slug = 'ausencias';
+
     protected static ?string $navigationIcon = 'heroicon-o-x-circle';
+
     protected static ?string $navigationGroup = 'Asistencias';
+
     protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
@@ -57,24 +65,24 @@ class AbsenceResource extends Resource
                             ->label('Empleado')
                             ->relationship(
                                 name: 'employee',
-                                modifyQueryUsing: fn(Builder $query) => $query
+                                modifyQueryUsing: fn (Builder $query) => $query
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
-                            ->getOptionLabelFromRecordUsing(fn(Model $record) => $record->full_name_with_ci)
+                            ->getOptionLabelFromRecordUsing(fn (Model $record) => $record->full_name_with_ci)
                             ->searchable(['first_name', 'last_name', 'ci'])
                             ->native(false)
                             ->required()
                             ->live()
-                            ->afterStateUpdated(fn(Set $set) => $set('attendance_day_id', null))
-                            ->disabled(fn(string $operation) => $operation === 'edit'),
+                            ->afterStateUpdated(fn (Set $set) => $set('attendance_day_id', null))
+                            ->disabled(fn (string $operation) => $operation === 'edit'),
 
                         Select::make('attendance_day_id')
                             ->label('Día de Asistencia')
                             ->options(function (Get $get) {
                                 $employeeId = $get('employee_id');
 
-                                if (!$employeeId) {
+                                if (! $employeeId) {
                                     return [];
                                 }
 
@@ -87,12 +95,12 @@ class AbsenceResource extends Resource
                                     ->get()
                                     ->pluck('date_formatted', 'id');
                             })
-                            ->getOptionLabelUsing(fn($value): ?string => AttendanceDay::find($value)?->date_formatted)
+                            ->getOptionLabelUsing(fn ($value): ?string => AttendanceDay::find($value)?->date_formatted)
                             ->searchable()
                             ->native(false)
                             ->required()
-                            ->disabled(fn(string $operation, Get $get) => $operation === 'edit' || !$get('employee_id'))
-                            ->helperText(fn(Get $get) => !$get('employee_id')
+                            ->disabled(fn (string $operation, Get $get) => $operation === 'edit' || ! $get('employee_id'))
+                            ->helperText(fn (Get $get) => ! $get('employee_id')
                                 ? 'Primero selecciona un empleado'
                                 : 'Solo se muestran días con ausencia que no tienen registro'),
                     ])
@@ -171,10 +179,10 @@ class AbsenceResource extends Resource
                             ->relationship('employeeDeduction', 'id')
                             ->native(false)
                             ->disabled()
-                            ->visible(fn($record) => $record?->employee_deduction_id !== null),
+                            ->visible(fn ($record) => $record?->employee_deduction_id !== null),
                     ])
                     ->columns(2)
-                    ->visible(fn(string $operation) => $operation === 'edit'),
+                    ->visible(fn (string $operation) => $operation === 'edit'),
             ]);
     }
 
@@ -189,7 +197,11 @@ class AbsenceResource extends Resource
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['first_name', 'last_name'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+                        'employee',
+                        fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                    ))
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
 
@@ -208,14 +220,14 @@ class AbsenceResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => Absence::getStatusLabel($state))
-                    ->color(fn(string $state): string => Absence::getStatusColor($state))
+                    ->formatStateUsing(fn (string $state) => Absence::getStatusLabel($state))
+                    ->color(fn (string $state): string => Absence::getStatusColor($state))
                     ->sortable(),
 
                 TextColumn::make('reason')
                     ->label('Motivo')
                     ->limit(45)
-                    ->tooltip(fn($record) => $record->reason)
+                    ->tooltip(fn ($record) => $record->reason)
                     ->placeholder('Sin motivo')
                     ->wrap()
                     ->toggleable(),
@@ -230,8 +242,8 @@ class AbsenceResource extends Resource
                     ->label('Reportado por')
                     ->default('Sistema')
                     ->badge()
-                    ->color(fn($record) => $record->reported_by_id ? 'primary' : 'gray')
-                    ->icon(fn($record) => $record->reported_by_id ? 'heroicon-o-user' : 'heroicon-o-cog-6-tooth')
+                    ->color(fn ($record) => $record->reported_by_id ? 'primary' : 'gray')
+                    ->icon(fn ($record) => $record->reported_by_id ? 'heroicon-o-user' : 'heroicon-o-cog-6-tooth')
                     ->searchable()
                     ->sortable()
                     ->toggleable(),
@@ -248,6 +260,7 @@ class AbsenceResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('reported_at', 'desc')
+            ->paginationPageOptions([10, 25, 50, 100])
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
@@ -258,7 +271,7 @@ class AbsenceResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false)
@@ -283,16 +296,16 @@ class AbsenceResource extends Resource
                         return $query
                             ->when(
                                 $data['absence_from'],
-                                fn(Builder $query, $date): Builder => $query->whereHas(
+                                fn (Builder $query, $date): Builder => $query->whereHas(
                                     'attendanceDay',
-                                    fn(Builder $q) => $q->whereDate('date', '>=', $date)
+                                    fn (Builder $q) => $q->whereDate('date', '>=', $date)
                                 ),
                             )
                             ->when(
                                 $data['absence_until'],
-                                fn(Builder $query, $date): Builder => $query->whereHas(
+                                fn (Builder $query, $date): Builder => $query->whereHas(
                                     'attendanceDay',
-                                    fn(Builder $q) => $q->whereDate('date', '<=', $date)
+                                    fn (Builder $q) => $q->whereDate('date', '<=', $date)
                                 ),
                             );
                     }),
@@ -308,15 +321,15 @@ class AbsenceResource extends Resource
                     ->label('Justificar')
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
-                    ->tooltip(fn(Absence $record) => $record->isUnjustified()
+                    ->tooltip(fn (Absence $record) => $record->isUnjustified()
                         ? 'Cambiar de injustificada a justificada (eliminará la deducción)'
                         : 'Marcar esta ausencia como justificada')
-                    ->visible(fn(Absence $record) => !$record->isJustified())
+                    ->visible(fn (Absence $record) => ! $record->isJustified())
                     ->requiresConfirmation()
-                    ->modalHeading(fn(Absence $record) => $record->isUnjustified()
+                    ->modalHeading(fn (Absence $record) => $record->isUnjustified()
                         ? 'Cambiar a Justificada'
                         : 'Justificar Ausencia')
-                    ->modalDescription(fn(Absence $record) => $record->isUnjustified()
+                    ->modalDescription(fn (Absence $record) => $record->isUnjustified()
                         ? '¿Está seguro? Esto eliminará la deducción generada previamente.'
                         : '¿Está seguro de que desea marcar esta ausencia como justificada?')
                     ->form([
@@ -339,15 +352,15 @@ class AbsenceResource extends Resource
                     ->label('Marcar Injustificada')
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
-                    ->tooltip(fn(Absence $record) => $record->isJustified()
+                    ->tooltip(fn (Absence $record) => $record->isJustified()
                         ? 'Cambiar de justificada a injustificada (generará deducción)'
                         : 'Marcar como injustificada y generar deducción salarial')
-                    ->visible(fn(Absence $record) => !$record->isUnjustified())
+                    ->visible(fn (Absence $record) => ! $record->isUnjustified())
                     ->requiresConfirmation()
-                    ->modalHeading(fn(Absence $record) => $record->isJustified()
+                    ->modalHeading(fn (Absence $record) => $record->isJustified()
                         ? 'Cambiar a Injustificada'
                         : 'Marcar como Injustificada')
-                    ->modalDescription(fn(Absence $record) => $record->isJustified()
+                    ->modalDescription(fn (Absence $record) => $record->isJustified()
                         ? 'Esto generará una deducción del salario del empleado.'
                         : 'Esto generará automáticamente una deducción del salario del empleado.')
                     ->form([
@@ -386,7 +399,7 @@ class AbsenceResource extends Resource
                         ->action(function (Collection $records, array $data) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if (!$record->isJustified()) {
+                                if (! $record->isJustified()) {
                                     $record->justify(Auth::id(), $data['review_notes'] ?? null);
                                     $count++;
                                 }
@@ -416,7 +429,7 @@ class AbsenceResource extends Resource
                         ->action(function (Collection $records, array $data) {
                             $count = 0;
                             foreach ($records as $record) {
-                                if (!$record->isUnjustified()) {
+                                if (! $record->isUnjustified()) {
                                     $record->markAsUnjustified(Auth::id(), $data['review_notes']);
                                     $count++;
                                 }
@@ -462,8 +475,8 @@ class AbsenceResource extends Resource
                         TextEntry::make('status')
                             ->label('Estado')
                             ->badge()
-                            ->formatStateUsing(fn(string $state) => Absence::getStatusLabel($state))
-                            ->color(fn(string $state): string => Absence::getStatusColor($state)),
+                            ->formatStateUsing(fn (string $state) => Absence::getStatusLabel($state))
+                            ->color(fn (string $state): string => Absence::getStatusColor($state)),
                         TextEntry::make('reported_at')
                             ->label('Fecha de Reporte')
                             ->dateTime('d/m/Y H:i'),
@@ -471,7 +484,7 @@ class AbsenceResource extends Resource
                             ->label('Reportado por')
                             ->default('Sistema (automático)')
                             ->badge()
-                            ->color(fn($record) => $record->reported_by_id ? 'primary' : 'gray'),
+                            ->color(fn ($record) => $record->reported_by_id ? 'primary' : 'gray'),
                         TextEntry::make('reviewed_at')
                             ->label('Fecha de Revisión')
                             ->dateTime('d/m/Y H:i')
@@ -494,7 +507,7 @@ class AbsenceResource extends Resource
                             ->color('danger')
                             ->placeholder('Sin deducción generada'),
                     ])
-                    ->visible(fn($record) => $record?->employee_deduction_id !== null),
+                    ->visible(fn ($record) => $record?->employee_deduction_id !== null),
             ]);
     }
 
@@ -509,7 +522,7 @@ class AbsenceResource extends Resource
                 ExcelExport::make()
                     ->fromTable()
                     ->except(['id', 'employee_id', 'attendance_day_id', 'employee_deduction_id', 'created_at', 'updated_at', 'documents'])
-                    ->withFilename(fn() => 'ausencias_' . now()->format('d_m_Y_H_i_s')),
+                    ->withFilename(fn () => 'ausencias_'.now()->format('d_m_Y_H_i_s')),
             ]);
     }
 
@@ -522,8 +535,6 @@ class AbsenceResource extends Resource
 
     /**
      * Define las páginas del recurso de ausencias, incluyendo las rutas para listar, crear, editar y ver registros de ausencias.
-     *
-     * @return array
      */
     public static function getPages(): array
     {
@@ -537,14 +548,14 @@ class AbsenceResource extends Resource
 
     /**
      * Define la insignia de navegación para el recurso de ausencias, mostrando el número de ausencias pendientes de revisión del día hoy, o null si no hay ninguna.
-     *
-     * @return string|null
      */
     public static function getNavigationBadge(): ?string
     {
+        $today = Carbon::today();
+
         $pendingCount = Absence::query()
             ->where('status', 'pending')
-            ->whereDate('created_at', now()->toDateString())
+            ->whereBetween('created_at', [$today, $today->copy()->endOfDay()])
             ->count();
 
         return $pendingCount > 0 ? (string) $pendingCount : null;
@@ -552,8 +563,6 @@ class AbsenceResource extends Resource
 
     /**
      * Define el color de la insignia de navegación para el recurso de ausencias.
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeColor(): ?string
     {
@@ -562,8 +571,6 @@ class AbsenceResource extends Resource
 
     /**
      * Define el tooltip de la insignia de navegación para el recurso de ausencias, indicando que el número representa las "Ausencias pendientes de revisión".
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeTooltip(): ?string
     {

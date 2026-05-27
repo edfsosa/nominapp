@@ -316,7 +316,30 @@ Cada Resource tiene sus Pages en `app/Filament/Resources/{Resource}Resource/Page
 **`ListRecords` (index)**
 - `getHeaderActions()`: acción export Excel (con confirmación modal) **antes** de `CreateAction`
 - El export usa `Action::make('export_excel')` con `->requiresConfirmation()`, dispara `Notification` de éxito y retorna `Excel::download(new FooExport(), 'foo_' . now()->format('Y_m_d_H_i_s') . '.xlsx')`
-- Tabs opcionales (`getTabs()`) para filtrar por estado; usar caché en propiedad (`?array $fooCounts`) para evitar N+1
+- Tabs opcionales (`getTabs()`) para filtrar por estado; calcular todos los counts en **una sola query GROUP BY** y cachear en propiedad `?array $fooCounts` — nunca hacer un `COUNT` separado por tab:
+  ```php
+  protected ?array $absenceCounts = null;
+
+  protected function getAbsenceCounts(): array
+  {
+      if ($this->absenceCounts === null) {
+          $counts = Absence::query()
+              ->selectRaw('status, COUNT(*) as total')
+              ->groupBy('status')
+              ->pluck('total', 'status')
+              ->toArray();
+
+          $this->absenceCounts = [
+              'all'         => array_sum($counts),
+              'pending'     => $counts['pending'] ?? 0,
+              'justified'   => $counts['justified'] ?? 0,
+              'unjustified' => $counts['unjustified'] ?? 0,
+          ];
+      }
+      return $this->absenceCounts;
+  }
+  ```
+  `getTabs()` llama a `$this->getAbsenceCounts()` para leer los valores — 1 query por ciclo Livewire en lugar de N
 
 **`CreateRecord`**
 - `mutateFormDataBeforeCreate()`: capitalizar `name` con `preg_replace_callback('/(?:^|\s)\S/u', fn($m) => mb_strtoupper($m[0], 'UTF-8'), $data['name'])`
@@ -701,6 +724,12 @@ Regla: siempre llamar `$form->fill()` en el path normal — Filament lo necesita
 })
 ```
 
+**`->paginationPageOptions()` — nunca exponer la opción "Todos"**
+Tablas con volumen potencialmente alto no deben ofrecer la opción de cargar todos los registros de un golpe — es la forma más fácil de causar un timeout. Definir siempre opciones numéricas explícitas:
+```php
+->paginationPageOptions([10, 25, 50, 100])
+```
+
 **BulkActions de cambio de estado deben filtrar antes de actualizar**
 Nunca hacer `$records->each->update([...])` sin verificar el estado esperado. Siempre filtrar:
 ```php
@@ -979,6 +1008,20 @@ return $days.' día'.($days !== 1 ? 's' : '');
 ```
 
 Aplicar el mismo patrón en la Export class (`map()`) y en el blade PDF.
+
+### `whereDate()` no usa índices — usar `whereBetween` con rango explícito
+
+`DATE(columna) = '...'` aplica una función sobre la columna y obliga a MySQL a hacer full table scan, ignorando cualquier índice en esa columna. Reemplazar siempre con un rango explícito:
+
+```php
+// ❌ No usa índice — full table scan
+->whereDate('created_at', now()->toDateString())
+
+// ✅ Sargable — puede usar el índice en created_at
+->whereBetween('created_at', [Carbon::today(), Carbon::today()->endOfDay()])
+```
+
+Aplica a cualquier columna `datetime`/`timestamp` filtrada por fecha exacta. Incluye `getNavigationBadge()` y cualquier scope que filtre "registros de hoy".
 
 ### GROUP BY con MySQL ONLY_FULL_GROUP_BY
 
