@@ -50,12 +50,19 @@ class PayrollService
             ->get();
 
         foreach ($employees as $employee) {
-            // Evitar duplicados
-            if (Payroll::where('employee_id', $employee->id)
+            // Evitar duplicados. Si existe uno soft-deleted, eliminarlo permanentemente
+            // para liberar la unique constraint (employee_id, payroll_period_id).
+            $existing = Payroll::withTrashed()
+                ->where('employee_id', $employee->id)
                 ->where('payroll_period_id', $period->id)
-                ->exists()
-            ) {
-                continue;
+                ->first();
+
+            if ($existing) {
+                if ($existing->trashed()) {
+                    $existing->forceDelete();
+                } else {
+                    continue;
+                }
             }
 
             // Calcular salario base antes de abrir la transacción para evitar rollbacks vacíos
