@@ -31,7 +31,19 @@ class DeductionCalculator
             ->forPeriod($period->start_date, $period->end_date)
             ->with('deduction')
             ->orderBy('start_date') // prioridad por orden de llegada para embargos
-            ->get();
+            ->get()
+            ->filter(function ($a) use ($employee) {
+                if ($a->deduction !== null) {
+                    return true;
+                }
+                Log::warning('DeductionCalculator: deducción eliminada referenciada por asignación', [
+                    'employee_id' => $employee->id,
+                    'employee_deduction_id' => $a->id,
+                    'deduction_id' => $a->deduction_id,
+                ]);
+
+                return false;
+            });
 
         // Separar embargos con tope legal del resto para procesarlos en orden
         $limitedEmbargos = $assignments->filter(
