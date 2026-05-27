@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ScheduleResource\RelationManagers;
 
 use App\Exports\ScheduleEmployeesExport;
+use App\Filament\Resources\EmployeeResource;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Services\ScheduleAssignmentService;
@@ -102,6 +103,7 @@ class EmployeesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('first_name')
+            ->recordUrl(fn (Employee $record) => EmployeeResource::getUrl('view', ['record' => $record]))
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->addSelect([
                     'employees.*',
@@ -212,7 +214,7 @@ class EmployeesRelationManager extends RelationManager
                                     validFrom: Carbon::today(),
                                 );
                                 $assigned++;
-                            } catch (\Exception $e) {
+                            } catch (\Exception) {
                                 $errors[] = $employee->full_name;
                             }
                         }
@@ -236,13 +238,6 @@ class EmployeesRelationManager extends RelationManager
                     }),
             ])
             ->actions([
-                Action::make('view_employee')
-                    ->label('Ver Empleado')
-                    ->icon('heroicon-o-user')
-                    ->color('gray')
-                    ->url(fn (Employee $record) => \App\Filament\Resources\EmployeeResource::getUrl('edit', ['record' => $record]))
-                    ->openUrlInNewTab(),
-
                 Action::make('remove')
                     ->label('Remover')
                     ->icon('heroicon-o-x-circle')

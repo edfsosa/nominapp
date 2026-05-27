@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BranchResource\RelationManagers;
 
 use App\Exports\BranchEmployeesExport;
+use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
@@ -14,8 +15,8 @@ use Filament\Tables\Table;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
- * RelationManager para gestionar la relación de empleados asignados a una sucursal.
- * Permite visualizar, filtrar por estado y exportar a Excel los empleados de la sucursal.
+ * RelationManager para listar los empleados de una sucursal.
+ * Solo lectura — crear y editar empleados se hace desde el módulo Empleados.
  */
 class EmployeesRelationManager extends RelationManager
 {
@@ -25,7 +26,7 @@ class EmployeesRelationManager extends RelationManager
 
     public function isReadOnly(): bool
     {
-        return false;
+        return true;
     }
 
     /**
@@ -34,19 +35,18 @@ class EmployeesRelationManager extends RelationManager
     public function table(Table $table): Table
     {
         return $table
-            ->recordTitle(fn (Employee $record): string => $record->first_name.' '.$record->last_name)
+            ->recordUrl(fn (Employee $record) => EmployeeResource::getUrl('view', ['record' => $record]))
             ->columns([
                 ImageColumn::make('photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(url('/images/default-avatar.png')),
+                    ->defaultImageUrl(fn ($record) => $record->avatar_url),
 
                 TextColumn::make('full_name')
-                    ->label('Nombre completo')
-                    ->getStateUsing(fn (Employee $record) => $record->first_name.' '.$record->last_name)
+                    ->label('Nombre')
                     ->description(fn (Employee $record) => 'CI: '.$record->ci)
                     ->searchable(['first_name', 'last_name', 'ci'])
-                    ->sortable()
+                    ->sortable(['first_name', 'last_name'])
                     ->weight('medium'),
 
                 TextColumn::make('activeContract.position.name')
@@ -60,28 +60,14 @@ class EmployeesRelationManager extends RelationManager
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'active' => 'success',
-                        'inactive' => 'danger',
-                        'suspended' => 'warning',
-                        default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                        default => $state,
-                    })
+                    ->color(fn (Employee $record): string => $record->status_color)
+                    ->formatStateUsing(fn (string $state): string => Employee::getStatusOptions()[$state] ?? $state)
                     ->sortable(),
             ])
             ->filters([
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'active' => 'Activo',
-                        'inactive' => 'Inactivo',
-                        'suspended' => 'Suspendido',
-                    ])
+                    ->options(Employee::getStatusOptions())
                     ->native(false)
                     ->multiple(),
             ])

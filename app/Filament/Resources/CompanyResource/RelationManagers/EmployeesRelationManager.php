@@ -2,15 +2,23 @@
 
 namespace App\Filament\Resources\CompanyResource\RelationManagers;
 
+use App\Exports\CompanyEmployeesExport;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Branch;
 use App\Models\Employee;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Maatwebsite\Excel\Facades\Excel;
 
-/** Lista los empleados de la empresa (a través de sus sucursales), solo lectura. */
+/**
+ * RelationManager para listar los empleados de una empresa (a través de sus sucursales).
+ * Solo lectura — crear y editar empleados se hace desde el módulo Empleados.
+ */
 class EmployeesRelationManager extends RelationManager
 {
     protected static string $relationship = 'employees';
@@ -23,36 +31,38 @@ class EmployeesRelationManager extends RelationManager
     }
 
     /**
-     * Define la tabla para listar los empleados de la empresa.
+     * Define la tabla de empleados de la empresa con filtros y exportación a Excel.
      */
     public function table(Table $table): Table
     {
         return $table
+            ->recordUrl(fn (Employee $record) => EmployeeResource::getUrl('view', ['record' => $record]))
             ->columns([
+                ImageColumn::make('photo')
+                    ->label('Foto')
+                    ->circular()
+                    ->defaultImageUrl(fn ($record) => $record->avatar_url),
+
                 TextColumn::make('full_name')
                     ->label('Nombre')
-                    ->searchable(['first_name', 'last_name'])
+                    ->description(fn (Employee $record) => 'CI: '.$record->ci)
+                    ->searchable(['first_name', 'last_name', 'ci'])
                     ->sortable(['first_name', 'last_name'])
-                    ->weight('medium')
-                    ->icon('heroicon-o-user'),
-
-                TextColumn::make('ci')
-                    ->label('CI')
-                    ->badge()
-                    ->color('gray')
-                    ->searchable()
-                    ->sortable(),
+                    ->weight('medium'),
 
                 TextColumn::make('branch.name')
                     ->label('Sucursal')
                     ->icon('heroicon-o-building-storefront')
+                    ->placeholder('—')
                     ->sortable(),
 
                 TextColumn::make('activeContract.position.name')
                     ->label('Cargo')
                     ->icon('heroicon-o-briefcase')
-                    ->placeholder('Sin cargo')
-                    ->sortable(),
+                    ->description(fn (Employee $record) => $record->activeContract?->position?->department?->name)
+                    ->placeholder('—')
+                    ->badge()
+                    ->color('info'),
 
                 TextColumn::make('status')
                     ->label('Estado')
@@ -65,7 +75,8 @@ class EmployeesRelationManager extends RelationManager
                 SelectFilter::make('status')
                     ->label('Estado')
                     ->options(Employee::getStatusOptions())
-                    ->native(false),
+                    ->native(false)
+                    ->multiple(),
 
                 SelectFilter::make('branch_id')
                     ->label('Sucursal')
@@ -76,8 +87,30 @@ class EmployeesRelationManager extends RelationManager
                     )
                     ->native(false),
             ])
-            ->recordUrl(fn (Employee $record) => EmployeeResource::getUrl('view', ['record' => $record]))
+            ->headerActions([
+                Action::make('export_excel')
+                    ->label('Exportar')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
+                    ->requiresConfirmation()
+                    ->modalHeading('¿Exportar Empleados a Excel?')
+                    ->modalDescription('Se exportarán todos los empleados de esta empresa.')
+                    ->modalSubmitActionLabel('Sí, exportar')
+                    ->action(function () {
+                        Notification::make()
+                            ->success()
+                            ->title('Exportación lista')
+                            ->body('El listado de empleados se está descargando.')
+                            ->send();
+
+                        return Excel::download(
+                            new CompanyEmployeesExport($this->ownerRecord->id),
+                            'empleados_empresa_'.now()->format('Y_m_d_H_i_s').'.xlsx'
+                        );
+                    }),
+            ])
             ->actions([])
+            ->bulkActions([])
             ->defaultSort('first_name')
             ->emptyStateHeading('No hay empleados registrados')
             ->emptyStateDescription('Los empleados se crean desde el módulo de Empleados.')
