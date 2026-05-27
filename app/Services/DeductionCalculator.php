@@ -17,17 +17,15 @@ class DeductionCalculator
      * legal del 25% del excedente sobre el salario mínimo (Art. 245 CLT).
      * Los embargos que no caben en el tope quedan en cola con monto 0.
      *
-     * @param  Employee      $employee
-     * @param  PayrollPeriod $period
-     * @param  float|null    $ipsBase  Base cotizable IPS (base_salary + ips_perceptions).
-     *                                 Se usa como base del tope de embargo y del cálculo IPS.
-     *                                 Si es null se usa el salario contractual del empleado.
+     * @param  float|null  $ipsBase  Base cotizable IPS (base_salary + ips_perceptions).
+     *                               Se usa como base del tope de embargo y del cálculo IPS.
+     *                               Si es null se usa el salario contractual del empleado.
      * @return array{total: float, items: array}
      */
     public function calculate(Employee $employee, PayrollPeriod $period, ?float $ipsBase = null): array
     {
         $settings = app(PayrollSettings::class);
-        $ipsCode  = $ipsBase !== null ? $settings->ips_deduction_code : null;
+        $ipsCode = $ipsBase !== null ? $settings->ips_deduction_code : null;
 
         $assignments = $employee->employeeDeductions()
             ->forPeriod($period->start_date, $period->end_date)
@@ -37,29 +35,29 @@ class DeductionCalculator
 
         // Separar embargos con tope legal del resto para procesarlos en orden
         $limitedEmbargos = $assignments->filter(
-            fn($a) => $a->deduction->type === 'judicial' && $a->deduction->apply_judicial_limit
+            fn ($a) => $a->deduction->type === 'judicial' && $a->deduction->apply_judicial_limit
         );
         $regularAssignments = $assignments->filter(
-            fn($a) => !($a->deduction->type === 'judicial' && $a->deduction->apply_judicial_limit)
+            fn ($a) => ! ($a->deduction->type === 'judicial' && $a->deduction->apply_judicial_limit)
         );
 
         // Calcular tope de embargo: 25% del excedente sobre el salario mínimo (Art. 245 CLT)
         // Base: ipsBase (salario + percepciones salariales + HE) — excluye viaticos, subsidios
         // y bonificación familiar, que viajan en vía separada y no son embargables.
-        $effectiveBase   = $ipsBase ?? (float) ($employee->base_salary ?? 0);
-        $minSalary       = (float) $settings->min_salary_monthly;
-        $embargableBase  = max(0.0, $effectiveBase - $minSalary);
-        $judicialCap     = round($embargableBase * 0.25, 2);
-        $judicialUsed    = 0.0;
+        $effectiveBase = $ipsBase ?? (float) ($employee->base_salary ?? 0);
+        $minSalary = (float) $settings->min_salary_monthly;
+        $embargableBase = max(0.0, $effectiveBase - $minSalary);
+        $judicialCap = round($embargableBase * 0.25, 2);
+        $judicialUsed = 0.0;
 
         $items = [];
         $total = 0.0;
 
         // ── Deducciones sin tope judicial ──────────────────────────────────
         foreach ($regularAssignments as $assignment) {
-            $deduction    = $assignment->deduction;
+            $deduction = $assignment->deduction;
             $customAmount = $assignment->custom_amount;
-            $salaryBase   = 0;
+            $salaryBase = 0;
 
             if ($customAmount === null && $deduction->isPercentage()) {
                 if ($ipsCode !== null && $deduction->code === $ipsCode) {
@@ -72,28 +70,29 @@ class DeductionCalculator
 
                 if ($salaryBase <= 0) {
                     Log::warning('DeductionCalculator: porcentaje sobre salario base inválido', [
-                        'employee_id'     => $employee->id,
-                        'deduction'       => $deduction->name,
-                        'salary_base'     => $salaryBase,
+                        'employee_id' => $employee->id,
+                        'deduction' => $deduction->name,
+                        'salary_base' => $salaryBase,
                         'employment_type' => $employee->employment_type,
                     ]);
 
-                    $items[] = ['description' => $assignment->notes ?? $deduction->name, 'amount' => 0, 'deduction_type' => $deduction->type];
+                    $items[] = ['description' => $deduction->name, 'amount' => 0, 'deduction_type' => $deduction->type];
+
                     continue;
                 }
             }
 
-            $amount      = $deduction->calculateAmount($salaryBase, $customAmount);
-            $description = $assignment->notes ?? $deduction->name;
-            $total      += $amount;
-            $items[]     = ['description' => $description, 'amount' => $amount, 'deduction_type' => $deduction->type];
+            $amount = $deduction->calculateAmount($salaryBase, $customAmount);
+            $description = $deduction->name;
+            $total += $amount;
+            $items[] = ['description' => $description, 'amount' => $amount, 'deduction_type' => $deduction->type];
         }
 
         // ── Embargos con tope legal — en orden de start_date ───────────────
         foreach ($limitedEmbargos as $assignment) {
-            $deduction    = $assignment->deduction;
+            $deduction = $assignment->deduction;
             $customAmount = $assignment->custom_amount;
-            $salaryBase   = $employee->employment_type === 'day_laborer'
+            $salaryBase = $employee->employment_type === 'day_laborer'
                 ? (int) ($employee->daily_rate ?? 0)
                 : (int) ($employee->base_salary ?? 0);
 
@@ -104,12 +103,13 @@ class DeductionCalculator
             if ($remaining <= 0) {
                 // Tope agotado: embargo en cola, no se descuenta este período
                 Log::info('DeductionCalculator: embargo en cola por tope legal Art. 245', [
-                    'employee_id'  => $employee->id,
-                    'deduction'    => $deduction->name,
-                    'calculated'   => $calculated,
+                    'employee_id' => $employee->id,
+                    'deduction' => $deduction->name,
+                    'calculated' => $calculated,
                     'judicial_cap' => $judicialCap,
                 ]);
                 $items[] = ['description' => $deduction->name, 'amount' => 0.0, 'deduction_type' => $deduction->type];
+
                 continue;
             }
 
@@ -117,17 +117,17 @@ class DeductionCalculator
 
             if ($amount < $calculated) {
                 Log::info('DeductionCalculator: embargo recortado al tope legal Art. 245', [
-                    'employee_id'  => $employee->id,
-                    'deduction'    => $deduction->name,
-                    'calculated'   => $calculated,
-                    'applied'      => $amount,
+                    'employee_id' => $employee->id,
+                    'deduction' => $deduction->name,
+                    'calculated' => $calculated,
+                    'applied' => $amount,
                     'judicial_cap' => $judicialCap,
                 ]);
             }
 
             $judicialUsed += $amount;
-            $total        += $amount;
-            $items[]       = ['description' => $assignment->notes ?? $deduction->name, 'amount' => $amount, 'deduction_type' => $deduction->type];
+            $total += $amount;
+            $items[] = ['description' => $deduction->name, 'amount' => $amount, 'deduction_type' => $deduction->type];
         }
 
         return [

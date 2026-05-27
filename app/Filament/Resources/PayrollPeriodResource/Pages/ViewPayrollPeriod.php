@@ -420,7 +420,7 @@ class ViewPayrollPeriod extends ViewRecord
                             ->body("{$updated} recibo(s) en efectivo fueron marcados como Pagados.")
                             ->send();
 
-                        $this->refreshFormData(['status', 'updated_at']);
+                        $this->js('window.location.reload()');
                     })
                     ->visible(fn () => in_array($this->record->status, ['processing', 'closed'])
                         && $this->record->payrolls()->where('payment_method', 'cash')->where('status', 'approved')->exists()),

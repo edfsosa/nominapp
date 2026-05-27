@@ -242,6 +242,8 @@ class PayrollsRelationManager extends RelationManager
                             ->success()
                             ->title("{$count} recibos aprobados")
                             ->send();
+
+                        $this->js('window.location.reload()');
                     })
                     ->visible(fn () => $this->getOwnerRecord()->status !== 'closed'
                         && $this->getOwnerRecord()->payrolls()->where('status', 'draft')->exists()),
@@ -443,6 +445,7 @@ class PayrollsRelationManager extends RelationManager
                         ->label('Marcar Acreditado')
                         ->icon('heroicon-o-building-library')
                         ->color('primary')
+                        ->tooltip('Transferencia bancaria: confirma que el dinero fue acreditado en la cuenta del empleado. Próximo paso: Marcar Pagado.')
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Acreditado')
                         ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} fue acreditado en cuenta bancaria?")
@@ -464,6 +467,9 @@ class PayrollsRelationManager extends RelationManager
                         ->label('Marcar Pagado')
                         ->icon('heroicon-o-banknotes')
                         ->color('primary')
+                        ->tooltip(fn (Payroll $record) => $record->payment_method === 'cash'
+                            ? 'Efectivo: pago directo al empleado. Flujo: Aprobado → Pagado.'
+                            : 'Transferencia: confirma que el banco procesó el pago. Flujo: Aprobado → Acreditado → Pagado.')
                         ->requiresConfirmation()
                         ->modalHeading('Marcar como Pagado')
                         ->modalDescription(fn (Payroll $record) => "¿Confirma que el recibo de {$record->employee->full_name} ha sido pagado?")
