@@ -25,20 +25,10 @@ class ListPayrollPeriods extends ListRecords
 
     public function getTabs(): array
     {
-        // Una query para conteos por estado + una query para conteos por empresa.
-        $counts = PayrollPeriod::selectRaw('
-            COUNT(*) as total,
-            SUM(status = "draft") as draft,
-            SUM(status = "processing") as processing,
-            SUM(status = "closed") as closed
-        ')->first();
-
-        $tabs = [
-            'all' => Tab::make('Todos')->badge($counts->total),
-        ];
-
-        // Tabs por empresa cuando hay más de una activa.
         $companies = Company::active()->orderBy('name')->get();
+
+        $total = PayrollPeriod::count();
+        $tabs = ['all' => Tab::make('Todos')->badge($total)];
 
         if ($companies->count() > 1) {
             $companyCounts = PayrollPeriod::selectRaw('company_id, COUNT(*) as total')
@@ -51,22 +41,28 @@ class ListPayrollPeriods extends ListRecords
                     ->badge($companyCounts[$company->id] ?? 0)
                     ->icon('heroicon-o-building-office-2');
             }
+        } else {
+            $counts = PayrollPeriod::selectRaw('
+                SUM(status = "draft") as draft,
+                SUM(status = "processing") as processing,
+                SUM(status = "closed") as closed
+            ')->first();
+
+            $tabs['draft'] = Tab::make('Borradores')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'draft'))
+                ->badge($counts->draft)
+                ->badgeColor('gray');
+
+            $tabs['processing'] = Tab::make('En Proceso')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'processing'))
+                ->badge($counts->processing)
+                ->badgeColor('warning');
+
+            $tabs['closed'] = Tab::make('Cerrados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'closed'))
+                ->badge($counts->closed)
+                ->badgeColor('success');
         }
-
-        $tabs['draft'] = Tab::make('Borradores')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'draft'))
-            ->badge($counts->draft)
-            ->badgeColor('gray');
-
-        $tabs['processing'] = Tab::make('En Proceso')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'processing'))
-            ->badge($counts->processing)
-            ->badgeColor('warning');
-
-        $tabs['closed'] = Tab::make('Cerrados')
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'closed'))
-            ->badge($counts->closed)
-            ->badgeColor('success');
 
         return $tabs;
     }
