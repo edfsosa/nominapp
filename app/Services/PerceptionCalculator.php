@@ -20,8 +20,8 @@ class PerceptionCalculator
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
     {
-        $items    = [];
-        $total    = 0;
+        $items = [];
+        $total = 0;
         $ipsTotal = 0;
 
         $assignments = $employee->employeePerceptions()
@@ -30,9 +30,19 @@ class PerceptionCalculator
             ->get();
 
         foreach ($assignments as $assignment) {
-            $perception   = $assignment->perception;
+            $perception = $assignment->perception;
             $customAmount = $assignment->custom_amount;
-            $salaryBase   = 0;
+            $salaryBase = 0;
+
+            if ($perception === null) {
+                Log::warning('PerceptionCalculator: percepción eliminada referenciada por asignación', [
+                    'employee_id' => $employee->id,
+                    'employee_perception_id' => $assignment->id,
+                    'perception_id' => $assignment->perception_id,
+                ]);
+
+                continue;
+            }
 
             if ($customAmount === null && $perception->isPercentage()) {
                 $salaryBase = $employee->employment_type === 'day_laborer'
@@ -41,18 +51,19 @@ class PerceptionCalculator
 
                 if ($salaryBase <= 0) {
                     Log::warning('PerceptionCalculator: porcentaje sobre salario base inválido', [
-                        'employee_id'     => $employee->id,
-                        'perception'      => $perception->name,
-                        'salary_base'     => $salaryBase,
+                        'employee_id' => $employee->id,
+                        'perception' => $perception->name,
+                        'salary_base' => $salaryBase,
                         'employment_type' => $employee->employment_type,
                     ]);
 
                     $items[] = [
-                        'description'     => $perception->name,
-                        'amount'          => 0,
-                        'affects_ips'     => $perception->affects_ips,
+                        'description' => $perception->name,
+                        'amount' => 0,
+                        'affects_ips' => $perception->affects_ips,
                         'perception_type' => $perception->type,
                     ];
+
                     continue;
                 }
             }
@@ -65,17 +76,17 @@ class PerceptionCalculator
             }
 
             $items[] = [
-                'description'     => $perception->name,
-                'amount'          => $amount,
-                'affects_ips'     => $perception->affects_ips,
+                'description' => $perception->name,
+                'amount' => $amount,
+                'affects_ips' => $perception->affects_ips,
                 'perception_type' => $perception->type,
             ];
         }
 
         return [
-            'total'     => $total,
+            'total' => $total,
             'ips_total' => $ipsTotal,
-            'items'     => $items,
+            'items' => $items,
         ];
     }
 }
