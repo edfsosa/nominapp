@@ -9,7 +9,7 @@ use App\Models\Deduction;
 use App\Models\Employee;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Set;
+use Filament\Forms\Set;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
