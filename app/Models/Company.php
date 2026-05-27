@@ -104,6 +104,19 @@ class Company extends Model
         return $this->hasManyThrough(Employee::class, Branch::class);
     }
 
+    /** Empleados activos de la empresa (a través de sucursales). */
+    public function activeEmployees(): HasManyThrough
+    {
+        return $this->hasManyThrough(Employee::class, Branch::class)
+            ->where('employees.status', 'active');
+    }
+
+    /** Departamentos de la empresa. */
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
+    }
+
     /**
      * Nombre para mostrar (comercial o razón social)
      */

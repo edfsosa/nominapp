@@ -195,7 +195,7 @@ class CompanyResource extends Resource
     {
         return $infolist->schema([
             InfoSection::make('Estadísticas')
-                ->columns(4)
+                ->columns(5)
                 ->schema([
                     TextEntry::make('branches_count')
                         ->label('Sucursales')
@@ -203,6 +203,13 @@ class CompanyResource extends Resource
                         ->badge()
                         ->color('info')
                         ->icon('heroicon-o-building-office-2'),
+
+                    TextEntry::make('departments_count')
+                        ->label('Departamentos')
+                        ->getStateUsing(fn (Company $record) => $record->departments()->count())
+                        ->badge()
+                        ->color('info')
+                        ->icon('heroicon-o-building-library'),
 
                     TextEntry::make('active_employees')
                         ->label('Empleados Activos / Total')
@@ -396,9 +403,9 @@ class CompanyResource extends Resource
                     ->alignCenter()
                     ->sortable(),
 
-                TextColumn::make('employees_count')
-                    ->label('Empleados')
-                    ->counts('employees')
+                TextColumn::make('active_employees_count')
+                    ->label('Empleados Activos')
+                    ->counts('activeEmployees')
                     ->badge()
                     ->color('success')
                     ->alignCenter()
@@ -451,6 +458,7 @@ class CompanyResource extends Resource
     {
         return [
             RelationManagers\BranchesRelationManager::class,
+            RelationManagers\EmployeesRelationManager::class,
             RelationManagers\BankAccountsRelationManager::class,
         ];
     }
