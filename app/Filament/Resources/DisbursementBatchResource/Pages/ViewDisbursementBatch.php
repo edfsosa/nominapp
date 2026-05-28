@@ -86,7 +86,7 @@ class ViewDisbursementBatch extends ViewRecord
                     $fecha = $batch->fecha_credito->format('d/m/Y');
 
                     if ($batch->type === 'payroll') {
-                        $items = $batch->payrolls()->where('status', 'approved');
+                        $items = $batch->payrolls();
                         $count = $items->count();
                         $total = number_format((float) $items->sum('net_salary'), 0, ',', '.');
                         $noun = $count === 1 ? 'recibo' : 'recibos';
@@ -133,10 +133,9 @@ class ViewDisbursementBatch extends ViewRecord
 
                     if ($batch->type === 'payroll') {
                         $items = $batch->payrolls()
-                            ->where('status', 'approved')
                             ->with($withBankAccounts)
                             ->get();
-                        $emptyMessage = 'No hay recibos aprobados en este lote para generar el TXT.';
+                        $emptyMessage = 'No hay recibos en este lote para generar el TXT.';
                         $emptyTitle = 'Sin recibos disponibles';
                     } else {
                         $items = $batch->advances()
@@ -168,6 +167,10 @@ class ViewDisbursementBatch extends ViewRecord
                     $content = app(BankPaymentExportService::class)->generateTxt($params, $items, stampDate: false);
 
                     // Guarda el TXT en storage y registra la ruta en el lote.
+                    if ($batch->file_path) {
+                        Storage::disk('public')->delete($batch->file_path);
+                    }
+
                     $filename = 'TRANSFER_'.$batch->id.'_'.now()->format('Y_m_d_H_i_s').'.txt';
                     $path = 'disbursement_batches/'.$filename;
                     Storage::disk('public')->put($path, $content);
