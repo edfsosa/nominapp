@@ -14,6 +14,7 @@ use App\Http\Controllers\EmployeeReportController;
 use App\Http\Controllers\FaceEnrollmentController;
 use App\Http\Controllers\LiquidacionController;
 use App\Http\Controllers\LoanController;
+use App\Http\Controllers\LogController;
 use App\Http\Controllers\MerchandiseReportController;
 use App\Http\Controllers\MerchandiseWithdrawalController;
 use App\Http\Controllers\OrgChartController;
@@ -164,6 +165,9 @@ Route::middleware(['auth'])->group(function () {
         ->name('vacation.documents.download');
     Route::get('/vacaciones/reporte/pdf', [VacationReportController::class, 'pdf'])
         ->name('vacation.report.pdf');
+
+    // Descarga de archivos de log
+    Route::get('/logs/download', [LogController::class, 'download'])->name('logs.download');
 
     // Organigrama de empresas
     Route::prefix('empresas/{company}')->name('org-chart.')->group(function () {
