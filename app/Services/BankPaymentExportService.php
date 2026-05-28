@@ -81,14 +81,14 @@ class BankPaymentExportService
      * @param  array<string, mixed>  $params  id_empresa, cuenta_debito, moneda, tipo, fecha_credito (Y-m-d)
      * @param  Collection<int, Advance>  $advances
      */
-    public function generateTxt(array $params, Collection $advances, bool $stampDate = true): string
+    public function generateTxt(array $params, Collection $advances, bool $stampDate = true, string $amountField = 'amount'): string
     {
         $lines = [];
         $totalAmount = 0.0;
 
         foreach ($advances as $advance) {
             $cuenta = $advance->employee->bankAccounts->first()?->account_number ?? '';
-            $monto = (float) $advance->amount;
+            $monto = (float) $advance->{$amountField};
             $totalAmount += $monto;
 
             $lines[] = $this->buildDetailLine(
@@ -143,7 +143,7 @@ class BankPaymentExportService
             .($tipo === 'Cheque' ? 'H' : 'C')
             .str_pad(substr(strtoupper(Str::ascii($nombre)), 0, 50), 50, ' ', STR_PAD_RIGHT)
             .($moneda === 'Dólar' ? '1' : '0')
-            .str_pad((string) (int) round($monto * 100), 15, '0', STR_PAD_LEFT)
+            .str_pad((string) (int) round($monto), 15, '0', STR_PAD_LEFT)
             .str_repeat('0', 15)
             .str_pad(substr(strtoupper(Str::ascii($ci)), 0, 12), 12, ' ', STR_PAD_RIGHT)
             .'0'
@@ -173,7 +173,7 @@ class BankPaymentExportService
             .'D'
             .str_repeat(' ', 50)
             .($moneda === 'Dólar' ? '1' : '0')
-            .str_pad((string) (int) round($totalMonto * 100), 15, '0', STR_PAD_LEFT)
+            .str_pad((string) (int) round($totalMonto), 15, '0', STR_PAD_LEFT)
             .str_repeat('0', 15)
             .str_repeat(' ', 12)
             .'0'

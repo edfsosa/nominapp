@@ -164,7 +164,12 @@ class ViewDisbursementBatch extends ViewRecord
                         'fecha_credito' => $batch->fecha_credito->format('Y-m-d'),
                     ];
 
-                    $content = app(BankPaymentExportService::class)->generateTxt($params, $items, stampDate: false);
+                    $content = app(BankPaymentExportService::class)->generateTxt(
+                        $params,
+                        $items,
+                        stampDate: false,
+                        amountField: $batch->type === 'payroll' ? 'net_salary' : 'amount',
+                    );
 
                     // Guarda el TXT en storage y registra la ruta en el lote.
                     if ($batch->file_path) {
