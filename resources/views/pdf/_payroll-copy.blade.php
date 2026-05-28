@@ -1,8 +1,7 @@
 {{-- Contenido de una copia del recibo. Variables requeridas del padre:
      $copyLabel, $payroll, $companyLogo, $companyName, $companyRuc, $companyAddress,
      $companyPhone, $companyEmail, $employerNumber, $city, $isDayLaborer, $freqLabels,
-     $perceptionTypeLabels, $deductionTypeLabels, $perceptions, $deductions,
-     $sortedGroups, $sortedDeductionGroups, $showGroups, $showDeductionGroups --}}
+     $perceptions, $deductions --}}
 
 {{-- Etiqueta de copia --}}
 <div class="copy-label">{{ $copyLabel }}</div>
@@ -81,21 +80,11 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($sortedGroups as $groupKey => $groupItems)
-                    @if ($showGroups)
-                        <tr>
-                            <td colspan="2"
-                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0;">
-                                {{ $perceptionTypeLabels[$groupKey] ?? 'Otros' }}
-                            </td>
-                        </tr>
-                    @endif
-                    @foreach ($groupItems as $item)
-                        <tr>
-                            <td>{{ $item->description }}</td>
-                            <td class="amount">{{ $item->formatted_amount }}</td>
-                        </tr>
-                    @endforeach
+                @foreach ($perceptions as $item)
+                    <tr>
+                        <td>{{ $item->description }}</td>
+                        <td class="amount">{{ $item->formatted_amount }}</td>
+                    </tr>
                 @endforeach
             </tbody>
         </table>
@@ -114,21 +103,11 @@
                 </tr>
             </thead>
             <tbody>
-                @foreach ($sortedDeductionGroups as $groupKey => $groupItems)
-                    @if ($showDeductionGroups)
-                        <tr>
-                            <td colspan="2"
-                                style="font-weight: bold; font-size: 7px; text-transform: uppercase; color: #555; padding: 4px 0 2px 0;">
-                                {{ $deductionTypeLabels[$groupKey] ?? 'Otras' }}
-                            </td>
-                        </tr>
-                    @endif
-                    @foreach ($groupItems as $item)
-                        <tr>
-                            <td>{{ $item->description }}</td>
-                            <td class="amount">{{ $item->formatted_deduction }}</td>
-                        </tr>
-                    @endforeach
+                @foreach ($deductions as $item)
+                    <tr>
+                        <td>{{ $item->description }}</td>
+                        <td class="amount">{{ $item->formatted_deduction }}</td>
+                    </tr>
                 @endforeach
             </tbody>
         </table>
