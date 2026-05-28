@@ -17,7 +17,6 @@ class EmployeeFaceController extends Controller
     /**
      * Muestra la vista de captura de rostro para un empleado.
      *
-     * @param Employee $employee
      * @return \Illuminate\View\View
      */
     public function show(Employee $employee)
@@ -28,9 +27,8 @@ class EmployeeFaceController extends Controller
     /**
      * Almacena el descriptor facial del empleado.
      *
-     * @param Request $request
-     * @param Employee $employee
      * @return \Illuminate\Http\JsonResponse
+     *
      * @throws ValidationException
      */
     public function store(Request $request, Employee $employee)
@@ -39,9 +37,9 @@ class EmployeeFaceController extends Controller
             // Validar el descriptor facial y metadatos de captura
             $data = $request->validate([
                 'face_descriptor' => ['required', new FaceDescriptor],
-                'face_snapshot'   => ['nullable', 'string'],
-                'samples_count'   => ['nullable', 'integer', 'min:1', 'max:255'],
-                'face_score'      => ['nullable', 'numeric', 'min:0', 'max:1'],
+                'face_snapshot' => ['nullable', 'string'],
+                'samples_count' => ['nullable', 'integer', 'min:1', 'max:255'],
+                'face_score' => ['nullable', 'numeric', 'min:0', 'max:1'],
             ]);
 
             // Acepta string JSON o array
@@ -57,7 +55,7 @@ class EmployeeFaceController extends Controller
             }
 
             // Validar que es un array válido
-            if (!is_array($descriptor)) {
+            if (! is_array($descriptor)) {
                 throw ValidationException::withMessages([
                     'face_descriptor' => 'El descriptor facial debe ser un array válido.',
                 ]);
@@ -67,8 +65,8 @@ class EmployeeFaceController extends Controller
             $updated = $employee->update(['face_descriptor' => $descriptor]);
             Cache::forget('employees_face_descriptors');
 
-            if (!$updated) {
-                Log::error('Failed to update face descriptor', [
+            if (! $updated) {
+                Log::error("Error al persistir descriptor facial — CI {$employee->ci} {$employee->first_name} {$employee->last_name} (update() retornó false)", [
                     'employee_id' => $employee->id,
                     'descriptor_length' => count($descriptor),
                 ]);
@@ -81,7 +79,7 @@ class EmployeeFaceController extends Controller
 
             // Registrar en face_enrollments como captura de admin (auto-aprobada)
             $snapshotPath = null;
-            if (!empty($data['face_snapshot'])) {
+            if (! empty($data['face_snapshot'])) {
                 $snapshotPath = $this->saveSnapshotFromBase64($data['face_snapshot'], $employee->id);
             }
 
@@ -89,21 +87,21 @@ class EmployeeFaceController extends Controller
             $adminId = Auth::id();
 
             $enrollment = FaceEnrollment::create([
-                'employee_id'     => $employee->id,
-                'token'           => null,
+                'employee_id' => $employee->id,
+                'token' => null,
                 'face_descriptor' => $descriptor,
-                'snapshot_path'   => $snapshotPath,
-                'samples_count'   => $data['samples_count'] ?? null,
-                'face_score'      => $data['face_score'] ?? null,
-                'source'          => 'admin',
-                'status'          => 'approved',
-                'expires_at'      => null,
-                'captured_at'     => $now,
-                'reviewed_at'     => $now,
+                'snapshot_path' => $snapshotPath,
+                'samples_count' => $data['samples_count'] ?? null,
+                'face_score' => $data['face_score'] ?? null,
+                'source' => 'admin',
+                'status' => 'approved',
+                'expires_at' => null,
+                'captured_at' => $now,
+                'reviewed_at' => $now,
                 'generated_by_id' => $adminId,
-                'reviewed_by_id'  => $adminId,
-                'ip_address'      => $request->ip(),
-                'user_agent'      => substr($request->userAgent() ?? '', 0, 255),
+                'reviewed_by_id' => $adminId,
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
             ]);
 
             // Expirar otros enrollments pendientes del mismo empleado
@@ -113,10 +111,10 @@ class EmployeeFaceController extends Controller
                 ->update(['status' => 'expired']);
 
             // Log de éxito
-            Log::info('Face descriptor saved by admin', [
-                'employee_id'   => $employee->id,
+            Log::info("Descriptor facial registrado por administrador — CI {$employee->ci} {$employee->first_name} {$employee->last_name}", [
+                'employee_id' => $employee->id,
                 'enrollment_id' => $enrollment->id,
-                'admin_id'      => $adminId,
+                'admin_id' => $adminId,
             ]);
 
             return response()->json([
@@ -127,12 +125,10 @@ class EmployeeFaceController extends Controller
         } catch (ValidationException $e) {
             // Re-lanzar ValidationException para que Laravel lo maneje
             throw $e;
-
         } catch (\Exception $e) {
             // Log del error
-            Log::error('Error saving face descriptor', [
+            Log::error("Error al guardar descriptor facial — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: {$e->getMessage()}", [
                 'employee_id' => $employee->id,
-                'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
 
@@ -149,7 +145,9 @@ class EmployeeFaceController extends Controller
             $data = preg_replace('/^data:image\/\w+;base64,/', '', $base64);
             $imageData = base64_decode($data);
 
-            if ($imageData === false) return null;
+            if ($imageData === false) {
+                return null;
+            }
 
             $path = sprintf('face-snapshots/%s/emp_%d.jpg', now()->format('Y/m'), $employeeId);
             Storage::disk('public')->put($path, $imageData);
@@ -158,8 +156,9 @@ class EmployeeFaceController extends Controller
         } catch (\Throwable $e) {
             Log::warning('No se pudo guardar el snapshot facial (admin)', [
                 'employee_id' => $employeeId,
-                'error'       => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }

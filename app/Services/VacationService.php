@@ -149,7 +149,7 @@ class VacationService
 
         if ($payrolls->isEmpty()) {
             $monthlySalary = (float) ($employee->base_salary ?? 0);
-            Log::info('VacationService: sin nóminas previas, usando salario base como fallback', [
+            Log::info("VacationService: sin nóminas previas para CI {$employee->ci} {$employee->first_name}, usando salario base Gs. {$monthlySalary} como fallback", [
                 'employee_id' => $employee->id,
                 'vacation_id' => $vacation->id,
                 'monthly_salary' => $monthlySalary,
@@ -159,7 +159,7 @@ class VacationService
         }
 
         if ($monthlySalary <= 0) {
-            Log::warning('VacationService: salario promedio inválido para cálculo vacacional', [
+            Log::warning("VacationService: salario inválido para CI {$employee->ci} {$employee->first_name} (vacación #{$vacation->id}), omitiendo cálculo", [
                 'employee_id' => $employee->id,
                 'vacation_id' => $vacation->id,
             ]);
@@ -170,7 +170,7 @@ class VacationService
         $dailyRate = round($monthlySalary / 30, 2);
         $amount = round($dailyRate * $vacation->business_days, 2);
 
-        Log::info('VacationService: monto vacacional calculado', [
+        Log::info("VacationService: monto vacacional calculado — CI {$employee->ci} {$employee->first_name}: Gs. {$amount} ({$vacation->business_days} días hábiles)", [
             'employee_id' => $employee->id,
             'vacation_id' => $vacation->id,
             'payrolls_used' => $payrolls->count(),

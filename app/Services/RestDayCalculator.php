@@ -28,8 +28,6 @@ class RestDayCalculator
     /**
      * Calcula el descanso semanal remunerado del período.
      *
-     * @param  Employee      $employee
-     * @param  PayrollPeriod $period
      * @return array{total: float, items: array}
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
@@ -43,9 +41,10 @@ class RestDayCalculator
         $dailyRate = (float) ($employee->daily_rate ?? 0);
 
         if ($dailyRate <= 0) {
-            Log::warning('RestDayCalculator: jornalero sin tarifa diaria', [
+            Log::warning("RestDayCalculator: CI {$employee->ci} {$employee->first_name} {$employee->last_name} sin tarifa diaria, descanso semanal omitido", [
                 'employee_id' => $employee->id,
             ]);
+
             return $emptyResult;
         }
 
@@ -61,31 +60,31 @@ class RestDayCalculator
 
         // Agrupar por semana ISO (año-semana) y contar días presentes por semana
         $byWeek = $presentDates
-            ->groupBy(fn($date) => Carbon::parse($date)->format('o-W')); // o = año ISO, W = semana ISO
+            ->groupBy(fn ($date) => Carbon::parse($date)->format('o-W')); // o = año ISO, W = semana ISO
 
         $total = 0.0;
 
         foreach ($byWeek as $weekKey => $dates) {
-            $daysWorked  = min($dates->count(), 6); // cap: máx 6 para no duplicar con HE feriado
-            $restValue   = round($daysWorked * $dailyRate / 6, 2);
-            $total      += $restValue;
+            $daysWorked = min($dates->count(), 6); // cap: máx 6 para no duplicar con HE feriado
+            $restValue = round($daysWorked * $dailyRate / 6, 2);
+            $total += $restValue;
         }
 
         $total = round($total, 2);
 
-        Log::info('RestDayCalculator: descanso semanal calculado', [
+        Log::info("RestDayCalculator: descanso semanal calculado — CI {$employee->ci} {$employee->first_name}: {$byWeek->count()} sem. × Gs. ".round($total / max($byWeek->count(), 1), 2)." = Gs. {$total}", [
             'employee_id' => $employee->id,
-            'period_id'   => $period->id,
-            'weeks'       => $byWeek->count(),
-            'total'       => $total,
+            'period_id' => $period->id,
+            'weeks' => $byWeek->count(),
+            'total' => $total,
         ]);
 
         return [
             'total' => $total,
             'items' => [
                 [
-                    'description'    => 'Descanso Semanal Remunerado',
-                    'amount'         => $total,
+                    'description' => 'Descanso Semanal Remunerado',
+                    'amount' => $total,
                     'perception_type' => 'salary',
                 ],
             ],

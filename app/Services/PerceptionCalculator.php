@@ -35,7 +35,7 @@ class PerceptionCalculator
             $salaryBase = 0;
 
             if ($perception === null) {
-                Log::warning('PerceptionCalculator: percepción eliminada referenciada por asignación', [
+                Log::warning("PerceptionCalculator: percepción ID {$assignment->perception_id} eliminada referenciada por CI {$employee->ci} {$employee->first_name}, omitiendo", [
                     'employee_id' => $employee->id,
                     'employee_perception_id' => $assignment->id,
                     'perception_id' => $assignment->perception_id,
@@ -50,7 +50,7 @@ class PerceptionCalculator
                     : (int) ($employee->base_salary ?? 0);
 
                 if ($salaryBase <= 0) {
-                    Log::warning('PerceptionCalculator: porcentaje sobre salario base inválido', [
+                    Log::warning("PerceptionCalculator: CI {$employee->ci} {$employee->first_name} sin salario base válido para percepción '{$perception->name}', aplicando Gs. 0", [
                         'employee_id' => $employee->id,
                         'perception' => $perception->name,
                         'salary_base' => $salaryBase,

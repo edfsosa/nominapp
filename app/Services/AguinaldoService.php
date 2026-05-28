@@ -7,10 +7,10 @@ use App\Models\AguinaldoItem;
 use App\Models\AguinaldoPeriod;
 use App\Models\Employee;
 use App\Models\Payroll;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Database\Eloquent\Builder;
 
 class AguinaldoService
 {
@@ -37,7 +37,7 @@ class AguinaldoService
             ->flip(); // para O(1) lookup con isset()
 
         $employees = Employee::query()
-            ->whereHas('branch', fn($q) => $q->where('company_id', $companyId))
+            ->whereHas('branch', fn ($q) => $q->where('company_id', $companyId))
             ->whereIn('status', ['active', 'suspended'])
             ->get();
 
@@ -67,19 +67,19 @@ class AguinaldoService
 
                     $aguinaldo = Aguinaldo::create([
                         'aguinaldo_period_id' => $period->id,
-                        'employee_id'         => $employee->id,
-                        'total_earned'        => $totalEarned,
-                        'months_worked'       => count($payrolls),
-                        'aguinaldo_amount'    => round($totalEarned / 12, 2),
-                        'status'              => 'pending',
-                        'generated_at'        => $now,
+                        'employee_id' => $employee->id,
+                        'total_earned' => $totalEarned,
+                        'months_worked' => count($payrolls),
+                        'aguinaldo_amount' => round($totalEarned / 12, 2),
+                        'status' => 'pending',
+                        'generated_at' => $now,
                     ]);
 
                     AguinaldoItem::insert(
-                        array_map(fn($item) => array_merge($item, [
+                        array_map(fn ($item) => array_merge($item, [
                             'aguinaldo_id' => $aguinaldo->id,
-                            'created_at'   => $now,
-                            'updated_at'   => $now,
+                            'created_at' => $now,
+                            'updated_at' => $now,
                         ]), $itemsData)
                     );
 
@@ -92,10 +92,9 @@ class AguinaldoService
 
                 $count++;
             } catch (\Throwable $e) {
-                Log::error('Error al generar aguinaldo', [
+                Log::error("Error al generar aguinaldo — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: {$e->getMessage()}", [
                     'employee_id' => $employee->id,
-                    'period_id'   => $period->id,
-                    'error'       => $e->getMessage(),
+                    'period_id' => $period->id,
                 ]);
             }
         }
@@ -130,18 +129,18 @@ class AguinaldoService
 
             $aguinaldo->items()->delete();
             AguinaldoItem::insert(
-                array_map(fn($item) => array_merge($item, [
+                array_map(fn ($item) => array_merge($item, [
                     'aguinaldo_id' => $aguinaldo->id,
-                    'created_at'   => $now,
-                    'updated_at'   => $now,
+                    'created_at' => $now,
+                    'updated_at' => $now,
                 ]), $itemsData)
             );
 
             $aguinaldo->update([
-                'total_earned'     => $totalEarned,
-                'months_worked'    => count($payrolls),
+                'total_earned' => $totalEarned,
+                'months_worked' => count($payrolls),
                 'aguinaldo_amount' => round($totalEarned / 12, 2),
-                'generated_at'     => $now,
+                'generated_at' => $now,
             ]);
         });
 
@@ -152,7 +151,7 @@ class AguinaldoService
         } catch (\Throwable $e) {
             Log::warning('PDF no regenerado tras recálculo de aguinaldo', [
                 'aguinaldo_id' => $aguinaldo->id,
-                'error'        => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
         }
     }
@@ -165,9 +164,7 @@ class AguinaldoService
      *   - total_earned  : sum(base_salary + ips_perceptions) hasta el mes indicado
      *   - provision     : total_earned / 12 (redondeado a 2 decimales)
      *
-     * @param  AguinaldoPeriod $period
-     * @param  int             $upToMonth  Mes límite incluido (1-12)
-     * @return Builder
+     * @param  int  $upToMonth  Mes límite incluido (1-12)
      */
     public function provisionQuery(AguinaldoPeriod $period, int $upToMonth): Builder
     {
@@ -222,11 +219,11 @@ class AguinaldoService
             $perceptionsWithoutExtras = $payroll->ips_perceptions - $extraHoursAmount;
 
             $items[] = [
-                'month'       => ucfirst($payroll->period->start_date->translatedFormat('F')),
+                'month' => ucfirst($payroll->period->start_date->translatedFormat('F')),
                 'base_salary' => $payroll->base_salary,
                 'perceptions' => $perceptionsWithoutExtras,
                 'extra_hours' => $extraHoursAmount,
-                'total'       => $monthTotal,
+                'total' => $monthTotal,
             ];
         }
 

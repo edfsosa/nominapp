@@ -7,10 +7,16 @@ use App\Models\Branch;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Models\PayrollItem;
 use App\Models\Position;
 use App\Services\PayrollService;
+use App\Settings\PayrollSettings;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Select as FormSelect;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section;
 use Filament\Infolists\Components\TextEntry;
@@ -558,6 +564,207 @@ class PayrollsRelationManager extends RelationManager
                                 ->send();
                         })
                         ->visible(fn (Payroll $record) => $record->status === 'approved' && $this->getOwnerRecord()->status !== 'closed'),
+
+                    Action::make('add_manual_extra_hours')
+                        ->label('Ajuste HE')
+                        ->icon('heroicon-o-clock')
+                        ->color('warning')
+                        ->tooltip('Agregar horas extras manuales a este recibo')
+                        ->visible(fn (Payroll $record) => $record->status === 'draft'
+                            && $this->getOwnerRecord()->status !== 'closed')
+                        ->mountUsing(function (\Filament\Forms\Form $form, Payroll $record) {
+                            $settings = app(PayrollSettings::class);
+                            $employee = $record->employee;
+                            $period = $record->period;
+
+                            if ($employee->employment_type === 'day_laborer') {
+                                $hourlyRate = $employee->daily_rate / max(1, $settings->daily_hours);
+                            } else {
+                                $monthlyHours = $employee->getScheduleForDate($period->start_date)?->getMonthlyHours()
+                                    ?? $settings->monthly_hours;
+                                $hourlyRate = $employee->base_salary / max(1, $monthlyHours);
+                            }
+
+                            $form->fill([
+                                'hourly_rate' => round($hourlyRate, 4),
+                                'multiplier_diurno' => $settings->overtime_multiplier_diurno,
+                                'multiplier_nocturno' => $settings->overtime_multiplier_nocturno,
+                                'multiplier_holiday' => $settings->overtime_multiplier_holiday,
+                                'multiplier_holiday_nocturno' => $settings->overtime_multiplier_nocturno_holiday,
+                                'hours' => 0,
+                            ]);
+                        })
+                        ->form([
+                            FormSelect::make('type')
+                                ->label('Tipo de hora extra')
+                                ->options([
+                                    'diurnas' => 'Diurnas (50%)',
+                                    'nocturnas' => 'Nocturnas (160%)',
+                                    'feriado_domingo' => 'Feriado / Domingo (100%)',
+                                    'feriado_nocturno' => 'Feriado Nocturno (160%)',
+                                ])
+                                ->native(false)
+                                ->required()
+                                ->live(),
+
+                            TextInput::make('hours')
+                                ->label('Horas')
+                                ->numeric()
+                                ->step(0.5)
+                                ->minValue(0.5)
+                                ->maxValue(24)
+                                ->suffix('hrs')
+                                ->required()
+                                ->live(debounce: 500),
+
+                            TextInput::make('description')
+                                ->label('Descripción (opcional)')
+                                ->maxLength(255)
+                                ->placeholder('Se genera automáticamente si se deja vacío')
+                                ->columnSpanFull(),
+
+                            Hidden::make('hourly_rate'),
+                            Hidden::make('multiplier_diurno'),
+                            Hidden::make('multiplier_nocturno'),
+                            Hidden::make('multiplier_holiday'),
+                            Hidden::make('multiplier_holiday_nocturno'),
+
+                            Placeholder::make('amount_preview')
+                                ->label('Monto estimado')
+                                ->content(function (Get $get) {
+                                    $hours = (float) ($get('hours') ?? 0);
+                                    $type = $get('type');
+                                    $hourlyRate = (float) ($get('hourly_rate') ?? 0);
+
+                                    if ($hours <= 0 || ! $type || $hourlyRate <= 0) {
+                                        return 'Seleccione tipo y horas para ver el monto estimado.';
+                                    }
+
+                                    $multiplier = match ($type) {
+                                        'diurnas' => (float) ($get('multiplier_diurno') ?? 1.5),
+                                        'nocturnas' => (float) ($get('multiplier_nocturno') ?? 2.6),
+                                        'feriado_domingo' => (float) ($get('multiplier_holiday') ?? 2.0),
+                                        'feriado_nocturno' => (float) ($get('multiplier_holiday_nocturno') ?? 2.6),
+                                        default => 1.0,
+                                    };
+
+                                    $amount = round($hours * $hourlyRate * $multiplier, 0);
+
+                                    return 'Gs. '.number_format($amount, 0, ',', '.');
+                                })
+                                ->columnSpanFull(),
+                        ])
+                        ->modalHeading(fn (Payroll $record) => 'Ajuste de HE Manual — '.$record->employee->full_name)
+                        ->modalSubmitActionLabel('Agregar')
+                        ->action(function (Payroll $record, array $data) {
+                            $settings = app(PayrollSettings::class);
+                            $employee = $record->employee;
+                            $period = $record->period;
+                            $hours = (float) $data['hours'];
+                            $type = $data['type'];
+
+                            if ($employee->employment_type === 'day_laborer') {
+                                $hourlyRate = $employee->daily_rate / max(1, $settings->daily_hours);
+                            } else {
+                                $monthlyHours = $employee->getScheduleForDate($period->start_date)?->getMonthlyHours()
+                                    ?? $settings->monthly_hours;
+                                $hourlyRate = $employee->base_salary / max(1, $monthlyHours);
+                            }
+
+                            $multiplier = match ($type) {
+                                'diurnas' => $settings->overtime_multiplier_diurno,
+                                'nocturnas' => $settings->overtime_multiplier_nocturno,
+                                'feriado_domingo' => $settings->overtime_multiplier_holiday,
+                                'feriado_nocturno' => $settings->overtime_multiplier_nocturno_holiday,
+                                default => 1.0,
+                            };
+
+                            $amount = round($hours * $hourlyRate * $multiplier, 2);
+
+                            $typeLabels = [
+                                'diurnas' => "Horas Extras Diurnas ({$hours}h al 50%)",
+                                'nocturnas' => "Horas Extras Nocturnas ({$hours}h al 160%)",
+                                'feriado_domingo' => "Horas Extras Feriado/Domingo ({$hours}h al 100%)",
+                                'feriado_nocturno' => "Horas Extras Nocturnas Feriado/Domingo ({$hours}h al 160%)",
+                            ];
+
+                            $description = filled($data['description'] ?? null)
+                                ? $data['description']
+                                : ($typeLabels[$type] ?? "Horas Extras Manuales ({$hours}h)");
+
+                            PayrollItem::create([
+                                'payroll_id' => $record->id,
+                                'type' => 'perception',
+                                'perception_type' => 'extra_hours',
+                                'description' => $description,
+                                'amount' => $amount,
+                                'is_manual_override' => true,
+                            ]);
+
+                            $record->total_perceptions += $amount;
+                            $record->gross_salary += $amount;
+                            $record->net_salary += $amount;
+
+                            if ($record->pdf_path && Storage::disk('public')->exists($record->pdf_path)) {
+                                Storage::disk('public')->delete($record->pdf_path);
+                            }
+                            $record->pdf_path = null;
+                            $record->save();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Horas extras agregadas')
+                                ->body("Se agregaron {$hours}h ({$typeLabels[$type]}) por ".Payroll::formatCurrency($amount).' al recibo.')
+                                ->send();
+                        }),
+
+                    Action::make('clear_manual_items')
+                        ->label('Limpiar Ajustes')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->tooltip('Eliminar todos los ítems de ajuste manual de este recibo')
+                        ->visible(fn (Payroll $record) => $record->status === 'draft'
+                            && $record->items()->where('is_manual_override', true)->exists()
+                            && $this->getOwnerRecord()->status !== 'closed')
+                        ->requiresConfirmation()
+                        ->modalHeading(fn (Payroll $record) => 'Limpiar ajustes manuales — '.$record->employee->full_name)
+                        ->modalDescription(function (Payroll $record) {
+                            $items = $record->items()->where('is_manual_override', true)->get();
+                            $totalPerceptions = $items->where('type', 'perception')->sum('amount');
+                            $count = $items->count();
+
+                            $desc = "Se eliminarán {$count} ítem(s) cargado(s) manualmente.";
+                            if ($totalPerceptions > 0) {
+                                $desc .= ' Monto en percepciones: '.Payroll::formatCurrency($totalPerceptions).'.';
+                            }
+
+                            return $desc;
+                        })
+                        ->modalSubmitActionLabel('Sí, limpiar')
+                        ->action(function (Payroll $record) {
+                            $items = $record->items()->where('is_manual_override', true)->get();
+                            $totalPerceptions = $items->where('type', 'perception')->sum('amount');
+                            $totalDeductions = $items->where('type', 'deduction')->sum('amount');
+
+                            $record->items()->where('is_manual_override', true)->delete();
+
+                            $record->total_perceptions -= $totalPerceptions;
+                            $record->total_deductions -= $totalDeductions;
+                            $record->gross_salary -= $totalPerceptions;
+                            $record->net_salary = $record->gross_salary - $record->total_deductions;
+
+                            if ($record->pdf_path && Storage::disk('public')->exists($record->pdf_path)) {
+                                Storage::disk('public')->delete($record->pdf_path);
+                            }
+                            $record->pdf_path = null;
+                            $record->save();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Ajustes eliminados')
+                                ->body('Los ítems de ajuste manual han sido eliminados del recibo.')
+                                ->send();
+                        }),
 
                     Action::make('regenerate')
                         ->label('Regenerar')

@@ -17,31 +17,34 @@ class ExtraHourCalculator
 
         if ($employee->employment_type === 'day_laborer') {
             // Jornaleros: tarifa horaria = daily_rate / horas por jornada
-            if (!$employee->daily_rate || $employee->daily_rate <= 0) {
-                Log::warning('ExtraHourCalculator: jornalero sin tarifa diaria válida', [
+            if (! $employee->daily_rate || $employee->daily_rate <= 0) {
+                Log::warning("ExtraHourCalculator: CI {$employee->ci} {$employee->first_name} sin tarifa diaria válida (valor: {$employee->daily_rate}), horas extra omitidas", [
                     'employee_id' => $employee->id,
                     'daily_rate' => $employee->daily_rate,
                 ]);
+
                 return $emptyResult;
             }
 
             $dailyHours = $settings->daily_hours;
             if ($dailyHours <= 0) {
-                Log::warning('ExtraHourCalculator: horas diarias inválidas', [
+                Log::warning("ExtraHourCalculator: configuración de horas diarias inválida ({$dailyHours}) para CI {$employee->ci} {$employee->first_name}, horas extra omitidas", [
                     'employee_id' => $employee->id,
                     'daily_hours' => $dailyHours,
                 ]);
+
                 return $emptyResult;
             }
 
             $hourlyRate = $employee->daily_rate / $dailyHours;
         } else {
             // Tiempo completo: tarifa horaria = base_salary / horas mensuales
-            if (!$employee->base_salary || $employee->base_salary <= 0) {
-                Log::warning('ExtraHourCalculator: empleado sin salario base válido', [
+            if (! $employee->base_salary || $employee->base_salary <= 0) {
+                Log::warning("ExtraHourCalculator: CI {$employee->ci} {$employee->first_name} sin salario base válido (valor: {$employee->base_salary}), horas extra omitidas", [
                     'employee_id' => $employee->id,
                     'base_salary' => $employee->base_salary,
                 ]);
+
                 return $emptyResult;
             }
 
@@ -49,10 +52,11 @@ class ExtraHourCalculator
                 ?? $settings->monthly_hours;
 
             if ($monthlyHours <= 0) {
-                Log::warning('ExtraHourCalculator: horas mensuales inválidas', [
+                Log::warning("ExtraHourCalculator: configuración de horas mensuales inválida ({$monthlyHours}) para CI {$employee->ci} {$employee->first_name}, horas extra omitidas", [
                     'employee_id' => $employee->id,
                     'monthly_hours' => $monthlyHours,
                 ]);
+
                 return $emptyResult;
             }
 
@@ -65,43 +69,43 @@ class ExtraHourCalculator
             ->where('overtime_approved', true)
             ->get();
 
-        $multiplierDiurno          = $settings->overtime_multiplier_diurno;
-        $multiplierNocturno        = $settings->overtime_multiplier_nocturno;
-        $multiplierHoliday         = $settings->overtime_multiplier_holiday;
+        $multiplierDiurno = $settings->overtime_multiplier_diurno;
+        $multiplierNocturno = $settings->overtime_multiplier_nocturno;
+        $multiplierHoliday = $settings->overtime_multiplier_holiday;
         $multiplierNocturnoHoliday = $settings->overtime_multiplier_nocturno_holiday;
 
         $buckets = [
-            'diurnas'          => ['hours' => 0, 'amount' => 0],
-            'nocturnas'        => ['hours' => 0, 'amount' => 0],
-            'feriado_domingo'  => ['hours' => 0, 'amount' => 0],
+            'diurnas' => ['hours' => 0, 'amount' => 0],
+            'nocturnas' => ['hours' => 0, 'amount' => 0],
+            'feriado_domingo' => ['hours' => 0, 'amount' => 0],
             'feriado_nocturno' => ['hours' => 0, 'amount' => 0],
         ];
 
         foreach ($days as $day) {
             if ($day->is_holiday || $day->is_weekend) {
                 // Feriado/domingo: desglosar diurnas y nocturnas
-                $diurnas  = (float) ($day->extra_hours_diurnas ?? $day->extra_hours);
+                $diurnas = (float) ($day->extra_hours_diurnas ?? $day->extra_hours);
                 $nocturnas = (float) ($day->extra_hours_nocturnas ?? 0);
 
                 if ($diurnas > 0) {
-                    $buckets['feriado_domingo']['hours']  += $diurnas;
+                    $buckets['feriado_domingo']['hours'] += $diurnas;
                     $buckets['feriado_domingo']['amount'] += round($diurnas * $hourlyRate * $multiplierHoliday, 2);
                 }
                 if ($nocturnas > 0) {
-                    $buckets['feriado_nocturno']['hours']  += $nocturnas;
+                    $buckets['feriado_nocturno']['hours'] += $nocturnas;
                     $buckets['feriado_nocturno']['amount'] += round($nocturnas * $hourlyRate * $multiplierNocturnoHoliday, 2);
                 }
             } else {
                 // Día regular: desglosar diurnas/nocturnas
-                $diurnas  = (float) ($day->extra_hours_diurnas ?? $day->extra_hours);
+                $diurnas = (float) ($day->extra_hours_diurnas ?? $day->extra_hours);
                 $nocturnas = (float) ($day->extra_hours_nocturnas ?? 0);
 
                 if ($diurnas > 0) {
-                    $buckets['diurnas']['hours']  += $diurnas;
+                    $buckets['diurnas']['hours'] += $diurnas;
                     $buckets['diurnas']['amount'] += round($diurnas * $hourlyRate * $multiplierDiurno, 2);
                 }
                 if ($nocturnas > 0) {
-                    $buckets['nocturnas']['hours']  += $nocturnas;
+                    $buckets['nocturnas']['hours'] += $nocturnas;
                     $buckets['nocturnas']['amount'] += round($nocturnas * $hourlyRate * $multiplierNocturno, 2);
                 }
             }
@@ -113,41 +117,41 @@ class ExtraHourCalculator
 
         if ($buckets['diurnas']['hours'] > 0) {
             $items[] = [
-                'description'    => "Horas Extras Diurnas ({$buckets['diurnas']['hours']}h al 50%)",
-                'amount'         => $buckets['diurnas']['amount'],
+                'description' => "Horas Extras Diurnas ({$buckets['diurnas']['hours']}h al 50%)",
+                'amount' => $buckets['diurnas']['amount'],
                 'perception_type' => 'extra_hours',
             ];
-            $total      += $buckets['diurnas']['amount'];
+            $total += $buckets['diurnas']['amount'];
             $totalHours += $buckets['diurnas']['hours'];
         }
 
         if ($buckets['nocturnas']['hours'] > 0) {
             $items[] = [
-                'description'    => "Horas Extras Nocturnas ({$buckets['nocturnas']['hours']}h al 160%)",
-                'amount'         => $buckets['nocturnas']['amount'],
+                'description' => "Horas Extras Nocturnas ({$buckets['nocturnas']['hours']}h al 160%)",
+                'amount' => $buckets['nocturnas']['amount'],
                 'perception_type' => 'extra_hours',
             ];
-            $total      += $buckets['nocturnas']['amount'];
+            $total += $buckets['nocturnas']['amount'];
             $totalHours += $buckets['nocturnas']['hours'];
         }
 
         if ($buckets['feriado_domingo']['hours'] > 0) {
             $items[] = [
-                'description'    => "Horas Extras Feriado/Domingo ({$buckets['feriado_domingo']['hours']}h al 100%)",
-                'amount'         => $buckets['feriado_domingo']['amount'],
+                'description' => "Horas Extras Feriado/Domingo ({$buckets['feriado_domingo']['hours']}h al 100%)",
+                'amount' => $buckets['feriado_domingo']['amount'],
                 'perception_type' => 'extra_hours',
             ];
-            $total      += $buckets['feriado_domingo']['amount'];
+            $total += $buckets['feriado_domingo']['amount'];
             $totalHours += $buckets['feriado_domingo']['hours'];
         }
 
         if ($buckets['feriado_nocturno']['hours'] > 0) {
             $items[] = [
-                'description'    => "Horas Extras Nocturnas Feriado/Domingo ({$buckets['feriado_nocturno']['hours']}h al 160%)",
-                'amount'         => $buckets['feriado_nocturno']['amount'],
+                'description' => "Horas Extras Nocturnas Feriado/Domingo ({$buckets['feriado_nocturno']['hours']}h al 160%)",
+                'amount' => $buckets['feriado_nocturno']['amount'],
                 'perception_type' => 'extra_hours',
             ];
-            $total      += $buckets['feriado_nocturno']['amount'];
+            $total += $buckets['feriado_nocturno']['amount'];
             $totalHours += $buckets['feriado_nocturno']['hours'];
         }
 

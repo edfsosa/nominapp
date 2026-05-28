@@ -37,7 +37,7 @@ class LoanInstallmentCalculator
         $deductionId = $this->getLoanDeductionId();
 
         if ($deductionId === null) {
-            Log::warning('LoanInstallmentCalculator: deducción PRE001 no encontrada. Verificá el seeder.', [
+            Log::warning("LoanInstallmentCalculator: deducción PRE001 no encontrada — cuotas de préstamos omitidas para CI {$employee->ci} {$employee->first_name}. Verificá el seeder.", [
                 'employee_id' => $employee->id,
                 'period_id' => $period->id,
             ]);

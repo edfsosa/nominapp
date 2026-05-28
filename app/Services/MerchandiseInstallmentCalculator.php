@@ -35,7 +35,7 @@ class MerchandiseInstallmentCalculator
         $deductionId = $this->getMerchandiseDeductionId();
 
         if ($deductionId === null) {
-            Log::warning('MerchandiseInstallmentCalculator: deducción MER001 no encontrada. Verificá el seeder.', [
+            Log::warning("MerchandiseInstallmentCalculator: deducción MER001 no encontrada — cuotas de mercadería omitidas para CI {$employee->ci} {$employee->first_name}. Verificá el seeder.", [
                 'employee_id' => $employee->id,
                 'period_id' => $period->id,
             ]);

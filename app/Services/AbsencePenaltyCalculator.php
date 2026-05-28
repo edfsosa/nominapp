@@ -20,8 +20,6 @@ class AbsencePenaltyCalculator
     /**
      * Calcula el total a descontar por tardanzas aprobadas en el período.
      *
-     * @param  Employee      $employee
-     * @param  PayrollPeriod $period
      * @return array{total: float, minutes: int, items: array}
      */
     public function calculate(Employee $employee, PayrollPeriod $period): array
@@ -33,11 +31,12 @@ class AbsencePenaltyCalculator
             return $emptyResult;
         }
 
-        if (!$employee->base_salary || $employee->base_salary <= 0) {
-            Log::warning('AbsencePenaltyCalculator: empleado sin salario base válido', [
+        if (! $employee->base_salary || $employee->base_salary <= 0) {
+            Log::warning("AbsencePenaltyCalculator: CI {$employee->ci} {$employee->first_name} sin salario base válido (valor: {$employee->base_salary}), penalidad omitida", [
                 'employee_id' => $employee->id,
                 'base_salary' => $employee->base_salary,
             ]);
+
             return $emptyResult;
         }
 
@@ -45,10 +44,11 @@ class AbsencePenaltyCalculator
         $monthlyHours = $settings->monthly_hours;
 
         if ($monthlyHours <= 0) {
-            Log::warning('AbsencePenaltyCalculator: configuración de horas inválida', [
-                'employee_id'  => $employee->id,
+            Log::warning("AbsencePenaltyCalculator: configuración de horas mensuales inválida ({$monthlyHours}) para CI {$employee->ci} {$employee->first_name}, penalidad omitida", [
+                'employee_id' => $employee->id,
                 'monthly_hours' => $monthlyHours,
             ]);
+
             return $emptyResult;
         }
 
@@ -63,14 +63,14 @@ class AbsencePenaltyCalculator
         }
 
         $hourlyRate = $employee->base_salary / $monthlyHours;
-        $total      = round(($tardinessMinutes / 60) * $hourlyRate, 2);
+        $total = round(($tardinessMinutes / 60) * $hourlyRate, 2);
 
         return [
-            'total'   => $total,
+            'total' => $total,
             'minutes' => $tardinessMinutes,
-            'items'   => [[
+            'items' => [[
                 'description' => "Descuento por Tardanzas ({$tardinessMinutes} min)",
-                'amount'      => $total,
+                'amount' => $total,
             ]],
         ];
     }

@@ -32,15 +32,20 @@ class AttendanceEventObserver
         try {
             $day = $attendanceEvent->day;
 
-            if (!$day) {
-                Log::warning("AttendanceEvent {$attendanceEvent->id} no tiene AttendanceDay asociado");
+            if (! $day) {
+                Log::warning("AttendanceEvent sin AttendanceDay — evento ID {$attendanceEvent->id} ({$attendanceEvent->event_type})", [
+                    'attendance_event_id' => $attendanceEvent->id,
+                    'event_type' => $attendanceEvent->event_type,
+                ]);
+
                 return;
             }
 
             // Si el registro existe y está marcado como ausente, actualizarlo
             if ($day->status === 'absent') {
-                Log::info("Empleado {$day->employee_id} marcó entrada tarde. Actualizando de ausente a presente.", [
+                Log::info("Entrada tardía registrada — CI {$attendanceEvent->employee_ci} {$attendanceEvent->employee_name}: de ausente a presente ({$day->date})", [
                     'attendance_day_id' => $day->id,
+                    'employee_id' => $day->employee_id,
                     'date' => $day->date,
                 ]);
 
@@ -49,8 +54,10 @@ class AttendanceEventObserver
                 $day->save();
             }
         } catch (\Exception $e) {
-            Log::error("Error procesando AttendanceEvent {$attendanceEvent->id} en created: {$e->getMessage()}", [
-                'trace' => $e->getTraceAsString()
+            Log::error("Error procesando evento de asistencia ID {$attendanceEvent->id} ({$attendanceEvent->event_type}): {$e->getMessage()}", [
+                'attendance_event_id' => $attendanceEvent->id,
+                'employee_id' => $attendanceEvent->employee_id,
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -64,14 +71,18 @@ class AttendanceEventObserver
         try {
             $day = $attendanceEvent->day;
 
-            if (!$day) {
+            if (! $day) {
                 return;
             }
 
             AttendanceCalculator::apply($day);
             $day->save();
         } catch (\Exception $e) {
-            Log::error("Error recalculando AttendanceDay tras eliminar evento {$attendanceEvent->id}: {$e->getMessage()}");
+            Log::error("Error recalculando asistencia al eliminar evento ID {$attendanceEvent->id}: {$e->getMessage()}", [
+                'attendance_event_id' => $attendanceEvent->id,
+                'employee_id' => $attendanceEvent->employee_id,
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 
@@ -93,7 +104,7 @@ class AttendanceEventObserver
     protected function populateDenormalizedData(AttendanceEvent $attendanceEvent): void
     {
         // Cargar las relaciones si no están cargadas
-        if (!$attendanceEvent->relationLoaded('day')) {
+        if (! $attendanceEvent->relationLoaded('day')) {
             $attendanceEvent->load('day.employee.branch');
         }
 
@@ -102,7 +113,7 @@ class AttendanceEventObserver
 
         if ($employee) {
             $attendanceEvent->employee_id = $employee->id;
-            $attendanceEvent->employee_name = $employee->first_name . ' ' . $employee->last_name;
+            $attendanceEvent->employee_name = $employee->first_name.' '.$employee->last_name;
             $attendanceEvent->employee_ci = $employee->ci;
             $attendanceEvent->branch_id = $branch?->id;
             $attendanceEvent->branch_name = $branch?->name;

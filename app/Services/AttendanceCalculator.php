@@ -4,9 +4,8 @@ namespace App\Services;
 
 use App\Models\AttendanceDay;
 use App\Models\Holiday;
-use App\Services\RotationService;
-use Illuminate\Support\Carbon;
 use App\Settings\PayrollSettings;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -14,15 +13,22 @@ class AttendanceCalculator
 {
     // Definir constantes para los tipos de eventos
     private const EVENT_CHECK_IN = 'check_in';
+
     private const EVENT_CHECK_OUT = 'check_out';
+
     private const EVENT_BREAK_START = 'break_start';
+
     private const EVENT_BREAK_END = 'break_end';
 
     // Definir constantes para los estados
     private const STATUS_PRESENT = 'present';
+
     private const STATUS_ON_LEAVE = 'on_leave';
+
     private const STATUS_ABSENT = 'absent';
+
     private const STATUS_HOLIDAY = 'holiday';
+
     private const STATUS_WEEKEND = 'weekend';
 
     /**
@@ -31,8 +37,13 @@ class AttendanceCalculator
     public static function apply(AttendanceDay $day): void
     {
         // Validar datos iniciales
-        if (!$day->employee) {
-            Log::warning("AttendanceDay {$day->id} no tiene empleado asignado");
+        if (! $day->employee) {
+            Log::warning("AttendanceDay ID {$day->id} sin empleado asignado, cálculo omitido", [
+                'attendance_day_id' => $day->id,
+                'employee_id' => $day->employee_id,
+                'date' => $day->date,
+            ]);
+
             return;
         }
 
@@ -45,6 +56,7 @@ class AttendanceCalculator
             $day->status = self::STATUS_ON_LEAVE;
             self::clearAttendanceData($day);
             self::markAsCalculated($day); // ← Agregar
+
             return;
         }
 
@@ -59,6 +71,14 @@ class AttendanceCalculator
 
         // Si es feriado o fin de semana SIN eventos, marcar apropiadamente
         if ($events->isEmpty()) {
+            // Sin marcaciones pero el supervisor cargó horas extras manualmente:
+            // preservar status y horas; no sobreescribir con ausente/feriado/fin de semana.
+            if ($day->manual_adjustment) {
+                self::markAsCalculated($day);
+
+                return;
+            }
+
             if ($day->is_holiday) {
                 $day->status = self::STATUS_HOLIDAY;
             } elseif ($day->is_weekend || $isScheduledDayOff) {
@@ -68,6 +88,7 @@ class AttendanceCalculator
             }
             self::clearAttendanceData($day);
             self::markAsCalculated($day); // ← Agregar
+
             return;
         }
 
@@ -160,10 +181,10 @@ class AttendanceCalculator
         // Solo actualizar valores esperados en el PRIMER cálculo.
         // En recálculos, mantener los valores originales (aunque sean NULL).
         // La jerarquía de resolución: rotación → horario fijo → legacy schedule_id.
-        if (!$day->is_calculated) {
+        if (! $day->is_calculated) {
             $shiftData = self::resolveExpectedShiftData($day);
-            $day->expected_check_in      = $shiftData['check_in'];
-            $day->expected_check_out     = $shiftData['check_out'];
+            $day->expected_check_in = $shiftData['check_in'];
+            $day->expected_check_out = $shiftData['check_out'];
             $day->expected_break_minutes = $shiftData['break_minutes'];
             $day->expected_hours = self::calculateExpectedHours(
                 $day->expected_check_in,
@@ -190,7 +211,12 @@ class AttendanceCalculator
         $day->total_hours = $totalHours;
         $day->net_hours = $netHours;
 
-        // Calcular horas extra (basado en expected_hours guardadas)
+        // Calcular horas extra (basado en expected_hours guardadas).
+        // Si el día tiene ajuste manual, respetar los valores cargados por el supervisor.
+        if ($day->manual_adjustment) {
+            return;
+        }
+
         $day->extra_hours = self::calculateExtraHours($totalHours, $day->expected_hours);
 
         // Desglosar horas extra en diurnas/nocturnas y verificar límites legales (diario y semanal)
@@ -208,7 +234,7 @@ class AttendanceCalculator
 
             // Suma de horas extra aprobadas en la misma semana ISO (excluyendo el día actual)
             $weekStart = Carbon::parse($day->date)->startOfWeek();
-            $weekEnd   = Carbon::parse($day->date)->endOfWeek();
+            $weekEnd = Carbon::parse($day->date)->endOfWeek();
             $weeklyOtherHours = AttendanceDay::where('employee_id', $day->employee_id)
                 ->whereBetween('date', [$weekStart->toDateString(), $weekEnd->toDateString()])
                 ->where('id', '!=', $day->id ?? 0)
@@ -236,8 +262,10 @@ class AttendanceCalculator
     {
         if ($checkIn && $checkOut) {
             $minutes = Carbon::parse($checkIn)->diffInMinutes(Carbon::parse($checkOut));
+
             return round($minutes / 60, 2);
         }
+
         return null;
     }
 
@@ -264,8 +292,7 @@ class AttendanceCalculator
     private static function calculateBreakMinutes($events): int
     {
         $breakEvents = $events->filter(
-            fn($e) =>
-            in_array($e->event_type, [self::EVENT_BREAK_START, self::EVENT_BREAK_END])
+            fn ($e) => in_array($e->event_type, [self::EVENT_BREAK_START, self::EVENT_BREAK_END])
         )->values();
 
         $totalMinutes = 0;
@@ -291,11 +318,13 @@ class AttendanceCalculator
         if ($checkIn && $checkOut) {
             $totalMinutes = $checkIn->diffInMinutes($checkOut);
             $netMinutes = max(0, $totalMinutes - $breakMinutes);
+
             return [
                 round($totalMinutes / 60, 2),
                 round($netMinutes / 60, 2),
             ];
         }
+
         return [null, null];
     }
 
@@ -306,8 +335,10 @@ class AttendanceCalculator
     {
         if ($totalHours !== null && $expectedHours !== null) {
             $extraHours = $totalHours - $expectedHours;
+
             return $extraHours > 0 ? round($extraHours, 2) : 0;
         }
+
         return null;
     }
 
@@ -319,8 +350,10 @@ class AttendanceCalculator
         if ($scheduledCheckIn && $actualCheckIn) {
             $expected = Carbon::parse($scheduledCheckIn);
             $actual = Carbon::parse($actualCheckIn);
+
             return $actual->greaterThan($expected) ? $expected->diffInMinutes($actual, true) : 0;
         }
+
         return null;
     }
 
@@ -332,8 +365,10 @@ class AttendanceCalculator
         if ($scheduledCheckOut && $actualCheckOut) {
             $expected = Carbon::parse($scheduledCheckOut);
             $actual = Carbon::parse($actualCheckOut);
+
             return $actual->lessThan($expected) ? $expected->diffInMinutes($actual, true) : 0;
         }
+
         return null;
     }
 
@@ -343,7 +378,7 @@ class AttendanceCalculator
      */
     private static function splitOvertimeHours(?string $checkOutTime, ?string $scheduledCheckOut, float $extraHours): array
     {
-        if (!$checkOutTime || !$scheduledCheckOut || $extraHours <= 0) {
+        if (! $checkOutTime || ! $scheduledCheckOut || $extraHours <= 0) {
             return [$extraHours, 0];
         }
 
@@ -394,7 +429,7 @@ class AttendanceCalculator
      */
     private static function resolveExpectedShiftData(AttendanceDay $day): array
     {
-        $date     = Carbon::parse($day->date);
+        $date = Carbon::parse($day->date);
         $employee = $day->employee;
 
         // 1. Sistema de rotación (override > patrón)
@@ -402,8 +437,8 @@ class AttendanceCalculator
 
         if ($shift !== null) {
             return [
-                'check_in'      => $shift->is_day_off ? null : $shift->start_time,
-                'check_out'     => $shift->is_day_off ? null : $shift->end_time,
+                'check_in' => $shift->is_day_off ? null : $shift->start_time,
+                'check_out' => $shift->is_day_off ? null : $shift->end_time,
                 'break_minutes' => $shift->is_day_off ? 0 : $shift->break_minutes,
             ];
         }
@@ -412,13 +447,13 @@ class AttendanceCalculator
         $schedule = $employee->getScheduleForDate($date);
 
         if ($schedule) {
-            $dayOfWeek   = $date->dayOfWeekIso; // 1=Lunes … 7=Domingo
+            $dayOfWeek = $date->dayOfWeekIso; // 1=Lunes … 7=Domingo
             $scheduleDay = $schedule->days()->where('day_of_week', $dayOfWeek)->first();
 
             if ($scheduleDay && $scheduleDay->is_active) {
                 return [
-                    'check_in'      => $scheduleDay->start_time,
-                    'check_out'     => $scheduleDay->end_time,
+                    'check_in' => $scheduleDay->start_time,
+                    'check_out' => $scheduleDay->end_time,
                     'break_minutes' => $scheduleDay->total_break_minutes ?? 0,
                 ];
             }
@@ -433,7 +468,7 @@ class AttendanceCalculator
      */
     private static function isScheduledDayOff(AttendanceDay $day): bool
     {
-        $date     = Carbon::parse($day->date);
+        $date = Carbon::parse($day->date);
         $employee = $day->employee;
 
         // 1. Rotación: Franco explícito (is_day_off = true)

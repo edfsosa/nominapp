@@ -166,9 +166,8 @@ class CheckMissingAttendance extends Command
                 $attendanceDay->save();
 
                 if ($attendanceDay->status === 'on_leave') {
-                    Log::info('Licencia registrada automáticamente', [
+                    Log::info("Licencia registrada automáticamente — {$employee->first_name} {$employee->last_name} CI {$employee->ci} ({$date->format('d/m/Y')})", [
                         'employee_id' => $employee->id,
-                        'employee_name' => $employee->first_name.' '.$employee->last_name,
                         'date' => $date->toDateString(),
                     ]);
                     $this->line("  ✓ Licencia registrada: {$employee->first_name} {$employee->last_name}");
@@ -183,9 +182,8 @@ class CheckMissingAttendance extends Command
                     return 'skipped';
                 }
 
-                Log::info('Ausencia creada automáticamente', [
+                Log::info("Ausencia creada automáticamente — {$employee->first_name} {$employee->last_name} CI {$employee->ci} ({$date->format('d/m/Y')}), entrada esperada: {$expectedCheckIn}", [
                     'employee_id' => $employee->id,
-                    'employee_name' => $employee->first_name.' '.$employee->last_name,
                     'date' => $date->toDateString(),
                     'expected_check_in' => $expectedCheckIn,
                     'threshold_time' => $thresholdTime->format('H:i'),

@@ -73,7 +73,7 @@ class PayrollService
                     ->count();
 
                 if ($workedDays === 0) {
-                    Log::info('Jornalero sin días trabajados, omitiendo recibo', [
+                    Log::info("Jornalero sin días trabajados — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: omitiendo recibo", [
                         'employee_id' => $employee->id,
                         'period_id' => $period->id,
                     ]);
@@ -83,7 +83,7 @@ class PayrollService
 
                 $baseSalary = round($employee->daily_rate * $workedDays, 2);
 
-                Log::info('Jornalero: cálculo de salario base', [
+                Log::info("Jornalero: salario base calculado — CI {$employee->ci} {$employee->first_name}: {$workedDays} días × Gs. {$employee->daily_rate} = Gs. {$baseSalary}", [
                     'employee_id' => $employee->id,
                     'daily_rate' => $employee->daily_rate,
                     'worked_days' => $workedDays,
@@ -195,7 +195,7 @@ class PayrollService
 
                 DB::commit();
 
-                Log::info('Recibo de nómina generado', [
+                Log::info("Nómina generada — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                     'payroll_id' => $payroll->id,
                     'employee_id' => $employee->id,
                     'period_id' => $period->id,
@@ -352,7 +352,7 @@ class PayrollService
 
             DB::commit();
 
-            Log::info('Recibo de nómina generado manualmente', [
+            Log::info("Nómina generada manualmente — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                 'payroll_id' => $payroll->id,
                 'employee_id' => $employee->id,
                 'period_id' => $period->id,
@@ -468,6 +468,10 @@ class PayrollService
                 ->whereBetween('start_date', [$period->start_date, $period->end_date])
                 ->update(['payment_status' => 'unpaid', 'paid_at' => null]);
 
+            // Preservar ítems cargados manualmente antes de eliminar los auto-calculados.
+            // Se re-agregan al final para que persistan entre regeneraciones.
+            $manualOverrides = $payroll->items()->where('is_manual_override', true)->get();
+
             // Eliminar ítems existentes
             $payroll->items()->delete();
 
@@ -501,9 +505,13 @@ class PayrollService
             $familyBonus = $this->familyBonusCalculator->calculate($employee, $period);
             $vacationPays = $this->resolveVacationPays($employee, $period);
 
-            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'] + $vacationPays['total'];
+            // Los ítems manuales se suman a los totales auto-calculados
+            $manualPerceptions = $manualOverrides->where('type', 'perception')->sum('amount');
+            $manualDeductions = $manualOverrides->where('type', 'deduction')->sum('amount');
+
+            $totalPerceptions = $perceptions['total'] + $extras['total'] + $restDay['total'] + $familyBonus['total'] + $vacationPays['total'] + $manualPerceptions;
             $ipsPerceptions = $perceptions['ips_total'] + $extras['total'] + $restDay['total'];
-            $totalDeductions = $deductions['total'] + $absences['total'];
+            $totalDeductions = $deductions['total'] + $absences['total'] + $manualDeductions;
             $netSalary = $baseSalary + $totalPerceptions - $totalDeductions;
 
             // Actualizar el registro existente
@@ -549,6 +557,19 @@ class PayrollService
                 ]);
             }
 
+            // Re-crear ítems de ajuste manual (sobreviven a las regeneraciones)
+            foreach ($manualOverrides as $override) {
+                PayrollItem::create([
+                    'payroll_id' => $payroll->id,
+                    'type' => $override->type,
+                    'perception_type' => $override->perception_type,
+                    'deduction_type' => $override->deduction_type,
+                    'description' => $override->description,
+                    'amount' => $override->amount,
+                    'is_manual_override' => true,
+                ]);
+            }
+
             // Marcar cuotas de préstamos como pagadas
             if ($loanInstallments['installments']->isNotEmpty()) {
                 $installmentIds = $loanInstallments['installments']->pluck('id')->toArray();
@@ -578,7 +599,7 @@ class PayrollService
 
             DB::commit();
 
-            Log::info('Recibo de nómina regenerado', [
+            Log::info("Nómina regenerada — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: Gs. {$netSalary} neto (período {$period->start_date} - {$period->end_date})", [
                 'payroll_id' => $payroll->id,
                 'employee_id' => $employee->id,
                 'period_id' => $period->id,

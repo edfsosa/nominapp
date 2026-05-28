@@ -19,8 +19,6 @@ class ListAttendanceDays extends ListRecords
 
     /**
      * Define las acciones del encabezado de la página
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -41,19 +39,19 @@ class ListAttendanceDays extends ListRecords
                         ->send();
 
                     return Excel::download(
-                        new AttendanceDaysExport(),
-                        'asistencias_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                        new AttendanceDaysExport,
+                        'asistencias_'.now()->format('Y_m_d_H_i_s').'.xlsx'
                     );
                 }),
 
             AttendanceDayResource::getApproveOvertimeRangeAction(),
+
+            AttendanceDayResource::getRegisterExtraHoursAction(),
         ];
     }
 
     /**
      * Define las pestañas de filtrado con estadísticas optimizadas
-     *
-     * @return array
      */
     public function getTabs(): array
     {
@@ -71,13 +69,13 @@ class ListAttendanceDays extends ListRecords
                 ->icon('heroicon-o-calendar-days'),
 
             'calculated' => Tab::make('Calculados')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('is_calculated', true))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_calculated', true))
                 ->badge($stats->calculated)
                 ->badgeColor('info')
                 ->icon('heroicon-o-calculator'),
 
             'not_calculated' => Tab::make('Sin calcular')
-                ->modifyQueryUsing(fn(Builder $query) => $query->where('is_calculated', false))
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('is_calculated', false))
                 ->badge($stats->not_calculated)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-exclamation-triangle'),
@@ -86,10 +84,8 @@ class ListAttendanceDays extends ListRecords
 
     /**
      * Define la pestaña activa por defecto
-     *
-     * @return string|int|null
      */
-    public function getDefaultActiveTab(): string | int | null
+    public function getDefaultActiveTab(): string|int|null
     {
         return 'all';
     }

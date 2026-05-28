@@ -49,10 +49,10 @@ class AttendanceDayObserver
             'reported_by_id' => null, // NULL indica que fue creado por el sistema
         ]);
 
-        Log::info('Ausencia creada automáticamente por el sistema', [
+        $empName = $day->employee->full_name ?? 'N/A';
+        Log::info("Ausencia creada — {$empName} ({$day->date->format('d/m/Y')})", [
             'absent_id' => $absent->id,
             'employee_id' => $day->employee_id,
-            'employee_name' => $day->employee->full_name ?? 'N/A',
             'attendance_day_id' => $day->id,
             'date' => $day->date->format('Y-m-d'),
         ]);
@@ -69,6 +69,7 @@ class AttendanceDayObserver
         // Si cambia A 'absent' → crear Absent si no existe
         if ($newStatus === 'absent') {
             $this->createAbsenceIfNeeded($day);
+
             return;
         }
 
@@ -76,11 +77,12 @@ class AttendanceDayObserver
         if ($oldStatus === 'absent' && $newStatus !== 'absent') {
             $absent = Absence::where('attendance_day_id', $day->id)->first();
 
+            $empName = $day->employee->full_name ?? 'N/A';
+
             if ($absent && $absent->isPending()) {
-                Log::info('Ausencia pendiente eliminada por cambio de estado', [
+                Log::info("Ausencia eliminada — {$empName} ({$day->date->format('d/m/Y')}): {$oldStatus} → {$newStatus}", [
                     'absent_id' => $absent->id,
                     'employee_id' => $day->employee_id,
-                    'employee_name' => $day->employee->full_name ?? 'N/A',
                     'attendance_day_id' => $day->id,
                     'date' => $day->date->format('Y-m-d'),
                     'old_status' => $oldStatus,
@@ -89,7 +91,7 @@ class AttendanceDayObserver
 
                 $absent->delete();
             } elseif ($absent) {
-                Log::info('Ausencia revisada NO eliminada por cambio de estado (ya fue procesada)', [
+                Log::info("Ausencia procesada no eliminada — {$empName} ({$day->date->format('d/m/Y')}): ya tiene estado '{$absent->status}'", [
                     'absent_id' => $absent->id,
                     'absent_status' => $absent->status,
                     'employee_id' => $day->employee_id,

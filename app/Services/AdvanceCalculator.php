@@ -40,7 +40,7 @@ class AdvanceCalculator
         $deductionId = $this->getAdvanceDeductionId();
 
         if ($deductionId === null) {
-            Log::warning('AdvanceCalculator: deducción ADE001 no encontrada. Verificá el seeder.', [
+            Log::warning("AdvanceCalculator: deducción ADE001 no encontrada — adelantos omitidos para CI {$employee->ci} {$employee->first_name}. Verificá el seeder.", [
                 'employee_id' => $employee->id,
                 'period_id' => $period->id,
             ]);

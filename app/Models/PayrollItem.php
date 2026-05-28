@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
@@ -14,11 +15,16 @@ class PayrollItem extends Model
         'deduction_type',
         'description',
         'amount',
+        'is_manual_override',
     ];
 
-    protected $casts = [
-        'amount' => 'decimal:2',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'amount' => 'decimal:2',
+            'is_manual_override' => 'boolean',
+        ];
+    }
 
     /**
      * Relación con el modelo Payroll, un item pertenece a una nómina
@@ -28,13 +34,14 @@ class PayrollItem extends Model
         return $this->belongsTo(Payroll::class);
     }
 
-    // Scopes
-    public function scopePerceptions($query)
+    /** @param Builder<PayrollItem> $query */
+    public function scopePerceptions(Builder $query): Builder
     {
         return $query->where('type', 'perception');
     }
 
-    public function scopeDeductions($query)
+    /** @param Builder<PayrollItem> $query */
+    public function scopeDeductions(Builder $query): Builder
     {
         return $query->where('type', 'deduction');
     }
@@ -60,6 +67,6 @@ class PayrollItem extends Model
      */
     public function getFormattedDeductionAttribute(): string
     {
-        return '- ' . Payroll::formatCurrency($this->amount);
+        return '- '.Payroll::formatCurrency($this->amount);
     }
 }

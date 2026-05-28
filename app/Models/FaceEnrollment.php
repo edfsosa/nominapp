@@ -31,11 +31,11 @@ class FaceEnrollment extends Model
 
     protected $casts = [
         'face_descriptor' => 'array',
-        'expires_at'      => 'datetime',
-        'captured_at'     => 'datetime',
-        'reviewed_at'     => 'datetime',
-        'face_score'      => 'float',
-        'samples_count'   => 'integer',
+        'expires_at' => 'datetime',
+        'captured_at' => 'datetime',
+        'reviewed_at' => 'datetime',
+        'face_score' => 'float',
+        'samples_count' => 'integer',
     ];
 
     // =========================================================================
@@ -108,7 +108,7 @@ class FaceEnrollment extends Model
 
     public function isValid(): bool
     {
-        return $this->isPendingCapture() && !$this->isExpired();
+        return $this->isPendingCapture() && ! $this->isExpired();
     }
 
     // =========================================================================
@@ -117,18 +117,25 @@ class FaceEnrollment extends Model
 
     public function getQualityTier(): string
     {
-        if ($this->face_score === null) return 'unknown';
-        if ($this->face_score >= 0.85) return 'alta';
-        if ($this->face_score >= 0.70) return 'media';
+        if ($this->face_score === null) {
+            return 'unknown';
+        }
+        if ($this->face_score >= 0.85) {
+            return 'alta';
+        }
+        if ($this->face_score >= 0.70) {
+            return 'media';
+        }
+
         return 'baja';
     }
 
     public function getQualityLabel(): string
     {
         return match ($this->getQualityTier()) {
-            'alta'  => 'Alta',
+            'alta' => 'Alta',
             'media' => 'Media',
-            'baja'  => 'Baja',
+            'baja' => 'Baja',
             default => '—',
         };
     }
@@ -136,9 +143,9 @@ class FaceEnrollment extends Model
     public function getQualityColor(): string
     {
         return match ($this->getQualityTier()) {
-            'alta'  => 'success',
+            'alta' => 'success',
             'media' => 'warning',
-            'baja'  => 'danger',
+            'baja' => 'danger',
             default => 'gray',
         };
     }
@@ -146,7 +153,7 @@ class FaceEnrollment extends Model
     public static function getSourceOptions(): array
     {
         return [
-            'admin'           => 'Admin',
+            'admin' => 'Admin',
             'self_enrollment' => 'Auto-registro',
         ];
     }
@@ -159,18 +166,18 @@ class FaceEnrollment extends Model
     public static function getSourceColor(string $source): string
     {
         return match ($source) {
-            'admin'           => 'info',
+            'admin' => 'info',
             'self_enrollment' => 'gray',
-            default           => 'gray',
+            default => 'gray',
         };
     }
 
     public static function getSourceIcon(string $source): string
     {
         return match ($source) {
-            'admin'           => 'heroicon-o-shield-check',
+            'admin' => 'heroicon-o-shield-check',
             'self_enrollment' => 'heroicon-o-user',
-            default           => 'heroicon-o-question-mark-circle',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -181,11 +188,11 @@ class FaceEnrollment extends Model
     public static function getStatusOptions(): array
     {
         return [
-            'pending_capture'  => 'Pendiente de Captura',
+            'pending_capture' => 'Pendiente de Captura',
             'pending_approval' => 'Pendiente de Aprobación',
-            'approved'         => 'Aprobado',
-            'rejected'         => 'Rechazado',
-            'expired'          => 'Expirado',
+            'approved' => 'Aprobado',
+            'rejected' => 'Rechazado',
+            'expired' => 'Expirado',
         ];
     }
 
@@ -197,24 +204,24 @@ class FaceEnrollment extends Model
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
-            'pending_capture'  => 'gray',
+            'pending_capture' => 'gray',
             'pending_approval' => 'warning',
-            'approved'         => 'success',
-            'rejected'         => 'danger',
-            'expired'          => 'gray',
-            default            => 'gray',
+            'approved' => 'success',
+            'rejected' => 'danger',
+            'expired' => 'gray',
+            default => 'gray',
         };
     }
 
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
-            'pending_capture'  => 'heroicon-o-camera',
+            'pending_capture' => 'heroicon-o-camera',
             'pending_approval' => 'heroicon-o-clock',
-            'approved'         => 'heroicon-o-check-circle',
-            'rejected'         => 'heroicon-o-x-circle',
-            'expired'          => 'heroicon-o-exclamation-triangle',
-            default            => 'heroicon-o-question-mark-circle',
+            'approved' => 'heroicon-o-check-circle',
+            'rejected' => 'heroicon-o-x-circle',
+            'expired' => 'heroicon-o-exclamation-triangle',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -246,10 +253,9 @@ class FaceEnrollment extends Model
             ->whereIn('status', ['pending_capture', 'pending_approval'])
             ->update(['status' => 'expired']);
 
-        Log::info('Registro facial aprobado', [
+        Log::info("Registro facial aprobado — {$this->employee->first_name} {$this->employee->last_name} (CI {$this->employee->ci})", [
             'enrollment_id' => $this->id,
             'employee_id' => $this->employee_id,
-            'employee_name' => "{$this->employee->first_name} {$this->employee->last_name}",
             'reviewed_by_id' => $reviewedById,
         ]);
 
@@ -271,10 +277,9 @@ class FaceEnrollment extends Model
             'review_notes' => $notes,
         ]);
 
-        Log::info('Registro facial rechazado', [
+        Log::info("Registro facial rechazado — {$this->employee->first_name} {$this->employee->last_name} (CI {$this->employee->ci})", [
             'enrollment_id' => $this->id,
             'employee_id' => $this->employee_id,
-            'employee_name' => "{$this->employee->first_name} {$this->employee->last_name}",
             'reviewed_by_id' => $reviewedById,
             'reason' => $notes,
         ]);

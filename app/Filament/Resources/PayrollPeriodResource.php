@@ -5,7 +5,6 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\PayrollPeriodResource\Pages;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
 use App\Models\Company;
-use App\Models\PayrollItem;
 use App\Models\PayrollPeriod;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Section;
@@ -366,21 +365,6 @@ class PayrollPeriodResource extends Resource
                     ->schema([
                         RepeatableEntry::make('perception_summary')
                             ->label('Percepciones')
-                            ->getStateUsing(fn ($record) => PayrollItem::whereHas(
-                                'payroll', fn ($q) => $q->where('payroll_period_id', $record->id)
-                            )
-                                ->where('type', 'perception')
-                                ->selectRaw('description, count(*) as employees_count, sum(amount) as total_amount')
-                                ->groupBy('description')
-                                ->orderByDesc('employees_count')
-                                ->get()
-                                ->map(fn ($i) => [
-                                    'description' => $i->description,
-                                    'employees_count' => (int) $i->employees_count,
-                                    'total_amount' => (float) $i->total_amount,
-                                ])
-                                ->toArray()
-                            )
                             ->schema([
                                 TextEntry::make('description')->label('Concepto'),
                                 TextEntry::make('employees_count')->label('Empleados'),
@@ -393,21 +377,6 @@ class PayrollPeriodResource extends Resource
 
                         RepeatableEntry::make('deduction_summary')
                             ->label('Deducciones')
-                            ->getStateUsing(fn ($record) => PayrollItem::whereHas(
-                                'payroll', fn ($q) => $q->where('payroll_period_id', $record->id)
-                            )
-                                ->where('type', 'deduction')
-                                ->selectRaw('description, count(*) as employees_count, sum(amount) as total_amount')
-                                ->groupBy('description')
-                                ->orderByDesc('employees_count')
-                                ->get()
-                                ->map(fn ($i) => [
-                                    'description' => $i->description,
-                                    'employees_count' => (int) $i->employees_count,
-                                    'total_amount' => (float) $i->total_amount,
-                                ])
-                                ->toArray()
-                            )
                             ->schema([
                                 TextEntry::make('description')->label('Concepto'),
                                 TextEntry::make('employees_count')->label('Empleados'),

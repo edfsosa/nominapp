@@ -36,7 +36,7 @@ class DeductionCalculator
                 if ($a->deduction !== null) {
                     return true;
                 }
-                Log::warning('DeductionCalculator: deducción eliminada referenciada por asignación', [
+                Log::warning("DeductionCalculator: deducción ID {$a->deduction_id} eliminada referenciada por CI {$employee->ci} {$employee->first_name}, omitiendo", [
                     'employee_id' => $employee->id,
                     'employee_deduction_id' => $a->id,
                     'deduction_id' => $a->deduction_id,
@@ -81,7 +81,7 @@ class DeductionCalculator
                 }
 
                 if ($salaryBase <= 0) {
-                    Log::warning('DeductionCalculator: porcentaje sobre salario base inválido', [
+                    Log::warning("DeductionCalculator: CI {$employee->ci} {$employee->first_name} sin salario base válido para deducción '{$deduction->name}', aplicando Gs. 0", [
                         'employee_id' => $employee->id,
                         'deduction' => $deduction->name,
                         'salary_base' => $salaryBase,
@@ -114,7 +114,7 @@ class DeductionCalculator
 
             if ($remaining <= 0) {
                 // Tope agotado: embargo en cola, no se descuenta este período
-                Log::info('DeductionCalculator: embargo en cola por tope legal Art. 245', [
+                Log::info("DeductionCalculator: embargo '{$deduction->name}' en cola — CI {$employee->ci} {$employee->first_name}: tope Art. 245 agotado (Gs. {$judicialCap})", [
                     'employee_id' => $employee->id,
                     'deduction' => $deduction->name,
                     'calculated' => $calculated,
@@ -128,7 +128,7 @@ class DeductionCalculator
             $amount = min($calculated, $remaining);
 
             if ($amount < $calculated) {
-                Log::info('DeductionCalculator: embargo recortado al tope legal Art. 245', [
+                Log::info("DeductionCalculator: embargo '{$deduction->name}' recortado al tope Art. 245 — CI {$employee->ci} {$employee->first_name}: Gs. {$calculated} → Gs. {$amount}", [
                     'employee_id' => $employee->id,
                     'deduction' => $deduction->name,
                     'calculated' => $calculated,

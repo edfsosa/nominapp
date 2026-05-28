@@ -113,7 +113,7 @@ class AttendanceFaceMarkController extends Controller
             // CORRECCIÓN 4: Validar que el threshold sea válido
             $threshold = (float) app(\App\Settings\GeneralSettings::class)->face_threshold;
             if ($threshold <= 0 || $threshold > 2.0) {
-                Log::warning('Invalid face threshold in config', ['threshold' => $threshold]);
+                Log::warning("Umbral de reconocimiento facial inválido ({$threshold}), usando valor por defecto 0.45", ['threshold' => $threshold]);
                 $threshold = 0.45; // valor por defecto seguro
             }
 
@@ -185,8 +185,7 @@ class AttendanceFaceMarkController extends Controller
                 'allowed_events' => $allowed,
             ]);
         } catch (Throwable $e) {
-            Log::error('identify() error', [
-                'msg' => $e->getMessage(),
+            Log::error("Error en identificación facial: {$e->getMessage()}", [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => app()->hasDebugModeEnabled() ? $e->getTraceAsString() : null,
@@ -236,7 +235,7 @@ class AttendanceFaceMarkController extends Controller
                 ->where('status', 'active')
                 ->firstOrFail();
         } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
-            Log::warning('Marcación fallida: empleado no encontrado o inactivo', [
+            Log::warning("Marcación fallida: empleado ID {$data['employee_id']} no encontrado o inactivo", [
                 'employee_id' => $data['employee_id'],
                 'ip' => $request->ip(),
             ]);
@@ -263,9 +262,8 @@ class AttendanceFaceMarkController extends Controller
         if (empty($data['location'])) {
             // Verificar que exista sucursal con coordenadas
             if (! $locationBranch) {
-                Log::warning('Marcación fallida: empleado sin sucursal asignada', [
+                Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: sin sucursal asignada", [
                     'employee_id' => $employee->id,
-                    'employee_name' => "{$employee->first_name} {$employee->last_name}",
                     'employee_ci' => $employee->ci,
                 ]);
 
@@ -281,9 +279,8 @@ class AttendanceFaceMarkController extends Controller
 
             // Verificar que la sucursal tenga coordenadas configuradas
             if (! $branchCoords || ! isset($branchCoords['lat'], $branchCoords['lng'])) {
-                Log::warning('Marcación fallida: sucursal sin coordenadas configuradas', [
+                Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name} {$employee->last_name}: sucursal '{$locationBranch->name}' sin coordenadas GPS configuradas", [
                     'employee_id' => $employee->id,
-                    'employee_name' => "{$employee->first_name} {$employee->last_name}",
                     'branch_id' => $locationBranch->id,
                     'branch_name' => $locationBranch->name,
                 ]);
@@ -305,7 +302,8 @@ class AttendanceFaceMarkController extends Controller
                 'lng' => (float) $branchCoords['lng'],
             ];
 
-            Log::info('Usando coordenadas de sucursal para marcación', [
+            $gpsSource = $terminal ? 'terminal' : 'sucursal del empleado';
+            Log::info("Marcación sin GPS — CI {$employee->ci} {$employee->first_name}: coords de '{$locationBranch->name}' (fuente: {$gpsSource})", [
                 'employee_id' => $employee->id,
                 'branch_id' => $locationBranch->id,
                 'branch_name' => $locationBranch->name,
@@ -347,9 +345,8 @@ class AttendanceFaceMarkController extends Controller
                 $allowed = $this->allowedNextEvents($last?->event_type);
 
                 if (! in_array($data['event_type'], $allowed, true)) {
-                    Log::warning('Marcación fallida: secuencia de evento no permitida', [
+                    Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name}: evento '{$data['event_type']}' no permitido (último: ".($last ? $last->event_type : 'ninguno').')', [
                         'employee_id' => $employee->id,
-                        'employee_name' => "{$employee->first_name} {$employee->last_name}",
                         'event_type_attempted' => $data['event_type'],
                         'last_event' => $last?->event_type,
                         'allowed_events' => $allowed,
@@ -396,9 +393,8 @@ class AttendanceFaceMarkController extends Controller
                 $lng = (float) $location['lng'];
 
                 if ($lat === 0.0 && $lng === 0.0) {
-                    Log::warning('Marcación fallida: ubicación 0,0 detectada', [
+                    Log::warning("Marcación fallida — CI {$employee->ci} {$employee->first_name}: coordenadas GPS inválidas (0,0)", [
                         'employee_id' => $employee->id,
-                        'employee_name' => "{$employee->first_name} {$employee->last_name}",
                         'event_type' => $data['event_type'],
                     ]);
 
@@ -450,9 +446,8 @@ class AttendanceFaceMarkController extends Controller
                 ];
             });
 
-            Log::info('Marcación registrada exitosamente', [
+            Log::info("Marcación registrada — CI {$result['employee']->ci} {$result['employee']->first_name} {$result['employee']->last_name}: {$result['event_type']} a las {$result['recorded_at']}", [
                 'employee_id' => $result['employee']->id,
-                'employee_name' => "{$result['employee']->first_name} {$result['employee']->last_name}",
                 'event_type' => $result['event_type'],
                 'event_id' => $result['event_id'],
                 'recorded_at' => $result['recorded_at'],
@@ -499,8 +494,7 @@ class AttendanceFaceMarkController extends Controller
                 'errors' => $ve->errors(),
             ], 422);
         } catch (Throwable $e) {
-            Log::error('store() error', [
-                'msg' => $e->getMessage(),
+            Log::error("Error interno en marcación: {$e->getMessage()}", [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'employee_id' => $data['employee_id'] ?? null,
@@ -542,7 +536,10 @@ class AttendanceFaceMarkController extends Controller
                 $saved = $this->parseStoredDescriptor($emp->face_descriptor);
 
                 if (! $saved) {
-                    Log::warning("Descriptor facial inválido para empleado ID: {$emp->id}");
+                    Log::warning("Descriptor facial corrompido — CI {$emp->ci} {$emp->first_name} {$emp->last_name} (ID: {$emp->id})", [
+                        'employee_id' => $emp->id,
+                        'employee_ci' => $emp->ci,
+                    ]);
 
                     continue;
                 }
@@ -563,13 +560,14 @@ class AttendanceFaceMarkController extends Controller
             // Obtener gap mínimo de configuración
             $minGap = (float) app(\App\Settings\GeneralSettings::class)->face_min_confidence_gap;
 
-            Log::info("Procesados {$processedCount} empleados para identificación facial", [
+            $identifiedLabel = $best ? "CI {$best->ci} {$best->first_name} {$best->last_name}" : 'ninguno';
+            Log::info("Identificación facial: {$processedCount} candidatos procesados — resultado: {$identifiedLabel}", [
                 'best_distance' => round($bestDist, 4),
                 'second_best_distance' => $secondBestDist === INF ? 'N/A' : round($secondBestDist, 4),
                 'gap' => $secondBestDist === INF ? 'N/A' : round($secondBestDist - $bestDist, 4),
                 'min_gap_required' => $minGap,
                 'threshold' => $threshold,
-                'identified' => $best ? "ID: {$best->id}" : 'ninguno',
+                'identified' => $identifiedLabel,
             ]);
 
             // Validar que supere el threshold
@@ -582,8 +580,9 @@ class AttendanceFaceMarkController extends Controller
                 $gap = $secondBestDist - $bestDist;
 
                 if ($gap < $minGap) {
-                    Log::warning('Identificación rechazada por gap insuficiente', [
+                    Log::warning("Identificación ambigua — CI {$best->ci} {$best->first_name}: gap ".round($gap, 4)." insuficiente (mínimo {$minGap})", [
                         'employee_id' => $best->id,
+                        'employee_ci' => $best->ci,
                         'best_distance' => round($bestDist, 4),
                         'second_best_distance' => round($secondBestDist, 4),
                         'gap' => round($gap, 4),

@@ -27,7 +27,7 @@ class FaceEnrollmentController extends Controller
         }
 
         // Si el registro no está pendiente de captura, mostrar una vista indicando que ya se ha enviado una solicitud
-        if (!$enrollment->isPendingCapture()) {
+        if (! $enrollment->isPendingCapture()) {
             return view('enrollments.already-submitted');
         }
 
@@ -47,9 +47,9 @@ class FaceEnrollmentController extends Controller
             $enrollment = FaceEnrollment::where('token', $token)->first();
 
             // Verificar si el registro existe, no ha expirado y está pendiente de captura
-            if (!$enrollment || $enrollment->isExpired() || !$enrollment->isPendingCapture()) {
+            if (! $enrollment || $enrollment->isExpired() || ! $enrollment->isPendingCapture()) {
                 Log::warning('Intento de captura facial con token inválido o expirado', [
-                    'token' => substr($token, 0, 8) . '...',
+                    'token' => substr($token, 0, 8).'...',
                     'exists' => (bool) $enrollment,
                     'expired' => $enrollment?->isExpired(),
                     'status' => $enrollment?->status,
@@ -65,9 +65,9 @@ class FaceEnrollmentController extends Controller
             // Validar el descriptor facial usando la regla personalizada
             $data = $request->validate([
                 'face_descriptor' => ['required', new FaceDescriptor],
-                'face_snapshot'   => ['nullable', 'string'],
-                'samples_count'   => ['nullable', 'integer', 'min:1', 'max:255'],
-                'face_score'      => ['nullable', 'numeric', 'min:0', 'max:1'],
+                'face_snapshot' => ['nullable', 'string'],
+                'samples_count' => ['nullable', 'integer', 'min:1', 'max:255'],
+                'face_score' => ['nullable', 'numeric', 'min:0', 'max:1'],
             ]);
 
             // El descriptor puede ser un array o una cadena JSON, manejar ambos casos
@@ -84,7 +84,7 @@ class FaceEnrollmentController extends Controller
 
             // Guardar snapshot del rostro si fue enviado
             $snapshotPath = null;
-            if (!empty($data['face_snapshot'])) {
+            if (! empty($data['face_snapshot'])) {
                 $snapshotPath = $this->saveSnapshotFromBase64(
                     $data['face_snapshot'],
                     $enrollment->id
@@ -94,18 +94,18 @@ class FaceEnrollmentController extends Controller
             // Actualizar el registro de inscripción con el descriptor facial y cambiar el estado a "pendiente de aprobación"
             $enrollment->update([
                 'face_descriptor' => $descriptor,
-                'snapshot_path'   => $snapshotPath,
-                'samples_count'   => $data['samples_count'] ?? null,
-                'face_score'      => $data['face_score'] ?? null,
-                'source'          => 'self_enrollment',
-                'status'          => 'pending_approval',
-                'captured_at'     => now(),
-                'ip_address'      => $request->ip(),
-                'user_agent'      => substr($request->userAgent() ?? '', 0, 255),
+                'snapshot_path' => $snapshotPath,
+                'samples_count' => $data['samples_count'] ?? null,
+                'face_score' => $data['face_score'] ?? null,
+                'source' => 'self_enrollment',
+                'status' => 'pending_approval',
+                'captured_at' => now(),
+                'ip_address' => $request->ip(),
+                'user_agent' => substr($request->userAgent() ?? '', 0, 255),
             ]);
 
             // Registrar el evento de captura facial para auditoría
-            Log::info('Face enrollment captured', [
+            Log::info("Captura facial recibida — empleado ID {$enrollment->employee_id} (enrollment #{$enrollment->id}, pendiente de aprobación)", [
                 'enrollment_id' => $enrollment->id,
                 'employee_id' => $enrollment->employee_id,
             ]);
@@ -119,8 +119,8 @@ class FaceEnrollmentController extends Controller
             throw $e;
         } catch (\Exception $e) {
             // Registrar el error para diagnóstico
-            Log::error('Error in face enrollment capture', [
-                'token' => $token,
+            Log::error('Error en captura facial (enrollment #{'.substr($token, 0, 8)."...}): {$e->getMessage()}", [
+                'token' => substr($token, 0, 8).'...',
                 'error' => $e->getMessage(),
             ]);
 
@@ -142,7 +142,9 @@ class FaceEnrollmentController extends Controller
             $data = preg_replace('/^data:image\/\w+;base64,/', '', $base64);
             $imageData = base64_decode($data);
 
-            if ($imageData === false) return null;
+            if ($imageData === false) {
+                return null;
+            }
 
             $path = sprintf('face-snapshots/%s/%d.jpg', now()->format('Y/m'), $enrollmentId);
             Storage::disk('public')->put($path, $imageData);
@@ -151,8 +153,9 @@ class FaceEnrollmentController extends Controller
         } catch (\Throwable $e) {
             Log::warning('No se pudo guardar el snapshot facial', [
                 'enrollment_id' => $enrollmentId,
-                'error'         => $e->getMessage(),
+                'error' => $e->getMessage(),
             ]);
+
             return null;
         }
     }
