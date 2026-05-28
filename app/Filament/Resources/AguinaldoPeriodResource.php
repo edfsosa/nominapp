@@ -182,7 +182,7 @@ class AguinaldoPeriodResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('¿Generar los aguinaldos?')
                     ->modalDescription(
-                        fn (AguinaldoPeriod $record) => "Esta acción generará los aguinaldos correspondientes al período de {$record->year} para la empresa {$record->company->name}. Si ya existen aguinaldos generados para este período, no se generarán duplicados."
+                        fn (AguinaldoPeriod $record) => 'Esta acción generará los aguinaldos correspondientes al período de '.$record->year.' para la empresa '.($record->company?->name ?? '—').'. Si ya existen aguinaldos generados para este período, no se generarán duplicados.'
                     )
                     ->modalSubmitActionLabel('Sí, generar')
                     ->action(function (AguinaldoPeriod $record, AguinaldoService $aguinaldoService) {
@@ -194,13 +194,13 @@ class AguinaldoPeriodResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('Aguinaldos generados')
-                                ->body("Se generaron exitosamente {$count} aguinaldos para el período {$record->year} de {$record->company->name}.")
+                                ->body('Se generaron exitosamente '.$count.' aguinaldos para el período '.$record->year.' de '.($record->company?->name ?? '—').'.')
                                 ->send();
                         } else {
                             Notification::make()
                                 ->warning()
                                 ->title('No se generaron aguinaldos')
-                                ->body("Ya fueron generados o no hay nóminas para el período {$record->year} de {$record->company->name}.")
+                                ->body('Ya fueron generados o no hay nóminas para el período '.$record->year.' de '.($record->company?->name ?? '—').'.')
                                 ->send();
                         }
                     })

@@ -517,7 +517,7 @@ class AdvanceResource extends Resource
                         ->color('success')
                         ->visible(fn (Advance $record) => $record->isPending())
                         ->modalHeading('Aprobar Adelanto')
-                        ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. Se descontará automáticamente en la próxima liquidación de nómina.')
+                        ->modalDescription(fn (Advance $record) => 'Se aprobará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.($record->employee?->full_name ?? 'empleado eliminado').'. Se descontará automáticamente en la próxima liquidación de nómina.')
                         ->modalSubmitActionLabel('Sí, aprobar')
                         ->form([
                             Select::make('payment_method')
@@ -544,7 +544,7 @@ class AdvanceResource extends Resource
                         ->visible(fn (Advance $record) => $record->isPending())
                         ->requiresConfirmation()
                         ->modalHeading('Rechazar Adelanto')
-                        ->modalDescription(fn (Advance $record) => 'Se rechazará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.'. El adelanto quedará en estado Rechazado.')
+                        ->modalDescription(fn (Advance $record) => 'Se rechazará el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.($record->employee?->full_name ?? 'empleado eliminado').'. El adelanto quedará en estado Rechazado.')
                         ->modalSubmitActionLabel('Sí, rechazar')
                         ->form([
                             Textarea::make('reason')
@@ -569,7 +569,7 @@ class AdvanceResource extends Resource
                         ->visible(fn (Advance $record) => $record->isApproved() && $record->disbursement_batch_id === null)
                         ->requiresConfirmation()
                         ->modalHeading('Desaprobar adelanto')
-                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. de '.$record->employee->full_name.' volverá a estado Pendiente.')
+                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. de '.($record->employee?->full_name ?? 'empleado eliminado').' volverá a estado Pendiente.')
                         ->modalSubmitActionLabel('Sí, desaprobar')
                         ->action(function (Advance $record) {
                             $result = $record->revertToPending();
@@ -587,7 +587,7 @@ class AdvanceResource extends Resource
                         ->color('primary')
                         ->visible(fn (Advance $record) => $record->isApproved())
                         ->modalHeading('Marcar Adelanto como Entregado')
-                        ->modalDescription(fn (Advance $record) => 'Se confirmará que el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. fue entregado a '.$record->employee->full_name.'. Se descontará en la próxima liquidación de nómina.')
+                        ->modalDescription(fn (Advance $record) => 'Se confirmará que el adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. fue entregado a '.($record->employee?->full_name ?? 'empleado eliminado').'. Se descontará en la próxima liquidación de nómina.')
                         ->modalSubmitActionLabel('Sí, marcar como entregado')
                         ->form(fn (Advance $record) => [
                             DateTimePicker::make('disbursed_at')
@@ -634,7 +634,7 @@ class AdvanceResource extends Resource
                         ->visible(fn (Advance $record) => $record->isDisbursed() && $record->payroll_id === null)
                         ->requiresConfirmation()
                         ->modalHeading('Revertir Adelanto a Aprobado')
-                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.$record->employee->full_name.' volverá al estado Aprobado.')
+                        ->modalDescription(fn (Advance $record) => 'El adelanto de '.number_format((float) $record->amount, 0, ',', '.').' Gs. para '.($record->employee?->full_name ?? 'empleado eliminado').' volverá al estado Aprobado.')
                         ->modalSubmitActionLabel('Sí, revertir')
                         ->action(function (Advance $record) {
                             $result = $record->revertToApproved();

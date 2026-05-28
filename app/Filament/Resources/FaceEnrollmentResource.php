@@ -28,19 +28,23 @@ class FaceEnrollmentResource extends Resource
 {
     // Configuración general del recurso
     protected static ?string $model = FaceEnrollment::class;
+
     protected static ?string $navigationLabel = 'Registro Facial';
+
     protected static ?string $label = 'registro facial';
+
     protected static ?string $pluralLabel = 'registros faciales';
+
     protected static ?string $slug = 'registros-faciales';
+
     protected static ?string $navigationIcon = 'heroicon-o-finger-print';
+
     protected static ?string $navigationGroup = 'Asistencias';
+
     protected static ?int $navigationSort = 4;
 
     /**
      * Define la tabla del recurso, con columnas, filtros y acciones personalizadas para la gestión de registros faciales.
-     *
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -61,15 +65,15 @@ class FaceEnrollmentResource extends Resource
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
-                    ->formatStateUsing(fn(string $state): string => FaceEnrollment::getStatusLabel($state))
-                    ->color(fn(string $state): string => FaceEnrollment::getStatusColor($state))
-                    ->icon(fn(string $state): string => FaceEnrollment::getStatusIcon($state)),
+                    ->formatStateUsing(fn (string $state): string => FaceEnrollment::getStatusLabel($state))
+                    ->color(fn (string $state): string => FaceEnrollment::getStatusColor($state))
+                    ->icon(fn (string $state): string => FaceEnrollment::getStatusIcon($state)),
 
                 TextColumn::make('expires_at')
                     ->label('Expira')
                     ->dateTime('d/m/Y H:i')
                     ->sortable()
-                    ->description(fn(FaceEnrollment $record): string => $record->isExpired() && $record->isPendingCapture() ? 'Expirado' : ''),
+                    ->description(fn (FaceEnrollment $record): string => $record->isExpired() && $record->isPendingCapture() ? 'Expirado' : ''),
 
                 ImageColumn::make('snapshot_path')
                     ->label('Foto')
@@ -85,17 +89,17 @@ class FaceEnrollmentResource extends Resource
                     ->label('Calidad')
                     ->badge()
                     ->placeholder('—')
-                    ->formatStateUsing(fn($record) => $record->face_score !== null ? $record->getQualityLabel() : '—')
-                    ->color(fn($record) => $record->face_score !== null ? $record->getQualityColor() : 'gray')
-                    ->description(fn($record) => $record->face_score !== null ? number_format($record->face_score, 4) : '')
+                    ->formatStateUsing(fn ($record) => $record->face_score !== null ? $record->getQualityLabel() : '—')
+                    ->color(fn ($record) => $record->face_score !== null ? $record->getQualityColor() : 'gray')
+                    ->description(fn ($record) => $record->face_score !== null ? number_format($record->face_score, 4) : '')
                     ->toggleable(),
 
                 TextColumn::make('source')
                     ->label('Origen')
                     ->badge()
-                    ->formatStateUsing(fn(string $state): string => FaceEnrollment::getSourceLabel($state))
-                    ->color(fn(string $state): string => FaceEnrollment::getSourceColor($state))
-                    ->icon(fn(string $state): string => FaceEnrollment::getSourceIcon($state))
+                    ->formatStateUsing(fn (string $state): string => FaceEnrollment::getSourceLabel($state))
+                    ->color(fn (string $state): string => FaceEnrollment::getSourceColor($state))
+                    ->icon(fn (string $state): string => FaceEnrollment::getSourceIcon($state))
                     ->toggleable(),
 
                 TextColumn::make('samples_count')
@@ -129,7 +133,7 @@ class FaceEnrollmentResource extends Resource
                 TextColumn::make('review_notes')
                     ->label('Notas de revisión')
                     ->limit(50)
-                    ->tooltip(fn($record) => $record->review_notes)
+                    ->tooltip(fn ($record) => $record->review_notes)
                     ->placeholder('—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
@@ -155,7 +159,7 @@ class FaceEnrollmentResource extends Resource
                 SelectFilter::make('employee_id')
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
-                    ->getOptionLabelFromRecordUsing(fn($record) => "{$record->full_name} (CI: {$record->ci})")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
                     ->searchable(['first_name', 'last_name', 'ci'])
                     ->preload(false)
                     ->native(false),
@@ -166,10 +170,16 @@ class FaceEnrollmentResource extends Resource
                     ->icon('heroicon-o-check-circle')
                     ->color('success')
                     ->tooltip('Aprobar este registro facial y asignarlo al empleado')
-                    ->visible(fn(FaceEnrollment $record) => $record->isPendingApproval())
+                    ->visible(fn (FaceEnrollment $record) => $record->isPendingApproval())
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar Registro Facial')
-                    ->modalDescription(fn(FaceEnrollment $record) => "¿Aprobar el registro facial de {$record->employee->first_name} {$record->employee->last_name}? El descriptor será asignado al empleado para marcación de asistencia.")
+                    ->modalDescription(function (FaceEnrollment $record) {
+                        $name = $record->employee
+                            ? "{$record->employee->first_name} {$record->employee->last_name}"
+                            : 'empleado eliminado';
+
+                        return "¿Aprobar el registro facial de {$name}? El descriptor será asignado al empleado para marcación de asistencia.";
+                    })
                     ->modalSubmitActionLabel('Aprobar')
                     ->form([
                         Textarea::make('review_notes')
@@ -192,10 +202,16 @@ class FaceEnrollmentResource extends Resource
                     ->icon('heroicon-o-x-circle')
                     ->color('danger')
                     ->tooltip('Rechazar este registro facial')
-                    ->visible(fn(FaceEnrollment $record) => $record->isPendingApproval())
+                    ->visible(fn (FaceEnrollment $record) => $record->isPendingApproval())
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar Registro Facial')
-                    ->modalDescription(fn(FaceEnrollment $record) => "¿Rechazar el registro facial de {$record->employee->first_name} {$record->employee->last_name}?")
+                    ->modalDescription(function (FaceEnrollment $record) {
+                        $name = $record->employee
+                            ? "{$record->employee->first_name} {$record->employee->last_name}"
+                            : 'empleado eliminado';
+
+                        return "¿Rechazar el registro facial de {$name}?";
+                    })
                     ->modalSubmitActionLabel('Rechazar')
                     ->form([
                         Textarea::make('review_notes')
@@ -219,12 +235,15 @@ class FaceEnrollmentResource extends Resource
                     ->icon('heroicon-o-link')
                     ->color('info')
                     ->tooltip('Ver y copiar el enlace de captura facial')
-                    ->visible(fn(FaceEnrollment $record) => $record->isValid())
-                    ->fillForm(fn(FaceEnrollment $record): array => [
+                    ->visible(fn (FaceEnrollment $record) => $record->isValid())
+                    ->fillForm(fn (FaceEnrollment $record): array => [
                         'enrollment_url' => route('face-enrollment.show', $record->token),
                     ])
                     ->modalHeading('Enlace de Captura Facial')
-                    ->modalDescription(fn(FaceEnrollment $record) => 'Válido hasta: ' . $record->expires_at->translatedFormat('l d/m/Y H:i') . ' (' . $record->expires_at->diffForHumans() . ')')
+                    ->modalDescription(fn (FaceEnrollment $record) => $record->expires_at
+                        ? 'Válido hasta: '.$record->expires_at->translatedFormat('l d/m/Y H:i').' ('.$record->expires_at->diffForHumans().')'
+                        : 'Sin fecha de expiración.'
+                    )
                     ->form([
                         TextInput::make('enrollment_url')
                             ->label('Enlace de captura')
@@ -242,12 +261,18 @@ class FaceEnrollmentResource extends Resource
                     ->icon('heroicon-o-arrow-path')
                     ->color('warning')
                     ->tooltip('Generar un nuevo enlace de captura para este empleado')
-                    ->visible(fn(FaceEnrollment $record) => $record->isRejected()
+                    ->visible(fn (FaceEnrollment $record) => $record->isRejected()
                         || $record->status === 'expired'
                         || ($record->isPendingCapture() && $record->isExpired()))
                     ->requiresConfirmation()
                     ->modalHeading('Regenerar Enlace de Captura')
-                    ->modalDescription(fn(FaceEnrollment $record) => "Se creará un nuevo enlace de captura para {$record->employee->first_name} {$record->employee->last_name}.")
+                    ->modalDescription(function (FaceEnrollment $record) {
+                        $name = $record->employee
+                            ? "{$record->employee->first_name} {$record->employee->last_name}"
+                            : 'empleado eliminado';
+
+                        return "Se creará un nuevo enlace de captura para {$name}.";
+                    })
                     ->form([
                         Select::make('expiry_hours')
                             ->label('Vigencia del enlace')
@@ -282,7 +307,13 @@ class FaceEnrollmentResource extends Resource
                 DeleteAction::make()
                     ->tooltip('Eliminar este registro facial')
                     ->modalHeading('Eliminar Registro Facial')
-                    ->modalDescription(fn(FaceEnrollment $record) => "¿Eliminar el registro facial de {$record->employee->first_name} {$record->employee->last_name}? Esta acción no se puede deshacer."),
+                    ->modalDescription(function (FaceEnrollment $record) {
+                        $name = $record->employee
+                            ? "{$record->employee->first_name} {$record->employee->last_name}"
+                            : 'empleado eliminado';
+
+                        return "¿Eliminar el registro facial de {$name}? Esta acción no se puede deshacer.";
+                    }),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -349,7 +380,7 @@ class FaceEnrollmentResource extends Resource
                                     'created_at',
                                     'updated_at',
                                 ])
-                                ->withFilename(fn() => 'registros_faciales_' . now()->format('d_m_Y_H_i_s')),
+                                ->withFilename(fn () => 'registros_faciales_'.now()->format('d_m_Y_H_i_s')),
                         ]),
 
                     DeleteBulkAction::make()
@@ -366,8 +397,6 @@ class FaceEnrollmentResource extends Resource
 
     /**
      * Devuelve la acción de exportar a Excel para usar en el header de la página
-     *
-     * @return ExportAction
      */
     public static function getExcelExportAction(): ExportAction
     {
@@ -380,14 +409,12 @@ class FaceEnrollmentResource extends Resource
                 ExcelExport::make()
                     ->fromTable()
                     ->except(['created_at'])
-                    ->withFilename(fn() => 'registros_faciales_' . now()->format('d_m_Y_H_i_s')),
+                    ->withFilename(fn () => 'registros_faciales_'.now()->format('d_m_Y_H_i_s')),
             ]);
     }
 
     /**
      * Devuelve las páginas del recurso, en este caso solo la página de listado personalizada con pestañas
-     *
-     * @return array
      */
     public static function getPages(): array
     {
@@ -398,8 +425,6 @@ class FaceEnrollmentResource extends Resource
 
     /**
      * Devuelve el número de registros faciales pendientes de aprobación para mostrar en el badge de navegación
-     *
-     * @return string|null
      */
     public static function getNavigationBadge(): ?string
     {
@@ -408,8 +433,6 @@ class FaceEnrollmentResource extends Resource
 
     /**
      * Devuelve el color del badge de navegación
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeColor(): ?string
     {
@@ -418,8 +441,6 @@ class FaceEnrollmentResource extends Resource
 
     /**
      * Devuelve el tooltip para el badge de navegación
-     *
-     * @return string|null
      */
     public static function getNavigationBadgeTooltip(): ?string
     {

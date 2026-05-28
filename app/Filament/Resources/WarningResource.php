@@ -215,7 +215,7 @@ class WarningResource extends Resource
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee?->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')

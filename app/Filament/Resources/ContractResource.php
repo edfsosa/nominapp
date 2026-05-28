@@ -853,7 +853,7 @@ class ContractResource extends Resource
                         ->visible(fn (Contract $record) => (bool) $record->document_path)
                         ->action(fn (Contract $record) => response()->download(
                             Storage::disk('public')->path($record->document_path),
-                            "contrato_firmado_{$record->employee->ci}_{$record->start_date->format('Y_m_d')}.pdf"
+                            'contrato_firmado_'.($record->employee?->ci ?? 'sin_ci').'_'.$record->start_date->format('Y_m_d').'.pdf'
                         )),
 
                     Action::make('terminate')
@@ -863,7 +863,7 @@ class ContractResource extends Resource
                         ->visible(fn (Contract $record) => $record->status === 'active')
                         ->requiresConfirmation()
                         ->modalHeading('Terminar Contrato')
-                        ->modalDescription(fn (Contract $record) => "¿Está seguro de que desea terminar el contrato de {$record->employee->full_name}?")
+                        ->modalDescription(fn (Contract $record) => '¿Está seguro de que desea terminar el contrato de '.($record->employee?->full_name ?? 'empleado eliminado').'?')
                         ->modalSubmitActionLabel('Sí, terminar')
                         ->form([
                             Textarea::make('termination_notes')
@@ -876,7 +876,7 @@ class ContractResource extends Resource
 
                             Notification::make()
                                 ->title('Contrato Terminado')
-                                ->body("El contrato de {$record->employee->full_name} ha sido terminado. Puede crear una liquidación desde el módulo correspondiente.")
+                                ->body('El contrato de '.($record->employee?->full_name ?? 'empleado eliminado').' ha sido terminado. Puede crear una liquidación desde el módulo correspondiente.')
                                 ->warning()
                                 ->persistent()
                                 ->actions([

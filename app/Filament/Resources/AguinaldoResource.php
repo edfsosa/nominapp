@@ -55,7 +55,7 @@ class AguinaldoResource extends Resource
                 ImageColumn::make('employee.photo')
                     ->label('Foto')
                     ->circular()
-                    ->defaultImageUrl(fn ($record) => $record->employee->avatar_url)
+                    ->defaultImageUrl(fn ($record) => $record->employee?->avatar_url)
                     ->toggleable(),
 
                 TextColumn::make('employee.full_name')
@@ -165,7 +165,7 @@ class AguinaldoResource extends Resource
                 SelectFilter::make('aguinaldo_period_id')
                     ->label('Período')
                     ->relationship('period', 'year')
-                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->year} - {$record->company->name}")
+                    ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->year} - ".($record->company?->name ?? '—'))
                     ->searchable()
                     ->native(false),
 
@@ -183,7 +183,7 @@ class AguinaldoResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar como Pagado?')
-                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirmar pago del aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
+                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirmar pago del aguinaldo de ".($record->employee?->full_name ?? 'empleado eliminado').' por '.Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPaid();
@@ -191,7 +191,7 @@ class AguinaldoResource extends Resource
                         Notification::make()
                             ->success()
                             ->title('Aguinaldo marcado como pagado')
-                            ->body("El aguinaldo de {$record->employee->full_name} ha sido marcado como pagado.")
+                            ->body('El aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').' ha sido marcado como pagado.')
                             ->send();
                     })
                     ->visible(fn (Aguinaldo $record) => $record->isPending() && $record->period?->isProcessing()),
@@ -202,7 +202,7 @@ class AguinaldoResource extends Resource
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar como Pendiente?')
-                    ->modalDescription(fn (Aguinaldo $record) => "Se revertirá el pago del aguinaldo de {$record->employee->full_name} por ".Aguinaldo::formatCurrency($record->aguinaldo_amount).' y volverá a estado Pendiente.')
+                    ->modalDescription(fn (Aguinaldo $record) => 'Se revertirá el pago del aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').' por '.Aguinaldo::formatCurrency($record->aguinaldo_amount).' y volverá a estado Pendiente.')
                     ->modalSubmitActionLabel('Sí, marcar como pendiente')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPending();
@@ -210,7 +210,7 @@ class AguinaldoResource extends Resource
                         Notification::make()
                             ->warning()
                             ->title('Pago revertido')
-                            ->body("El aguinaldo de {$record->employee->full_name} volvió a estado Pendiente.")
+                            ->body('El aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').' volvió a estado Pendiente.')
                             ->send();
                     })
                     ->visible(fn (Aguinaldo $record) => $record->isPaid() && $record->period?->isProcessing()),
@@ -221,7 +221,7 @@ class AguinaldoResource extends Resource
                     ->color('gray')
                     ->requiresConfirmation()
                     ->modalHeading('¿Regenerar Aguinaldo?')
-                    ->modalDescription(fn (Aguinaldo $record) => "Se recalcularán los valores del aguinaldo de {$record->employee->full_name}. ¿Deseas continuar?")
+                    ->modalDescription(fn (Aguinaldo $record) => 'Se recalcularán los valores del aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').'. ¿Deseas continuar?')
                     ->modalSubmitActionLabel('Sí, regenerar')
                     ->action(function (Aguinaldo $record, AguinaldoService $aguinaldoService) {
                         try {
@@ -230,7 +230,7 @@ class AguinaldoResource extends Resource
                             Notification::make()
                                 ->success()
                                 ->title('Aguinaldo regenerado')
-                                ->body("El aguinaldo de {$record->employee->full_name} ha sido recalculado exitosamente.")
+                                ->body('El aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').' ha sido recalculado exitosamente.')
                                 ->send();
                         } catch (\Throwable $e) {
                             Notification::make()

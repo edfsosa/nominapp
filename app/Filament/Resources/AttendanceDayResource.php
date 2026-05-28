@@ -136,7 +136,7 @@ class AttendanceDayResource extends Resource
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->description(fn(AttendanceDay $record) => "CI: {$record->employee->ci}")
+                    ->description(fn(AttendanceDay $record) => $record->employee ? "CI: {$record->employee->ci}" : '')
                     ->searchable(['first_name', 'last_name'])
                     ->wrap(),
 

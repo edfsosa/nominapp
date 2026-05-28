@@ -161,7 +161,10 @@ class EmployeeLeaveResource extends Resource
             ->columns([
                 TextColumn::make('employee.first_name')
                     ->label('Empleado')
-                    ->formatStateUsing(fn ($record) => "{$record->employee->first_name} {$record->employee->last_name}")
+                    ->formatStateUsing(fn ($record) => $record->employee
+                        ? "{$record->employee->first_name} {$record->employee->last_name}"
+                        : '—'
+                    )
                     ->searchable(['first_name', 'last_name'])
                     ->sortable(),
 
@@ -316,7 +319,10 @@ class EmployeeLeaveResource extends Resource
                     ->schema([
                         TextEntry::make('employee.first_name')
                             ->label('Nombre completo')
-                            ->formatStateUsing(fn ($record) => "{$record->employee->first_name} {$record->employee->last_name}")
+                            ->formatStateUsing(fn ($record) => $record->employee
+                                ? "{$record->employee->first_name} {$record->employee->last_name}"
+                                : '—'
+                            )
                             ->icon('heroicon-o-user')
                             ->columnSpan(1),
 
