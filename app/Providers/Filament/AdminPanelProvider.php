@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use AchyutN\FilamentLogViewer\FilamentLogViewer;
 use EightyNine\FilamentDocs\FilamentDocsPlugin;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -62,6 +63,13 @@ class AdminPanelProvider extends PanelProvider
                     ->collapsed(),
             ])
             ->plugin(FilamentDocsPlugin::make())
+            ->plugin(
+                FilamentLogViewer::make()
+                    ->navigationGroup('Configuración')
+                    ->navigationLabel('Visor de Logs')
+                    ->navigationIcon('heroicon-o-document-text')
+                    ->authorize(fn () => auth()->check())
+            )
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
