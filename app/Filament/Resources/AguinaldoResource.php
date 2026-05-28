@@ -60,7 +60,11 @@ class AguinaldoResource extends Resource
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['employee.first_name', 'employee.last_name'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+                        'employee',
+                        fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                    ))
                     ->sortable()
                     ->wrap(),
 
@@ -183,7 +187,7 @@ class AguinaldoResource extends Resource
                     ->color('success')
                     ->requiresConfirmation()
                     ->modalHeading('¿Marcar como Pagado?')
-                    ->modalDescription(fn (Aguinaldo $record) => "¿Confirmar pago del aguinaldo de ".($record->employee?->full_name ?? 'empleado eliminado').' por '.Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
+                    ->modalDescription(fn (Aguinaldo $record) => '¿Confirmar pago del aguinaldo de '.($record->employee?->full_name ?? 'empleado eliminado').' por '.Aguinaldo::formatCurrency($record->aguinaldo_amount).'?')
                     ->modalSubmitActionLabel('Sí, marcar como pagado')
                     ->action(function (Aguinaldo $record) {
                         $record->markAsPaid();

@@ -220,8 +220,12 @@ class WarningResource extends Resource
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['employees.first_name', 'employees.last_name'])
-                    ->sortable(['employees.first_name', 'employees.last_name'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+                        'employee',
+                        fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                                     ->orWhere('last_name', 'like', "%{$search}%")
+                    ))
+                    ->sortable()
                     ->wrap(),
 
                 TextColumn::make('employee.ci')
@@ -288,7 +292,7 @@ class WarningResource extends Resource
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => "{$record->full_name} (CI: {$record->ci})")
-                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->searchable()
                     ->multiple()
                     ->native(false),
 

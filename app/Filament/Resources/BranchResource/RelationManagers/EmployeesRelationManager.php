@@ -12,6 +12,7 @@ use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
@@ -45,7 +46,11 @@ class EmployeesRelationManager extends RelationManager
                 TextColumn::make('full_name')
                     ->label('Nombre')
                     ->description(fn (Employee $record) => 'CI: '.$record->ci)
-                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('ci', 'like', "%{$search}%")
+                    )
                     ->sortable(['first_name', 'last_name'])
                     ->weight('medium'),
 

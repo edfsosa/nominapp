@@ -8,6 +8,7 @@ use App\Models\Employee;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
@@ -45,7 +46,11 @@ class EmployeesRelationManager extends RelationManager
                 TextColumn::make('full_name')
                     ->label('Nombre')
                     ->description(fn (Employee $record) => 'CI: '.$record->ci)
-                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('ci', 'like', "%{$search}%")
+                    )
                     ->sortable(['first_name', 'last_name'])
                     ->weight('medium'),
 

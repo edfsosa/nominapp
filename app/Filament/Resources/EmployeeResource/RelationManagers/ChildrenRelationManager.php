@@ -8,6 +8,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -120,7 +121,10 @@ class ChildrenRelationManager extends RelationManager
                     ->label('Nombre')
                     ->getStateUsing(fn (EmployeeChild $record) => $record->full_name)
                     ->description(fn (EmployeeChild $record) => $record->ci ? 'CI: '.$record->ci : null)
-                    ->searchable(['first_name', 'last_name']),
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                    ),
 
                 TextColumn::make('birth_date')
                     ->label('Fecha de nacimiento')

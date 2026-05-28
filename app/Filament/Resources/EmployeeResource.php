@@ -672,7 +672,11 @@ class EmployeeResource extends Resource
                     ->label('Nombre')
                     ->getStateUsing(fn (Employee $record): string => $record->full_name)
                     ->description(fn (Employee $record): string => 'CI: '.$record->ci)
-                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('ci', 'like', "%{$search}%")
+                    )
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
 

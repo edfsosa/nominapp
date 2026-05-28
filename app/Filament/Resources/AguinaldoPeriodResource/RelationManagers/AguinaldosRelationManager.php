@@ -62,7 +62,11 @@ class AguinaldosRelationManager extends RelationManager
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->searchable(['employee.first_name', 'employee.last_name'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
+                        'employee',
+                        fn ($q) => $q->where('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                    ))
                     ->sortable()
                     ->wrap(),
 
@@ -148,7 +152,7 @@ class AguinaldosRelationManager extends RelationManager
                     ->label('Empleado')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name)
-                    ->searchable(['first_name', 'last_name'])
+                    ->searchable()
                     ->native(false),
             ])
             ->actions([

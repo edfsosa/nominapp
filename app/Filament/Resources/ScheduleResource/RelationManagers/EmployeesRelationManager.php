@@ -122,7 +122,11 @@ class EmployeesRelationManager extends RelationManager
                     ->label('Nombre completo')
                     ->getStateUsing(fn (Employee $record) => $record->first_name.' '.$record->last_name)
                     ->description(fn (Employee $record) => 'CI: '.$record->ci)
-                    ->searchable(['first_name', 'last_name', 'ci'])
+                    ->searchable(query: fn (Builder $query, string $search) => $query
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('ci', 'like', "%{$search}%")
+                    )
                     ->sortable()
                     ->weight('medium'),
 
