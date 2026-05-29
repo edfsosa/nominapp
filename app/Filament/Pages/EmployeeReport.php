@@ -8,8 +8,10 @@ use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Department;
 use App\Models\Employee;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
@@ -19,6 +21,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -75,6 +78,10 @@ class EmployeeReport extends Page implements HasTable
         $deptId = isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null;
         $contractType = isset($f['contract_type']['value']) && $f['contract_type']['value'] !== '' ? $f['contract_type']['value'] : null;
         $paymentMethod = isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null;
+        $registeredFrom = filled($f['registered_between']['registered_from'] ?? null) ? $f['registered_between']['registered_from'] : null;
+        $registeredUntil = filled($f['registered_between']['registered_until'] ?? null) ? $f['registered_between']['registered_until'] : null;
+        $endDateFrom = filled($f['end_date_between']['end_date_from'] ?? null) ? $f['end_date_between']['end_date_from'] : null;
+        $endDateUntil = filled($f['end_date_between']['end_date_until'] ?? null) ? $f['end_date_between']['end_date_until'] : null;
 
         $parts = [];
 
@@ -82,7 +89,9 @@ class EmployeeReport extends Page implements HasTable
             $parts[] = Employee::getGenderOptions()[$gender] ?? $gender;
         }
         if ($status) {
-            $parts[] = Employee::getStatusOptions()[$status] ?? $status;
+            $parts[] = $status === 'sin_contrato'
+                ? 'Sin contrato'
+                : (Employee::getStatusOptions()[$status] ?? $status);
         }
         if ($birthMonth) {
             $parts[] = 'Cumpleaños en '.(Employee::getMonthOptions()[$birthMonth] ?? $birthMonth);
@@ -95,6 +104,24 @@ class EmployeeReport extends Page implements HasTable
         }
         if ($paymentMethod) {
             $parts[] = Employee::getPaymentMethodOptions()[$paymentMethod] ?? $paymentMethod;
+        }
+        if ($registeredFrom || $registeredUntil) {
+            if ($registeredFrom && $registeredUntil) {
+                $parts[] = 'Registro: '.Carbon::parse($registeredFrom)->format('d/m/Y').' — '.Carbon::parse($registeredUntil)->format('d/m/Y');
+            } elseif ($registeredFrom) {
+                $parts[] = 'Registro desde: '.Carbon::parse($registeredFrom)->format('d/m/Y');
+            } else {
+                $parts[] = 'Registro hasta: '.Carbon::parse($registeredUntil)->format('d/m/Y');
+            }
+        }
+        if ($endDateFrom || $endDateUntil) {
+            if ($endDateFrom && $endDateUntil) {
+                $parts[] = 'Baja: '.Carbon::parse($endDateFrom)->format('d/m/Y').' — '.Carbon::parse($endDateUntil)->format('d/m/Y');
+            } elseif ($endDateFrom) {
+                $parts[] = 'Baja desde: '.Carbon::parse($endDateFrom)->format('d/m/Y');
+            } else {
+                $parts[] = 'Baja hasta: '.Carbon::parse($endDateUntil)->format('d/m/Y');
+            }
         }
 
         return $parts ? implode(' · ', $parts) : 'Todos los empleados';
@@ -149,7 +176,11 @@ class EmployeeReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
+                    [
+                        $companyId, $branchId, $gender, $birthMonth, $status,
+                        $departmentId, $contractType, $paymentMethod,
+                        $registeredFrom, $registeredUntil, $endDateFrom, $endDateUntil,
+                    ] = $this->resolveActiveFilters();
 
                     $params = array_filter([
                         'companyId' => $companyId,
@@ -160,6 +191,10 @@ class EmployeeReport extends Page implements HasTable
                         'departmentId' => $departmentId,
                         'contractType' => $contractType,
                         'paymentMethod' => $paymentMethod,
+                        'registeredFrom' => $registeredFrom,
+                        'registeredUntil' => $registeredUntil,
+                        'endDateFrom' => $endDateFrom,
+                        'endDateUntil' => $endDateUntil,
                     ], fn ($v) => $v !== null);
 
                     $params['columns'] = implode(',', $data['columns']);
@@ -185,7 +220,11 @@ class EmployeeReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $gender, $birthMonth, $status, $departmentId, $contractType, $paymentMethod] = $this->resolveActiveFilters();
+                    [
+                        $companyId, $branchId, $gender, $birthMonth, $status,
+                        $departmentId, $contractType, $paymentMethod,
+                        $registeredFrom, $registeredUntil, $endDateFrom, $endDateUntil,
+                    ] = $this->resolveActiveFilters();
 
                     Notification::make()
                         ->success()
@@ -197,7 +236,8 @@ class EmployeeReport extends Page implements HasTable
                         new EmployeeReportExport(
                             $companyId, $branchId, $gender, $birthMonth, $status,
                             $departmentId, $contractType, $paymentMethod,
-                            $data['columns']
+                            $data['columns'],
+                            $registeredFrom, $registeredUntil, $endDateFrom, $endDateUntil
                         ),
                         'empleados_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
@@ -274,7 +314,7 @@ class EmployeeReport extends Page implements HasTable
                         if (! $record->hire_date || $record->status !== 'active') {
                             return '—';
                         }
-                        $hire = \Carbon\Carbon::parse($record->hire_date);
+                        $hire = Carbon::parse($record->hire_date);
                         $years = (int) $hire->diffInYears(now());
                         if ($years >= 1) {
                             return $years.' año'.($years !== 1 ? 's' : '');
@@ -359,6 +399,19 @@ class EmployeeReport extends Page implements HasTable
                     ->getStateUsing(fn ($record) => $record->phone ?? '—')
                     ->toggleable(isToggledHiddenByDefault: true),
 
+                TextColumn::make('registered_at')
+                    ->label('Fecha de registro')
+                    ->getStateUsing(fn ($record) => $record->created_at)
+                    ->date('d/m/Y')
+                    ->sortable(query: fn (Builder $query, string $direction) => $query->orderBy('employees.created_at', $direction))
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('last_end_date')
+                    ->label('Fecha de baja')
+                    ->getStateUsing(fn ($record) => $record->last_end_date
+                        ? Carbon::parse($record->last_end_date)->format('d/m/Y')
+                        : '—')
+                    ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->emptyStateHeading('Sin empleados para los filtros seleccionados')
             ->emptyStateDescription('Ajuste los filtros para ver resultados.')
@@ -380,6 +433,7 @@ class EmployeeReport extends Page implements HasTable
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
+                'employees.created_at',
                 'employees.branch_id',
                 'branches.name as branch_name',
                 'companies.id as company_id',
@@ -393,6 +447,7 @@ class EmployeeReport extends Page implements HasTable
                 'departments.name as department_name',
                 DB::raw('TIMESTAMPDIFF(YEAR, contracts.start_date, CURDATE()) AS years_of_service'),
                 DB::raw('MONTH(employees.birth_date) AS birth_month'),
+                DB::raw('(SELECT MAX(c2.end_date) FROM contracts c2 WHERE c2.employee_id = employees.id) AS last_end_date'),
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->join('companies', 'companies.id', '=', 'branches.company_id')
@@ -405,7 +460,8 @@ class EmployeeReport extends Page implements HasTable
     }
 
     /**
-     * Filtros: empresa, sucursal, departamento, tipo contrato, método de pago, género, cumpleaños, estado.
+     * Filtros: empresa, sucursal, departamento, tipo contrato, método de pago, género, cumpleaños,
+     * fecha de registro, fecha de baja, estado (incluye opción "Sin contrato").
      *
      * @return array<int, mixed>
      */
@@ -472,21 +528,67 @@ class EmployeeReport extends Page implements HasTable
                     ? $query->whereRaw('MONTH(employees.birth_date) = ?', [$data['value']])
                     : $query),
 
+            Filter::make('registered_between')
+                ->label('Fecha de registro')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('registered_from')->label('Registro desde')->native(false),
+                    DatePicker::make('registered_until')->label('Registro hasta')->native(false),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['registered_from'] ?? null)) {
+                        $query->where('employees.created_at', '>=', Carbon::parse($data['registered_from'])->startOfDay());
+                    }
+                    if (filled($data['registered_until'] ?? null)) {
+                        $query->where('employees.created_at', '<=', Carbon::parse($data['registered_until'])->endOfDay());
+                    }
+
+                    return $query;
+                }),
+
+            Filter::make('end_date_between')
+                ->label('Fecha de baja')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('end_date_from')->label('Baja desde')->native(false),
+                    DatePicker::make('end_date_until')->label('Baja hasta')->native(false),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    $from = $data['end_date_from'] ?? null;
+                    $until = $data['end_date_until'] ?? null;
+                    if (filled($from) || filled($until)) {
+                        $query->whereHas('contracts', function ($q) use ($from, $until): void {
+                            if (filled($from)) {
+                                $q->where('end_date', '>=', $from);
+                            }
+                            if (filled($until)) {
+                                $q->where('end_date', '<=', $until);
+                            }
+                        });
+                    }
+
+                    return $query;
+                }),
+
             SelectFilter::make('status')
                 ->label('Estado')
-                ->options(Employee::getStatusOptions())
+                ->options(array_merge(Employee::getStatusOptions(), ['sin_contrato' => 'Sin contrato']))
                 ->native(false)
                 ->default('active')
-                ->query(fn (Builder $query, array $data) => filled($data['value'])
-                    ? $query->where('employees.status', $data['value'])
-                    : $query),
+                ->query(fn (Builder $query, array $data) => match (true) {
+                    $data['value'] === 'sin_contrato' => $query->whereDoesntHave('contracts'),
+                    filled($data['value']) => $query->where('employees.status', $data['value']),
+                    default => $query,
+                }),
         ]);
     }
 
     /**
      * Extrae los valores activos de los filtros para pasarlos al export/PDF.
      *
-     * @return array{int|null, int|null, string|null, int|null, string|null, int|null, string|null, string|null}
+     * @return array{int|null, int|null, string|null, int|null, string|null, int|null, string|null, string|null, string|null, string|null, string|null, string|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -501,6 +603,10 @@ class EmployeeReport extends Page implements HasTable
             isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null,
             isset($f['contract_type']['value']) && $f['contract_type']['value'] !== '' ? $f['contract_type']['value'] : null,
             isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null,
+            filled($f['registered_between']['registered_from'] ?? null) ? $f['registered_between']['registered_from'] : null,
+            filled($f['registered_between']['registered_until'] ?? null) ? $f['registered_between']['registered_until'] : null,
+            filled($f['end_date_between']['end_date_from'] ?? null) ? $f['end_date_between']['end_date_from'] : null,
+            filled($f['end_date_between']['end_date_until'] ?? null) ? $f['end_date_between']['end_date_until'] : null,
         ];
     }
 }

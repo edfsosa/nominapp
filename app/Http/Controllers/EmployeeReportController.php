@@ -7,6 +7,7 @@ use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Employee;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
@@ -31,6 +32,10 @@ class EmployeeReportController extends Controller
         $departmentId = $request->query('departmentId') ? (int) $request->query('departmentId') : null;
         $contractType = $request->query('contractType') ?: null;
         $paymentMethod = $request->query('paymentMethod') ?: null;
+        $registeredFrom = $request->query('registeredFrom') ?: null;
+        $registeredUntil = $request->query('registeredUntil') ?: null;
+        $endDateFrom = $request->query('endDateFrom') ?: null;
+        $endDateUntil = $request->query('endDateUntil') ?: null;
 
         $columnsParam = $request->query('columns');
         $selectedColumns = $columnsParam
@@ -51,6 +56,7 @@ class EmployeeReportController extends Controller
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
+                'employees.created_at',
                 'branches.name as branch_name',
                 'companies.id as company_id',
                 'companies.name as company_name',
@@ -62,6 +68,7 @@ class EmployeeReportController extends Controller
                 'positions.name as position_name',
                 'departments.name as department_name',
                 DB::raw('TIMESTAMPDIFF(YEAR, contracts.start_date, CURDATE()) AS years_of_service'),
+                DB::raw('(SELECT MAX(c2.end_date) FROM contracts c2 WHERE c2.employee_id = employees.id) AS last_end_date'),
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->join('companies', 'companies.id', '=', 'branches.company_id')
@@ -75,10 +82,21 @@ class EmployeeReportController extends Controller
             ->when($branchId, fn ($q) => $q->where('employees.branch_id', $branchId))
             ->when($gender, fn ($q) => $q->where('employees.gender', $gender))
             ->when($birthMonth, fn ($q) => $q->whereRaw('MONTH(employees.birth_date) = ?', [$birthMonth]))
-            ->when($status, fn ($q) => $q->where('employees.status', $status))
+            ->when($status === 'sin_contrato', fn ($q) => $q->whereDoesntHave('contracts'))
+            ->when($status && $status !== 'sin_contrato', fn ($q) => $q->where('employees.status', $status))
             ->when($departmentId, fn ($q) => $q->where('contracts.department_id', $departmentId))
             ->when($contractType, fn ($q) => $q->where('contracts.type', $contractType))
             ->when($paymentMethod, fn ($q) => $q->where('contracts.payment_method', $paymentMethod))
+            ->when($registeredFrom, fn ($q) => $q->where('employees.created_at', '>=', Carbon::parse($registeredFrom)->startOfDay()))
+            ->when($registeredUntil, fn ($q) => $q->where('employees.created_at', '<=', Carbon::parse($registeredUntil)->endOfDay()))
+            ->when($endDateFrom || $endDateUntil, fn ($q) => $q->whereHas('contracts', function ($q2) use ($endDateFrom, $endDateUntil): void {
+                if ($endDateFrom) {
+                    $q2->where('end_date', '>=', $endDateFrom);
+                }
+                if ($endDateUntil) {
+                    $q2->where('end_date', '<=', $endDateUntil);
+                }
+            }))
             ->orderBy('companies.name')
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
@@ -121,6 +139,7 @@ class EmployeeReportController extends Controller
         $pdf = Pdf::loadView('pdf.employee-report', compact(
             'employees', 'groups', 'groupMode',
             'gender', 'birthMonth', 'status', 'contractType', 'paymentMethod',
+            'registeredFrom', 'registeredUntil', 'endDateFrom', 'endDateUntil',
             'totalCount', 'byGender', 'byStatus', 'avgYears',
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',

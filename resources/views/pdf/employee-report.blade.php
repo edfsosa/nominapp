@@ -193,14 +193,24 @@
 
     {{-- Título del documento --}}
     <div class="title">Reporte de Empleados</div>
-    @if($gender || $birthMonth || $status || $contractType || $paymentMethod)
-    <div class="subtitle">
-        @if($gender) {{ $genderOptions[$gender] ?? $gender }} @endif
-        @if($birthMonth) @if($gender) &nbsp;·&nbsp; @endif Cumpleaños en {{ $monthOptions[$birthMonth] ?? $birthMonth }} @endif
-        @if($status) @if($gender || $birthMonth) &nbsp;·&nbsp; @endif Estado: {{ $statusOptions[$status] ?? $status }} @endif
-        @if($contractType) @if($gender || $birthMonth || $status) &nbsp;·&nbsp; @endif {{ $contractTypes[$contractType] ?? $contractType }} @endif
-        @if($paymentMethod) @if($gender || $birthMonth || $status || $contractType) &nbsp;·&nbsp; @endif {{ $paymentMethods[$paymentMethod] ?? $paymentMethod }} @endif
-    </div>
+    @php
+        $statusLabel = $status === 'sin_contrato' ? 'Sin contrato' : ($statusOptions[$status] ?? $status);
+        $subtitleParts = array_filter([
+            $gender ? ($genderOptions[$gender] ?? $gender) : null,
+            $birthMonth ? 'Cumpleaños en '.($monthOptions[$birthMonth] ?? $birthMonth) : null,
+            $status ? 'Estado: '.$statusLabel : null,
+            $contractType ? ($contractTypes[$contractType] ?? $contractType) : null,
+            $paymentMethod ? ($paymentMethods[$paymentMethod] ?? $paymentMethod) : null,
+            ($registeredFrom && $registeredUntil) ? 'Registro: '.\Carbon\Carbon::parse($registeredFrom)->format('d/m/Y').' — '.\Carbon\Carbon::parse($registeredUntil)->format('d/m/Y') : null,
+            (!$registeredUntil && $registeredFrom) ? 'Registro desde: '.\Carbon\Carbon::parse($registeredFrom)->format('d/m/Y') : null,
+            (!$registeredFrom && $registeredUntil) ? 'Registro hasta: '.\Carbon\Carbon::parse($registeredUntil)->format('d/m/Y') : null,
+            ($endDateFrom && $endDateUntil) ? 'Baja: '.\Carbon\Carbon::parse($endDateFrom)->format('d/m/Y').' — '.\Carbon\Carbon::parse($endDateUntil)->format('d/m/Y') : null,
+            (!$endDateUntil && $endDateFrom) ? 'Baja desde: '.\Carbon\Carbon::parse($endDateFrom)->format('d/m/Y') : null,
+            (!$endDateFrom && $endDateUntil) ? 'Baja hasta: '.\Carbon\Carbon::parse($endDateUntil)->format('d/m/Y') : null,
+        ]);
+    @endphp
+    @if(count($subtitleParts))
+    <div class="subtitle">{{ implode(' · ', $subtitleParts) }}</div>
     @endif
 
     {{-- Resumen --}}
@@ -277,6 +287,8 @@
                     if (isset($showCol['birthday']))       echo '<td style="text-align:center;">' . ($birthDate ? $birthDate->format('d/m') : '—') . '</td>';
                     if (isset($showCol['hire_date']))      echo '<td>' . ($hireDate ? $hireDate->format('d/m/Y') : '—') . '</td>';
                     if (isset($showCol['years_of_service'])) echo '<td style="text-align:center;">' . $antiguedadFmt . '</td>';
+                    if (isset($showCol['registered_at'])) { $regDate = $e->created_at ? \Carbon\Carbon::parse($e->created_at) : null; echo '<td>' . ($regDate ? $regDate->format('d/m/Y') : '—') . '</td>'; }
+                    if (isset($showCol['end_date']))      { $endDate = $e->last_end_date ? \Carbon\Carbon::parse($e->last_end_date) : null; echo '<td>' . ($endDate ? $endDate->format('d/m/Y') : '—') . '</td>'; }
                     if (isset($showCol['salary']))         echo '<td style="text-align:right;">' . $salaryFmt . '</td>';
                     if (isset($showCol['contract_type']))  echo '<td>' . e($contractTypesShort[$e->contract_type] ?? $contractTypes[$e->contract_type] ?? '—') . '</td>';
                     if (isset($showCol['payment_method'])) echo '<td>' . e($paymentMethodsShort[$e->payment_method] ?? $paymentMethods[$e->payment_method] ?? '—') . '</td>';

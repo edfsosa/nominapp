@@ -33,6 +33,10 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
         protected ?string $contractType = null,
         protected ?string $paymentMethod = null,
         protected array $columns = [],
+        protected ?string $registeredFrom = null,
+        protected ?string $registeredUntil = null,
+        protected ?string $endDateFrom = null,
+        protected ?string $endDateUntil = null,
     ) {
         if (empty($this->columns)) {
             $this->columns = array_keys(static::availableColumns());
@@ -54,6 +58,8 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             'birthday' => 'Cumpleaños',
             'hire_date' => 'Fecha ingreso',
             'years_of_service' => 'Antigüedad (años)',
+            'registered_at' => 'Fecha de registro',
+            'end_date' => 'Fecha de baja',
             'salary' => 'Salario (Gs.)',
             'contract_type' => 'Tipo de contrato',
             'payment_method' => 'Método de pago',
@@ -91,6 +97,7 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'employees.birth_date',
                 'employees.status',
                 'employees.phone',
+                'employees.created_at',
                 'branches.name as branch_name',
                 'companies.name as company_name',
                 'contracts.start_date as hire_date',
@@ -101,6 +108,7 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'positions.name as position_name',
                 'departments.name as department_name',
                 DB::raw('TIMESTAMPDIFF(YEAR, contracts.start_date, CURDATE()) AS years_of_service'),
+                DB::raw('(SELECT MAX(c2.end_date) FROM contracts c2 WHERE c2.employee_id = employees.id) AS last_end_date'),
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->join('companies', 'companies.id', '=', 'branches.company_id')
@@ -114,10 +122,21 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->gender, fn ($q) => $q->where('employees.gender', $this->gender))
             ->when($this->birthMonth, fn ($q) => $q->whereRaw('MONTH(employees.birth_date) = ?', [$this->birthMonth]))
-            ->when($this->status, fn ($q) => $q->where('employees.status', $this->status))
+            ->when($this->status === 'sin_contrato', fn ($q) => $q->whereDoesntHave('contracts'))
+            ->when($this->status && $this->status !== 'sin_contrato', fn ($q) => $q->where('employees.status', $this->status))
             ->when($this->departmentId, fn ($q) => $q->where('contracts.department_id', $this->departmentId))
             ->when($this->contractType, fn ($q) => $q->where('contracts.type', $this->contractType))
             ->when($this->paymentMethod, fn ($q) => $q->where('contracts.payment_method', $this->paymentMethod))
+            ->when($this->registeredFrom, fn ($q) => $q->where('employees.created_at', '>=', \Carbon\Carbon::parse($this->registeredFrom)->startOfDay()))
+            ->when($this->registeredUntil, fn ($q) => $q->where('employees.created_at', '<=', \Carbon\Carbon::parse($this->registeredUntil)->endOfDay()))
+            ->when($this->endDateFrom || $this->endDateUntil, fn ($q) => $q->whereHas('contracts', function ($q2) {
+                if ($this->endDateFrom) {
+                    $q2->where('end_date', '>=', $this->endDateFrom);
+                }
+                if ($this->endDateUntil) {
+                    $q2->where('end_date', '<=', $this->endDateUntil);
+                }
+            }))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name');
     }
@@ -171,6 +190,8 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
 
                 return $days.' día'.($days !== 1 ? 's' : '');
             })(),
+            'registered_at' => $row->created_at ? \Carbon\Carbon::parse($row->created_at)->format('d/m/Y') : '',
+            'end_date' => $row->last_end_date ? \Carbon\Carbon::parse($row->last_end_date)->format('d/m/Y') : '',
             'salary' => $row->salary ? (float) $row->salary : '',
             'contract_type' => $contractTypes[$row->contract_type] ?? '',
             'payment_method' => $paymentMethods[$row->payment_method] ?? '',
