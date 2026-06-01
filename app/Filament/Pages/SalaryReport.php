@@ -10,12 +10,14 @@ use App\Models\PayrollPeriod;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select as FormSelect;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -341,14 +343,22 @@ class SalaryReport extends Page implements HasTable
         $filters = [];
 
         if (Company::active()->count() > 1) {
-            $filters[] = SelectFilter::make('company_id')
-                ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(
-                    fn (Builder $query, array $data) => $data['value']
-                        ? $query->where('branches.company_id', $data['value'])
-                        : $query
+            $filters[] = Filter::make('company_id')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Empresa')
+                        ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
+                        ->searchable()
+                        ->placeholder('Todas')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('branches.company_id', $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                    ? 'Empresa: '.Company::find($data['value'])?->name
+                    : null
                 );
         }
 
@@ -379,14 +389,7 @@ class SalaryReport extends Page implements HasTable
         return array_merge($filters, [
             SelectFilter::make('branch_id')
                 ->label('Sucursal')
-                ->options(function () {
-                    $companyId = $this->tableFilters['company_id']['value'] ?? null;
-
-                    return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                        ->orderBy('name')
-                        ->pluck('name', 'id')
-                        ->toArray();
-                })
+                ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->query(
                     fn (Builder $query, array $data) => $data['value']
