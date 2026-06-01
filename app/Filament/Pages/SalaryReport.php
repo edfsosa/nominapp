@@ -47,17 +47,6 @@ class SalaryReport extends Page implements HasTable
     protected ?string $heading = 'Reporte de Salarios';
 
     /**
-     * Aplica la planilla más reciente como default solo cuando hay una única empresa activa.
-     * Con múltiples empresas, el usuario debe elegir empresa → planilla para evitar ambigüedad.
-     */
-    public function mount(): void
-    {
-        if (Company::active()->count() <= 1) {
-            $this->tableFilters['period_id']['value'] ??= (string) (PayrollPeriod::latest()->value('id') ?? '');
-        }
-    }
-
-    /**
      * Limpia el filtro de planilla cuando cambia la empresa seleccionada,
      * ya que el período anterior puede no pertenecer a la nueva empresa.
      */
@@ -123,7 +112,7 @@ class SalaryReport extends Page implements HasTable
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-text')
                 ->color('info')
-                ->disabled(fn () => ! ($this->tableFilters['period_id']['value'] ?? null))
+                ->disabled(fn() => ! ($this->tableFilters['period_id']['value'] ?? null))
                 ->modalHeading('Exportar reporte en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
                 ->form([
@@ -157,17 +146,17 @@ class SalaryReport extends Page implements HasTable
                         'columns' => implode(',', $data['columns']),
                         'subtables' => implode(',', $data['subtables'] ?? []),
                         'orientation' => $data['orientation'] ?? 'landscape',
-                    ], fn ($v) => $v !== null);
+                    ], fn($v) => $v !== null);
 
                     $url = route('salary-report.pdf', $params);
-                    $this->js("window.open('".addslashes($url)."', '_blank')");
+                    $this->js("window.open('" . addslashes($url) . "', '_blank')");
                 }),
 
             Action::make('export_excel')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
-                ->disabled(fn () => ! ($this->tableFilters['period_id']['value'] ?? null))
+                ->disabled(fn() => ! ($this->tableFilters['period_id']['value'] ?? null))
                 ->modalHeading('Exportar reporte de salarios')
                 ->modalDescription('Seleccione las columnas a incluir en el archivo Excel.')
                 ->modalSubmitActionLabel('Sí, exportar')
@@ -190,7 +179,7 @@ class SalaryReport extends Page implements HasTable
 
                     return Excel::download(
                         new SalaryReportExport($periodId, $companyId, $branchId, $status, $paymentMethod, $data['columns']),
-                        'salarios_'.now()->format('Y_m_d_H_i').'.xlsx'
+                        'salarios_' . now()->format('Y_m_d_H_i') . '.xlsx'
                     );
                 }),
         ];
@@ -209,12 +198,12 @@ class SalaryReport extends Page implements HasTable
             ->columns([
                 TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->getStateUsing(fn ($record) => $record->last_name.', '.$record->first_name)
-                    ->sortable(query: fn (Builder $query, string $direction) => $query
+                    ->getStateUsing(fn($record) => $record->last_name . ', ' . $record->first_name)
+                    ->sortable(query: fn(Builder $query, string $direction) => $query
                         ->orderBy('employees.last_name', $direction)
                         ->orderBy('employees.first_name', $direction))
-                    ->searchable(query: fn (Builder $query, string $search) => $query->where(
-                        fn ($q) => $q->where('employees.first_name', 'like', "%{$search}%")
+                    ->searchable(query: fn(Builder $query, string $search) => $query->where(
+                        fn($q) => $q->where('employees.first_name', 'like', "%{$search}%")
                             ->orWhere('employees.last_name', 'like', "%{$search}%")
                     ))
                     ->weight('medium'),
@@ -241,55 +230,55 @@ class SalaryReport extends Page implements HasTable
 
                 TextColumn::make('base_salary')
                     ->label('Salario Base')
-                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn($state) => 'Gs. ' . number_format((float) $state, 0, ',', '.'))
                     ->alignRight()
                     ->sortable(),
 
                 TextColumn::make('total_perceptions')
                     ->label('+Percepciones')
-                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn($state) => 'Gs. ' . number_format((float) $state, 0, ',', '.'))
                     ->alignRight()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('ips_amount')
                     ->label('IPS')
-                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Gs. '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->formatStateUsing(fn($state) => $state > 0 ? 'Gs. ' . number_format((float) $state, 0, ',', '.') : '—')
                     ->alignRight()
                     ->sortable()
                     ->color('warning'),
 
                 TextColumn::make('loan_amount')
                     ->label('Descuentos por Deuda')
-                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Gs. '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->formatStateUsing(fn($state) => $state > 0 ? 'Gs. ' . number_format((float) $state, 0, ',', '.') : '—')
                     ->alignRight()
                     ->sortable()
                     ->color('warning'),
 
                 TextColumn::make('judicial_amount')
                     ->label('Judiciales')
-                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Gs. '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->formatStateUsing(fn($state) => $state > 0 ? 'Gs. ' . number_format((float) $state, 0, ',', '.') : '—')
                     ->alignRight()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('voluntary_amount')
                     ->label('Voluntarias')
-                    ->formatStateUsing(fn ($state) => $state > 0 ? 'Gs. '.number_format((float) $state, 0, ',', '.') : '—')
+                    ->formatStateUsing(fn($state) => $state > 0 ? 'Gs. ' . number_format((float) $state, 0, ',', '.') : '—')
                     ->alignRight()
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('total_deductions')
                     ->label('-Deducciones')
-                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn($state) => 'Gs. ' . number_format((float) $state, 0, ',', '.'))
                     ->alignRight()
                     ->sortable()
                     ->color('danger'),
 
                 TextColumn::make('net_salary')
                     ->label('Neto a Pagar')
-                    ->formatStateUsing(fn ($state) => 'Gs. '.number_format((float) $state, 0, ',', '.'))
+                    ->formatStateUsing(fn($state) => 'Gs. ' . number_format((float) $state, 0, ',', '.'))
                     ->alignRight()
                     ->sortable()
                     ->weight('bold')
@@ -297,17 +286,17 @@ class SalaryReport extends Page implements HasTable
 
                 TextColumn::make('payment_method')
                     ->label('Método')
-                    ->formatStateUsing(fn (?string $state) => $state ? Payroll::getPaymentMethodLabels()[$state] ?? $state : '—')
+                    ->formatStateUsing(fn(?string $state) => $state ? Payroll::getPaymentMethodLabels()[$state] ?? $state : '—')
                     ->badge()
-                    ->color(fn (?string $state) => $state ? (Payroll::getPaymentMethodColors()[$state] ?? 'gray') : 'gray')
-                    ->icon(fn (?string $state) => $state ? (Payroll::getPaymentMethodIcons()[$state] ?? null) : null),
+                    ->color(fn(?string $state) => $state ? (Payroll::getPaymentMethodColors()[$state] ?? 'gray') : 'gray')
+                    ->icon(fn(?string $state) => $state ? (Payroll::getPaymentMethodIcons()[$state] ?? null) : null),
 
                 TextColumn::make('status')
                     ->label('Estado')
-                    ->formatStateUsing(fn (string $state) => Payroll::getStatusLabels()[$state] ?? $state)
+                    ->formatStateUsing(fn(string $state) => Payroll::getStatusLabels()[$state] ?? $state)
                     ->badge()
-                    ->color(fn (string $state) => Payroll::getStatusColors()[$state] ?? 'gray')
-                    ->icon(fn (string $state) => Payroll::getStatusIcons()[$state] ?? null),
+                    ->color(fn(string $state) => Payroll::getStatusColors()[$state] ?? 'gray')
+                    ->icon(fn(string $state) => Payroll::getStatusIcons()[$state] ?? null),
             ])
             ->emptyStateHeading('Sin recibos para la planilla seleccionada')
             ->emptyStateDescription('Seleccione una planilla para ver el reporte de salarios.')
@@ -353,10 +342,10 @@ class SalaryReport extends Page implements HasTable
         if (Company::active()->count() > 1) {
             $filters[] = SelectFilter::make('company_id')
                 ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
+                ->options(fn() => Company::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->query(
-                    fn (Builder $query, array $data) => $data['value']
+                    fn(Builder $query, array $data) => $data['value']
                         ? $query->where('branches.company_id', $data['value'])
                         : $query
                 );
@@ -368,11 +357,11 @@ class SalaryReport extends Page implements HasTable
                 $companyId = $this->tableFilters['company_id']['value'] ?? null;
                 $showCompanyInLabel = Company::active()->count() > 1 && ! $companyId;
 
-                return PayrollPeriod::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                    ->when($showCompanyInLabel, fn ($q) => $q->with('company'))
+                return PayrollPeriod::when($companyId, fn($q) => $q->where('company_id', $companyId))
+                    ->when($showCompanyInLabel, fn($q) => $q->with('company'))
                     ->orderByDesc('start_date')
                     ->get()
-                    ->mapWithKeys(fn ($p) => [
+                    ->mapWithKeys(fn($p) => [
                         $p->id => $showCompanyInLabel
                             ? "{$p->name} — {$p->company->name}"
                             : $p->name,
@@ -381,7 +370,7 @@ class SalaryReport extends Page implements HasTable
             })
             ->searchable()
             ->query(
-                fn (Builder $query, array $data) => $data['value']
+                fn(Builder $query, array $data) => $data['value']
                     ? $query->where('payrolls.payroll_period_id', $data['value'])
                     : $query->whereRaw('1=0')
             );
@@ -389,10 +378,10 @@ class SalaryReport extends Page implements HasTable
         return array_merge($filters, [
             SelectFilter::make('branch_id')
                 ->label('Sucursal')
-                ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
+                ->options(fn() => Branch::orderBy('name')->pluck('name', 'id'))
                 ->searchable()
                 ->query(
-                    fn (Builder $query, array $data) => $data['value']
+                    fn(Builder $query, array $data) => $data['value']
                         ? $query->where('employees.branch_id', $data['value'])
                         : $query
                 ),
@@ -401,19 +390,21 @@ class SalaryReport extends Page implements HasTable
                 ->label('Estado')
                 ->options(Payroll::getStatusLabels())
                 ->query(
-                    fn (Builder $query, array $data) => $data['value']
+                    fn(Builder $query, array $data) => $data['value']
                         ? $query->where('payrolls.status', $data['value'])
                         : $query
-                ),
+                )
+                ->native(false),
 
             SelectFilter::make('payment_method')
                 ->label('Método de pago')
                 ->options(Payroll::getPaymentMethodOptions())
                 ->query(
-                    fn (Builder $query, array $data) => $data['value']
+                    fn(Builder $query, array $data) => $data['value']
                         ? $query->where('payrolls.payment_method', $data['value'])
                         : $query
-                ),
+                )
+                ->native(false),
         ]);
     }
 
