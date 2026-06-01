@@ -7,7 +7,7 @@ use App\Http\Controllers\AttendanceExportController;
 use App\Http\Controllers\AttendanceFaceMarkController;
 use App\Http\Controllers\AttendancePdfReportController;
 use App\Http\Controllers\ContractController;
-use App\Http\Controllers\ContractExpirationReportController;
+use App\Http\Controllers\ContractReportController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\EmployeeFaceController;
 use App\Http\Controllers\EmployeeReportController;
@@ -147,8 +147,8 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/adelantos/{advance}/pdf', [AdvanceController::class, 'show'])->name('advances.pdf');
 
     // Reportes de contratos (rutas estáticas deben ir ANTES de /contratos/{contract}/pdf)
-    Route::get('/contratos/vencimiento/pdf', [ContractExpirationReportController::class, 'pdf'])
-        ->name('contracts.expiration.report.pdf');
+    Route::get('/contratos/reporte/pdf', [ContractReportController::class, 'pdf'])
+        ->name('contracts.report.pdf');
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');
