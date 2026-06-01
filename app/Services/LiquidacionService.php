@@ -274,6 +274,7 @@ class LiquidacionService
 
             $liquidacion->employee->activeContract?->update([
                 'status' => 'terminated',
+                'terminated_at' => now(),
                 'end_date' => $liquidacion->termination_date,
             ]);
 

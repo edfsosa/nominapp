@@ -26,9 +26,10 @@ class ContractService
     {
         $contract->update([
             'status' => 'terminated',
-            'notes'  => $contract->notes
-                ? $contract->notes . "\n\nTerminación: " . ($reason ?? 'Sin motivo especificado')
-                : "Terminación: " . ($reason ?? 'Sin motivo especificado'),
+            'terminated_at' => now(),
+            'notes' => $contract->notes
+                ? $contract->notes."\n\nTerminación: ".($reason ?? 'Sin motivo especificado')
+                : 'Terminación: '.($reason ?? 'Sin motivo especificado'),
         ]);
     }
 }

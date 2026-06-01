@@ -402,12 +402,13 @@ class Employee extends Model
     }
 
     /**
-     * Obtiene el contrato activo vigente del empleado
+     * Obtiene el contrato vigente del empleado (activo o suspendido).
+     * Se incluye 'suspended' porque la suspensión es temporal — el vínculo laboral continúa.
      */
     public function activeContract()
     {
         return $this->hasOne(Contract::class)
-            ->where('status', 'active')
+            ->whereIn('status', ['active', 'suspended'])
             ->latest('start_date');
     }
 

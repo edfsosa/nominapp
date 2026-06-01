@@ -34,6 +34,7 @@ class Contract extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'terminated_at' => 'datetime',
         'trial_days' => 'integer',
         'salary' => 'integer',
         'advance_percent' => 'integer',
@@ -114,6 +115,7 @@ class Contract extends Model
     {
         return [
             'active' => 'Vigente',
+            'suspended' => 'Suspendido',
             'expired' => 'Vencido',
             'terminated' => 'Terminado',
             'renewed' => 'Renovado',
@@ -129,6 +131,7 @@ class Contract extends Model
     {
         return match ($status) {
             'active' => 'success',
+            'suspended' => 'warning',
             'expired' => 'danger',
             'terminated' => 'gray',
             'renewed' => 'info',
@@ -140,6 +143,7 @@ class Contract extends Model
     {
         return match ($status) {
             'active' => 'heroicon-o-check-circle',
+            'suspended' => 'heroicon-o-pause-circle',
             'expired' => 'heroicon-o-exclamation-triangle',
             'terminated' => 'heroicon-o-x-circle',
             'renewed' => 'heroicon-o-arrow-path',
@@ -338,11 +342,14 @@ class Contract extends Model
     }
 
     /**
-     * Termina el contrato
+     * Termina el contrato y registra la fecha de rescisión.
      */
     public function terminate(): self
     {
-        $this->update(['status' => 'terminated']);
+        $this->update([
+            'status' => 'terminated',
+            'terminated_at' => now(),
+        ]);
 
         return $this;
     }

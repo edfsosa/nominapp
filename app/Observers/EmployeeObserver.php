@@ -24,6 +24,8 @@ class EmployeeObserver
         if ($employee->status === 'suspended') {
             $employee->activeEmployeePerceptions->each(fn ($p) => $p->deactivate(bySystem: true));
             $employee->activeEmployeeDeductions->each(fn ($d) => $d->deactivate(bySystem: true));
+            // Suspender el contrato activo para reflejar el estado en reportes
+            $employee->contracts()->where('status', 'active')->update(['status' => 'suspended']);
         } elseif ($employee->status === 'inactive') {
             $employee->activeEmployeePerceptions->each->deactivate();
             $employee->activeEmployeeDeductions->each->deactivate();
@@ -38,6 +40,9 @@ class EmployeeObserver
                 ->where('deactivated_by_system', true)
                 ->get()
                 ->each(fn ($d) => $d->update(['end_date' => null, 'deactivated_by_system' => false]));
+
+            // Reactivar el contrato suspendido al reactivar el empleado
+            $employee->contracts()->where('status', 'suspended')->update(['status' => 'active']);
         }
     }
 }
