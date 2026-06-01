@@ -12,21 +12,19 @@ class ViewDeduction extends ViewRecord
 
     /**
      * Obtiene las acciones que se mostrarán en el encabezado de la página de visualización.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
             EditAction::make()
+                ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
+                ->color('primary'),
         ];
     }
 
     /**
      * Obtiene los gestores de relaciones que se mostrarán en la página de visualización.
-     *
-     * @return array
      */
     public function getRelationManagers(): array
     {

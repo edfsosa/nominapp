@@ -22,15 +22,16 @@ class EditBranch extends EditRecord
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->modalHeading('¿Eliminar sucursal?')
-                ->modalDescription(fn() => $this->record->employees()->count() > 0
+                ->modalDescription(fn () => $this->record->employees()->count() > 0
                     ? "Esta sucursal tiene {$this->record->employees()->count()} empleado(s) asignado(s). Al eliminarla quedarán sin sucursal."
                     : "¿Estás seguro de que deseas eliminar la sucursal \"{$this->record->name}\"? Esta acción no se puede deshacer."
                 )
@@ -43,13 +44,13 @@ class EditBranch extends EditRecord
     /**
      * Capitaliza el nombre y limpia el teléfono antes de guardar.
      *
-     * @param  array<string, mixed> $data
+     * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
         if (isset($data['name'])) {
-            $data['name'] = preg_replace_callback('/(?:^|\s)\S/u', fn($m) => mb_strtoupper($m[0], 'UTF-8'), $data['name']);
+            $data['name'] = preg_replace_callback('/(?:^|\s)\S/u', fn ($m) => mb_strtoupper($m[0], 'UTF-8'), $data['name']);
         }
 
         if (isset($data['phone'])) {
@@ -61,8 +62,6 @@ class EditBranch extends EditRecord
 
     /**
      * Redirige a la página de detalle tras guardar los cambios.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
@@ -71,14 +70,12 @@ class EditBranch extends EditRecord
 
     /**
      * Notificación de éxito tras actualizar la sucursal.
-     *
-     * @return \Filament\Notifications\Notification|null
      */
     protected function getSavedNotification(): ?Notification
     {
         return Notification::make()
             ->success()
             ->title('Sucursal actualizada')
-            ->body('Los datos de "' . $this->record->name . '" han sido actualizados correctamente.');
+            ->body('Los datos de "'.$this->record->name.'" han sido actualizados correctamente.');
     }
 }

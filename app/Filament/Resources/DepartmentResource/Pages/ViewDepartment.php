@@ -12,14 +12,14 @@ class ViewDepartment extends ViewRecord
 
     /**
      * Define las acciones disponibles en la vista de detalles del departamento.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
             EditAction::make()
+                ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
+                ->color('primary'),
         ];
     }
 }

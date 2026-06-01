@@ -14,8 +14,6 @@ class EditAguinaldoPeriod extends EditRecord
 
     /**
      * Sobre-escribe el método de autorización para permitir la edición solo si el período está en estado "borrador".
-     *
-     * @return void
      */
     protected function authorizeAccess(): void
     {
@@ -33,30 +31,28 @@ class EditAguinaldoPeriod extends EditRecord
 
     /**
      * Define las acciones que se mostrarán en el encabezado de la página de edición.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
-                ->modalHeading('Eliminar Período de Aguinaldo')
+                ->color('danger')
+                ->modalHeading('¿Eliminar período de aguinaldo?')
                 ->modalDescription('¿Estás seguro de que deseas eliminar este período de aguinaldo? Esta acción no se puede deshacer.')
                 ->modalSubmitActionLabel('Sí, eliminar')
-                ->visible(fn() => $this->record->isDraft()),
+                ->visible(fn () => $this->record->isDraft()),
         ];
     }
 
     /**
      * Define la URL a la que se redirigirá después de guardar los cambios.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
@@ -65,8 +61,6 @@ class EditAguinaldoPeriod extends EditRecord
 
     /**
      * Obtiene el título de la notificación que se mostrará después de actualizar el registro.
-     *
-     * @return string|null
      */
     protected function getSavedNotificationTitle(): ?string
     {

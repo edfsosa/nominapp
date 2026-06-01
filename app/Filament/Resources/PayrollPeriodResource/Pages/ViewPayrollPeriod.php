@@ -552,6 +552,7 @@ class ViewPayrollPeriod extends ViewRecord
                     ->visible(fn () => $this->record->status === 'processing'),
 
                 EditAction::make()
+                    ->label('Editar')
                     ->icon('heroicon-o-pencil-square')
                     ->color('primary')
                     ->visible(fn () => $this->record->status !== 'closed'),

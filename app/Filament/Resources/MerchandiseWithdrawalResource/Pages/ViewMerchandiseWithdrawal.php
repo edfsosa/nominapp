@@ -146,7 +146,9 @@ class ViewMerchandiseWithdrawal extends ViewRecord
                 ->openUrlInNewTab(),
 
             EditAction::make()
+                ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
+                ->color('primary')
                 ->visible(fn () => $this->record->isPending()),
         ];
     }

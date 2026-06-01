@@ -25,14 +25,14 @@ class ViewLiquidacion extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Calcular Liquidación')
                 ->modalDescription(
-                    fn() => "¿Calcular la liquidación de {$this->record->employee->full_name}? " .
-                        "Tipo: " . Liquidacion::getTerminationTypeLabel($this->record->termination_type)
+                    fn () => "¿Calcular la liquidación de {$this->record->employee->full_name}? ".
+                        'Tipo: '.Liquidacion::getTerminationTypeLabel($this->record->termination_type)
                 )
                 ->action(function (LiquidacionService $service) {
                     LiquidacionResource::performCalculation($this->record, $service, 'Liquidación calculada');
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->isDraft()),
+                ->visible(fn () => $this->record->isDraft()),
 
             Action::make('recalculate')
                 ->label('Recalcular')
@@ -41,15 +41,15 @@ class ViewLiquidacion extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Recalcular Liquidación')
                 ->modalDescription(
-                    fn() => "¿Recalcular la liquidación de {$this->record->employee->full_name}? " .
-                        "Se eliminarán todos los conceptos actuales y se recalculará desde cero. " .
-                        "Los cambios manuales en los items se perderán."
+                    fn () => "¿Recalcular la liquidación de {$this->record->employee->full_name}? ".
+                        'Se eliminarán todos los conceptos actuales y se recalculará desde cero. '.
+                        'Los cambios manuales en los items se perderán.'
                 )
                 ->action(function (LiquidacionService $service) {
                     LiquidacionResource::performCalculation($this->record, $service, 'Liquidación recalculada');
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->isCalculated()),
+                ->visible(fn () => $this->record->isCalculated()),
 
             Action::make('close')
                 ->label('Cerrar y Desactivar Empleado')
@@ -58,14 +58,14 @@ class ViewLiquidacion extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('Cerrar Liquidación')
                 ->modalDescription(
-                    fn() => "¿Cerrar la liquidación de {$this->record->employee->full_name}? " .
-                        "El empleado será marcado como INACTIVO y los préstamos pendientes serán cancelados."
+                    fn () => "¿Cerrar la liquidación de {$this->record->employee->full_name}? ".
+                        'El empleado será marcado como INACTIVO y los préstamos pendientes serán cancelados.'
                 )
                 ->action(function (LiquidacionService $service) {
                     LiquidacionResource::performClose($this->record, $service);
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->isCalculated()),
+                ->visible(fn () => $this->record->isCalculated()),
 
             Action::make('regenerate_pdf')
                 ->label('Regenerar PDF')
@@ -83,18 +83,21 @@ class ViewLiquidacion extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 })
-                ->visible(fn() => $this->record->pdf_path === null && !$this->record->isDraft()),
+                ->visible(fn () => $this->record->pdf_path === null && ! $this->record->isDraft()),
 
             Action::make('download_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('info')
-                ->url(fn() => route('liquidaciones.download', $this->record))
+                ->url(fn () => route('liquidaciones.download', $this->record))
                 ->openUrlInNewTab()
-                ->visible(fn() => $this->record->pdf_path !== null),
+                ->visible(fn () => $this->record->pdf_path !== null),
 
             EditAction::make()
-                ->visible(fn() => !$this->record->isClosed()),
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary')
+                ->visible(fn () => ! $this->record->isClosed()),
         ];
     }
 }

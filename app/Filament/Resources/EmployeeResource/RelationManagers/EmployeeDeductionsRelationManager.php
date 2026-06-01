@@ -160,12 +160,19 @@ class EmployeeDeductionsRelationManager extends RelationManager
                 $this->vigenciaReactivateAction(),
                 ActionGroup::make([
                     EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary')
                         ->modalHeading('Editar Asignación')
                         ->before($this->vigenciaEditBefore())
                         ->successNotificationTitle('Asignación actualizada exitosamente'),
 
                     DeleteAction::make()
-                        ->modalHeading('Eliminar Asignación')
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar deducción?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
                         ->modalDescription('¿Está seguro de que desea eliminar permanentemente esta asignación del historial?')
                         ->successNotificationTitle('Asignación eliminada del historial'),
                 ]),

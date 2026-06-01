@@ -55,7 +55,7 @@ class FaceEnrollmentResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable(['first_name']),
 
@@ -309,15 +309,19 @@ class FaceEnrollmentResource extends Resource
                     }),
 
                 DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
                     ->tooltip('Eliminar este registro facial')
-                    ->modalHeading('Eliminar Registro Facial')
+                    ->modalHeading('¿Eliminar registro facial?')
                     ->modalDescription(function (FaceEnrollment $record) {
                         $name = $record->employee
                             ? "{$record->employee->first_name} {$record->employee->last_name}"
                             : 'empleado eliminado';
 
                         return "¿Eliminar el registro facial de {$name}? Esta acción no se puede deshacer.";
-                    }),
+                    })
+                    ->modalSubmitActionLabel('Sí, eliminar'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

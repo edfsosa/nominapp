@@ -17,14 +17,15 @@ use Filament\Tables\Table;
 class ItemsRelationManager extends RelationManager
 {
     protected static string $relationship = 'items';
+
     protected static ?string $title = 'Detalle de Nómina';
+
     protected static ?string $modelLabel = 'ítem';
+
     protected static ?string $pluralModelLabel = 'ítems';
 
     /**
      * Determina si la relación es de solo lectura, permitiendo editar los ítems solo cuando la nómina está en estado "draft" y bloqueando cualquier modificación cuando la nómina ha sido aprobada o pagada.
-     *
-     * @return boolean
      */
     public function isReadOnly(): bool
     {
@@ -33,9 +34,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Define el formulario para crear y editar los ítems de la nómina, con campos para tipo (percepción o deducción), descripción y monto, y con validaciones adecuadas.
-     *
-     * @param Form $form
-     * @return Form
      */
     public function form(Form $form): Form
     {
@@ -45,7 +43,7 @@ class ItemsRelationManager extends RelationManager
                     ->label('Tipo')
                     ->options([
                         'perception' => 'Percepción',
-                        'deduction'  => 'Deducción',
+                        'deduction' => 'Deducción',
                     ])
                     ->native(false)
                     ->required()
@@ -74,7 +72,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Define la tabla para mostrar los ítems de la nómina, agrupados por tipo (percepción o deducción) y con acciones condicionadas al estado de la nómina.
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -84,11 +81,11 @@ class ItemsRelationManager extends RelationManager
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->color(fn($state) => $state === 'perception' ? 'success' : 'danger')
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->color(fn ($state) => $state === 'perception' ? 'success' : 'danger')
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'perception' => 'Percepción',
-                        'deduction'  => 'Deducción',
-                        default      => $state,
+                        'deduction' => 'Deducción',
+                        default => $state,
                     })
                     ->sortable(),
 
@@ -103,7 +100,7 @@ class ItemsRelationManager extends RelationManager
                     ->money('PYG', locale: 'es_PY')
                     ->sortable()
                     ->weight('bold')
-                    ->color(fn($record) => $record->type === 'perception' ? 'success' : 'danger'),
+                    ->color(fn ($record) => $record->type === 'perception' ? 'success' : 'danger'),
 
                 TextColumn::make('created_at')
                     ->label('Creado')
@@ -116,7 +113,7 @@ class ItemsRelationManager extends RelationManager
                     ->label('Tipo')
                     ->options([
                         'perception' => 'Percepciones',
-                        'deduction'  => 'Deducciones',
+                        'deduction' => 'Deducciones',
                     ])
                     ->native(false),
             ])
@@ -125,16 +122,24 @@ class ItemsRelationManager extends RelationManager
                     ->label('Agregar Ítem')
                     ->icon('heroicon-o-plus')
                     ->successNotificationTitle('Ítem agregado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
+                    ->visible(fn () => $this->getOwnerRecord()->status === 'draft'),
             ])
             ->actions([
                 EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
                     ->successNotificationTitle('Ítem actualizado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
+                    ->visible(fn () => $this->getOwnerRecord()->status === 'draft'),
 
                 DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar ítem?')
+                    ->modalSubmitActionLabel('Sí, eliminar')
                     ->successNotificationTitle('Ítem eliminado exitosamente')
-                    ->visible(fn() => $this->getOwnerRecord()->status === 'draft'),
+                    ->visible(fn () => $this->getOwnerRecord()->status === 'draft'),
             ])
             ->emptyStateHeading('No hay ítems registrados')
             ->emptyStateDescription('Los ítems de percepciones y deducciones aparecerán aquí.')
@@ -143,7 +148,7 @@ class ItemsRelationManager extends RelationManager
             ->groups([
                 Group::make('type')
                     ->label('Tipo')
-                    ->getTitleFromRecordUsing(fn($record) => match ($record->type) {
+                    ->getTitleFromRecordUsing(fn ($record) => match ($record->type) {
                         'perception' => 'Percepciones',
                         'deduction' => 'Deducciones',
                         default => $record->type,
@@ -154,8 +159,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Recalcula los totales de la nómina después de crear un ítem
-     *
-     * @return void
      */
     protected function afterCreate(): void
     {
@@ -164,8 +167,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Recalcula los totales de la nómina después de actualizar un ítem
-     *
-     * @return void
      */
     protected function afterUpdate(): void
     {
@@ -174,8 +175,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Recalcula los totales de la nómina después de eliminar un ítem
-     *
-     * @return void
      */
     protected function afterDelete(): void
     {
@@ -184,8 +183,6 @@ class ItemsRelationManager extends RelationManager
 
     /**
      * Recalcula los totales de percepciones, deducciones, salario bruto y salario neto de la nómina
-     *
-     * @return void
      */
     protected function recalculatePayrollTotals(): void
     {

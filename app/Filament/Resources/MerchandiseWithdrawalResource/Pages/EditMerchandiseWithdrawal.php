@@ -16,12 +16,12 @@ class EditMerchandiseWithdrawal extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()->icon('heroicon-o-eye')->color('primary'),
+            ViewAction::make()->label('Ver')->icon('heroicon-o-eye')->color('gray'),
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
-                ->modalHeading('Eliminar Retiro')
+                ->modalHeading('¿Eliminar retiro de mercadería?')
                 ->modalDescription('¿Está seguro? Esta acción no se puede deshacer.')
                 ->modalSubmitActionLabel('Sí, eliminar')
                 ->successNotificationTitle('Retiro eliminado'),

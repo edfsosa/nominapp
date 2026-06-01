@@ -4,6 +4,7 @@ namespace App\Filament\Resources\EmployeeLeaveResource\Pages;
 
 use App\Filament\Resources\EmployeeLeaveResource;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -14,10 +15,18 @@ class EditEmployeeLeaves extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            ViewAction::make()
+                ->label('Ver')
+                ->icon('heroicon-o-eye')
+                ->color('gray'),
+
             DeleteAction::make()
                 ->label('Eliminar')
-                ->modalHeading('Eliminar licencia')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar licencia?')
                 ->modalDescription('¿Estás seguro de que deseas eliminar esta licencia? Esta acción no se puede deshacer.')
+                ->modalSubmitActionLabel('Sí, eliminar')
                 ->successNotificationTitle('Licencia eliminada')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];

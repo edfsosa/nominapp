@@ -11,6 +11,7 @@ use Filament\Forms\Components\Textarea;
 use Filament\Forms\Form;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
@@ -171,14 +172,27 @@ class WarningsRelationManager extends RelationManager
                         Storage::disk('public')->path($record->document_path)
                     )),
 
-                EditAction::make(),
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary'),
 
-                DeleteAction::make()
-                    ->before(function (Warning $record) {
-                        if ($record->document_path) {
-                            Storage::disk('public')->delete($record->document_path);
-                        }
-                    }),
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar amonestación?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->before(function (Warning $record) {
+                            if ($record->document_path) {
+                                Storage::disk('public')->delete($record->document_path);
+                            }
+                        }),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Más acciones'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

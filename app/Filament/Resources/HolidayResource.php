@@ -21,12 +21,19 @@ use Illuminate\Database\Eloquent\Builder;
 class HolidayResource extends Resource
 {
     protected static ?string $model = Holiday::class;
+
     protected static ?string $navigationGroup = 'Configuración';
+
     protected static ?string $navigationLabel = 'Feriados';
+
     protected static ?string $label = 'Feriado';
+
     protected static ?string $pluralLabel = 'Feriados';
+
     protected static ?string $slug = 'feriados';
+
     protected static ?string $navigationIcon = 'heroicon-o-calendar';
+
     protected static ?int $navigationSort = 2;
 
     public static function form(Form $form): Form
@@ -77,9 +84,9 @@ class HolidayResource extends Resource
 
                 TextColumn::make('day_of_week')
                     ->label('Día')
-                    ->getStateUsing(fn($record) => ucfirst(\Carbon\Carbon::parse($record->date)->locale('es')->dayName))
+                    ->getStateUsing(fn ($record) => ucfirst(\Carbon\Carbon::parse($record->date)->locale('es')->dayName))
                     ->badge()
-                    ->color(fn($record) => \Carbon\Carbon::parse($record->date)->isWeekend() ? 'success' : 'gray'),
+                    ->color(fn ($record) => \Carbon\Carbon::parse($record->date)->isWeekend() ? 'success' : 'gray'),
 
                 TextColumn::make('created_at')
                     ->label('Creado')
@@ -96,19 +103,27 @@ class HolidayResource extends Resource
             ->filters([
                 Filter::make('current_year')
                     ->label('Año Actual')
-                    ->query(fn(Builder $query) => $query->whereYear('date', now()->year)),
+                    ->query(fn (Builder $query) => $query->whereYear('date', now()->year)),
 
                 Filter::make('next_year')
                     ->label('Próximo Año')
-                    ->query(fn(Builder $query) => $query->whereYear('date', now()->addYear()->year)),
+                    ->query(fn (Builder $query) => $query->whereYear('date', now()->addYear()->year)),
 
                 Filter::make('upcoming')
                     ->label('Próximos Feriados')
-                    ->query(fn(Builder $query) => $query->where('date', '>=', now()->startOfDay())),
+                    ->query(fn (Builder $query) => $query->where('date', '>=', now()->startOfDay())),
             ])
             ->actions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
+                DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar feriado?')
+                    ->modalSubmitActionLabel('Sí, eliminar'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

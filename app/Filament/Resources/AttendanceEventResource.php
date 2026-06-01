@@ -2,44 +2,48 @@
 
 namespace App\Filament\Resources;
 
-use Carbon\Carbon;
-use Filament\Forms\Form;
-use Filament\Tables\Table;
+use App\Filament\Resources\AttendanceEventResource\Pages;
 use App\Models\AttendanceEvent;
-use Filament\Resources\Resource;
-use Filament\Tables\Filters\Filter;
-use Filament\Tables\Actions\ViewAction;
+use Carbon\Carbon;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Form;
+use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Forms\Components\DatePicker;
-use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Resources\AttendanceEventResource\Pages;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Infolists\Components\Grid;
+use Filament\Resources\Resource;
 use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
+use Filament\Tables\Actions\ViewAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /** Recurso Filament para gestionar marcaciones de asistencia. */
 class AttendanceEventResource extends Resource
 {
     protected static ?string $model = AttendanceEvent::class;
+
     protected static ?string $navigationLabel = 'Marcaciones';
+
     protected static ?string $label = 'Marcación';
+
     protected static ?string $pluralLabel = 'Marcaciones';
+
     protected static ?string $slug = 'marcaciones';
+
     protected static ?string $navigationIcon = 'heroicon-o-hand-raised';
+
     protected static ?string $navigationGroup = 'Asistencias';
+
     protected static ?int $navigationSort = 3;
 
     /**
      * Define el formulario para crear y editar marcaciones.
-     *
-     * @param  Form $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -65,9 +69,6 @@ class AttendanceEventResource extends Resource
 
     /**
      * Define la tabla con columnas, filtros, tabs y acciones de fila.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -76,17 +77,17 @@ class AttendanceEventResource extends Resource
                 TextColumn::make('recorded_at')
                     ->label('Fecha y hora')
                     ->dateTime('d/m/Y H:i:s')
-                    ->description(fn($record) => $record->recorded_at->diffForHumans())
+                    ->description(fn ($record) => $record->recorded_at->diffForHumans())
                     ->icon('heroicon-o-clock')
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('event_type')
                     ->label('Tipo de evento')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                    ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state))
+                    ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                    ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state))
                     ->sortable()
                     ->searchable(),
 
@@ -99,10 +100,10 @@ class AttendanceEventResource extends Resource
 
                 TextColumn::make('source')
                     ->label('Canal')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                    ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
+                    ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                    ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
                     ->sortable()
                     ->toggleable(),
 
@@ -121,7 +122,7 @@ class AttendanceEventResource extends Resource
                     ->icon('heroicon-o-map-pin')
                     ->color('gray')
                     ->limit(50)
-                    ->url(fn($record) => $record->google_maps_url)
+                    ->url(fn ($record) => $record->google_maps_url)
                     ->openUrlInNewTab()
                     ->placeholder('Sin ubicación')
                     ->toggleable(isToggledHiddenByDefault: true),
@@ -132,8 +133,7 @@ class AttendanceEventResource extends Resource
                     ->placeholder('Todos los empleados')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(
-                        fn($record) =>
-                        $record->first_name . ' ' . $record->last_name . ' (CI: ' . $record->ci . ')'
+                        fn ($record) => $record->first_name.' '.$record->last_name.' (CI: '.$record->ci.')'
                     )
                     ->searchable()
                     ->preload(false)
@@ -184,22 +184,22 @@ class AttendanceEventResource extends Resource
                         return $query
                             ->when(
                                 $data['recorded_from'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('recorded_at', '>=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('recorded_at', '>=', $date),
                             )
                             ->when(
                                 $data['recorded_until'],
-                                fn(Builder $query, $date): Builder => $query->whereDate('recorded_at', '<=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('recorded_at', '<=', $date),
                             );
                     })
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
 
                         if ($data['recorded_from'] ?? null) {
-                            $indicators['recorded_from'] = 'Desde: ' . Carbon::parse($data['recorded_from'])->format('d/m/Y');
+                            $indicators['recorded_from'] = 'Desde: '.Carbon::parse($data['recorded_from'])->format('d/m/Y');
                         }
 
                         if ($data['recorded_until'] ?? null) {
-                            $indicators['recorded_until'] = 'Hasta: ' . Carbon::parse($data['recorded_until'])->format('d/m/Y');
+                            $indicators['recorded_until'] = 'Hasta: '.Carbon::parse($data['recorded_until'])->format('d/m/Y');
                         }
 
                         return $indicators;
@@ -216,24 +216,24 @@ class AttendanceEventResource extends Resource
                             TextEntry::make('event_type')
                                 ->label('Tipo de evento')
                                 ->badge()
-                                ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
-                                ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                                ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state)),
+                                ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
+                                ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                                ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state)),
 
                             TextEntry::make('source')
                                 ->label('Canal')
                                 ->badge()
-                                ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
-                                ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                                ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
+                                ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                                ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                                ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
 
                             TextEntry::make('recorded_at')
                                 ->label('Fecha y hora')
-                                ->formatStateUsing(fn($state) => $state->format('d/m/Y H:i:s') . ' (' . $state->diffForHumans() . ')'),
+                                ->formatStateUsing(fn ($state) => $state->format('d/m/Y H:i:s').' ('.$state->diffForHumans().')'),
 
                             TextEntry::make('employee_name')
                                 ->label('Empleado')
-                                ->formatStateUsing(fn($state, $record) => $state . ($record->employee_ci ? ' — CI: ' . $record->employee_ci : '')),
+                                ->formatStateUsing(fn ($state, $record) => $state.($record->employee_ci ? ' — CI: '.$record->employee_ci : '')),
 
                             TextEntry::make('branch_name')
                                 ->label('Sucursal')
@@ -248,12 +248,16 @@ class AttendanceEventResource extends Resource
 
                 ActionGroup::make([
                     EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
                         ->color('primary')
                         ->successNotificationTitle('Marcación actualizada'),
 
                     DeleteAction::make()
                         ->label('Eliminar')
-                        ->modalHeading('Eliminar Marcación')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar marcación?')
                         ->modalDescription('¿Está seguro de que desea eliminar esta marcación? Esta acción no se puede deshacer.')
                         ->modalSubmitActionLabel('Sí, eliminar')
                         ->successNotificationTitle('Marcación eliminada'),

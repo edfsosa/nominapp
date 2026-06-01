@@ -152,8 +152,16 @@ class AddressesRelationManager extends RelationManager
                     }),
             ])
             ->actions([
-                EditAction::make(),
-                DeleteAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
+                DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar dirección?')
+                    ->modalSubmitActionLabel('Sí, eliminar'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

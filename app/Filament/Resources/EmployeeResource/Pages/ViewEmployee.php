@@ -37,7 +37,9 @@ class ViewEmployee extends ViewRecord
                 ->openUrlInNewTab(),
 
             EditAction::make()
-                ->icon('heroicon-o-pencil-square'),
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary'),
         ];
     }
 }

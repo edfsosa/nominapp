@@ -205,7 +205,10 @@ class ShiftTemplateResource extends Resource
                     ->default(true),
             ])
             ->actions([
-                EditAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
                 DeleteAction::make()
                     ->modalHeading('Desactivar turno')
                     ->modalDescription('Este turno puede estar en uso por patrones de rotación activos. ¿Deseas desactivarlo?')

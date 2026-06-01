@@ -8,7 +8,6 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Illuminate\Database\Eloquent\Builder;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
@@ -19,6 +18,7 @@ use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Storage;
 
 /** Gestiona los hijos a cargo del empleado para el cálculo de bonificación familiar. */
@@ -165,9 +165,17 @@ class ChildrenRelationManager extends RelationManager
                     ->url(fn (EmployeeChild $record) => $record->birth_certificate_url)
                     ->openUrlInNewTab(),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
 
                 DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar hijo?')
+                    ->modalSubmitActionLabel('Sí, eliminar')
                     ->before(function (EmployeeChild $record) {
                         if ($record->birth_certificate_path) {
                             Storage::disk('public')->delete($record->birth_certificate_path);

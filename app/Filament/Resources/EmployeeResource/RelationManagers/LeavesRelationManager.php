@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
@@ -224,19 +225,31 @@ class LeavesRelationManager extends RelationManager
                         );
                     }),
 
-                EditAction::make()
-                    ->modalHeading('Editar licencia')
-                    ->modalSubmitActionLabel('Guardar cambios')
-                    ->modalWidth('2xl'),
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary')
+                        ->modalHeading('Editar licencia')
+                        ->modalSubmitActionLabel('Guardar cambios')
+                        ->modalWidth('2xl'),
 
-                DeleteAction::make()
-                    ->modalHeading('Eliminar licencia')
-                    ->modalDescription('¿Estás seguro de que deseas eliminar esta licencia? Esta acción no se puede deshacer.')
-                    ->before(function ($record) {
-                        if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
-                            Storage::disk('public')->delete($record->document_path);
-                        }
-                    }),
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar licencia?')
+                        ->modalDescription('¿Estás seguro de que deseas eliminar esta licencia? Esta acción no se puede deshacer.')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->before(function ($record) {
+                            if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
+                                Storage::disk('public')->delete($record->document_path);
+                            }
+                        }),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Más acciones'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

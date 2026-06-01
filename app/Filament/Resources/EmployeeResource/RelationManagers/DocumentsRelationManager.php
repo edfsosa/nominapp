@@ -141,9 +141,17 @@ class DocumentsRelationManager extends RelationManager
                         $record->name.'.'.strtolower($record->file_extension)
                     )),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
 
                 DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar documento?')
+                    ->modalSubmitActionLabel('Sí, eliminar')
                     ->before(function ($record) {
                         // Eliminar el archivo físico del storage
                         if (Storage::disk('public')->exists($record->file_path)) {

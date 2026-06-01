@@ -2,13 +2,13 @@
 
 namespace App\Filament\Resources\AbsenceResource\Pages;
 
+use App\Filament\Resources\AbsenceResource;
 use Filament\Actions\Action;
-use Filament\Actions\EditAction;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
-use App\Filament\Resources\AbsenceResource;
 use Illuminate\Support\Facades\Auth;
 
 class ViewAbsence extends ViewRecord
@@ -23,12 +23,12 @@ class ViewAbsence extends ViewRecord
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
                 ->tooltip('Marcar esta ausencia como justificada')
-                ->visible(fn() => !$this->record->isJustified())
+                ->visible(fn () => ! $this->record->isJustified())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => $this->record->isUnjustified()
+                ->modalHeading(fn () => $this->record->isUnjustified()
                     ? 'Cambiar a Justificada'
                     : 'Justificar Ausencia')
-                ->modalDescription(fn() => $this->record->isUnjustified()
+                ->modalDescription(fn () => $this->record->isUnjustified()
                     ? '¿Está seguro? Esto eliminará la deducción generada previamente.'
                     : '¿Está seguro de que desea marcar esta ausencia como justificada?')
                 ->form([
@@ -54,12 +54,12 @@ class ViewAbsence extends ViewRecord
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
                 ->tooltip('Marcar como injustificada y generar deducción salarial')
-                ->visible(fn() => !$this->record->isUnjustified())
+                ->visible(fn () => ! $this->record->isUnjustified())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => $this->record->isJustified()
+                ->modalHeading(fn () => $this->record->isJustified()
                     ? 'Cambiar a Injustificada'
                     : 'Marcar como Injustificada')
-                ->modalDescription(fn() => $this->record->isJustified()
+                ->modalDescription(fn () => $this->record->isJustified()
                     ? 'Esto generará una deducción del salario del empleado.'
                     : 'Esto generará automáticamente una deducción del salario del empleado.')
                 ->form([
@@ -82,6 +82,9 @@ class ViewAbsence extends ViewRecord
                 }),
 
             EditAction::make()
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary')
                 ->tooltip('Editar datos de la ausencia'),
 
             DeleteAction::make()

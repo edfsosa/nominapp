@@ -13,6 +13,7 @@ use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
@@ -239,16 +240,28 @@ class VacationsRelationManager extends RelationManager
                             ->send();
                     }),
 
-                EditAction::make()
-                    ->modalHeading('Editar vacaciones')
-                    ->modalSubmitActionLabel('Guardar cambios')
-                    ->modalWidth('2xl'),
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary')
+                        ->modalHeading('Editar vacaciones')
+                        ->modalSubmitActionLabel('Guardar cambios')
+                        ->modalWidth('2xl'),
 
-                DeleteAction::make()
-                    ->modalHeading('Eliminar vacaciones')
-                    ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.')
-                    ->before(fn (Vacation $record) => VacationService::releaseOnDelete($record))
-                    ->successNotificationTitle('Vacaciones eliminadas'),
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar vacaciones?')
+                        ->modalDescription('¿Estás seguro de que deseas eliminar esta solicitud de vacaciones? Esta acción no se puede deshacer.')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->before(fn (Vacation $record) => VacationService::releaseOnDelete($record))
+                        ->successNotificationTitle('Vacaciones eliminadas'),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Más acciones'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

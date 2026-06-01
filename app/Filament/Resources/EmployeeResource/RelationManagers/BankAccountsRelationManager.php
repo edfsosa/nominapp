@@ -203,6 +203,9 @@ class BankAccountsRelationManager extends RelationManager
                     }),
 
                 EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
                     ->modalHeading('Editar cuenta bancaria')
                     ->modalSubmitActionLabel('Guardar cambios')
                     ->modalWidth('xl')
@@ -215,7 +218,10 @@ class BankAccountsRelationManager extends RelationManager
                     }),
 
                 DeleteAction::make()
-                    ->modalHeading('Eliminar cuenta bancaria')
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar cuenta bancaria?')
                     ->modalDescription('¿Estás seguro? Solo se puede eliminar si la cuenta nunca fue usada en una nómina.')
                     ->modalSubmitActionLabel('Sí, eliminar')
                     ->before(function (EmployeeBankAccount $record, \Filament\Tables\Actions\DeleteAction $action) {

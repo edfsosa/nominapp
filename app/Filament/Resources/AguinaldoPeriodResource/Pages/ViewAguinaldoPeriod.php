@@ -22,16 +22,16 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->label('Ver Provisión')
                 ->icon('heroicon-o-calculator')
                 ->color('info')
-                ->url(fn() => AguinaldoPeriodResource::getUrl('provision', ['record' => $this->record])),
+                ->url(fn () => AguinaldoPeriodResource::getUrl('provision', ['record' => $this->record])),
 
             Action::make('generate_aguinaldos')
                 ->label('Generar')
                 ->icon('heroicon-o-document-plus')
                 ->color('success')
                 ->requiresConfirmation()
-                ->modalHeading("¿Generar los aguinaldos?")
+                ->modalHeading('¿Generar los aguinaldos?')
                 ->modalDescription(
-                    fn() => "Esta acción generará los aguinaldos correspondientes al período de {$this->record->year} para la empresa {$this->record->company->name}. Si ya existen aguinaldos generados para este período, no se generarán duplicados."
+                    fn () => "Esta acción generará los aguinaldos correspondientes al período de {$this->record->year} para la empresa {$this->record->company->name}. Si ya existen aguinaldos generados para este período, no se generarán duplicados."
                 )
                 ->modalSubmitActionLabel('Sí, generar')
                 ->action(function (AguinaldoService $aguinaldoService) {
@@ -55,7 +55,7 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     $this->refreshFormData(['status']);
                 })
-                ->visible(fn() => $this->record->isDraft()),
+                ->visible(fn () => $this->record->isDraft()),
 
             Action::make('mark_all_paid')
                 ->label('Pagar Todos')
@@ -65,6 +65,7 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->modalHeading('¿Marcar todos los aguinaldos como pagados?')
                 ->modalDescription(function () {
                     $pending = $this->record->pending_aguinaldos_count;
+
                     return "Se marcarán {$pending} aguinaldo(s) pendiente(s) como pagados. ¿Confirma esta acción?";
                 })
                 ->modalSubmitActionLabel('Sí, marcar como pagados')
@@ -72,7 +73,7 @@ class ViewAguinaldoPeriod extends ViewRecord
                     $count = $this->record->aguinaldos()
                         ->where('status', 'pending')
                         ->get()
-                        ->each(fn($a) => $a->markAsPaid())
+                        ->each(fn ($a) => $a->markAsPaid())
                         ->count();
 
                     Notification::make()
@@ -83,7 +84,7 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     $this->refreshFormData(['status']);
                 })
-                ->visible(fn() => $this->record->isProcessing() && $this->record->pending_aguinaldos_count > 0),
+                ->visible(fn () => $this->record->isProcessing() && $this->record->pending_aguinaldos_count > 0),
 
             Action::make('export_excel')
                 ->label('Exportar')
@@ -102,10 +103,10 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     return Excel::download(
                         new AguinaldosExport(periodId: $this->record->id),
-                        'aguinaldos_año_' . $this->record->year . '_' . now()->format('Y_m_d_H_i_s') . '.xlsx'
+                        'aguinaldos_año_'.$this->record->year.'_'.now()->format('Y_m_d_H_i_s').'.xlsx'
                     );
                 })
-                ->visible(fn() => $this->record->isProcessing() || $this->record->isClosed()),
+                ->visible(fn () => $this->record->isProcessing() || $this->record->isClosed()),
 
             Action::make('reopen_period')
                 ->label('Reabrir')
@@ -114,12 +115,12 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->requiresConfirmation()
                 ->modalHeading('¿Reabrir Período de Aguinaldo?')
                 ->modalDescription(
-                    fn() => "Esta acción reabrirá el período de aguinaldo {$this->record->year} de {$this->record->company->name}, permitiendo generar nuevos aguinaldos o modificar los existentes. ¿Confirma que desea reabrir este período?"
+                    fn () => "Esta acción reabrirá el período de aguinaldo {$this->record->year} de {$this->record->company->name}, permitiendo generar nuevos aguinaldos o modificar los existentes. ¿Confirma que desea reabrir este período?"
                 )
                 ->modalSubmitActionLabel('Sí, reabrir período')
                 ->action(function () {
                     $this->record->update([
-                        'status'    => 'processing',
+                        'status' => 'processing',
                         'closed_at' => null,
                     ]);
 
@@ -131,12 +132,13 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     $this->refreshFormData(['status', 'closed_at']);
                 })
-                ->visible(fn() => $this->record->isClosed()),
+                ->visible(fn () => $this->record->isClosed()),
 
             EditAction::make()
+                ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
                 ->color('primary')
-                ->visible(fn() => $this->record->isDraft()),
+                ->visible(fn () => $this->record->isDraft()),
 
             Action::make('close_period')
                 ->label('Cerrar')
@@ -147,6 +149,7 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->modalDescription(function () {
                     $pending = $this->record->pending_aguinaldos_count;
                     $base = "Esta acción cerrará el período de aguinaldo {$this->record->year} de {$this->record->company->name}. Una vez cerrado no se podrán generar más aguinaldos.";
+
                     return $pending > 0
                         ? "{$base} Atención: aún hay {$pending} aguinaldo(s) pendiente(s) de pago que no podrán ser marcados como pagados después de cerrar el período."
                         : $base;
@@ -154,7 +157,7 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->modalSubmitActionLabel('Sí, cerrar período')
                 ->action(function () {
                     $this->record->update([
-                        'status'    => 'closed',
+                        'status' => 'closed',
                         'closed_at' => now(),
                     ]);
 
@@ -166,7 +169,7 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     $this->refreshFormData(['status', 'closed_at']);
                 })
-                ->visible(fn() => $this->record->isProcessing()),
+                ->visible(fn () => $this->record->isProcessing()),
 
             Action::make('force_delete')
                 ->label('Eliminar')
@@ -176,8 +179,9 @@ class ViewAguinaldoPeriod extends ViewRecord
                 ->modalHeading('¿Eliminar Período de Aguinaldo?')
                 ->modalDescription(function () {
                     $count = $this->record->aguinaldos()->count();
+
                     return "Esta acción eliminará permanentemente el período {$this->record->year} de {$this->record->company->name} "
-                        . "junto con {$count} aguinaldo(s) generado(s) y todos sus ítems. Esta acción no se puede deshacer.";
+                        ."junto con {$count} aguinaldo(s) generado(s) y todos sus ítems. Esta acción no se puede deshacer.";
                 })
                 ->modalSubmitActionLabel('Sí, eliminar todo')
                 ->action(function () {
@@ -191,7 +195,7 @@ class ViewAguinaldoPeriod extends ViewRecord
 
                     $this->redirect($this->getResource()::getUrl('index'));
                 })
-                ->visible(fn() => $this->record->isProcessing() || $this->record->isClosed()),
+                ->visible(fn () => $this->record->isProcessing() || $this->record->isClosed()),
         ];
     }
 }

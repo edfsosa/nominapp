@@ -17,8 +17,6 @@ use Filament\Resources\Resource;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -26,19 +24,25 @@ use Filament\Tables\Table;
 class PositionResource extends Resource
 {
     protected static ?string $model = Position::class;
+
     protected static ?string $navigationGroup = 'Organización';
+
     protected static ?string $navigationLabel = 'Cargos';
+
     protected static ?string $label = 'Cargo';
+
     protected static ?string $pluralLabel = 'Cargos';
+
     protected static ?string $slug = 'cargos';
+
     protected static ?string $navigationIcon = 'heroicon-o-briefcase';
+
     protected static ?string $recordTitleAttribute = 'name';
+
     protected static ?int $navigationSort = 4;
 
     /**
      * Define el formulario para crear y editar cargos, incluyendo validaciones y relaciones.
-     * @param Form $form
-     * @return Form
      */
     public static function form(Form $form): Form
     {
@@ -53,7 +57,7 @@ class PositionResource extends Resource
                             ->maxLength(60)
                             ->unique(
                                 ignoreRecord: true,
-                                modifyRuleUsing: fn($rule, Get $get) => $rule->where('department_id', $get('department_id'))
+                                modifyRuleUsing: fn ($rule, Get $get) => $rule->where('department_id', $get('department_id'))
                             )
                             ->columnSpan(1),
 
@@ -61,7 +65,7 @@ class PositionResource extends Resource
                             ->label('Departamento')
                             ->placeholder('Seleccione un departamento')
                             ->relationship('department', 'name')
-                            ->getOptionLabelFromRecordUsing(fn($record) => $record->company?->name . ' — ' . $record->name)
+                            ->getOptionLabelFromRecordUsing(fn ($record) => $record->company?->name.' — '.$record->name)
                             ->searchable()
                             ->preload()
                             ->native(false)
@@ -81,7 +85,7 @@ class PositionResource extends Resource
                                 }
 
                                 return $query->get()->mapWithKeys(
-                                    fn($p) => [$p->id => $p->name . ($p->department ? ' — ' . $p->department->name : '')]
+                                    fn ($p) => [$p->id => $p->name.($p->department ? ' — '.$p->department->name : '')]
                                 );
                             })
                             ->searchable()
@@ -95,8 +99,6 @@ class PositionResource extends Resource
 
     /**
      * Define la infolist para mostrar detalles del cargo, incluyendo conteos de empleados y cargos subordinados.
-     * @param Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -106,14 +108,14 @@ class PositionResource extends Resource
                 ->schema([
                     TextEntry::make('employees_count')
                         ->label('Empleados asignados')
-                        ->getStateUsing(fn(Position $record) => $record->employees()->count())
+                        ->getStateUsing(fn (Position $record) => $record->employees()->count())
                         ->badge()
                         ->color('success')
                         ->icon('heroicon-o-users'),
 
                     TextEntry::make('children_count')
                         ->label('Cargos subordinados')
-                        ->getStateUsing(fn(Position $record) => $record->children()->count())
+                        ->getStateUsing(fn (Position $record) => $record->children()->count())
                         ->badge()
                         ->color('info')
                         ->icon('heroicon-o-arrow-down-circle'),
@@ -153,9 +155,6 @@ class PositionResource extends Resource
 
     /**
      * Define la tabla para listar cargos, con columnas, filtros y acciones.
-     *
-     * @param Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -213,9 +212,12 @@ class PositionResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                ViewAction::make(),
-                EditAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar cargo?')
+                    ->modalSubmitActionLabel('Sí, eliminar'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -230,7 +232,6 @@ class PositionResource extends Resource
 
     /**
      * Define las relaciones para el recurso de cargos, permitiendo gestionar empleados asignados a cada cargo.
-     * @return array
      */
     public static function getRelations(): array
     {
@@ -241,7 +242,6 @@ class PositionResource extends Resource
 
     /**
      * Define las páginas para el recurso de cargos, incluyendo rutas para listar, crear, ver y editar cargos.
-     * @return array
      */
     public static function getPages(): array
     {

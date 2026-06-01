@@ -200,7 +200,10 @@ class RotationPatternResource extends Resource
                     ->default(true),
             ])
             ->actions([
-                EditAction::make(),
+                EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
                 DeleteAction::make()
                     ->label('Desactivar')
                     ->modalHeading('Desactivar patrón')
