@@ -17,8 +17,6 @@ use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -285,8 +283,6 @@ class EmployeeLeaveResource extends Resource
                     ->multiple(),
             ])
             ->actions([
-                ViewAction::make(),
-                EditAction::make(),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

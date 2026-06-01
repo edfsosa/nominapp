@@ -3,9 +3,9 @@
 namespace App\Filament\Resources\ScheduleResource\Pages;
 
 use App\Filament\Resources\ScheduleResource;
-use Filament\Actions\EditAction;
 use App\Models\Schedule;
 use App\Models\ScheduleDay;
+use Filament\Actions\EditAction;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\Section;
@@ -26,15 +26,12 @@ class ViewSchedule extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            EditAction::make()->icon('heroicon-o-pencil-square'),
+            EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
         ];
     }
 
     /**
      * Define la vista de detalle del horario con sus días activos y descansos.
-     *
-     * @param  Infolist  $infolist
-     * @return Infolist
      */
     public function infolist(Infolist $infolist): Infolist
     {
@@ -48,9 +45,9 @@ class ViewSchedule extends ViewRecord
 
                         TextEntry::make('shift_type')
                             ->label('Tipo de Jornada')
-                            ->formatStateUsing(fn($state) => Schedule::getShiftTypeLabels()[$state] ?? $state)
+                            ->formatStateUsing(fn ($state) => Schedule::getShiftTypeLabels()[$state] ?? $state)
                             ->badge()
-                            ->color(fn($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray'),
+                            ->color(fn ($state) => Schedule::getShiftTypeColors()[$state] ?? 'gray'),
 
                         TextEntry::make('description')
                             ->label('Descripción')
@@ -67,7 +64,7 @@ class ViewSchedule extends ViewRecord
                                 Group::make([
                                     TextEntry::make('day_of_week')
                                         ->label('Día')
-                                        ->formatStateUsing(fn($state) => ScheduleDay::getDayOptions()[(int) $state] ?? $state)
+                                        ->formatStateUsing(fn ($state) => ScheduleDay::getDayOptions()[(int) $state] ?? $state)
                                         ->badge()
                                         ->color('info'),
 

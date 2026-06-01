@@ -15,8 +15,11 @@ use Filament\Tables\Table;
 class ItemsRelationManager extends RelationManager
 {
     protected static string $relationship = 'items';
+
     protected static ?string $title = 'Desglose de la Liquidación';
+
     protected static ?string $modelLabel = 'concepto';
+
     protected static ?string $pluralModelLabel = 'conceptos';
 
     public function canCreate(): bool
@@ -30,7 +33,7 @@ class ItemsRelationManager extends RelationManager
             Select::make('type')
                 ->label('Tipo')
                 ->options([
-                    'haber'     => 'Haber',
+                    'haber' => 'Haber',
                     'deduction' => 'Descuento',
                 ])
                 ->native(false)
@@ -39,14 +42,14 @@ class ItemsRelationManager extends RelationManager
             Select::make('category')
                 ->label('Categoría')
                 ->options([
-                    'preaviso'          => 'Preaviso',
-                    'indemnizacion'     => 'Indemnización',
-                    'vacaciones'        => 'Vacaciones',
-                    'aguinaldo'         => 'Aguinaldo',
+                    'preaviso' => 'Preaviso',
+                    'indemnizacion' => 'Indemnización',
+                    'vacaciones' => 'Vacaciones',
+                    'aguinaldo' => 'Aguinaldo',
                     'salario_pendiente' => 'Salario Pendiente',
-                    'ips'               => 'IPS',
-                    'loan'              => 'Préstamo',
-                    'other'             => 'Otro',
+                    'ips' => 'IPS',
+                    'loan' => 'Préstamo',
+                    'other' => 'Otro',
                 ])
                 ->native(false)
                 ->required(),
@@ -72,31 +75,31 @@ class ItemsRelationManager extends RelationManager
                 TextColumn::make('type')
                     ->label('Tipo')
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
-                        'haber'     => 'success',
+                    ->color(fn (string $state): string => match ($state) {
+                        'haber' => 'success',
                         'deduction' => 'danger',
-                        default     => 'gray',
+                        default => 'gray',
                     })
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'haber'     => 'Haber',
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'haber' => 'Haber',
                         'deduction' => 'Descuento',
-                        default     => $state,
+                        default => $state,
                     }),
 
                 TextColumn::make('category')
                     ->label('Categoría')
                     ->badge()
                     ->color('info')
-                    ->formatStateUsing(fn(string $state): string => match ($state) {
-                        'preaviso'          => 'Preaviso',
-                        'indemnizacion'     => 'Indemnización',
-                        'vacaciones'        => 'Vacaciones',
-                        'aguinaldo'         => 'Aguinaldo',
+                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                        'preaviso' => 'Preaviso',
+                        'indemnizacion' => 'Indemnización',
+                        'vacaciones' => 'Vacaciones',
+                        'aguinaldo' => 'Aguinaldo',
                         'salario_pendiente' => 'Salario Pendiente',
-                        'ips'               => 'IPS',
-                        'loan'              => 'Préstamo',
-                        'other'             => 'Otro',
-                        default             => $state,
+                        'ips' => 'IPS',
+                        'loan' => 'Préstamo',
+                        'other' => 'Otro',
+                        default => $state,
                     }),
 
                 TextColumn::make('description')
@@ -107,25 +110,33 @@ class ItemsRelationManager extends RelationManager
                     ->label('Monto')
                     ->money('PYG', locale: 'es_PY')
                     ->weight('bold')
-                    ->color(fn($record) => $record->type === 'haber' ? 'success' : 'danger')
+                    ->color(fn ($record) => $record->type === 'haber' ? 'success' : 'danger')
                     ->summarize([
                         Summarizer::make()
                             ->label('Total Haberes')
-                            ->using(fn($query) => $query->where('type', 'haber')->sum('amount'))
+                            ->using(fn ($query) => $query->where('type', 'haber')->sum('amount'))
                             ->money('PYG', locale: 'es_PY'),
                         Summarizer::make()
                             ->label('Total Descuentos')
-                            ->using(fn($query) => $query->where('type', 'deduction')->sum('amount'))
+                            ->using(fn ($query) => $query->where('type', 'deduction')->sum('amount'))
                             ->money('PYG', locale: 'es_PY'),
                     ]),
             ])
             ->actions([
                 EditAction::make()
-                    ->visible(fn() => !$this->getOwnerRecord()->isClosed())
-                    ->after(fn() => $this->getOwnerRecord()->recalculateTotals()),
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
+                    ->visible(fn () => ! $this->getOwnerRecord()->isClosed())
+                    ->after(fn () => $this->getOwnerRecord()->recalculateTotals()),
                 DeleteAction::make()
-                    ->visible(fn() => !$this->getOwnerRecord()->isClosed())
-                    ->after(fn() => $this->getOwnerRecord()->recalculateTotals()),
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar ítem?')
+                    ->modalSubmitActionLabel('Sí, eliminar')
+                    ->visible(fn () => ! $this->getOwnerRecord()->isClosed())
+                    ->after(fn () => $this->getOwnerRecord()->recalculateTotals()),
             ])
             ->paginated(false)
             ->emptyStateHeading('Sin conceptos calculados')

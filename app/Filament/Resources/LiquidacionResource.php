@@ -26,8 +26,6 @@ use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -283,7 +281,7 @@ class LiquidacionResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable()
                     ->wrap(),
@@ -375,8 +373,6 @@ class LiquidacionResource extends Resource
                     ->native(false),
             ])
             ->actions([
-                ViewAction::make(),
-
                 Action::make('calculate')
                     ->label('Calcular')
                     ->icon('heroicon-o-calculator')
@@ -429,8 +425,6 @@ class LiquidacionResource extends Resource
                     ->openUrlInNewTab()
                     ->visible(fn (Liquidacion $record) => $record->pdf_path !== null),
 
-                EditAction::make()
-                    ->visible(fn (Liquidacion $record) => ! $record->isClosed()),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

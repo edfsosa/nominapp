@@ -21,7 +21,7 @@ class EditAdvance extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()->icon('heroicon-o-eye')->color('primary'),
+            ViewAction::make()->label('Ver')->icon('heroicon-o-eye')->color('gray'),
         ];
     }
 

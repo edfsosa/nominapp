@@ -27,7 +27,7 @@ class ViewWarning extends ViewRecord
                 ->url(fn () => route('warnings.pdf', $this->record))
                 ->openUrlInNewTab(),
 
-            EditAction::make()->icon('heroicon-o-pencil-square'),
+            EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
         ];
     }
 }

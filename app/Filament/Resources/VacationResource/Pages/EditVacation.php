@@ -40,11 +40,16 @@ class EditVacation extends EditRecord
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
+                ->label('Eliminar')
                 ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar vacaciones?')
+                ->modalSubmitActionLabel('Sí, eliminar')
                 ->before(function () {
                     VacationService::releaseOnDelete($this->record);
                 }),

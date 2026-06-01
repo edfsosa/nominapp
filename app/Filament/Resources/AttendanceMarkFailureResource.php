@@ -4,22 +4,19 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AttendanceMarkFailureResource\Pages;
 use App\Models\AttendanceMarkFailure;
-use App\Models\Branch;
-use App\Models\Employee;
+use Filament\Forms\Components\DatePicker;
 use Filament\Infolists\Components\KeyValueEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\Indicator;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\DatePicker;
-use Filament\Tables\Actions\Action;
-use Filament\Tables\Actions\ViewAction;
-use Filament\Tables\Filters\Indicator;
 
 /** Resource de solo lectura para inspeccionar intentos fallidos de marcación de asistencia. */
 class AttendanceMarkFailureResource extends Resource
@@ -27,11 +24,17 @@ class AttendanceMarkFailureResource extends Resource
     protected static ?string $model = AttendanceMarkFailure::class;
 
     protected static ?string $navigationLabel = 'Fallos de marcación';
+
     protected static ?string $label = 'fallo de marcación';
+
     protected static ?string $pluralLabel = 'fallos de marcación';
+
     protected static ?string $slug = 'fallos-marcacion';
+
     protected static ?string $navigationIcon = 'heroicon-o-exclamation-triangle';
+
     protected static ?string $navigationGroup = 'Asistencias';
+
     protected static ?int $navigationSort = 5;
 
     /** Este resource es de solo lectura — no expone formulario de creación/edición. */
@@ -42,9 +45,6 @@ class AttendanceMarkFailureResource extends Resource
 
     /**
      * Tabla principal con columnas, filtros y acciones de fila.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public static function table(Table $table): Table
     {
@@ -64,24 +64,24 @@ class AttendanceMarkFailureResource extends Resource
                 TextColumn::make('mode')
                     ->label('Modo')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => AttendanceMarkFailure::getModeLabel($state))
-                    ->color(fn(string $state) => AttendanceMarkFailure::getModeColor($state)),
+                    ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getModeLabel($state))
+                    ->color(fn (string $state) => AttendanceMarkFailure::getModeColor($state)),
 
                 TextColumn::make('failure_type')
                     ->label('Tipo de fallo')
                     ->badge()
-                    ->formatStateUsing(fn(string $state) => AttendanceMarkFailure::getFailureTypeLabel($state))
-                    ->color(fn(string $state) => AttendanceMarkFailure::getFailureTypeColor($state))
+                    ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getFailureTypeLabel($state))
+                    ->color(fn (string $state) => AttendanceMarkFailure::getFailureTypeColor($state))
                     ->searchable(),
 
                 TextColumn::make('employee.full_name')
                     ->label('Empleado')
-                    ->getStateUsing(fn(AttendanceMarkFailure $record) => $record->employee
+                    ->getStateUsing(fn (AttendanceMarkFailure $record) => $record->employee
                         ? "{$record->employee->first_name} {$record->employee->last_name}"
                         : '—'
                     )
                     ->searchable(query: function (Builder $query, string $search): Builder {
-                        return $query->whereHas('employee', fn($q) => $q
+                        return $query->whereHas('employee', fn ($q) => $q
                             ->where('first_name', 'like', "%{$search}%")
                             ->orWhere('last_name', 'like', "%{$search}%")
                         );
@@ -95,26 +95,26 @@ class AttendanceMarkFailureResource extends Resource
                 TextColumn::make('attempted_event_type')
                     ->label('Evento intentado')
                     ->badge()
-                    ->formatStateUsing(fn(?string $state) => match ($state) {
-                        'check_in'    => 'Entrada',
+                    ->formatStateUsing(fn (?string $state) => match ($state) {
+                        'check_in' => 'Entrada',
                         'break_start' => 'Inicio descanso',
-                        'break_end'   => 'Fin descanso',
-                        'check_out'   => 'Salida',
-                        default       => '—',
+                        'break_end' => 'Fin descanso',
+                        'check_out' => 'Salida',
+                        default => '—',
                     })
-                    ->color(fn(?string $state) => match ($state) {
-                        'check_in'    => 'success',
+                    ->color(fn (?string $state) => match ($state) {
+                        'check_in' => 'success',
                         'break_start' => 'warning',
-                        'break_end'   => 'warning',
-                        'check_out'   => 'danger',
-                        default       => 'gray',
+                        'break_end' => 'warning',
+                        'check_out' => 'danger',
+                        default => 'gray',
                     })
                     ->toggleable(isToggledHiddenByDefault: false),
 
                 TextColumn::make('failure_message')
                     ->label('Mensaje')
                     ->limit(60)
-                    ->tooltip(fn(AttendanceMarkFailure $record) => $record->failure_message)
+                    ->tooltip(fn (AttendanceMarkFailure $record) => $record->failure_message)
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('ip_address')
@@ -128,8 +128,8 @@ class AttendanceMarkFailureResource extends Resource
                     ->label('Modo')
                     ->options([
                         'terminal' => 'Terminal',
-                        'mobile'   => 'Móvil',
-                        'unknown'  => 'Desconocido',
+                        'mobile' => 'Móvil',
+                        'unknown' => 'Desconocido',
                     ]),
 
                 SelectFilter::make('failure_type')
@@ -152,19 +152,20 @@ class AttendanceMarkFailureResource extends Resource
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query
-                            ->when($data['from'],  fn($q, $v) => $q->whereDate('occurred_at', '>=', $v))
-                            ->when($data['until'], fn($q, $v) => $q->whereDate('occurred_at', '<=', $v));
+                            ->when($data['from'], fn ($q, $v) => $q->whereDate('occurred_at', '>=', $v))
+                            ->when($data['until'], fn ($q, $v) => $q->whereDate('occurred_at', '<=', $v));
                     })
                     ->indicateUsing(function (array $data): array {
                         $indicators = [];
                         if ($data['from']) {
-                            $indicators[] = Indicator::make('Desde: ' . \Illuminate\Support\Carbon::parse($data['from'])->format('d/m/Y'))
+                            $indicators[] = Indicator::make('Desde: '.\Illuminate\Support\Carbon::parse($data['from'])->format('d/m/Y'))
                                 ->removeField('from');
                         }
                         if ($data['until']) {
-                            $indicators[] = Indicator::make('Hasta: ' . \Illuminate\Support\Carbon::parse($data['until'])->format('d/m/Y'))
+                            $indicators[] = Indicator::make('Hasta: '.\Illuminate\Support\Carbon::parse($data['until'])->format('d/m/Y'))
                                 ->removeField('until');
                         }
+
                         return $indicators;
                     }),
             ])
@@ -173,15 +174,13 @@ class AttendanceMarkFailureResource extends Resource
                     ->label('Diagnóstico')
                     ->icon('heroicon-o-light-bulb')
                     ->color('warning')
-                    ->modalHeading(fn(AttendanceMarkFailure $record) => 'Diagnóstico: ' . AttendanceMarkFailure::getFailureTypeLabel($record->failure_type))
-                    ->modalContent(fn(AttendanceMarkFailure $record) => view(
+                    ->modalHeading(fn (AttendanceMarkFailure $record) => 'Diagnóstico: '.AttendanceMarkFailure::getFailureTypeLabel($record->failure_type))
+                    ->modalContent(fn (AttendanceMarkFailure $record) => view(
                         'filament.modals.attendance-mark-failure-diagnosis',
                         ['record' => $record]
                     ))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('Cerrar'),
-
-                ViewAction::make(),
             ])
             ->bulkActions([])
             ->paginated([25, 50, 100]);
@@ -189,9 +188,6 @@ class AttendanceMarkFailureResource extends Resource
 
     /**
      * Infolist con todos los detalles del intento fallido.
-     *
-     * @param  Infolist $infolist
-     * @return Infolist
      */
     public static function infolist(Infolist $infolist): Infolist
     {
@@ -208,30 +204,30 @@ class AttendanceMarkFailureResource extends Resource
                         TextEntry::make('mode')
                             ->label('Modo')
                             ->badge()
-                            ->formatStateUsing(fn(string $state) => AttendanceMarkFailure::getModeLabel($state))
-                            ->color(fn(string $state) => AttendanceMarkFailure::getModeColor($state)),
+                            ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getModeLabel($state))
+                            ->color(fn (string $state) => AttendanceMarkFailure::getModeColor($state)),
 
                         TextEntry::make('failure_type')
                             ->label('Tipo de fallo')
                             ->badge()
-                            ->formatStateUsing(fn(string $state) => AttendanceMarkFailure::getFailureTypeLabel($state))
-                            ->color(fn(string $state) => AttendanceMarkFailure::getFailureTypeColor($state)),
+                            ->formatStateUsing(fn (string $state) => AttendanceMarkFailure::getFailureTypeLabel($state))
+                            ->color(fn (string $state) => AttendanceMarkFailure::getFailureTypeColor($state)),
 
                         TextEntry::make('attempted_event_type')
                             ->label('Evento intentado')
                             ->badge()
-                            ->formatStateUsing(fn(?string $state) => match ($state) {
-                                'check_in'    => 'Entrada',
+                            ->formatStateUsing(fn (?string $state) => match ($state) {
+                                'check_in' => 'Entrada',
                                 'break_start' => 'Inicio descanso',
-                                'break_end'   => 'Fin descanso',
-                                'check_out'   => 'Salida',
-                                default       => '—',
+                                'break_end' => 'Fin descanso',
+                                'check_out' => 'Salida',
+                                default => '—',
                             })
-                            ->color(fn(?string $state) => match ($state) {
-                                'check_in'  => 'success',
+                            ->color(fn (?string $state) => match ($state) {
+                                'check_in' => 'success',
                                 'break_start', 'break_end' => 'warning',
                                 'check_out' => 'danger',
-                                default     => 'gray',
+                                default => 'gray',
                             }),
 
                         TextEntry::make('failure_message')
@@ -245,7 +241,7 @@ class AttendanceMarkFailureResource extends Resource
                     ->schema([
                         TextEntry::make('employee.first_name')
                             ->label('Empleado')
-                            ->getStateUsing(fn(AttendanceMarkFailure $record) => $record->employee
+                            ->getStateUsing(fn (AttendanceMarkFailure $record) => $record->employee
                                 ? "{$record->employee->first_name} {$record->employee->last_name} (CI: {$record->employee->ci})"
                                 : '— (no identificado)'
                             ),
@@ -265,7 +261,7 @@ class AttendanceMarkFailureResource extends Resource
 
                         TextEntry::make('location')
                             ->label('Coordenadas GPS')
-                            ->getStateUsing(fn(AttendanceMarkFailure $record) => isset($record->location['lat'], $record->location['lng'])
+                            ->getStateUsing(fn (AttendanceMarkFailure $record) => isset($record->location['lat'], $record->location['lng'])
                                 ? "{$record->location['lat']}, {$record->location['lng']}"
                                 : '—'
                             ),
@@ -279,9 +275,9 @@ class AttendanceMarkFailureResource extends Resource
                         KeyValueEntry::make('metadata')
                             ->label('')
                             ->columnSpanFull()
-                            ->getStateUsing(fn(AttendanceMarkFailure $record) => $record->metadata ?? []),
+                            ->getStateUsing(fn (AttendanceMarkFailure $record) => $record->metadata ?? []),
                     ])
-                    ->visible(fn(AttendanceMarkFailure $record) => !empty($record->metadata)),
+                    ->visible(fn (AttendanceMarkFailure $record) => ! empty($record->metadata)),
             ]);
     }
 
@@ -290,7 +286,7 @@ class AttendanceMarkFailureResource extends Resource
     {
         return [
             'index' => Pages\ListAttendanceMarkFailures::route('/'),
-            'view'  => Pages\ViewAttendanceMarkFailure::route('/{record}'),
+            'view' => Pages\ViewAttendanceMarkFailure::route('/{record}'),
         ];
     }
 }

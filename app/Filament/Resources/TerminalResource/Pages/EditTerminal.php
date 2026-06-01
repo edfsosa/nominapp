@@ -15,21 +15,22 @@ class EditTerminal extends EditRecord
 
     /**
      * Acciones del encabezado de la página de edición.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make()->icon('heroicon-o-eye')->color('primary'),
-            DeleteAction::make()->icon('heroicon-o-trash'),
+            ViewAction::make()->label('Ver')->icon('heroicon-o-eye')->color('gray'),
+            DeleteAction::make()
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar terminal?')
+                ->modalSubmitActionLabel('Sí, eliminar'),
         ];
     }
 
     /**
      * Redirige a la vista de detalle tras guardar.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
@@ -38,8 +39,6 @@ class EditTerminal extends EditRecord
 
     /**
      * Notificación de éxito al guardar cambios.
-     *
-     * @return Notification|null
      */
     protected function getSavedNotification(): ?Notification
     {

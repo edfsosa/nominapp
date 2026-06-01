@@ -11,6 +11,7 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\DeleteBulkAction;
@@ -184,12 +185,23 @@ class BranchesRelationManager extends RelationManager
                     ->openUrlInNewTab()
                     ->visible(fn ($record) => isset($record->coordinates['lat'], $record->coordinates['lng'])),
 
-                EditAction::make(),
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary'),
 
-                DeleteAction::make()
-                    ->label('Eliminar')
-                    ->modalHeading('Eliminar sucursal')
-                    ->modalDescription(fn ($record) => "¿Estás seguro de que deseas eliminar la sucursal \"{$record->name}\"? Los empleados asignados quedarán sin sucursal."),
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar sucursal?')
+                        ->modalDescription(fn ($record) => "¿Estás seguro de que deseas eliminar la sucursal \"{$record->name}\"? Los empleados asignados quedarán sin sucursal.")
+                        ->modalSubmitActionLabel('Sí, eliminar'),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Más acciones'),
             ])
             ->bulkActions([
                 DeleteBulkAction::make()

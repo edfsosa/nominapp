@@ -157,6 +157,9 @@ class AguinaldosRelationManager extends RelationManager
             ])
             ->actions([
                 ViewAction::make()
+                    ->label('Ver')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
                     ->url(fn (Aguinaldo $record) => AguinaldoResource::getUrl('view', ['record' => $record])),
 
                 Action::make('mark_paid')

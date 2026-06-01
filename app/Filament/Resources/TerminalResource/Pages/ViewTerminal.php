@@ -17,8 +17,6 @@ class ViewTerminal extends ViewRecord
 
     /**
      * Acciones del encabezado de la página de detalle.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -27,10 +25,10 @@ class ViewTerminal extends ViewRecord
                 ->label('Activar')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn() => $this->record->isInactive())
+                ->visible(fn () => $this->record->isInactive())
                 ->requiresConfirmation()
                 ->modalHeading('Activar terminal')
-                ->modalDescription("La terminal volverá a estar disponible para marcaciones.")
+                ->modalDescription('La terminal volverá a estar disponible para marcaciones.')
                 ->modalSubmitActionLabel('Sí, activar')
                 ->action(function () {
                     $this->record->update(['status' => 'active']);
@@ -42,7 +40,7 @@ class ViewTerminal extends ViewRecord
                 ->label('Desactivar')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn() => $this->record->isActive())
+                ->visible(fn () => $this->record->isActive())
                 ->requiresConfirmation()
                 ->modalHeading('Desactivar terminal')
                 ->modalDescription('La terminal dejará de aceptar marcaciones y mostrará una pantalla de fuera de servicio.')
@@ -74,7 +72,7 @@ class ViewTerminal extends ViewRecord
                     $this->refreshFormData(['code']);
                 }),
 
-            EditAction::make()->icon('heroicon-o-pencil-square'),
+            EditAction::make()->label('Editar')->icon('heroicon-o-pencil-square')->color('primary'),
 
             DeleteAction::make()->icon('heroicon-o-trash'),
         ];

@@ -80,7 +80,10 @@ class ContractTemplateResource extends Resource
                     ->sortable(),
             ])
             ->actions([
-                EditAction::make()->label('Editar plantilla'),
+                EditAction::make()
+                    ->label('Editar plantilla')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary'),
             ])
             ->paginated(false);
     }

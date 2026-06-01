@@ -29,8 +29,9 @@ class EditContract extends EditRecord
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             // --- Acciones de documento ---
 
@@ -184,7 +185,12 @@ class EditContract extends EditRecord
                         ->send();
                 }),
 
-            DeleteAction::make(),
+            DeleteAction::make()
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar contrato?')
+                ->modalSubmitActionLabel('Sí, eliminar'),
         ];
     }
 

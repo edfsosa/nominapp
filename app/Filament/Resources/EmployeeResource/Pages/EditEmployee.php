@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
+use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
 use App\Models\FaceEnrollment;
 use App\Settings\GeneralSettings;
@@ -13,7 +14,6 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
-use App\Filament\Resources\EmployeeResource;
 
 class EditEmployee extends EditRecord
 {
@@ -21,37 +21,37 @@ class EditEmployee extends EditRecord
 
     /**
      * Define las acciones del encabezado de la página de edición.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             Action::make('capture_face')
-                ->label(fn() => $this->record->has_face ? 'Re-enrolar' : 'Enrolar')
+                ->label(fn () => $this->record->has_face ? 'Re-enrolar' : 'Enrolar')
                 ->icon('heroicon-o-camera')
-                ->color(fn() => $this->record->has_face ? 'warning' : 'success')
-                ->url(fn() => route('face.capture', $this->record))
-                ->visible(fn() => $this->record->status === 'active'),
+                ->color(fn () => $this->record->has_face ? 'warning' : 'success')
+                ->url(fn () => route('face.capture', $this->record))
+                ->visible(fn () => $this->record->status === 'active'),
 
             Action::make('generate_enrollment')
                 ->label('Generar enlace de enrolamiento')
                 ->icon('heroicon-o-link')
                 ->color('info')
-                ->visible(fn() => $this->record->status === 'active')
+                ->visible(fn () => $this->record->status === 'active')
                 ->requiresConfirmation()
                 ->modalHeading('Generar Enlace de Registro Facial')
                 ->modalDescription(function () {
                     $hours = app(GeneralSettings::class)->face_enrollment_expiry_hours;
+
                     return "Se generará un enlace temporal para que {$this->record->first_name} {$this->record->last_name} registre su rostro. El enlace expirará en {$hours} horas.";
                 })
                 ->modalSubmitActionLabel('Generar Enlace')
                 ->action(function () {
-                    $settings   = app(GeneralSettings::class);
+                    $settings = app(GeneralSettings::class);
                     $enrollment = FaceEnrollment::createForEmployee(
                         $this->record,
                         Auth::id(),
@@ -62,15 +62,15 @@ class EditEmployee extends EditRecord
 
                     Notification::make()
                         ->success()
-                        ->title('Enlace generado — expira en ' . $settings->face_enrollment_expiry_hours . 'h')
+                        ->title('Enlace generado — expira en '.$settings->face_enrollment_expiry_hours.'h')
                         ->body($url)
                         ->persistent()
                         ->actions([
                             NotificationAction::make('send_whatsapp')
                                 ->label('Enviar por WhatsApp')
-                                ->url('https://api.whatsapp.com/send?phone=595' . ltrim($this->record->phone ?? '', '0') . '&text=' . urlencode("Hola {$this->record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
+                                ->url('https://api.whatsapp.com/send?phone=595'.ltrim($this->record->phone ?? '', '0').'&text='.urlencode("Hola {$this->record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
                                 ->openUrlInNewTab()
-                                ->visible(fn() => filled($this->record->phone)),
+                                ->visible(fn () => filled($this->record->phone)),
                         ])
                         ->send();
                 }),
@@ -80,7 +80,7 @@ class EditEmployee extends EditRecord
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->modalHeading('¿Eliminar empleado?')
-                ->modalDescription(fn() => 'Esta acción no se puede deshacer. Se eliminará al empleado "' . $this->record->full_name . '" y todos sus registros relacionados.')
+                ->modalDescription(fn () => 'Esta acción no se puede deshacer. Se eliminará al empleado "'.$this->record->full_name.'" y todos sus registros relacionados.')
                 ->modalSubmitActionLabel('Sí, eliminar')
                 ->successNotificationTitle('Empleado eliminado')
                 ->before(function () {
@@ -94,8 +94,6 @@ class EditEmployee extends EditRecord
 
     /**
      * Obtiene la URL de redirección después de guardar los cambios.
-     *
-     * @return string
      */
     protected function getRedirectUrl(): string
     {
@@ -104,27 +102,23 @@ class EditEmployee extends EditRecord
 
     /**
      * Modifica los datos del formulario antes de actualizar el registro. Mantiene el descriptor facial actual para evitar sobrescribirlo si no se captura uno nuevo.
-     *
-     * @param array $data
-     * @return array
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
         $data = Employee::sanitizeFormData($data, isCreating: false);
         $data['face_descriptor'] = $this->record->face_descriptor;
+
         return $data;
     }
 
     /**
      * Obtiene la notificación que se muestra después de actualizar el registro.
-     *
-     * @return Notification
      */
     protected function getSavedNotification(): Notification
     {
         return Notification::make()
             ->success()
             ->title('Empleado actualizado')
-            ->body('Los datos de ' . $this->record->full_name . ' han sido actualizados.');
+            ->body('Los datos de '.$this->record->full_name.' han sido actualizados.');
     }
 }

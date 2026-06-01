@@ -13,7 +13,10 @@ class ViewEmployeeLeaves extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
-            EditAction::make(),
+            EditAction::make()
+                ->label('Editar')
+                ->icon('heroicon-o-pencil-square')
+                ->color('primary'),
         ];
     }
 }

@@ -23,14 +23,15 @@ class EditPerception extends EditRecord
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
-                ->modalHeading('Eliminar percepción')
+                ->modalHeading('¿Eliminar percepción?')
                 ->modalDescription('Esta acción no se puede deshacer. Asegurate de que no haya empleados asignados antes de eliminarla.')
                 ->modalSubmitActionLabel('Sí, eliminar')
                 ->before(function (Perception $record, DeleteAction $action) {

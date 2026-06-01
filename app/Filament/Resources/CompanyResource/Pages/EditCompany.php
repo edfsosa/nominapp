@@ -14,21 +14,21 @@ class EditCompany extends EditRecord
 
     /**
      * Define las acciones que estarán disponibles en la vista de edición de la empresa.
-     * @return array
      */
     protected function getHeaderActions(): array
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
                 ->modalHeading('¿Eliminar empresa?')
-                ->modalDescription('Esta acción no se puede deshacer. Se eliminará la empresa "' . $this->record->trade_name . '" y todos sus registros relacionados.')
+                ->modalDescription('Esta acción no se puede deshacer. Se eliminará la empresa "'.$this->record->trade_name.'" y todos sus registros relacionados.')
                 ->modalSubmitActionLabel('Sí, eliminar')
                 ->successNotificationTitle('Empresa eliminada')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
@@ -37,15 +37,15 @@ class EditCompany extends EditRecord
 
     /**
      * Mutar los datos del formulario antes de guardarlos para asegurar que los campos "name" y "trade_name" estén en mayúscula.
-      *
-      * @param array $data Los datos del formulario a mutar.
-      * @return array Los datos mutados listos para ser guardados.
+     *
+     * @param  array  $data  Los datos del formulario a mutar.
+     * @return array Los datos mutados listos para ser guardados.
      */
     protected function mutateFormDataBeforeSave(array $data): array
     {
         foreach (['name', 'trade_name'] as $field) {
             if (isset($data[$field])) {
-                $data[$field] = preg_replace_callback('/(?:^|\s)\S/u', fn($m) => mb_strtoupper($m[0], 'UTF-8'), $data[$field]);
+                $data[$field] = preg_replace_callback('/(?:^|\s)\S/u', fn ($m) => mb_strtoupper($m[0], 'UTF-8'), $data[$field]);
             }
         }
 
@@ -72,6 +72,6 @@ class EditCompany extends EditRecord
         return Notification::make()
             ->success()
             ->title('Empresa actualizada')
-            ->body('La empresa "' . $this->record->trade_name . '" ha sido actualizada correctamente.');
+            ->body('La empresa "'.$this->record->trade_name.'" ha sido actualizada correctamente.');
     }
 }

@@ -2,12 +2,12 @@
 
 namespace App\Filament\Resources\AbsenceResource\Pages;
 
+use App\Filament\Resources\AbsenceResource;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
-use Filament\Resources\Pages\EditRecord;
-use App\Filament\Resources\AbsenceResource;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
+use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
 
 class EditAbsence extends EditRecord
@@ -21,12 +21,12 @@ class EditAbsence extends EditRecord
                 ->label('Justificar')
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
-                ->visible(fn() => !$this->record->isJustified())
+                ->visible(fn () => ! $this->record->isJustified())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => $this->record->isUnjustified()
+                ->modalHeading(fn () => $this->record->isUnjustified()
                     ? 'Cambiar a Justificada'
                     : 'Justificar Ausencia')
-                ->modalDescription(fn() => $this->record->isUnjustified()
+                ->modalDescription(fn () => $this->record->isUnjustified()
                     ? '¿Está seguro? Esto eliminará la deducción generada previamente.'
                     : '¿Está seguro de que desea marcar esta ausencia como justificada?')
                 ->form([
@@ -51,12 +51,12 @@ class EditAbsence extends EditRecord
                 ->label('Marcar Injustificada')
                 ->icon('heroicon-o-x-circle')
                 ->color('danger')
-                ->visible(fn() => !$this->record->isUnjustified())
+                ->visible(fn () => ! $this->record->isUnjustified())
                 ->requiresConfirmation()
-                ->modalHeading(fn() => $this->record->isJustified()
+                ->modalHeading(fn () => $this->record->isJustified()
                     ? 'Cambiar a Injustificada'
                     : 'Marcar como Injustificada')
-                ->modalDescription(fn() => $this->record->isJustified()
+                ->modalDescription(fn () => $this->record->isJustified()
                     ? 'Esto generará una deducción del salario del empleado.'
                     : 'Esto generará automáticamente una deducción del salario del empleado.')
                 ->form([
@@ -79,6 +79,11 @@ class EditAbsence extends EditRecord
                 }),
 
             DeleteAction::make()
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar ausencia?')
+                ->modalSubmitActionLabel('Sí, eliminar')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];
     }

@@ -212,6 +212,9 @@ class BankAccountsRelationManager extends RelationManager
                     }),
 
                 EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
                     ->modalHeading('Editar cuenta bancaria')
                     ->modalSubmitActionLabel('Guardar cambios')
                     ->modalWidth('xl')
@@ -224,7 +227,10 @@ class BankAccountsRelationManager extends RelationManager
                     }),
 
                 DeleteAction::make()
-                    ->modalHeading('Eliminar cuenta bancaria')
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar cuenta bancaria?')
                     ->modalDescription('¿Estás seguro? Esta acción no se puede deshacer.')
                     ->modalSubmitActionLabel('Sí, eliminar'),
             ])

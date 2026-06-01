@@ -23,14 +23,15 @@ class EditDeduction extends EditRecord
     {
         return [
             ViewAction::make()
+                ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('primary'),
+                ->color('gray'),
 
             DeleteAction::make()
                 ->label('Eliminar')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
-                ->modalHeading('Eliminar deducción')
+                ->modalHeading('¿Eliminar deducción?')
                 ->modalDescription('Esta acción no se puede deshacer. Asegurate de que no haya empleados asignados antes de eliminarla.')
                 ->modalSubmitActionLabel('Sí, eliminar')
                 ->before(function (Deduction $record, DeleteAction $action) {

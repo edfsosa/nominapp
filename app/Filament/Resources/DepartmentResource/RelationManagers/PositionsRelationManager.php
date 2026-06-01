@@ -8,6 +8,7 @@ use Filament\Infolists\Components\RepeatableEntry;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
@@ -116,10 +117,23 @@ class PositionsRelationManager extends RelationManager
                     ->modalWidth('6xl')
                     ->color('info')
                     ->visible(fn ($record) => $record->employees_count > 0),
-                EditAction::make()
-                    ->successNotificationTitle('Cargo actualizado exitosamente'),
-                DeleteAction::make()
-                    ->successNotificationTitle('Cargo eliminado exitosamente'),
+                ActionGroup::make([
+                    EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
+                        ->color('primary')
+                        ->successNotificationTitle('Cargo actualizado exitosamente'),
+                    DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar cargo?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->successNotificationTitle('Cargo eliminado exitosamente'),
+                ])
+                    ->icon('heroicon-o-ellipsis-vertical')
+                    ->color('gray')
+                    ->tooltip('Más acciones'),
             ])
             ->bulkActions([
                 BulkActionGroup::make([

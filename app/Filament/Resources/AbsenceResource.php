@@ -24,8 +24,6 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
-use Filament\Tables\Actions\EditAction;
-use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -311,12 +309,6 @@ class AbsenceResource extends Resource
                     }),
             ])
             ->actions([
-                ViewAction::make()
-                    ->tooltip('Ver detalle completo de la ausencia'),
-
-                EditAction::make()
-                    ->tooltip('Editar datos de la ausencia'),
-
                 Action::make('justify')
                     ->label('Justificar')
                     ->icon('heroicon-o-check-circle')

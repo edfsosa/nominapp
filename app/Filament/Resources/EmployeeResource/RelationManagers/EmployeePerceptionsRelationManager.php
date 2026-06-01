@@ -126,16 +126,21 @@ class EmployeePerceptionsRelationManager extends RelationManager
                 $this->vigenciaReactivateAction(),
                 ActionGroup::make([
                     EditAction::make()
-                        ->modalHeading('Editar Asignación')
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
                         ->color('primary')
+                        ->modalHeading('Editar Asignación')
                         ->before($this->vigenciaEditBefore())
                         ->successNotificationTitle('Asignación actualizada exitosamente'),
 
                     DeleteAction::make()
-                        ->label('Borrar')
-                        ->modalHeading('Borrar Asignación')
-                        ->modalDescription('¿Está seguro de que desea borrar permanentemente esta asignación del historial?')
-                        ->successNotificationTitle('Asignación borrada del historial'),
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar percepción?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->modalDescription('¿Está seguro de que desea eliminar permanentemente esta asignación del historial?')
+                        ->successNotificationTitle('Asignación eliminada del historial'),
                 ]),
             ])
             ->bulkActions([

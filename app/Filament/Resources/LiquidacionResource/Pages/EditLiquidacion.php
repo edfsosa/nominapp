@@ -29,7 +29,7 @@ class EditLiquidacion extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
-        if (!$this->record->isCalculated()) {
+        if (! $this->record->isCalculated()) {
             return $data;
         }
 
@@ -39,8 +39,8 @@ class EditLiquidacion extends EditRecord
 
         if ($calculationFieldsChanged) {
             $this->record->items()->delete();
-            $data['status']       = 'draft';
-            $data['pdf_path']     = null;
+            $data['status'] = 'draft';
+            $data['pdf_path'] = null;
             $data['calculated_at'] = null;
 
             Notification::make()
@@ -56,9 +56,17 @@ class EditLiquidacion extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()
+                ->label('Ver')
+                ->icon('heroicon-o-eye')
+                ->color('gray'),
             DeleteAction::make()
-                ->visible(fn() => !$this->record->isClosed()),
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
+                ->modalHeading('¿Eliminar liquidación?')
+                ->modalSubmitActionLabel('Sí, eliminar')
+                ->visible(fn () => ! $this->record->isClosed()),
         ];
     }
 

@@ -483,10 +483,17 @@ class ContractsRelationManager extends RelationManager
 
                 ActionGroup::make([
                     EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
                         ->color('primary')
                         ->visible(fn (Contract $record) => $record->status === 'active'),
 
                     DeleteAction::make()
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar contrato?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
                         ->before(function (Contract $record) {
                             if ($record->document_path && Storage::disk('public')->exists($record->document_path)) {
                                 Storage::disk('public')->delete($record->document_path);

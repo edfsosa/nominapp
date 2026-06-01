@@ -20,7 +20,10 @@ class EditPayrollPeriod extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            ViewAction::make(),
+            ViewAction::make()
+                ->label('Ver')
+                ->icon('heroicon-o-eye')
+                ->color('gray'),
 
             Action::make('generate_payrolls')
                 ->label('Generar Recibos')
@@ -264,9 +267,12 @@ class EditPayrollPeriod extends EditRecord
                 ->visible(fn () => $this->record->status === 'closed'),
 
             DeleteAction::make()
+                ->label('Eliminar')
+                ->icon('heroicon-o-trash')
+                ->color('danger')
                 ->visible(fn () => $this->record->status === 'draft')
                 ->requiresConfirmation()
-                ->modalHeading('Eliminar Planilla de Nómina')
+                ->modalHeading('¿Eliminar período de nómina?')
                 ->modalDescription(
                     fn () => "¿Está seguro de eliminar la planilla {$this->record->name}? ".
                         'Esta acción no se puede deshacer.'

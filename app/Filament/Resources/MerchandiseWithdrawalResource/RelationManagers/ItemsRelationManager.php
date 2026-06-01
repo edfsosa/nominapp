@@ -135,10 +135,16 @@ class ItemsRelationManager extends RelationManager
             ])
             ->actions([
                 EditAction::make()
+                    ->label('Editar')
+                    ->icon('heroicon-o-pencil-square')
+                    ->color('primary')
                     ->modalHeading('Editar Producto')
                     ->after(fn () => $this->recalculateTotal()),
                 DeleteAction::make()
-                    ->modalHeading('Eliminar Producto')
+                    ->label('Eliminar')
+                    ->icon('heroicon-o-trash')
+                    ->color('danger')
+                    ->modalHeading('¿Eliminar ítem?')
                     ->modalDescription('¿Está seguro? Se eliminará el producto del retiro.')
                     ->modalSubmitActionLabel('Sí, eliminar')
                     ->after(fn () => $this->recalculateTotal()),

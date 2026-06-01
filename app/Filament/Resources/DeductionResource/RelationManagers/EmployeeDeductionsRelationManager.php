@@ -366,6 +366,8 @@ class EmployeeDeductionsRelationManager extends RelationManager
 
                 ActionGroup::make([
                     EditAction::make()
+                        ->label('Editar')
+                        ->icon('heroicon-o-pencil-square')
                         ->color('primary')
                         ->modalHeading('Editar Asignación')
                         ->before(function (EmployeeDeduction $record, array $data, EditAction $action) {
@@ -388,9 +390,12 @@ class EmployeeDeductionsRelationManager extends RelationManager
                         ->successNotificationTitle('Asignación actualizada exitosamente'),
 
                     DeleteAction::make()
-                        ->label('Borrar')
-                        ->modalHeading('Borrar Asignación')
-                        ->modalDescription('¿Está seguro de que desea borrar permanentemente esta asignación del historial?')
+                        ->label('Eliminar')
+                        ->icon('heroicon-o-trash')
+                        ->color('danger')
+                        ->modalHeading('¿Eliminar deducción?')
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->modalDescription('¿Está seguro de que desea eliminar permanentemente esta asignación del historial?')
                         ->successNotificationTitle('Asignación eliminada del historial'),
                 ]),
             ])
