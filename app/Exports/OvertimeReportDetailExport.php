@@ -33,7 +33,40 @@ class OvertimeReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadi
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /** @return array<string, string> */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'date' => 'Fecha',
+            'day_name' => 'Día',
+            'expected_check_in' => 'Entrada Esperada',
+            'check_in' => 'Entrada Real',
+            'late_minutes' => 'Tardanza (min)',
+            'extra_hours' => 'HE Total (h)',
+            'extra_diurnas' => 'HE Diurnas (h)',
+            'extra_nocturnas' => 'HE Nocturnas (h)',
+            'overtime_approved' => 'HE Aprobada',
+            'limit_exceeded' => 'Límite Excedido',
+            'extraordinary_work' => 'Trabajo Extraordinario',
+            'is_holiday' => 'Feriado',
+        ];
+    }
+
+    /** @return array<string> */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query base: días con horas extras o tardanza, con relaciones eager-loaded.
@@ -76,23 +109,7 @@ class OvertimeReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadi
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Fecha',
-            'Día',
-            'Entrada Esperada',
-            'Entrada Real',
-            'Tardanza (min)',
-            'HE Total (h)',
-            'HE Diurnas (h)',
-            'HE Nocturnas (h)',
-            'HE Aprobada',
-            'Límite Excedido',
-            'Trabajo Extraordinario',
-            'Feriado',
-        ];
+        return array_values(array_intersect_key(static::availableColumns(), array_flip($this->columns)));
     }
 
     /**
@@ -115,23 +132,25 @@ class OvertimeReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadi
             'Sunday' => 'Domingo',
         ];
 
-        return [
-            ($employee?->last_name.', '.$employee?->first_name) ?? '—',
-            $employee?->ci ?? '—',
-            $employee?->branch?->name ?? '—',
-            $day->date?->format('d/m/Y') ?? '',
-            $day->date ? ($dayNames[$day->date->format('l')] ?? $day->date->format('l')) : '',
-            $day->expected_check_in ? \Carbon\Carbon::parse($day->expected_check_in)->format('H:i') : '',
-            $day->check_in_time ? \Carbon\Carbon::parse($day->check_in_time)->format('H:i') : '',
-            (int) ($day->late_minutes ?? 0),
-            (float) ($day->extra_hours ?? 0),
-            (float) ($day->extra_hours_diurnas ?? 0),
-            (float) ($day->extra_hours_nocturnas ?? 0),
-            AttendanceDay::formatBoolean((bool) $day->overtime_approved),
-            AttendanceDay::formatBoolean((bool) $day->overtime_limit_exceeded),
-            AttendanceDay::formatBoolean((bool) $day->is_extraordinary_work),
-            AttendanceDay::formatBoolean((bool) $day->is_holiday),
+        $all = [
+            'employee_name' => ($employee?->last_name.', '.$employee?->first_name) ?? '—',
+            'ci' => $employee?->ci ?? '—',
+            'branch_name' => $employee?->branch?->name ?? '—',
+            'date' => $day->date?->format('d/m/Y') ?? '',
+            'day_name' => $day->date ? ($dayNames[$day->date->format('l')] ?? $day->date->format('l')) : '',
+            'expected_check_in' => $day->expected_check_in ? \Carbon\Carbon::parse($day->expected_check_in)->format('H:i') : '',
+            'check_in' => $day->check_in_time ? \Carbon\Carbon::parse($day->check_in_time)->format('H:i') : '',
+            'late_minutes' => (int) ($day->late_minutes ?? 0),
+            'extra_hours' => (float) ($day->extra_hours ?? 0),
+            'extra_diurnas' => (float) ($day->extra_hours_diurnas ?? 0),
+            'extra_nocturnas' => (float) ($day->extra_hours_nocturnas ?? 0),
+            'overtime_approved' => AttendanceDay::formatBoolean((bool) $day->overtime_approved),
+            'limit_exceeded' => AttendanceDay::formatBoolean((bool) $day->overtime_limit_exceeded),
+            'extraordinary_work' => AttendanceDay::formatBoolean((bool) $day->is_extraordinary_work),
+            'is_holiday' => AttendanceDay::formatBoolean((bool) $day->is_holiday),
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

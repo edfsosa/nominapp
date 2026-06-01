@@ -6,7 +6,7 @@
     <title>Reporte de Retiro de Mercaderías</title>
     <style>
         @page {
-            size: A4;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -319,30 +319,48 @@
     @else
 
         @php
+            $showCol  = array_flip($selectedColumns);
+            $colCount = count($selectedColumns);
+
+            $allLabels = $columnLabels;
+            $headers   = array_values(array_intersect_key($allLabels, $showCol));
+
+            $theadHtml = '<thead><tr>';
+            foreach ($headers as $label) {
+                $theadHtml .= '<th>' . e($label) . '</th>';
+            }
+            $theadHtml .= '</tr></thead>';
+
             /**
-             * Renderiza filas de tabla y cuotas anidadas para una colección de retiros.
+             * Renderiza filas y cuotas anidadas para una colección de retiros con columnas seleccionables.
              *
-             * @param \Illuminate\Support\Collection $rows
-             * @param \Illuminate\Support\Collection $installmentsByWithdrawal
+             * @param  \Illuminate\Support\Collection  $rows
+             * @param  \Illuminate\Support\Collection  $installmentsByWithdrawal
+             * @param  array<string, int>  $showCol  Claves de columnas activas
+             * @param  int  $colCount  Número de columnas seleccionadas (para colspan)
              */
-            function withdrawalRows($rows, $installmentsByWithdrawal) {
+            function withdrawalRows($rows, $installmentsByWithdrawal, $showCol, $colCount) {
                 $installmentLabels = ['pending' => 'Pendiente', 'paid' => 'Pagada', 'cancelled' => 'Cancelada'];
                 foreach ($rows as $w) {
                     echo '<tr>';
-                    echo '<td>' . e(strtoupper($w->last_name)) . ', ' . e($w->first_name) . '</td>';
-                    echo '<td>' . e($w->ci) . '</td>';
-                    echo '<td>' . e($w->branch_name) . '</td>';
-                    echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $w->total_amount, 0, ',', '.') . '</td>';
-                    echo '<td style="text-align:center;">' . $w->paid_installments_count . '/' . $w->installments_count . '</td>';
-                    echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $w->outstanding_balance, 0, ',', '.') . '</td>';
-                    echo '<td><span class="status-badge status-' . $w->status . '">' . \App\Models\MerchandiseWithdrawal::getStatusLabel($w->status) . '</span></td>';
-                    echo '<td>' . ($w->approved_at ? \Carbon\Carbon::parse($w->approved_at)->format('d/m/Y') : '—') . '</td>';
+                    if (isset($showCol['employee_name']))      echo '<td>' . e(strtoupper($w->last_name)) . ', ' . e($w->first_name) . '</td>';
+                    if (isset($showCol['ci']))                 echo '<td>' . e($w->ci) . '</td>';
+                    if (isset($showCol['company_name']))       echo '<td>' . e($w->company_name ?? '—') . '</td>';
+                    if (isset($showCol['branch_name']))        echo '<td>' . e($w->branch_name) . '</td>';
+                    if (isset($showCol['total_amount']))       echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $w->total_amount, 0, ',', '.') . '</td>';
+                    if (isset($showCol['installments_count'])) echo '<td style="text-align:center;">' . $w->paid_installments_count . '/' . $w->installments_count . '</td>';
+                    if (isset($showCol['installment_amount'])) echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $w->installment_amount, 0, ',', '.') . '</td>';
+                    if (isset($showCol['outstanding_balance'])) echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $w->outstanding_balance, 0, ',', '.') . '</td>';
+                    if (isset($showCol['status']))             echo '<td><span class="status-badge status-' . $w->status . '">' . \App\Models\MerchandiseWithdrawal::getStatusLabel($w->status) . '</span></td>';
+                    if (isset($showCol['approved_at']))        echo '<td>' . ($w->approved_at ? \Carbon\Carbon::parse($w->approved_at)->format('d/m/Y') : '—') . '</td>';
+                    if (isset($showCol['approved_by_name']))   echo '<td>' . e($w->approved_by_name ?? '—') . '</td>';
+                    if (isset($showCol['notes']))              echo '<td>' . e($w->notes ?? '—') . '</td>';
                     echo '</tr>';
 
-                    // Cuotas anidadas
+                    // Cuotas anidadas (siempre visibles)
                     $installments = $installmentsByWithdrawal[$w->id] ?? collect();
                     if ($installments->isNotEmpty()) {
-                        echo '<tr><td colspan="8" style="padding:0;">';
+                        echo '<tr><td colspan="' . $colCount . '" style="padding:0;">';
                         echo '<div class="installments-wrapper">';
                         echo '<div class="installments-label">Cuotas</div>';
                         echo '<table class="installments-table">';
@@ -366,20 +384,9 @@
         @if($groupMode === 'flat')
             <div class="section-title">Detalle</div>
             <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width:18%">Empleado</th>
-                        <th style="width:7%">CI</th>
-                        <th style="width:12%">Sucursal</th>
-                        <th style="width:11%" class="amount">Total (Gs.)</th>
-                        <th style="width:8%" style="text-align:center;">Cuotas</th>
-                        <th style="width:11%" class="amount">Saldo pend. (Gs.)</th>
-                        <th style="width:10%">Estado</th>
-                        <th style="width:9%">Aprobado el</th>
-                    </tr>
-                </thead>
+                {!! $theadHtml !!}
                 <tbody>
-                    @php withdrawalRows($withdrawals, $installmentsByWithdrawal) @endphp
+                    @php withdrawalRows($withdrawals, $installmentsByWithdrawal, $showCol, $colCount) @endphp
                 </tbody>
             </table>
 
@@ -387,20 +394,9 @@
             @foreach($groups as $companyGroupName => $rows)
                 <div class="section-header">{{ $companyGroupName ?: 'Sin empresa' }}</div>
                 <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th style="width:18%">Empleado</th>
-                            <th style="width:7%">CI</th>
-                            <th style="width:12%">Sucursal</th>
-                            <th style="width:11%" class="amount">Total (Gs.)</th>
-                            <th style="width:8%" style="text-align:center;">Cuotas</th>
-                            <th style="width:11%" class="amount">Saldo pend. (Gs.)</th>
-                            <th style="width:10%">Estado</th>
-                            <th style="width:9%">Aprobado el</th>
-                        </tr>
-                    </thead>
+                    {!! $theadHtml !!}
                     <tbody>
-                        @php withdrawalRows($rows, $installmentsByWithdrawal) @endphp
+                        @php withdrawalRows($rows, $installmentsByWithdrawal, $showCol, $colCount) @endphp
                     </tbody>
                 </table>
                 <div class="subtotal-row">

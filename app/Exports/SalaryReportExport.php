@@ -17,15 +17,21 @@ use PhpOffice\PhpSpreadsheet\Style\Fill;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
 /**
- * Exporta el reporte de salarios a Excel.
+ * Exporta el reporte de salarios a Excel con columnas seleccionables.
  *
- * Cada fila representa un recibo de nómina con desglose de deducciones por tipo.
- * Incluye fila de totales al final y nombre de hoja descriptivo.
+ * Incluye fila de totales al final para las columnas monetarias seleccionadas.
+ * Las posiciones de columna Excel se calculan dinámicamente según la selección.
  */
 class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithHeadings, WithMapping, WithStyles, WithTitle
 {
     /** @var array<string, float> Totales pre-calculados para la fila de cierre. */
     protected array $totals;
+
+    /** @var array<string, string> Mapa de campo => letra de columna Excel (A, B, C...) */
+    protected array $fieldToExcelCol;
+
+    /** @var int Número de columnas seleccionadas (determina el rango del estilo de totales). */
+    protected int $colCount;
 
     /**
      * @param  int|null  $periodId  Filtrar por planilla (null = todas).
@@ -33,6 +39,7 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
      * @param  int|null  $branchId  Filtrar por sucursal (null = todas).
      * @param  string|null  $status  Filtrar por estado (null = todos).
      * @param  string|null  $paymentMethod  Filtrar por método de pago (null = todos).
+     * @param  array<string>  $columns  Claves de columnas a incluir (ver availableColumns()).
      */
     public function __construct(
         protected ?int $periodId = null,
@@ -40,13 +47,54 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
         protected ?int $branchId = null,
         protected ?string $status = null,
         protected ?string $paymentMethod = null,
+        protected array $columns = [],
     ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+
+        $this->buildColMap();
         $this->totals = $this->computeTotals();
     }
 
     public function title(): string
     {
         return 'Reporte de Salarios';
+    }
+
+    /**
+     * Todas las columnas disponibles para el export: clave => label.
+     *
+     * @return array<string, string>
+     */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'position_name' => 'Cargo',
+            'base_salary' => 'Salario Base (Gs.)',
+            'total_perceptions' => '+Percepciones (Gs.)',
+            'ips_amount' => 'IPS (Gs.)',
+            'loan_amount' => 'Desc. por Deuda (Gs.)',
+            'judicial_amount' => 'Judiciales (Gs.)',
+            'voluntary_amount' => 'Voluntarias (Gs.)',
+            'total_deductions' => '-Deducciones Total (Gs.)',
+            'net_salary' => 'Neto a Pagar (Gs.)',
+            'payment_method' => 'Método de Pago',
+            'status' => 'Estado',
+        ];
+    }
+
+    /**
+     * Columnas seleccionadas por defecto (todas).
+     *
+     * @return array<string>
+     */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
     }
 
     /**
@@ -87,50 +135,43 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
     }
 
     /**
+     * Encabezados filtrados según las columnas seleccionadas.
+     *
      * @return array<int, string>
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Cargo',
-            'Salario Base (Gs.)',
-            '+Percepciones (Gs.)',
-            'IPS (Gs.)',
-            'Desc. por Deuda (Gs.)',
-            'Judiciales (Gs.)',
-            'Voluntarias (Gs.)',
-            '-Deducciones Total (Gs.)',
-            'Neto a Pagar (Gs.)',
-            'Método de Pago',
-            'Estado',
-        ];
+        $all = static::availableColumns();
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
+     * Mapea cada registro a una fila del Excel con solo las columnas seleccionadas.
+     *
      * @param  mixed  $row
      * @return array<int, mixed>
      */
     public function map($row): array
     {
-        return [
-            $row->last_name.', '.$row->first_name,
-            $row->ci,
-            $row->branch_name,
-            $row->position_name ?? '',
-            (float) $row->base_salary,
-            (float) $row->total_perceptions,
-            (float) $row->ips_amount,
-            (float) $row->loan_amount,
-            (float) $row->judicial_amount,
-            (float) $row->voluntary_amount,
-            (float) $row->total_deductions,
-            (float) $row->net_salary,
-            Payroll::getPaymentMethodLabels()[$row->payment_method] ?? ($row->payment_method ?? ''),
-            Payroll::getStatusLabels()[$row->status] ?? $row->status,
+        $all = [
+            'employee_name' => $row->last_name.', '.$row->first_name,
+            'ci' => $row->ci,
+            'branch_name' => $row->branch_name,
+            'position_name' => $row->position_name ?? '',
+            'base_salary' => (float) $row->base_salary,
+            'total_perceptions' => (float) $row->total_perceptions,
+            'ips_amount' => (float) $row->ips_amount,
+            'loan_amount' => (float) $row->loan_amount,
+            'judicial_amount' => (float) $row->judicial_amount,
+            'voluntary_amount' => (float) $row->voluntary_amount,
+            'total_deductions' => (float) $row->total_deductions,
+            'net_salary' => (float) $row->net_salary,
+            'payment_method' => Payroll::getPaymentMethodLabels()[$row->payment_method] ?? ($row->payment_method ?? ''),
+            'status' => Payroll::getStatusLabels()[$row->status] ?? $row->status,
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
@@ -144,7 +185,7 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
     }
 
     /**
-     * Agrega la fila de totales al final del sheet con estilos diferenciados.
+     * Agrega la fila de totales al final del sheet en las columnas monetarias seleccionadas.
      *
      * @return array<class-string, callable>
      */
@@ -155,20 +196,37 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
                 $sheet = $event->sheet->getDelegate();
                 $row = $sheet->getHighestRow() + 1;
 
-                $sheet->setCellValue('A'.$row, 'TOTALES');
-                $sheet->setCellValue('E'.$row, (float) $this->totals['total_base']);
-                $sheet->setCellValue('F'.$row, (float) $this->totals['total_perceptions']);
-                $sheet->setCellValue('G'.$row, (float) $this->totals['total_ips']);
-                $sheet->setCellValue('H'.$row, (float) $this->totals['total_loans']);
-                $sheet->setCellValue('I'.$row, (float) $this->totals['total_judicial']);
-                $sheet->setCellValue('J'.$row, (float) $this->totals['total_voluntary']);
-                $sheet->setCellValue('K'.$row, (float) $this->totals['total_deductions']);
-                $sheet->setCellValue('L'.$row, (float) $this->totals['total_net']);
+                $monetaryFieldToTotal = [
+                    'base_salary' => 'total_base',
+                    'total_perceptions' => 'total_perceptions',
+                    'ips_amount' => 'total_ips',
+                    'loan_amount' => 'total_loans',
+                    'judicial_amount' => 'total_judicial',
+                    'voluntary_amount' => 'total_voluntary',
+                    'total_deductions' => 'total_deductions',
+                    'net_salary' => 'total_net',
+                ];
 
-                $sheet->getStyle('A'.$row.':N'.$row)->applyFromArray([
+                if (isset($this->fieldToExcelCol['employee_name'])) {
+                    $sheet->setCellValue($this->fieldToExcelCol['employee_name'].$row, 'TOTALES');
+                }
+
+                foreach ($monetaryFieldToTotal as $field => $totalKey) {
+                    if (isset($this->fieldToExcelCol[$field])) {
+                        $sheet->setCellValue(
+                            $this->fieldToExcelCol[$field].$row,
+                            (float) $this->totals[$totalKey]
+                        );
+                    }
+                }
+
+                $lastColLetter = $this->indexToColLetter($this->colCount - 1);
+                $firstColLetter = 'A';
+
+                $sheet->getStyle($firstColLetter.$row.':'.$lastColLetter.$row)->applyFromArray([
                     'font' => ['bold' => true],
                     'fill' => [
-                        'fillType'   => Fill::FILL_SOLID,
+                        'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['rgb' => 'F0F0F0'],
                     ],
                     'borders' => [
@@ -177,6 +235,37 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
                 ]);
             },
         ];
+    }
+
+    /**
+     * Convierte un índice 0-based a letra de columna Excel (0=A, 25=Z, 26=AA, ...).
+     */
+    private function indexToColLetter(int $index): string
+    {
+        $letter = '';
+        while ($index >= 0) {
+            $letter = chr(65 + ($index % 26)).$letter;
+            $index = intdiv($index, 26) - 1;
+        }
+
+        return $letter;
+    }
+
+    /**
+     * Construye el mapa de campo => letra de columna Excel según las columnas seleccionadas.
+     *
+     * Preserva el orden de availableColumns() para que los headers y el map coincidan.
+     */
+    private function buildColMap(): void
+    {
+        $allCols = array_keys(static::availableColumns());
+        $selectedOrdered = array_values(array_filter($allCols, fn ($k) => in_array($k, $this->columns)));
+
+        $this->colCount = count($selectedOrdered);
+        $this->fieldToExcelCol = [];
+        foreach ($selectedOrdered as $idx => $field) {
+            $this->fieldToExcelCol[$field] = $this->indexToColLetter($idx);
+        }
     }
 
     /**
@@ -212,14 +301,14 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
             ->pluck('total', 'deduction_type');
 
         return [
-            'total_base'        => (float) $base->total_base,
+            'total_base' => (float) $base->total_base,
             'total_perceptions' => (float) $base->total_perceptions,
-            'total_ips'         => (float) ($items['legal'] ?? 0),
-            'total_loans'       => (float) ($items['loan'] ?? 0),
-            'total_judicial'    => (float) ($items['judicial'] ?? 0),
-            'total_voluntary'   => (float) ($items['voluntary'] ?? 0),
-            'total_deductions'  => (float) $base->total_deductions,
-            'total_net'         => (float) $base->total_net,
+            'total_ips' => (float) ($items['legal'] ?? 0),
+            'total_loans' => (float) ($items['loan'] ?? 0),
+            'total_judicial' => (float) ($items['judicial'] ?? 0),
+            'total_voluntary' => (float) ($items['voluntary'] ?? 0),
+            'total_deductions' => (float) $base->total_deductions,
+            'total_net' => (float) $base->total_net,
         ];
     }
 }

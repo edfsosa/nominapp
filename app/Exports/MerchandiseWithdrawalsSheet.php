@@ -15,7 +15,8 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 /**
  * Hoja "Retiros" del reporte de mercaderías.
  *
- * Un renglón por MerchandiseWithdrawal con sus totales y estado.
+ * Un renglón por MerchandiseWithdrawal. Soporta selección de columnas
+ * mediante availableColumns() / defaultColumns().
  */
 class MerchandiseWithdrawalsSheet implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles, WithTitle
 {
@@ -26,6 +27,7 @@ class MerchandiseWithdrawalsSheet implements FromQuery, ShouldAutoSize, WithHead
      * @param  int|null  $branchId  Filtrar por sucursal.
      * @param  string|null  $status  Filtrar por estado.
      * @param  int|null  $employeeId  Filtrar por empleado.
+     * @param  array<string>  $columns  Claves de columnas a incluir (ver availableColumns()).
      */
     public function __construct(
         protected ?string $from = null,
@@ -34,11 +36,53 @@ class MerchandiseWithdrawalsSheet implements FromQuery, ShouldAutoSize, WithHead
         protected ?int $branchId = null,
         protected ?string $status = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
 
     public function title(): string
     {
         return 'Retiros';
+    }
+
+    /**
+     * Todas las columnas disponibles para la hoja "Retiros": clave => label.
+     *
+     * @return array<string, string>
+     */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'company_name' => 'Empresa',
+            'total_amount' => 'Total (Gs.)',
+            'installments_count' => 'Cant. Cuotas',
+            'installment_amount' => 'Monto cuota (Gs.)',
+            'outstanding_balance' => 'Saldo pendiente (Gs.)',
+            'status' => 'Estado',
+            'approved_at' => 'Aprobado el',
+            'approved_by_name' => 'Aprobado por',
+            'notes' => 'Notas',
+        ];
+    }
+
+    /**
+     * Columnas seleccionadas por defecto (todas excepto Empresa).
+     *
+     * @return array<string>
+     */
+    public static function defaultColumns(): array
+    {
+        return [
+            'employee_name', 'ci', 'branch_name',
+            'total_amount', 'installments_count', 'installment_amount',
+            'outstanding_balance', 'status', 'approved_at', 'approved_by_name', 'notes',
+        ];
     }
 
     /**
@@ -72,50 +116,41 @@ class MerchandiseWithdrawalsSheet implements FromQuery, ShouldAutoSize, WithHead
     }
 
     /**
-     * Encabezados de columna.
+     * Encabezados filtrados según las columnas seleccionadas.
      *
      * @return array<int, string>
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Empresa',
-            'Total (Gs.)',
-            'Cant. Cuotas',
-            'Monto cuota (Gs.)',
-            'Saldo pendiente (Gs.)',
-            'Estado',
-            'Aprobado el',
-            'Aprobado por',
-            'Notas',
-        ];
+        $all = static::availableColumns();
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
-     * Mapea cada registro a una fila del Excel.
+     * Mapea cada registro a una fila del Excel con solo las columnas seleccionadas.
      *
      * @param  mixed  $row
      * @return array<int, mixed>
      */
     public function map($row): array
     {
-        return [
-            $row->last_name.', '.$row->first_name,
-            $row->ci,
-            $row->branch_name,
-            $row->company_name,
-            (float) $row->total_amount,
-            $row->installments_count,
-            (float) $row->installment_amount,
-            (float) $row->outstanding_balance,
-            MerchandiseWithdrawal::getStatusLabel($row->status),
-            $row->approved_at?->format('d/m/Y') ?? '',
-            $row->approved_by_name ?? '',
-            $row->notes ?? '',
+        $all = [
+            'employee_name' => $row->last_name.', '.$row->first_name,
+            'ci' => $row->ci,
+            'branch_name' => $row->branch_name,
+            'company_name' => $row->company_name,
+            'total_amount' => (float) $row->total_amount,
+            'installments_count' => $row->installments_count,
+            'installment_amount' => (float) $row->installment_amount,
+            'outstanding_balance' => (float) $row->outstanding_balance,
+            'status' => MerchandiseWithdrawal::getStatusLabel($row->status),
+            'approved_at' => $row->approved_at?->format('d/m/Y') ?? '',
+            'approved_by_name' => $row->approved_by_name ?? '',
+            'notes' => $row->notes ?? '',
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

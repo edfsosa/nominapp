@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\VacationReportExport;
 use App\Models\Company;
 use App\Models\Vacation;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -36,6 +37,17 @@ class VacationReportController extends Controller
         $companyId = $request->query('companyId') ? (int) $request->query('companyId') : null;
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
         $status = $request->query('status') ?: 'approved';
+
+        $columnsParam = $request->query('columns');
+        $selectedColumns = $columnsParam
+            ? explode(',', $columnsParam)
+            : VacationReportExport::defaultColumns();
+
+        $orientation = in_array($request->query('orientation'), ['portrait', 'landscape'])
+            ? $request->query('orientation')
+            : 'portrait';
+
+        $columnLabels = VacationReportExport::availableColumns();
 
         $vacations = Vacation::query()
             ->select([
@@ -124,8 +136,9 @@ class VacationReportController extends Controller
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'employerNumber', 'city',
-            'totalBusinessDays', 'totalEmployees', 'totalPaymentAmount'
-        ))->setPaper('a4', 'portrait');
+            'totalBusinessDays', 'totalEmployees', 'totalPaymentAmount',
+            'selectedColumns', 'columnLabels', 'orientation'
+        ))->setPaper('a4', $orientation);
 
         $monthSuffix = $month ? '-'.str_pad((string) $month, 2, '0', STR_PAD_LEFT) : '';
 

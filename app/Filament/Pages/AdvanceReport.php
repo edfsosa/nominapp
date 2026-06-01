@@ -8,7 +8,11 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -69,21 +73,52 @@ class AdvanceReport extends Page implements HasTable
     }
 
     /**
-     * Acciones de exportación (PDF y Excel) con los filtros activos.
+     * Acciones de exportación (PDF y Excel) con selector de columnas.
      *
      * @return array<int, Action>
      */
     protected function getHeaderActions(): array
     {
+        $columnOptions = AdvanceReportExport::availableColumns();
+        $columnDefaults = AdvanceReportExport::defaultColumns();
+        $orientationThreshold = 7;
+
+        if (Company::active()->count() <= 1) {
+            unset($columnOptions['company_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
+        }
+
         return [
             Action::make('export_pdf')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-text')
                 ->color('info')
-                ->url(function () {
+                ->modalHeading('Exportar reporte en PDF')
+                ->modalSubmitActionLabel('Generar PDF')
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function (Get $get, Set $set) use ($orientationThreshold) {
+                            $count = count($get('columns') ?? []);
+                            $set('orientation', $count <= $orientationThreshold ? 'portrait' : 'landscape');
+                        }),
+                    Radio::make('orientation')
+                        ->label('Orientación de la página')
+                        ->helperText('Se ajusta automáticamente: Vertical para ≤ '.$orientationThreshold.' columnas, Horizontal para más.')
+                        ->options(['portrait' => 'Vertical', 'landscape' => 'Horizontal'])
+                        ->default(count($columnDefaults) > $orientationThreshold ? 'landscape' : 'portrait')
+                        ->inline()
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod] = $this->resolveActiveFilters();
 
-                    return route('advances.report.pdf', array_filter([
+                    $params = array_filter([
                         'from' => $from,
                         'to' => $to,
                         'companyId' => $companyId,
@@ -91,19 +126,30 @@ class AdvanceReport extends Page implements HasTable
                         'status' => $status,
                         'employeeId' => $employeeId,
                         'paymentMethod' => $paymentMethod,
-                    ], fn ($v) => $v !== null));
-                })
-                ->openUrlInNewTab(),
+                        'columns' => implode(',', $data['columns']),
+                        'orientation' => $data['orientation'] ?? 'landscape',
+                    ], fn ($v) => $v !== null);
+
+                    $url = route('advances.report.pdf', $params);
+                    $this->js("window.open('".addslashes($url)."', '_blank')");
+                }),
 
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar reporte de adelantos')
-                ->modalDescription('Se exportará una fila por adelanto con los filtros seleccionados.')
+                ->modalDescription('Seleccione las columnas a incluir en el archivo Excel.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod] = $this->resolveActiveFilters();
 
                     Notification::make()
@@ -113,7 +159,7 @@ class AdvanceReport extends Page implements HasTable
                         ->send();
 
                     return Excel::download(
-                        new AdvanceReportExport($from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod),
+                        new AdvanceReportExport($from, $to, $companyId, $branchId, $status, $employeeId, $paymentMethod, $data['columns']),
                         'adelantos_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),

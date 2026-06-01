@@ -34,7 +34,46 @@ class OvertimeReportSummaryExport implements FromQuery, ShouldAutoSize, WithHead
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /**
+     * Todas las columnas disponibles: clave => label.
+     *
+     * @return array<string, string>
+     */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'department_name' => 'Departamento',
+            'position_name' => 'Cargo',
+            'total_extra_hours' => 'HE Total (h)',
+            'total_extra_diurnas' => 'HE Diurnas (h)',
+            'total_extra_nocturnas' => 'HE Nocturnas (h)',
+            'days_with_extras' => 'Días con HE',
+            'days_approved' => 'Días HE Aprobados',
+            'total_late_minutes' => 'Tardanza Total (min)',
+            'days_late' => 'Días con Tardanza',
+            'avg_late_minutes' => 'Tardanza Promedio (min)',
+        ];
+    }
+
+    /**
+     * Columnas seleccionadas por defecto (todas).
+     *
+     * @return array<string>
+     */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query base con métricas de horas extras y tardanzas agregadas por empleado.
@@ -90,21 +129,9 @@ class OvertimeReportSummaryExport implements FromQuery, ShouldAutoSize, WithHead
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Departamento',
-            'Cargo',
-            'HE Total (h)',
-            'HE Diurnas (h)',
-            'HE Nocturnas (h)',
-            'Días con HE',
-            'Días HE Aprobados',
-            'Tardanza Total (min)',
-            'Días con Tardanza',
-            'Tardanza Promedio (min)',
-        ];
+        $all = static::availableColumns();
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
@@ -115,21 +142,23 @@ class OvertimeReportSummaryExport implements FromQuery, ShouldAutoSize, WithHead
      */
     public function map($employee): array
     {
-        return [
-            $employee->last_name.', '.$employee->first_name,
-            $employee->ci,
-            $employee->branch_name ?? '—',
-            $employee->department_name ?? '—',
-            $employee->position_name ?? '—',
-            (float) $employee->total_extra_hours,
-            (float) $employee->total_extra_diurnas,
-            (float) $employee->total_extra_nocturnas,
-            (int) $employee->days_with_extras,
-            (int) $employee->days_approved,
-            (int) $employee->total_late_minutes,
-            (int) $employee->days_late,
-            (int) $employee->avg_late_minutes,
+        $all = [
+            'employee_name' => $employee->last_name.', '.$employee->first_name,
+            'ci' => $employee->ci,
+            'branch_name' => $employee->branch_name ?? '—',
+            'department_name' => $employee->department_name ?? '—',
+            'position_name' => $employee->position_name ?? '—',
+            'total_extra_hours' => (float) $employee->total_extra_hours,
+            'total_extra_diurnas' => (float) $employee->total_extra_diurnas,
+            'total_extra_nocturnas' => (float) $employee->total_extra_nocturnas,
+            'days_with_extras' => (int) $employee->days_with_extras,
+            'days_approved' => (int) $employee->days_approved,
+            'total_late_minutes' => (int) $employee->total_late_minutes,
+            'days_late' => (int) $employee->days_late,
+            'avg_late_minutes' => (int) $employee->avg_late_minutes,
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

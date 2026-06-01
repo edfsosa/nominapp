@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\AdvanceReportExport;
 use App\Models\Advance;
 use App\Models\Company;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -28,6 +29,17 @@ class AdvanceReportController extends Controller
         $status = $request->query('status') ?: null;
         $employeeId = $request->query('employeeId') ? (int) $request->query('employeeId') : null;
         $paymentMethod = $request->query('paymentMethod') ?: null;
+
+        $columnsParam = $request->query('columns');
+        $selectedColumns = $columnsParam
+            ? explode(',', $columnsParam)
+            : AdvanceReportExport::defaultColumns();
+
+        $orientation = in_array($request->query('orientation'), ['portrait', 'landscape'])
+            ? $request->query('orientation')
+            : 'landscape';
+
+        $columnLabels = AdvanceReportExport::availableColumns();
 
         $advances = Advance::query()
             ->select([
@@ -105,7 +117,8 @@ class AdvanceReportController extends Controller
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'city',
-        ))->setPaper('a4', 'portrait');
+            'selectedColumns', 'columnLabels', 'orientation'
+        ))->setPaper('a4', $orientation);
 
         $filename = 'reporte-adelantos-'.str_replace('-', '', $from).'_'.str_replace('-', '', $to).'.pdf';
 

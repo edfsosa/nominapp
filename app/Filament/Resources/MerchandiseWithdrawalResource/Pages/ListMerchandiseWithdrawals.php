@@ -38,23 +38,23 @@ class ListMerchandiseWithdrawals extends ListRecords
             'pending' => Tab::make('Pendientes')
                 ->badge($counts['pending'] ?: null)
                 ->badgeColor('warning')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'pending')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending')),
             'approved' => Tab::make('Aprobados')
                 ->badge($counts['approved'] ?: null)
                 ->badgeColor('info')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'approved')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved')),
             'paid' => Tab::make('Pagados')
                 ->badge($counts['paid'] ?: null)
                 ->badgeColor('success')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'paid')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid')),
             'cancelled' => Tab::make('Cancelados')
                 ->badge($counts['cancelled'] ?: null)
                 ->badgeColor('gray')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'cancelled')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'cancelled')),
             'rejected' => Tab::make('Rechazados')
                 ->badge($counts['rejected'] ?: null)
                 ->badgeColor('danger')
-                ->modifyQueryUsing(fn (Builder $q) => $q->where('status', 'rejected')),
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'rejected')),
         ];
     }
 

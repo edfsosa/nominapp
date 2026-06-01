@@ -5,6 +5,8 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\MerchandiseWithdrawalResource\Pages;
 use App\Filament\Resources\MerchandiseWithdrawalResource\RelationManagers\InstallmentsRelationManager;
 use App\Filament\Resources\MerchandiseWithdrawalResource\RelationManagers\ItemsRelationManager;
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\MerchandiseWithdrawal;
 use App\Settings\PayrollSettings;
 use Filament\Forms\Components\Section;
@@ -220,7 +222,7 @@ class MerchandiseWithdrawalResource extends Resource
     {
         return $table
             ->modifyQueryUsing(
-                fn (Builder $query) => $query->with(['employee', 'approvedBy'])
+                fn (Builder $query) => $query->with(['employee.branch.company', 'approvedBy'])
             )
             ->columns([
                 ImageColumn::make('employee.photo')
@@ -234,7 +236,7 @@ class MerchandiseWithdrawalResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
@@ -249,6 +251,14 @@ class MerchandiseWithdrawalResource extends Resource
                     ->copyable()
                     ->tooltip('Haz clic para copiar')
                     ->copyMessage('CI copiada al portapapeles'),
+
+                TextColumn::make('employee.branch.name')
+                    ->label('Sucursal')
+                    ->icon('heroicon-o-building-storefront')
+                    ->badge()
+                    ->color('info')
+                    ->sortable()
+                    ->toggleable(),
 
                 TextColumn::make('total_amount')
                     ->label('Monto Total')
@@ -294,6 +304,27 @@ class MerchandiseWithdrawalResource extends Resource
                     ->options(MerchandiseWithdrawal::getStatusOptions())
                     ->multiple()
                     ->native(false),
+
+                SelectFilter::make('branch_id')
+                    ->label('Sucursal')
+                    ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->native(false)
+                    ->query(fn (Builder $query, array $data) => $data['value']
+                        ? $query->whereHas('employee', fn ($q) => $q->where('branch_id', $data['value']))
+                        : $query
+                    ),
+
+                SelectFilter::make('company_id')
+                    ->label('Empresa')
+                    ->options(fn () => Company::active()->orderBy('name')->pluck('name', 'id'))
+                    ->searchable()
+                    ->native(false)
+                    ->visible(fn () => Company::active()->count() > 1)
+                    ->query(fn (Builder $query, array $data) => $data['value']
+                        ? $query->whereHas('employee.branch', fn ($q) => $q->where('company_id', $data['value']))
+                        : $query
+                    ),
 
                 SelectFilter::make('employee_id')
                     ->label('Empleado')

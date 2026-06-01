@@ -6,7 +6,7 @@
     <title>{{ $tab === 'prueba' ? 'Períodos de Prueba' : 'Contratos por Vencer' }}</title>
     <style>
         @page {
-            size: A4;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -226,59 +226,82 @@
         &nbsp;·&nbsp; Generado el {{ now()->format('d/m/Y') }}
     </div>
 
-    {{-- Macro: filas de tabla --}}
     @php
+        $showCol = array_flip($selectedColumns);
+
         /**
-         * Renderiza las filas de la tabla para un conjunto de contratos.
-         * Se usa en todos los modos de agrupación.
+         * Renderiza las filas de la tabla con columnas seleccionables y por tab.
+         *
+         * @param  iterable  $rows
+         * @param  array<string, int>  $showCol
+         * @param  string  $tab  'contratos' | 'prueba'
          */
-        function contractRows(iterable $rows, string $tab): void {
+        function contractRows(iterable $rows, array $showCol, string $tab): void {
             $i = 0;
             foreach ($rows as $c) {
                 $even = $i % 2 === 1 ? 'row-even' : '';
                 echo '<tr class="' . $even . '">';
-                echo '<td class="text-left">' . strtoupper(e($c->last_name)) . ', ' . e($c->first_name) . '</td>';
-                echo '<td>' . e($c->ci) . '</td>';
-                echo '<td>' . e($c->branch_name) . '</td>';
-                echo '<td>' . e($c->position_name ?? '—') . '</td>';
-                echo '<td>' . \Carbon\Carbon::parse($c->start_date)->format('d/m/Y') . '</td>';
+                if (isset($showCol['employee_name'])) echo '<td class="text-left">' . strtoupper(e($c->last_name)) . ', ' . e($c->first_name) . '</td>';
+                if (isset($showCol['ci']))             echo '<td>' . e($c->ci) . '</td>';
+                if (isset($showCol['company_name']))   echo '<td>' . e($c->company_name ?? '—') . '</td>';
+                if (isset($showCol['branch_name']))    echo '<td>' . e($c->branch_name) . '</td>';
+                if (isset($showCol['position_name'])) echo '<td>' . e($c->position_name ?? '—') . '</td>';
+                if (isset($showCol['contract_type'])) echo '<td>' . e(\App\Models\Contract::getTypeLabel($c->type)) . '</td>';
+                if (isset($showCol['start_date']))     echo '<td>' . \Carbon\Carbon::parse($c->start_date)->format('d/m/Y') . '</td>';
 
                 if ($tab === 'prueba') {
-                    $trialEnd = $c->trial_end_date
-                        ? \Carbon\Carbon::parse($c->trial_end_date)->format('d/m/Y')
-                        : '—';
-                    echo '<td>' . e($c->trial_days) . ' días</td>';
-                    echo '<td>' . $trialEnd . '</td>';
-                    $rem = (int) $c->days_until_trial_end;
+                    if (isset($showCol['trial_days'])) echo '<td>' . e($c->trial_days) . ' días</td>';
+                    if (isset($showCol['trial_end_date'])) {
+                        $trialEnd = $c->trial_end_date ? \Carbon\Carbon::parse($c->trial_end_date)->format('d/m/Y') : '—';
+                        echo '<td>' . $trialEnd . '</td>';
+                    }
+                    if (isset($showCol['days_remaining'])) {
+                        $rem = (int) $c->days_until_trial_end;
+                        $cls = $rem <= 15 ? 'badge-danger' : ($rem <= 30 ? 'badge-warning' : 'badge-ok');
+                        echo '<td class="' . $cls . '">' . $rem . ' días</td>';
+                    }
                 } else {
-                    echo '<td>' . \Carbon\Carbon::parse($c->end_date)->format('d/m/Y') . '</td>';
-                    $rem = (int) $c->days_until_expiry;
+                    if (isset($showCol['end_date']))      echo '<td>' . \Carbon\Carbon::parse($c->end_date)->format('d/m/Y') . '</td>';
+                    if (isset($showCol['days_remaining'])) {
+                        $rem = (int) $c->days_until_expiry;
+                        $cls = $rem <= 15 ? 'badge-danger' : ($rem <= 30 ? 'badge-warning' : 'badge-ok');
+                        echo '<td class="' . $cls . '">' . $rem . ' días</td>';
+                    }
                 }
-
-                $cls = $rem <= 15 ? 'badge-danger' : ($rem <= 30 ? 'badge-warning' : 'badge-ok');
-                echo '<td class="' . $cls . '">' . $rem . ' días</td>';
                 echo '</tr>';
                 $i++;
             }
         }
-    @endphp
 
-    {{-- Thead reutilizable --}}
-    @php
-        function contractThead(string $tab): void {
+        /**
+         * Genera el thead dinámico según columnas seleccionadas y tab activo.
+         *
+         * @param  array<string, int>  $showCol
+         * @param  string  $tab  'contratos' | 'prueba'
+         */
+        function contractThead(array $showCol, string $tab): void {
+            $allLabels = [
+                'employee_name'  => 'Empleado',
+                'ci'             => 'CI',
+                'company_name'   => 'Empresa',
+                'branch_name'    => 'Sucursal',
+                'position_name'  => 'Cargo',
+                'contract_type'  => 'Tipo Contrato',
+                'start_date'     => 'Inicio',
+                'end_date'       => 'Vencimiento',
+                'trial_days'     => 'Días Prueba',
+                'trial_end_date' => 'Fin Prueba',
+                'days_remaining' => 'Días Rest.',
+            ];
             echo '<thead><tr>';
-            echo '<th class="text-left" style="width:24%">Empleado</th>';
-            echo '<th style="width:8%">CI</th>';
-            echo '<th style="width:14%">Sucursal</th>';
-            echo '<th style="width:13%">Cargo</th>';
-            echo '<th style="width:9%">Inicio</th>';
-            if ($tab === 'prueba') {
-                echo '<th style="width:8%">Días Prueba</th>';
-                echo '<th style="width:10%">Fin Prueba</th>';
-            } else {
-                echo '<th style="width:10%">Vencimiento</th>';
+            foreach ($allLabels as $key => $label) {
+                if (!isset($showCol[$key])) continue;
+                if ($key === 'end_date'      && $tab === 'prueba')    continue;
+                if ($key === 'trial_days'    && $tab !== 'prueba')    continue;
+                if ($key === 'trial_end_date' && $tab !== 'prueba')   continue;
+                $align = $key === 'employee_name' ? ' class="text-left"' : '';
+                echo '<th' . $align . '>' . e($label) . '</th>';
             }
-            echo '<th style="width:8%">Días Rest.</th>';
             echo '</tr></thead>';
         }
     @endphp
@@ -292,9 +315,9 @@
         ────────────────────────────────────────── --}}
         @if ($groupMode === 'flat')
             <table>
-                @php contractThead($tab) @endphp
+                @php contractThead($showCol, $tab) @endphp
                 <tbody>
-                    @php contractRows($contracts, $tab) @endphp
+                    @php contractRows($contracts, $showCol, $tab) @endphp
                 </tbody>
             </table>
 
@@ -306,9 +329,9 @@
             @foreach ($groups as $branchName => $rows)
                 <div class="section-header">{{ $branchName ?: 'Sin sucursal' }}</div>
                 <table>
-                    @php contractThead($tab) @endphp
+                    @php contractThead($showCol, $tab) @endphp
                     <tbody>
-                        @php contractRows($rows, $tab) @endphp
+                        @php contractRows($rows, $showCol, $tab) @endphp
                     </tbody>
                 </table>
                 <div class="subtotal-row">
@@ -332,9 +355,9 @@
                 @foreach ($branchGroups as $branchName => $rows)
                     <div class="subsection-header">{{ $branchName ?: 'Sin sucursal' }}</div>
                     <table>
-                        @php contractThead($tab) @endphp
+                        @php contractThead($showCol, $tab) @endphp
                         <tbody>
-                            @php contractRows($rows, $tab) @endphp
+                            @php contractRows($rows, $showCol, $tab) @endphp
                         </tbody>
                     </table>
                     <div class="subtotal-row">

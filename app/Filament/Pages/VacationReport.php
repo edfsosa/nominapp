@@ -7,6 +7,10 @@ use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Vacation;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -63,46 +67,93 @@ class VacationReport extends Page implements HasTable
     }
 
     /**
-     * Acción de exportación a Excel con los filtros activos.
+     * Acciones de exportación (PDF y Excel) con selector de columnas.
      *
      * @return array<int, Action>
      */
     protected function getHeaderActions(): array
     {
+        $columnOptions = VacationReportExport::availableColumns();
+        $columnDefaults = VacationReportExport::defaultColumns();
+        $orientationThreshold = 6;
+
+        if (Company::active()->count() <= 1) {
+            unset($columnOptions['company_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
+        }
+
         return [
             Action::make('export_pdf')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-text')
                 ->color('info')
-                ->url(function () {
+                ->modalHeading('Exportar reporte en PDF')
+                ->modalSubmitActionLabel('Generar PDF')
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function (Get $get, Set $set) use ($orientationThreshold) {
+                            $count = count($get('columns') ?? []);
+                            $set('orientation', $count <= $orientationThreshold ? 'portrait' : 'landscape');
+                        }),
+                    Radio::make('orientation')
+                        ->label('Orientación de la página')
+                        ->helperText('Se ajusta automáticamente: Vertical para ≤ '.$orientationThreshold.' columnas, Horizontal para más.')
+                        ->options(['portrait' => 'Vertical', 'landscape' => 'Horizontal'])
+                        ->default(count($columnDefaults) > $orientationThreshold ? 'landscape' : 'portrait')
+                        ->inline()
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$year, $month, $companyId, $branchId, $status] = $this->resolveActiveFilters();
 
-                    return route('vacation.report.pdf', array_filter([
+                    $params = array_filter([
                         'year' => $year,
                         'month' => $month,
                         'companyId' => $companyId,
                         'branchId' => $branchId,
                         'status' => $status,
-                    ], fn ($v) => $v !== null));
-                })
-                ->openUrlInNewTab(),
+                        'columns' => implode(',', $data['columns']),
+                        'orientation' => $data['orientation'] ?? 'portrait',
+                    ], fn ($v) => $v !== null);
+
+                    $url = route('vacation.report.pdf', $params);
+                    $this->js("window.open('".addslashes($url)."', '_blank')");
+                }),
 
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar reporte de vacaciones')
-                ->modalDescription('Se exportará una fila por período de vacación con los filtros seleccionados.')
+                ->modalDescription('Seleccione las columnas a incluir en el archivo Excel.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$year, $month, $companyId, $branchId, $status] = $this->resolveActiveFilters();
-                    Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
+
+                    Notification::make()
+                        ->success()
+                        ->title('Exportación iniciada')
+                        ->body('El archivo se descargará en breve.')
+                        ->send();
 
                     $suffix = $month ? '_'.str_pad((string) $month, 2, '0', STR_PAD_LEFT) : '';
 
                     return Excel::download(
-                        new VacationReportExport($year, $month, $companyId, $branchId, $status),
+                        new VacationReportExport($year, $month, $companyId, $branchId, $status, $data['columns']),
                         'vacaciones_'.$year.$suffix.'_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),

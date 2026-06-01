@@ -6,7 +6,7 @@
     <title>Reporte de Salarios</title>
     <style>
         @page {
-            size: A4 landscape;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -215,46 +215,68 @@
     </div>
 
     {{-- Tabla principal --}}
+    @php
+        $showCol     = array_flip($selectedColumns);
+        $colCount    = count($selectedColumns);
+
+        $monetaryFields = ['base_salary', 'total_perceptions', 'ips_amount', 'loan_amount',
+                           'judicial_amount', 'voluntary_amount', 'total_deductions', 'net_salary'];
+        $monetaryTotals = [
+            'base_salary'       => $totalBaseSalary,
+            'total_perceptions' => $totalPerceptions,
+            'ips_amount'        => $totalIps,
+            'loan_amount'       => $totalLoans,
+            'judicial_amount'   => $totalJudicial,
+            'voluntary_amount'  => $totalVoluntary,
+            'total_deductions'  => $totalDeductions,
+            'net_salary'        => $totalNet,
+        ];
+        $nonMonetaryCols = ['employee_name', 'ci', 'branch_name', 'position_name', 'payment_method', 'status'];
+        $leadingSpanCount = count(array_intersect(array_keys(array_filter($showCol, fn($v, $k) => in_array($k, ['employee_name','ci','branch_name','position_name']), ARRAY_FILTER_USE_BOTH)), $selectedColumns));
+    @endphp
     <table>
         <thead>
             <tr>
-                <th style="width:14%">Empleado</th>
-                <th style="width:6%">CI</th>
-                <th style="width:7%">Sucursal</th>
-                <th style="width:9%">Cargo</th>
-                <th style="width:8%">Salario Base</th>
-                <th style="width:7%">+Percepciones</th>
-                <th style="width:7%">IPS</th>
-                <th style="width:8%">Desc. por Deuda</th>
-                <th style="width:6%">Judiciales</th>
-                <th style="width:6%">Voluntarias</th>
-                <th style="width:8%">-Deducciones</th>
-                <th style="width:8%">Neto a Pagar</th>
-                <th style="width:6%">Método</th>
-                <th style="width:6%">Estado</th>
+                @if(isset($showCol['employee_name'])) <th style="width:14%">Empleado</th> @endif
+                @if(isset($showCol['ci']))             <th style="width:6%">CI</th> @endif
+                @if(isset($showCol['branch_name']))    <th style="width:7%">Sucursal</th> @endif
+                @if(isset($showCol['position_name']))  <th style="width:9%">Cargo</th> @endif
+                @if(isset($showCol['base_salary']))    <th style="width:8%">Salario Base</th> @endif
+                @if(isset($showCol['total_perceptions'])) <th style="width:7%">+Percepciones</th> @endif
+                @if(isset($showCol['ips_amount']))     <th style="width:7%">IPS</th> @endif
+                @if(isset($showCol['loan_amount']))    <th style="width:8%">Desc. por Deuda</th> @endif
+                @if(isset($showCol['judicial_amount'])) <th style="width:6%">Judiciales</th> @endif
+                @if(isset($showCol['voluntary_amount'])) <th style="width:6%">Voluntarias</th> @endif
+                @if(isset($showCol['total_deductions'])) <th style="width:8%">-Deducciones</th> @endif
+                @if(isset($showCol['net_salary']))     <th style="width:8%">Neto a Pagar</th> @endif
+                @if(isset($showCol['payment_method'])) <th style="width:6%">Método</th> @endif
+                @if(isset($showCol['status']))         <th style="width:6%">Estado</th> @endif
             </tr>
         </thead>
         <tbody>
             @forelse($payrolls as $p)
             <tr>
-                <td>{{ $p->last_name }}, {{ $p->first_name }}</td>
-                <td class="text-center">{{ $p->ci }}</td>
-                <td class="text-center">{{ $p->branch_name }}</td>
-                <td>{{ $p->position_name ?? '—' }}</td>
-                <td class="text-right">{{ number_format($p->base_salary, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($p->total_perceptions, 0, ',', '.') }}</td>
-                <td class="text-right">{{ $p->ips_amount > 0 ? number_format($p->ips_amount, 0, ',', '.') : '—' }}</td>
-                <td class="text-right">{{ $p->loan_amount > 0 ? number_format($p->loan_amount, 0, ',', '.') : '—' }}</td>
-                <td class="text-right">{{ $p->judicial_amount > 0 ? number_format($p->judicial_amount, 0, ',', '.') : '—' }}</td>
-                <td class="text-right">{{ $p->voluntary_amount > 0 ? number_format($p->voluntary_amount, 0, ',', '.') : '—' }}</td>
-                <td class="text-right">{{ number_format($p->total_deductions, 0, ',', '.') }}</td>
-                <td class="text-right" style="font-weight:bold">{{ number_format($p->net_salary, 0, ',', '.') }}</td>
+                @if(isset($showCol['employee_name'])) <td>{{ $p->last_name }}, {{ $p->first_name }}</td> @endif
+                @if(isset($showCol['ci']))             <td class="text-center">{{ $p->ci }}</td> @endif
+                @if(isset($showCol['branch_name']))    <td class="text-center">{{ $p->branch_name }}</td> @endif
+                @if(isset($showCol['position_name']))  <td>{{ $p->position_name ?? '—' }}</td> @endif
+                @if(isset($showCol['base_salary']))    <td class="text-right">{{ number_format($p->base_salary, 0, ',', '.') }}</td> @endif
+                @if(isset($showCol['total_perceptions'])) <td class="text-right">{{ number_format($p->total_perceptions, 0, ',', '.') }}</td> @endif
+                @if(isset($showCol['ips_amount']))     <td class="text-right">{{ $p->ips_amount > 0 ? number_format($p->ips_amount, 0, ',', '.') : '—' }}</td> @endif
+                @if(isset($showCol['loan_amount']))    <td class="text-right">{{ $p->loan_amount > 0 ? number_format($p->loan_amount, 0, ',', '.') : '—' }}</td> @endif
+                @if(isset($showCol['judicial_amount'])) <td class="text-right">{{ $p->judicial_amount > 0 ? number_format($p->judicial_amount, 0, ',', '.') : '—' }}</td> @endif
+                @if(isset($showCol['voluntary_amount'])) <td class="text-right">{{ $p->voluntary_amount > 0 ? number_format($p->voluntary_amount, 0, ',', '.') : '—' }}</td> @endif
+                @if(isset($showCol['total_deductions'])) <td class="text-right">{{ number_format($p->total_deductions, 0, ',', '.') }}</td> @endif
+                @if(isset($showCol['net_salary']))     <td class="text-right" style="font-weight:bold">{{ number_format($p->net_salary, 0, ',', '.') }}</td> @endif
+                @if(isset($showCol['payment_method']))
                 <td class="text-center">
                     @php $pm = $p->payment_method; @endphp
                     <span class="badge {{ $pm === 'cash' ? 'badge-warning' : 'badge-info' }}">
                         {{ $pm === 'cash' ? 'Efectivo' : 'Transferencia' }}
                     </span>
                 </td>
+                @endif
+                @if(isset($showCol['status']))
                 <td class="text-center">
                     @php
                         $statusClass = match($p->status) {
@@ -267,39 +289,62 @@
                     @endphp
                     <span class="badge {{ $statusClass }}">{{ $statusLabel }}</span>
                 </td>
+                @endif
             </tr>
             @empty
             <tr>
-                <td colspan="14" class="text-center" style="padding:10px; color:#888;">
+                <td colspan="{{ $colCount }}" class="text-center" style="padding:10px; color:#888;">
                     Sin registros para los filtros seleccionados.
                 </td>
             </tr>
             @endforelse
 
-            {{-- Fila de totales --}}
+            {{-- Fila de totales (solo columnas monetarias seleccionadas) --}}
             @if($payrolls->isNotEmpty())
             <tr class="row-total">
-                <td colspan="4" style="text-align:right; padding-right:6px;">TOTALES</td>
-                <td class="text-right">{{ number_format($totalBaseSalary, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalPerceptions, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalIps, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalLoans, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalJudicial, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalVoluntary, 0, ',', '.') }}</td>
-                <td class="text-right">{{ number_format($totalDeductions, 0, ',', '.') }}</td>
-                <td class="text-right" style="font-weight:bold">{{ number_format($totalNet, 0, ',', '.') }}</td>
-                <td colspan="2"></td>
+                @php
+                    // Calcular cuántas columnas no-monetarias van al inicio (para el colspan del label TOTALES)
+                    $leadingNonMonetary = 0;
+                    foreach (['employee_name','ci','branch_name','position_name'] as $f) {
+                        if (isset($showCol[$f])) { $leadingNonMonetary++; }
+                    }
+                    if ($leadingNonMonetary === 0) { $leadingNonMonetary = 1; } // al menos 1
+                @endphp
+                <td colspan="{{ $leadingNonMonetary }}" style="text-align:right; padding-right:6px;">TOTALES</td>
+                @foreach(['base_salary','total_perceptions','ips_amount','loan_amount','judicial_amount','voluntary_amount','total_deductions','net_salary'] as $mf)
+                    @if(isset($showCol[$mf]))
+                        <td class="text-right" @if($mf === 'net_salary') style="font-weight:bold" @endif>
+                            {{ number_format($monetaryTotals[$mf], 0, ',', '.') }}
+                        </td>
+                    @endif
+                @endforeach
+                @php
+                    $trailingNonMonetary = 0;
+                    foreach (['payment_method','status'] as $f) {
+                        if (isset($showCol[$f])) { $trailingNonMonetary++; }
+                    }
+                @endphp
+                @if($trailingNonMonetary > 0)
+                    <td colspan="{{ $trailingNonMonetary }}"></td>
+                @endif
             </tr>
             @endif
         </tbody>
     </table>
 
-    {{-- Desglose de percepciones, deducciones y método de pago --}}
-    @if($perceptionSummary->isNotEmpty() || $deductionSummary->isNotEmpty() || $paymentMethodSummary->isNotEmpty())
+    {{-- Sub-tablas (percepciones, deducciones, método de pago) con toggle --}}
+    @php
+        $showPerceptions   = in_array('perceptions', $showSubtables);
+        $showDeductions    = in_array('deductions', $showSubtables);
+        $showPaymentMethods = in_array('payment_methods', $showSubtables);
+        $hasSubtables = $showPerceptions || $showDeductions || $showPaymentMethods;
+    @endphp
+    @if($hasSubtables && ($perceptionSummary->isNotEmpty() || $deductionSummary->isNotEmpty() || $paymentMethodSummary->isNotEmpty()))
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 16px;">
         <tr>
             {{-- Percepciones --}}
-            <td style="width: 38%; vertical-align: top; padding-right: 10px;">
+            @if($showPerceptions)
+            <td style="width: {{ ($showDeductions && $showPaymentMethods) ? '38%' : ($showDeductions || $showPaymentMethods ? '50%' : '100%') }}; vertical-align: top; padding-right: 10px;">
                 <div class="section-title">Desglose de Percepciones</div>
                 <table style="margin-bottom: 0;">
                     <thead>
@@ -322,9 +367,11 @@
                     </tbody>
                 </table>
             </td>
+            @endif
 
             {{-- Deducciones --}}
-            <td style="width: 38%; vertical-align: top; padding: 0 10px; border-left: 1px solid #ddd;">
+            @if($showDeductions)
+            <td style="width: {{ ($showPerceptions && $showPaymentMethods) ? '38%' : ($showPerceptions || $showPaymentMethods ? '50%' : '100%') }}; vertical-align: top; padding: 0 10px; border-left: 1px solid #ddd;">
                 <div class="section-title">Desglose de Deducciones</div>
                 <table style="margin-bottom: 0;">
                     <thead>
@@ -347,9 +394,11 @@
                     </tbody>
                 </table>
             </td>
+            @endif
 
             {{-- Método de pago --}}
-            <td style="width: 24%; vertical-align: top; padding-left: 10px; border-left: 1px solid #ddd;">
+            @if($showPaymentMethods)
+            <td style="width: {{ ($showPerceptions && $showDeductions) ? '24%' : ($showPerceptions || $showDeductions ? '50%' : '100%') }}; vertical-align: top; padding-left: 10px; border-left: 1px solid #ddd;">
                 <div class="section-title">Por Método de Pago</div>
                 <table style="margin-bottom: 0;">
                     <thead>
@@ -372,6 +421,7 @@
                     </tbody>
                 </table>
             </td>
+            @endif
         </tr>
     </table>
     @endif

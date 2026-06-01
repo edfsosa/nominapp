@@ -6,7 +6,7 @@
     <title>Reporte de Adelantos</title>
     <style>
         @page {
-            size: A4;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -293,46 +293,51 @@
     @else
 
         @php
+            $showCol  = array_flip($selectedColumns);
+            $allLabels = $columnLabels;
+            $headers  = array_values(array_intersect_key($allLabels, $showCol));
+
             /**
-             * Renderiza filas de tabla para una colección de adelantos.
+             * Renderiza filas de tabla para una colección de adelantos con columnas seleccionables.
+             *
+             * @param  iterable  $rows
+             * @param  array<string, int>  $showCol
              */
-            function advanceRows($rows) {
+            function advanceRows($rows, $showCol) {
                 $i = 0;
                 foreach ($rows as $a) {
                     $even = $i % 2 === 1 ? 'background:#fafafa;' : '';
                     echo '<tr style="' . $even . '">';
-                    echo '<td>' . e(strtoupper($a->last_name)) . ', ' . e($a->first_name) . '</td>';
-                    echo '<td>' . e($a->ci) . '</td>';
-                    echo '<td>' . e($a->branch_name) . '</td>';
-                    echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $a->amount, 0, ',', '.') . '</td>';
-                    echo '<td>' . e(\App\Models\Advance::getPaymentMethodLabel($a->payment_method)) . '</td>';
-                    echo '<td><span class="status-badge status-' . $a->status . '">' . \App\Models\Advance::getStatusLabel($a->status) . '</span></td>';
-                    echo '<td>' . \Carbon\Carbon::parse($a->created_at)->format('d/m/Y') . '</td>';
-                    echo '<td>' . ($a->approved_at ? \Carbon\Carbon::parse($a->approved_at)->format('d/m/Y') : '—') . '</td>';
+                    if (isset($showCol['employee_name']))    echo '<td>' . e(strtoupper($a->last_name)) . ', ' . e($a->first_name) . '</td>';
+                    if (isset($showCol['ci']))               echo '<td>' . e($a->ci) . '</td>';
+                    if (isset($showCol['company_name']))     echo '<td>' . e($a->company_name ?? '—') . '</td>';
+                    if (isset($showCol['branch_name']))      echo '<td>' . e($a->branch_name) . '</td>';
+                    if (isset($showCol['amount']))           echo '<td style="text-align:right;white-space:nowrap;">Gs. ' . number_format((float) $a->amount, 0, ',', '.') . '</td>';
+                    if (isset($showCol['payment_method']))   echo '<td>' . e(\App\Models\Advance::getPaymentMethodLabel($a->payment_method)) . '</td>';
+                    if (isset($showCol['status']))           echo '<td><span class="status-badge status-' . $a->status . '">' . \App\Models\Advance::getStatusLabel($a->status) . '</span></td>';
+                    if (isset($showCol['created_at']))       echo '<td>' . \Carbon\Carbon::parse($a->created_at)->format('d/m/Y') . '</td>';
+                    if (isset($showCol['approved_at']))      echo '<td>' . ($a->approved_at ? \Carbon\Carbon::parse($a->approved_at)->format('d/m/Y') : '—') . '</td>';
+                    if (isset($showCol['approved_by_name'])) echo '<td>' . e($a->approved_by_name ?? '—') . '</td>';
+                    if (isset($showCol['notes']))            echo '<td>' . e($a->notes ?? '—') . '</td>';
                     echo '</tr>';
                     $i++;
                 }
             }
+
+            $theadHtml = '<thead><tr>';
+            foreach ($headers as $label) {
+                $theadHtml .= '<th>' . e($label) . '</th>';
+            }
+            $theadHtml .= '</tr></thead>';
         @endphp
 
         {{-- ─── MODO FLAT: empresa filtrada o una sola empresa ─── --}}
         @if($groupMode === 'flat')
             <div class="section-title">Detalle</div>
             <table class="data-table">
-                <thead>
-                    <tr>
-                        <th style="width:20%">Empleado</th>
-                        <th style="width:7%">CI</th>
-                        <th style="width:12%">Sucursal</th>
-                        <th style="width:11%" class="amount">Monto (Gs.)</th>
-                        <th style="width:10%">Método</th>
-                        <th style="width:10%">Estado</th>
-                        <th style="width:9%">Solicitud</th>
-                        <th style="width:8%">Aprobado el</th>
-                    </tr>
-                </thead>
+                {!! $theadHtml !!}
                 <tbody>
-                    @php advanceRows($advances) @endphp
+                    @php advanceRows($advances, $showCol) @endphp
                 </tbody>
             </table>
 
@@ -341,20 +346,9 @@
             @foreach($groups as $companyGroupName => $rows)
                 <div class="section-header">{{ $companyGroupName ?: 'Sin empresa' }}</div>
                 <table class="data-table">
-                    <thead>
-                        <tr>
-                            <th style="width:20%">Empleado</th>
-                            <th style="width:7%">CI</th>
-                            <th style="width:12%">Sucursal</th>
-                            <th style="width:11%" class="amount">Monto (Gs.)</th>
-                            <th style="width:10%">Método</th>
-                            <th style="width:10%">Estado</th>
-                            <th style="width:9%">Solicitud</th>
-                            <th style="width:8%">Aprobado el</th>
-                        </tr>
-                    </thead>
+                    {!! $theadHtml !!}
                     <tbody>
-                        @php advanceRows($rows) @endphp
+                        @php advanceRows($rows, $showCol) @endphp
                     </tbody>
                 </table>
                 @php

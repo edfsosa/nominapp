@@ -199,16 +199,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'attendance')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar resumen de asistencias')
-                ->modalDescription('Una fila por empleado con los totales del período filtrado.')
+                ->modalDescription('Seleccione las columnas a incluir. Una fila por empleado con los totales del período.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(AttendanceReportSummaryExport::availableColumns())
+                        ->default(AttendanceReportSummaryExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new AttendanceReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new AttendanceReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'asistencia_resumen_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
@@ -218,16 +225,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-document-text')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'attendance')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar detalle de asistencias')
-                ->modalDescription('Una fila por día por empleado con todos los valores calculados.')
+                ->modalDescription('Seleccione las columnas a incluir. Una fila por día por empleado.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(AttendanceReportDetailExport::availableColumns())
+                        ->default(AttendanceReportDetailExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new AttendanceReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new AttendanceReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'asistencia_detalle_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
@@ -289,16 +303,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'overtime')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar resumen de horas extras y tardanzas')
-                ->modalDescription('Una fila por empleado con los totales del período filtrado.')
+                ->modalDescription('Seleccione las columnas a incluir. Una fila por empleado con los totales del período.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(OvertimeReportSummaryExport::availableColumns())
+                        ->default(OvertimeReportSummaryExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new OvertimeReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new OvertimeReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'extras_tardanzas_resumen_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
@@ -308,16 +329,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-document-text')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'overtime')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar detalle de horas extras y tardanzas')
-                ->modalDescription('Una fila por día por empleado, solo días con horas extras o tardanza.')
+                ->modalDescription('Seleccione las columnas a incluir. Solo días con horas extras o tardanza.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(OvertimeReportDetailExport::availableColumns())
+                        ->default(OvertimeReportDetailExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new OvertimeReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new OvertimeReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'extras_tardanzas_detalle_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
@@ -376,16 +404,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'absence')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar resumen de ausencias')
-                ->modalDescription('Una fila por empleado con totales pendientes, justificadas, injustificadas y deducciones.')
+                ->modalDescription('Seleccione las columnas a incluir. Una fila por empleado con los totales del período.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(AbsenceReportSummaryExport::availableColumns())
+                        ->default(AbsenceReportSummaryExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new AbsenceReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new AbsenceReportSummaryExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'ausencias_resumen_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),
@@ -395,16 +430,23 @@ class AttendanceReport extends Page implements HasTable
                 ->icon('heroicon-o-document-text')
                 ->color('gray')
                 ->visible(fn () => $this->activeTab === 'absence')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar detalle de ausencias')
-                ->modalDescription('Una fila por ausencia con fecha, motivo, estado, revisión y deducción.')
+                ->modalDescription('Seleccione las columnas a incluir. Una fila por ausencia.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options(AbsenceReportDetailExport::availableColumns())
+                        ->default(AbsenceReportDetailExport::defaultColumns())
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $deptId, $employeeId] = $this->resolveActiveFilters();
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new AbsenceReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId),
+                        new AbsenceReportDetailExport($from, $to, $companyId, $branchId, $deptId, $employeeId, $data['columns']),
                         'ausencias_detalle_'.now()->format('Y_m_d').'.xlsx'
                     );
                 }),

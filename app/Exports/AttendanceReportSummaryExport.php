@@ -34,7 +34,44 @@ class AttendanceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHe
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /**
+     * Todas las columnas disponibles: clave => label.
+     *
+     * @return array<string, string>
+     */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'department_name' => 'Departamento',
+            'position_name' => 'Cargo',
+            'days_present' => 'Presentes',
+            'days_absent' => 'Ausencias',
+            'days_leave' => 'Licencias',
+            'days_non_working' => 'No laborables',
+            'total_net_hours' => 'Horas Netas',
+            'total_anomalies' => 'Anomalías',
+        ];
+    }
+
+    /**
+     * Columnas seleccionadas por defecto (todas).
+     *
+     * @return array<string>
+     */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query base con métricas de asistencia agregadas por empleado.
@@ -87,19 +124,9 @@ class AttendanceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHe
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Departamento',
-            'Cargo',
-            'Presentes',
-            'Ausencias',
-            'Licencias',
-            'No laborables',
-            'Horas Netas',
-            'Anomalías',
-        ];
+        $all = static::availableColumns();
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
@@ -110,19 +137,21 @@ class AttendanceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHe
      */
     public function map($employee): array
     {
-        return [
-            $employee->last_name.', '.$employee->first_name,
-            $employee->ci,
-            $employee->branch_name ?? '—',
-            $employee->department_name ?? '—',
-            $employee->position_name ?? '—',
-            (int) $employee->days_present,
-            (int) $employee->days_absent,
-            (int) $employee->days_leave,
-            (int) $employee->days_non_working,
-            (float) $employee->total_net_hours,
-            (int) $employee->total_anomalies,
+        $all = [
+            'employee_name' => $employee->last_name.', '.$employee->first_name,
+            'ci' => $employee->ci,
+            'branch_name' => $employee->branch_name ?? '—',
+            'department_name' => $employee->department_name ?? '—',
+            'position_name' => $employee->position_name ?? '—',
+            'days_present' => (int) $employee->days_present,
+            'days_absent' => (int) $employee->days_absent,
+            'days_leave' => (int) $employee->days_leave,
+            'days_non_working' => (int) $employee->days_non_working,
+            'total_net_hours' => (float) $employee->total_net_hours,
+            'total_anomalies' => (int) $employee->total_anomalies,
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

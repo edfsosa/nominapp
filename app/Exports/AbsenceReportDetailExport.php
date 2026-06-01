@@ -33,7 +33,39 @@ class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadin
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /** @return array<string, string> */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'department_name' => 'Departamento',
+            'position_name' => 'Cargo',
+            'date' => 'Fecha de Ausencia',
+            'reason' => 'Motivo',
+            'status' => 'Estado',
+            'reported_by' => 'Reportado por',
+            'report_date' => 'Fecha Reporte',
+            'reviewed_by' => 'Revisado por',
+            'review_date' => 'Fecha Revisión',
+            'review_notes' => 'Notas de Revisión',
+            'deduction_amount' => 'Deducción (Gs.)',
+        ];
+    }
+
+    /** @return array<string> */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query con una fila por ausencia, con relaciones eager-loaded.
@@ -81,22 +113,7 @@ class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadin
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Departamento',
-            'Cargo',
-            'Fecha de Ausencia',
-            'Motivo',
-            'Estado',
-            'Reportado por',
-            'Fecha Reporte',
-            'Revisado por',
-            'Fecha Revisión',
-            'Notas de Revisión',
-            'Deducción (Gs.)',
-        ];
+        return array_values(array_intersect_key(static::availableColumns(), array_flip($this->columns)));
     }
 
     /**
@@ -112,22 +129,24 @@ class AbsenceReportDetailExport implements FromQuery, ShouldAutoSize, WithHeadin
         $position = $contract?->position;
         $department = $position?->department;
 
-        return [
-            ($employee?->last_name.', '.$employee?->first_name) ?? '—',
-            $employee?->ci ?? '—',
-            $employee?->branch?->name ?? '—',
-            $department?->name ?? '—',
-            $position?->name ?? '—',
-            $absence->attendanceDay?->date?->format('d/m/Y') ?? '—',
-            $absence->reason ?? '—',
-            Absence::getStatusLabel($absence->status),
-            $absence->reportedBy?->name ?? 'Sistema',
-            $absence->reported_at?->format('d/m/Y H:i') ?? '—',
-            $absence->reviewedBy?->name ?? '—',
-            $absence->reviewed_at?->format('d/m/Y H:i') ?? '—',
-            $absence->review_notes ?? '—',
-            $absence->employeeDeduction?->custom_amount ?? 0,
+        $all = [
+            'employee_name' => ($employee?->last_name.', '.$employee?->first_name) ?? '—',
+            'ci' => $employee?->ci ?? '—',
+            'branch_name' => $employee?->branch?->name ?? '—',
+            'department_name' => $department?->name ?? '—',
+            'position_name' => $position?->name ?? '—',
+            'date' => $absence->attendanceDay?->date?->format('d/m/Y') ?? '—',
+            'reason' => $absence->reason ?? '—',
+            'status' => Absence::getStatusLabel($absence->status),
+            'reported_by' => $absence->reportedBy?->name ?? 'Sistema',
+            'report_date' => $absence->reported_at?->format('d/m/Y H:i') ?? '—',
+            'reviewed_by' => $absence->reviewedBy?->name ?? '—',
+            'review_date' => $absence->reviewed_at?->format('d/m/Y H:i') ?? '—',
+            'review_notes' => $absence->review_notes ?? '—',
+            'deduction_amount' => $absence->employeeDeduction?->custom_amount ?? 0,
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

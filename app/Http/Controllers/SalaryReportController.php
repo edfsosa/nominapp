@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SalaryReportExport;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Payroll;
@@ -27,6 +28,20 @@ class SalaryReportController extends Controller
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
         $status = $request->query('status') ?: null;
         $paymentMethod = $request->query('paymentMethod') ?: null;
+
+        $columnsParam = $request->query('columns');
+        $selectedColumns = $columnsParam
+            ? explode(',', $columnsParam)
+            : SalaryReportExport::defaultColumns();
+
+        $subtablesParam = $request->query('subtables', 'perceptions,deductions,payment_methods');
+        $showSubtables = $subtablesParam !== '' ? explode(',', $subtablesParam) : [];
+
+        $orientation = in_array($request->query('orientation'), ['portrait', 'landscape'])
+            ? $request->query('orientation')
+            : 'landscape';
+
+        $columnLabels = SalaryReportExport::availableColumns();
 
         $period = $periodId ? PayrollPeriod::find($periodId) : null;
 
@@ -129,8 +144,8 @@ class SalaryReportController extends Controller
         $paymentMethodSummary = $payrolls
             ->groupBy('payment_method')
             ->map(fn ($group, $method) => [
-                'label'     => Payroll::getPaymentMethodLabels()[$method] ?? $method,
-                'count'     => $group->count(),
+                'label' => Payroll::getPaymentMethodLabels()[$method] ?? $method,
+                'count' => $group->count(),
                 'total_net' => $group->sum('net_salary'),
             ])
             ->values()
@@ -145,7 +160,8 @@ class SalaryReportController extends Controller
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'perceptionSummary', 'deductionSummary',
             'appliedFilters', 'paymentMethodSummary',
-        ))->setPaper('a4', 'landscape');
+            'selectedColumns', 'columnLabels', 'showSubtables', 'orientation'
+        ))->setPaper('a4', $orientation);
 
         $periodSlug = $period ? str_replace(' ', '_', $period->name) : 'reporte';
         $filename = 'salarios_'.$periodSlug.'_'.now()->format('Y_m_d').'.pdf';

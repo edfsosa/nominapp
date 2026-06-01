@@ -34,7 +34,43 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /**
+     * Todas las columnas disponibles: clave => label.
+     *
+     * @return array<string, string>
+     */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'department_name' => 'Departamento',
+            'position_name' => 'Cargo',
+            'total_absences' => 'Total',
+            'total_pending' => 'Pendientes',
+            'total_justified' => 'Justificadas',
+            'total_unjustified' => 'Injustificadas',
+            'total_deduction_amount' => 'Deducciones Generadas (Gs.)',
+        ];
+    }
+
+    /**
+     * Columnas seleccionadas por defecto (todas).
+     *
+     * @return array<string>
+     */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query base con métricas de ausencias agregadas por empleado.
@@ -88,18 +124,9 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Departamento',
-            'Cargo',
-            'Total',
-            'Pendientes',
-            'Justificadas',
-            'Injustificadas',
-            'Deducciones Generadas (Gs.)',
-        ];
+        $all = static::availableColumns();
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
@@ -110,18 +137,20 @@ class AbsenceReportSummaryExport implements FromQuery, ShouldAutoSize, WithHeadi
      */
     public function map($employee): array
     {
-        return [
-            $employee->last_name.', '.$employee->first_name,
-            $employee->ci,
-            $employee->branch_name ?? '—',
-            $employee->department_name ?? '—',
-            $employee->position_name ?? '—',
-            (int) $employee->total_absences,
-            (int) $employee->total_pending,
-            (int) $employee->total_justified,
-            (int) $employee->total_unjustified,
-            (float) $employee->total_deduction_amount,
+        $all = [
+            'employee_name' => $employee->last_name.', '.$employee->first_name,
+            'ci' => $employee->ci,
+            'branch_name' => $employee->branch_name ?? '—',
+            'department_name' => $employee->department_name ?? '—',
+            'position_name' => $employee->position_name ?? '—',
+            'total_absences' => (int) $employee->total_absences,
+            'total_pending' => (int) $employee->total_pending,
+            'total_justified' => (int) $employee->total_justified,
+            'total_unjustified' => (int) $employee->total_unjustified,
+            'total_deduction_amount' => (float) $employee->total_deduction_amount,
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**

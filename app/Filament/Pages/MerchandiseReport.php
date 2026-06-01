@@ -3,12 +3,17 @@
 namespace App\Filament\Pages;
 
 use App\Exports\MerchandiseReportExport;
+use App\Exports\MerchandiseWithdrawalsSheet;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Employee;
 use App\Models\MerchandiseWithdrawal;
 use Filament\Actions\Action;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Radio;
+use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Tables\Columns\TextColumn;
@@ -72,34 +77,76 @@ class MerchandiseReport extends Page implements HasTable
      */
     protected function getHeaderActions(): array
     {
+        $columnOptions = MerchandiseWithdrawalsSheet::availableColumns();
+        $columnDefaults = MerchandiseWithdrawalsSheet::defaultColumns();
+        $orientationThreshold = 6;
+
+        if (Company::active()->count() <= 1) {
+            unset($columnOptions['company_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
+        }
+
         return [
             Action::make('export_pdf')
                 ->label('Exportar PDF')
                 ->icon('heroicon-o-document-text')
                 ->color('info')
-                ->url(function () {
+                ->modalHeading('Exportar reporte en PDF')
+                ->modalSubmitActionLabel('Generar PDF')
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas a incluir')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required()
+                        ->live()
+                        ->afterStateUpdated(function (Get $get, Set $set) use ($orientationThreshold) {
+                            $count = count($get('columns') ?? []);
+                            $set('orientation', $count <= $orientationThreshold ? 'portrait' : 'landscape');
+                        }),
+                    Radio::make('orientation')
+                        ->label('Orientación de la página')
+                        ->helperText('Se ajusta automáticamente: Vertical para ≤ '.$orientationThreshold.' columnas, Horizontal para más.')
+                        ->options(['portrait' => 'Vertical', 'landscape' => 'Horizontal'])
+                        ->default(count($columnDefaults) > $orientationThreshold ? 'landscape' : 'portrait')
+                        ->inline()
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $status, $employeeId] = $this->resolveActiveFilters();
 
-                    return route('merchandise.report.pdf', array_filter([
+                    $params = array_filter([
                         'from' => $from,
                         'to' => $to,
                         'companyId' => $companyId,
                         'branchId' => $branchId,
                         'status' => $status,
                         'employeeId' => $employeeId,
-                    ], fn ($v) => $v !== null));
-                })
-                ->openUrlInNewTab(),
+                        'columns' => implode(',', $data['columns']),
+                        'orientation' => $data['orientation'] ?? 'landscape',
+                    ], fn ($v) => $v !== null);
+
+                    $url = route('merchandise.report.pdf', $params);
+                    $this->js("window.open('".addslashes($url)."', '_blank')");
+                }),
 
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-table-cells')
                 ->color('gray')
-                ->requiresConfirmation()
                 ->modalHeading('Exportar reporte de mercaderías')
-                ->modalDescription('Se exportará un archivo Excel con dos hojas: resumen de retiros y detalle de cuotas.')
+                ->modalDescription('Seleccione las columnas de la hoja "Retiros". La hoja "Cuotas" siempre se exporta completa.')
                 ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
+                ->form([
+                    CheckboxList::make('columns')
+                        ->label('Columnas de la hoja Retiros')
+                        ->options($columnOptions)
+                        ->default($columnDefaults)
+                        ->columns(3)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
                     [$from, $to, $companyId, $branchId, $status, $employeeId] = $this->resolveActiveFilters();
 
                     Notification::make()
@@ -109,7 +156,7 @@ class MerchandiseReport extends Page implements HasTable
                         ->send();
 
                     return Excel::download(
-                        new MerchandiseReportExport($from, $to, $companyId, $branchId, $status, $employeeId),
+                        new MerchandiseReportExport($from, $to, $companyId, $branchId, $status, $employeeId, $data['columns']),
                         'retiros_mercaderia_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),

@@ -6,7 +6,7 @@
     <title>Informe de Vacaciones</title>
     <style>
         @page {
-            size: A4;
+            size: A4 {{ $orientation }};
             margin: 0;
         }
 
@@ -221,29 +221,40 @@
         &nbsp;·&nbsp; {{ \App\Models\Vacation::getStatusLabel($status) }}
     </div>
 
-    {{-- Macro: tabla de registros --}}
     @php
+        $showCol = array_flip($selectedColumns);
+        $allLabels = $columnLabels;
+        $headers = array_values(array_intersect_key($allLabels, $showCol));
+
         /**
-         * Renderiza las filas de la tabla para un conjunto de registros.
-         * Se usa en todos los modos de agrupación.
+         * Renderiza las filas de vacaciones para las columnas seleccionadas.
+         *
+         * @param  iterable  $rows
+         * @param  array<string, int>  $showCol  Claves de columnas activas (array_flip de $selectedColumns)
          */
-        function vacationRows($rows) {
+        function vacationRows($rows, $showCol) {
             $i = 0;
             foreach ($rows as $v) {
-                $even = $i % 2 === 1 ? 'row-even' : '';
+                $even   = $i % 2 === 1 ? 'row-even' : '';
                 $amount = ($v->payment_amount !== null && $v->payment_amount > 0)
                     ? 'Gs. ' . number_format((float) $v->payment_amount, 0, ',', '.')
                     : '—';
-                echo '<tr class="' . $even . '">';
-                echo '<td class="text-left">' . strtoupper(e($v->last_name)) . ', ' . e($v->first_name) . '</td>';
-                echo '<td>' . e($v->ci) . '</td>';
-                echo '<td>' . e($v->branch_name) . '</td>';
-                echo '<td>' . \Carbon\Carbon::parse($v->start_date)->format('d/m/Y') . '</td>';
-                echo '<td>' . \Carbon\Carbon::parse($v->end_date)->format('d/m/Y') . '</td>';
+                $startDate  = $v->start_date  ? \Carbon\Carbon::parse($v->start_date)->format('d/m/Y')  : '—';
+                $endDate    = $v->end_date    ? \Carbon\Carbon::parse($v->end_date)->format('d/m/Y')    : '—';
                 $returnDate = $v->return_date ? \Carbon\Carbon::parse($v->return_date)->format('d/m/Y') : '—';
-                echo '<td>' . $returnDate . '</td>';
-                echo '<td>' . e($v->business_days) . '</td>';
-                echo '<td>' . $amount . '</td>';
+
+                echo '<tr class="' . $even . '">';
+                if (isset($showCol['employee_name'])) echo '<td class="text-left">' . strtoupper(e($v->last_name)) . ', ' . e($v->first_name) . '</td>';
+                if (isset($showCol['ci']))             echo '<td>' . e($v->ci) . '</td>';
+                if (isset($showCol['company_name']))   echo '<td>' . e($v->company_name ?? '—') . '</td>';
+                if (isset($showCol['branch_name']))    echo '<td>' . e($v->branch_name) . '</td>';
+                if (isset($showCol['start_date']))     echo '<td>' . $startDate . '</td>';
+                if (isset($showCol['end_date']))       echo '<td>' . $endDate . '</td>';
+                if (isset($showCol['return_date']))    echo '<td>' . $returnDate . '</td>';
+                if (isset($showCol['business_days']))  echo '<td>' . e($v->business_days) . '</td>';
+                if (isset($showCol['payment_amount'])) echo '<td>' . $amount . '</td>';
+                if (isset($showCol['payment_method'])) echo '<td>' . e(\App\Models\Vacation::getPaymentMethodLabel($v->payment_method ?? 'immediate')) . '</td>';
+                if (isset($showCol['status']))         echo '<td>' . e(\App\Models\Vacation::getStatusLabel($v->status)) . '</td>';
                 echo '</tr>';
                 $i++;
             }
@@ -261,25 +272,24 @@
         <div class="empty-state">No hay registros de vacaciones para el período seleccionado.</div>
     @else
 
+        {{-- Tabla de encabezados dinámica (reutilizable via @include parcial no disponible en DomPDF,
+             así que la construimos inline y la pasamos a los modos de agrupación) --}}
+        @php
+            $theadHtml = '<thead><tr>';
+            foreach ($headers as $label) {
+                $theadHtml .= '<th>' . e($label) . '</th>';
+            }
+            $theadHtml .= '</tr></thead>';
+        @endphp
+
         {{-- ──────────────────────────────────────────
              MODO FLAT: empresa + mes seleccionados
         ────────────────────────────────────────── --}}
         @if ($groupMode === 'flat')
             <table>
-                <thead>
-                    <tr>
-                        <th class="text-left" style="width:22%">Empleado</th>
-                        <th style="width:7%">CI</th>
-                        <th style="width:12%">Sucursal</th>
-                        <th style="width:8%">Inicio</th>
-                        <th style="width:8%">Fin</th>
-                        <th style="width:8%">Reintegro</th>
-                        <th style="width:7%">Días Háb.</th>
-                        <th style="width:13%">Monto</th>
-                    </tr>
-                </thead>
+                {!! $theadHtml !!}
                 <tbody>
-                    @php vacationRows($vacations) @endphp
+                    @php vacationRows($vacations, $showCol) @endphp
                 </tbody>
             </table>
 
@@ -291,20 +301,9 @@
             @foreach ($groups as $compName => $rows)
                 <div class="section-header">{{ $compName ?: 'Sin empresa' }}</div>
                 <table>
-                    <thead>
-                        <tr>
-                            <th class="text-left" style="width:22%">Empleado</th>
-                            <th style="width:7%">CI</th>
-                            <th style="width:13%">Sucursal</th>
-                            <th style="width:9%">Inicio</th>
-                            <th style="width:9%">Fin</th>
-                            <th style="width:9%">Reintegro</th>
-                            <th style="width:7%">Días Háb.</th>
-                            <th style="width:13%">Monto</th>
-                        </tr>
-                    </thead>
+                    {!! $theadHtml !!}
                     <tbody>
-                        @php vacationRows($rows) @endphp
+                        @php vacationRows($rows, $showCol) @endphp
                     </tbody>
                 </table>
                 <div class="subtotal-row">
@@ -321,20 +320,9 @@
             @foreach ($groups as $monthNum => $rows)
                 <div class="section-header">{{ $months[$monthNum] ?? $monthNum }} {{ $year }}</div>
                 <table>
-                    <thead>
-                        <tr>
-                            <th class="text-left" style="width:22%">Empleado</th>
-                            <th style="width:7%">CI</th>
-                            <th style="width:13%">Sucursal</th>
-                            <th style="width:9%">Inicio</th>
-                            <th style="width:9%">Fin</th>
-                            <th style="width:9%">Reintegro</th>
-                            <th style="width:7%">Días Háb.</th>
-                            <th style="width:13%">Monto</th>
-                        </tr>
-                    </thead>
+                    {!! $theadHtml !!}
                     <tbody>
-                        @php vacationRows($rows) @endphp
+                        @php vacationRows($rows, $showCol) @endphp
                     </tbody>
                 </table>
                 <div class="subtotal-row">
@@ -355,20 +343,9 @@
                 @foreach ($monthGroups as $monthNum => $rows)
                     <div class="subsection-header">{{ $months[$monthNum] ?? $monthNum }} {{ $year }}</div>
                     <table>
-                        <thead>
-                            <tr>
-                                <th class="text-left" style="width:20%">Empleado</th>
-                                <th style="width:7%">CI</th>
-                                <th style="width:12%">Sucursal</th>
-                                <th style="width:8%">Inicio</th>
-                                <th style="width:8%">Fin</th>
-                                <th style="width:8%">Reintegro</th>
-                                <th style="width:7%">Días Háb.</th>
-                                <th style="width:13%">Monto</th>
-                            </tr>
-                        </thead>
+                        {!! $theadHtml !!}
                         <tbody>
-                            @php vacationRows($rows) @endphp
+                            @php vacationRows($rows, $showCol) @endphp
                         </tbody>
                     </table>
                     <div class="subtotal-row">

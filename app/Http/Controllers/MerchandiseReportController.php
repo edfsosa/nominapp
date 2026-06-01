@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\MerchandiseWithdrawalsSheet;
 use App\Models\Company;
 use App\Models\MerchandiseWithdrawal;
 use App\Models\MerchandiseWithdrawalInstallment;
@@ -30,6 +31,17 @@ class MerchandiseReportController extends Controller
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
         $status = $request->query('status') ?: null;
         $employeeId = $request->query('employeeId') ? (int) $request->query('employeeId') : null;
+
+        $columnsParam = $request->query('columns');
+        $selectedColumns = $columnsParam
+            ? explode(',', $columnsParam)
+            : MerchandiseWithdrawalsSheet::defaultColumns();
+
+        $orientation = in_array($request->query('orientation'), ['portrait', 'landscape'])
+            ? $request->query('orientation')
+            : 'landscape';
+
+        $columnLabels = MerchandiseWithdrawalsSheet::availableColumns();
 
         $withdrawals = MerchandiseWithdrawal::query()
             ->select([
@@ -118,7 +130,8 @@ class MerchandiseReportController extends Controller
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'city',
-        ))->setPaper('a4', 'portrait');
+            'selectedColumns', 'columnLabels', 'orientation'
+        ))->setPaper('a4', $orientation);
 
         $filename = 'reporte-mercaderias-'.str_replace('-', '', $from).'_'.str_replace('-', '', $to).'.pdf';
 

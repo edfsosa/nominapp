@@ -17,6 +17,7 @@ class MerchandiseReportExport implements WithMultipleSheets
      * @param  int|null  $branchId  Filtrar por sucursal.
      * @param  string|null  $status  Filtrar por estado del retiro.
      * @param  int|null  $employeeId  Filtrar por empleado.
+     * @param  array<string>  $columns  Columnas de la hoja "Retiros" (ver MerchandiseWithdrawalsSheet::availableColumns()).
      */
     public function __construct(
         protected ?string $from = null,
@@ -25,17 +26,19 @@ class MerchandiseReportExport implements WithMultipleSheets
         protected ?int $branchId = null,
         protected ?string $status = null,
         protected ?int $employeeId = null,
+        protected array $columns = [],
     ) {}
 
     /**
      * Retorna las hojas del archivo Excel.
+     * La hoja "Cuotas" siempre exporta completa; solo "Retiros" respeta la selección de columnas.
      *
      * @return array<int, mixed>
      */
     public function sheets(): array
     {
         return [
-            new MerchandiseWithdrawalsSheet($this->from, $this->to, $this->companyId, $this->branchId, $this->status, $this->employeeId),
+            new MerchandiseWithdrawalsSheet($this->from, $this->to, $this->companyId, $this->branchId, $this->status, $this->employeeId, $this->columns),
             new MerchandiseInstallmentsSheet($this->from, $this->to, $this->companyId, $this->branchId, $this->status, $this->employeeId),
         ];
     }

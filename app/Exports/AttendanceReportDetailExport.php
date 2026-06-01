@@ -33,7 +33,40 @@ class AttendanceReportDetailExport implements FromQuery, ShouldAutoSize, WithHea
         protected ?int $branchId = null,
         protected ?int $departmentId = null,
         protected ?int $employeeId = null,
-    ) {}
+        protected array $columns = [],
+    ) {
+        if (empty($this->columns)) {
+            $this->columns = static::defaultColumns();
+        }
+    }
+
+    /** @return array<string, string> */
+    public static function availableColumns(): array
+    {
+        return [
+            'employee_name' => 'Empleado',
+            'ci' => 'CI',
+            'branch_name' => 'Sucursal',
+            'department_name' => 'Departamento',
+            'position_name' => 'Cargo',
+            'date' => 'Fecha',
+            'status' => 'Estado',
+            'check_in' => 'Entrada',
+            'check_out' => 'Salida',
+            'total_hours' => 'Horas Totales',
+            'net_hours' => 'Horas Netas',
+            'early_leave_minutes' => 'Salida Anticipada (min)',
+            'break_minutes' => 'Descanso (min)',
+            'justified_absence' => 'Ausencia Justificada',
+            'anomaly_flag' => 'Anomalía',
+        ];
+    }
+
+    /** @return array<string> */
+    public static function defaultColumns(): array
+    {
+        return array_keys(static::availableColumns());
+    }
 
     /**
      * Query base con un registro por día de asistencia, con relaciones eager-loaded.
@@ -77,23 +110,7 @@ class AttendanceReportDetailExport implements FromQuery, ShouldAutoSize, WithHea
      */
     public function headings(): array
     {
-        return [
-            'Empleado',
-            'CI',
-            'Sucursal',
-            'Departamento',
-            'Cargo',
-            'Fecha',
-            'Estado',
-            'Entrada',
-            'Salida',
-            'Horas Totales',
-            'Horas Netas',
-            'Salida Anticipada (min)',
-            'Descanso (min)',
-            'Ausencia Justificada',
-            'Anomalía',
-        ];
+        return array_values(array_intersect_key(static::availableColumns(), array_flip($this->columns)));
     }
 
     /**
@@ -109,23 +126,25 @@ class AttendanceReportDetailExport implements FromQuery, ShouldAutoSize, WithHea
         $position = $contract?->position;
         $department = $position?->department;
 
-        return [
-            ($employee?->last_name.', '.$employee?->first_name) ?? '—',
-            $employee?->ci ?? '—',
-            $employee?->branch?->name ?? '—',
-            $department?->name ?? '—',
-            $position?->name ?? '—',
-            $day->date?->format('d/m/Y') ?? '',
-            AttendanceDay::getStatusLabel($day->status ?? 'absent'),
-            $day->check_in_time ? \Carbon\Carbon::parse($day->check_in_time)->format('H:i') : '',
-            $day->check_out_time ? \Carbon\Carbon::parse($day->check_out_time)->format('H:i') : '',
-            $day->total_hours ?? 0,
-            $day->net_hours ?? 0,
-            $day->early_leave_minutes ?? 0,
-            $day->break_minutes ?? 0,
-            AttendanceDay::formatBoolean((bool) $day->justified_absence),
-            AttendanceDay::formatBoolean((bool) $day->anomaly_flag),
+        $all = [
+            'employee_name' => ($employee?->last_name.', '.$employee?->first_name) ?? '—',
+            'ci' => $employee?->ci ?? '—',
+            'branch_name' => $employee?->branch?->name ?? '—',
+            'department_name' => $department?->name ?? '—',
+            'position_name' => $position?->name ?? '—',
+            'date' => $day->date?->format('d/m/Y') ?? '',
+            'status' => AttendanceDay::getStatusLabel($day->status ?? 'absent'),
+            'check_in' => $day->check_in_time ? \Carbon\Carbon::parse($day->check_in_time)->format('H:i') : '',
+            'check_out' => $day->check_out_time ? \Carbon\Carbon::parse($day->check_out_time)->format('H:i') : '',
+            'total_hours' => $day->total_hours ?? 0,
+            'net_hours' => $day->net_hours ?? 0,
+            'early_leave_minutes' => $day->early_leave_minutes ?? 0,
+            'break_minutes' => $day->break_minutes ?? 0,
+            'justified_absence' => AttendanceDay::formatBoolean((bool) $day->justified_absence),
+            'anomaly_flag' => AttendanceDay::formatBoolean((bool) $day->anomaly_flag),
         ];
+
+        return array_values(array_intersect_key($all, array_flip($this->columns)));
     }
 
     /**
