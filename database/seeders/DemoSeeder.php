@@ -5,6 +5,7 @@ namespace Database\Seeders;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Schema;
 
 /**
@@ -35,8 +36,12 @@ class DemoSeeder extends Seeder
             // Configuración del sistema (debe ir primero: muchos servicios leen settings al iniciar)
             SettingsSeeder::class,
 
+            // Catálogo geográfico (requerido por EmployeeAddressSeeder)
+            ParaguayRegionsSeeder::class,
+
             // Estructura organizacional
             CompanySeeder::class,
+            CompanyBankAccountSeeder::class,
             ScheduleSeeder::class,
             DepartmentSeeder::class,
             BranchSeeder::class,
@@ -53,6 +58,10 @@ class DemoSeeder extends Seeder
             EmployeePerceptionSeeder::class,
             DocumentSeeder::class,
 
+            // Datos personales adicionales del empleado
+            EmployeeChildSeeder::class,
+            EmployeeAddressSeeder::class,
+
             // Asistencia y calendario
             HolidaySeeder::class,
             AttendanceDayWithEventsSeeder::class,
@@ -67,6 +76,13 @@ class DemoSeeder extends Seeder
             PayrollSeeder::class,
             LoanSeeder::class,
             AdvanceSeeder::class,
+            MerchandiseWithdrawalSeeder::class,
+
+            // Documentación laboral
+            WarningSeeder::class,
+
+            // Plantillas de contratos
+            ContractTemplateSeeder::class,
 
             // Procesos anuales e históricos
             AguinaldoSeeder::class,
@@ -89,7 +105,7 @@ class DemoSeeder extends Seeder
             ['email' => $email],
             [
                 'name' => $name,
-                'password' => bcrypt($password),
+                'password' => Hash::make($password),
             ]
         );
 
@@ -105,46 +121,78 @@ class DemoSeeder extends Seeder
         Schema::disableForeignKeyConstraints();
 
         $tables = [
+            // Nómina y procesos anuales
             'aguinaldo_items',
             'aguinaldos',
             'aguinaldo_periods',
             'liquidacion_items',
             'liquidaciones',
+            // Pagos bancarios
             'disbursement_batches',
+            // Adelantos y préstamos
             'advances',
             'loan_installments',
             'loans',
+            // Retiros de mercadería
+            'merchandise_withdrawal_installments',
+            'merchandise_withdrawal_items',
+            'merchandise_withdrawals',
+            // Documentación laboral
+            'warnings',
             'documents',
+            // Vacaciones y ausencias
             'employee_vacation_balances',
             'vacations',
             'employee_leaves',
             'absences',
+            // Asistencia
+            'attendance_mark_failures',
             'attendance_events',
             'attendance_days',
+            // Nómina base
             'payroll_items',
             'payrolls',
             'payroll_periods',
+            // Reconocimiento facial
             'face_enrollments',
+            // Percepciones y deducciones de empleados
             'employee_deductions',
             'employee_perceptions',
+            // Turnos y rotaciones
             'shift_overrides',
             'rotation_assignments',
             'rotation_patterns',
             'shift_templates',
+            // Horarios y asignaciones
             'employee_schedule_assignments',
+            // Datos personales del empleado
+            'employee_addresses',
+            'employee_children',
             'employee_bank_accounts',
+            // Contratos y plantillas
+            'contract_templates',
             'contracts',
+            // Empleados
             'employees',
+            // Horarios
             'schedule_breaks',
             'schedule_days',
             'schedules',
+            // Estructura organizacional
             'positions',
             'departments',
             'branches',
+            'company_bank_accounts',
             'companies',
+            // Catálogos de nómina
             'deductions',
             'perceptions',
+            // Catálogos geográficos
+            'py_cities',
+            'py_departments',
+            // Otros
             'holidays',
+            'terminals',
             'settings',
             'users',
         ];
