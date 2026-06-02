@@ -6,26 +6,23 @@ on:
 
 jobs:
   deploy:
-    name: Deploy via SSH
+    name: Deploy via Webhook
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script_stop: true
-          script: |
-            cd /home/sedvouco/nominapp.sedacosmetica.com/nominapp
-            artisan82 down || true
-            trap 'artisan82 up' EXIT
-            git pull origin main
-            composer82 install --no-dev --optimize-autoloader
-            artisan82 migrate --force
-            artisan82 optimize:clear
-            artisan82 optimize
-            artisan82 filament:optimize
-            artisan82 queue:restart
+      - name: Trigger deploy webhook
+        run: |
+          HTTP_STATUS=$(curl -s -o /tmp/deploy_out.json -w "%{http_code}" \
+            --max-time 300 \
+            -X POST \
+            -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            https://nominapp.sedacosmetica.com/deploy.php)
+
+          echo "Server response: $(cat /tmp/deploy_out.json)"
+
+          if [ "$HTTP_STATUS" != "200" ]; then
+            echo "Deploy failed — HTTP $HTTP_STATUS"
+            exit 1
+          fi
+
+          echo "Deploy successful!"
