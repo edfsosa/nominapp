@@ -66,7 +66,7 @@ DB_DATABASE=nombre_base_de_datos
 DB_USERNAME=usuario_db
 DB_PASSWORD=contraseña_db
 
-GOOGLE_MAPS_API_KEY=tu_api_key
+GOOGLE_MAPS_API_KEY=tu_api_key   # Requerida — ver sección Google Maps API Key
 ```
 
 ---
@@ -81,12 +81,22 @@ GOOGLE_MAPS_API_KEY=tu_api_key
 
 ## 6. Ejecutar migraciones y datos iniciales
 
+Podés pre-configurar las credenciales del administrador en `.env` antes de correr el seeder (opcional):
+
+```env
+ADMIN_NAME="Nombre Apellido"
+ADMIN_EMAIL=admin@tu-empresa.com
+ADMIN_PASSWORD=una_contraseña_segura
+```
+
+Si no las configurás, el seeder genera una contraseña aleatoria y la muestra en pantalla.
+
 ```bash
 /opt/cpanel/ea-php82/root/usr/bin/php artisan migrate --force
 /opt/cpanel/ea-php82/root/usr/bin/php artisan db:seed --class=ProductionSeeder
 ```
 
-> `ProductionSeeder` crea el usuario administrador inicial. Anotá las credenciales que muestra en pantalla.
+**Guardá las credenciales que aparecen en pantalla** — las necesitás para el primer acceso. El seeder también muestra una lista de pasos de configuración pendientes (sucursales, horarios, feriados, etc.).
 
 ---
 
@@ -150,6 +160,22 @@ https://tu-dominio.com/admin
 ```
 
 Con las credenciales generadas por el `ProductionSeeder`.
+
+---
+
+## Google Maps API Key
+
+El mapa de sucursales requiere una API Key de Google Maps.
+
+1. Creá un proyecto en [Google Cloud Console](https://console.cloud.google.com/)
+2. Habilitá la API **Maps JavaScript API**
+3. Creá una clave y restringila al dominio de tu aplicación
+4. Pegá la clave en `.env`:
+   ```env
+   GOOGLE_MAPS_API_KEY=tu_clave_aqui
+   ```
+
+> Sin esta clave el mapa de sucursales no carga, pero el resto del sistema funciona con normalidad.
 
 ---
 
