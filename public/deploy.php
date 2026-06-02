@@ -25,16 +25,20 @@ $log  = $base . '/storage/logs/deploy.log';
 set_time_limit(300);
 ignore_user_abort(true);
 
+$php    = '/opt/cpanel/ea-php82/root/usr/bin/php';
+$artisan  = "{$php} artisan";
+$composer = "{$php} /opt/cpanel/composer/bin/composer";
+
 $steps = [
-    "artisan82 down 2>&1 || true",
-    "git -C {$base} pull origin main 2>&1",
-    "composer82 install --no-dev --optimize-autoloader --working-dir={$base} 2>&1",
-    "artisan82 migrate --force 2>&1",
-    "artisan82 optimize:clear 2>&1",
-    "artisan82 optimize 2>&1",
-    "artisan82 filament:optimize 2>&1",
-    "artisan82 queue:restart 2>&1",
-    "artisan82 up 2>&1",
+    "{$artisan} down 2>&1 || true",
+    "git pull origin main 2>&1",
+    "{$composer} install --no-dev --optimize-autoloader 2>&1",
+    "{$artisan} migrate --force 2>&1",
+    "{$artisan} optimize:clear 2>&1",
+    "{$artisan} optimize 2>&1",
+    "{$artisan} filament:optimize 2>&1",
+    "{$artisan} queue:restart 2>&1",
+    "{$artisan} up 2>&1",
 ];
 
 $failed = false;
@@ -55,7 +59,7 @@ foreach ($steps as $cmd) {
 
     if ($code !== 0 && ! str_contains($cmd, '|| true')) {
         $failed = true;
-        exec("cd {$base} && artisan82 up 2>&1");
+        exec("cd {$base} && {$artisan} up 2>&1");
         file_put_contents($log, '[' . date('H:i:s') . '] Step failed — site restored.' . PHP_EOL, FILE_APPEND);
         break;
     }
