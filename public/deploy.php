@@ -25,6 +25,10 @@ $log  = $base . '/storage/logs/deploy.log';
 set_time_limit(300);
 ignore_user_abort(true);
 
+// Composer requires HOME when running from a web context
+putenv('HOME=/home/sedvouco');
+putenv('COMPOSER_HOME=/home/sedvouco/.composer');
+
 $php    = '/opt/cpanel/ea-php82/root/usr/bin/php';
 $artisan  = "{$php} artisan";
 $composer = "{$php} /opt/cpanel/composer/bin/composer";
