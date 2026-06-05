@@ -190,7 +190,7 @@ class VacationBalances extends Page implements HasTable
                 'employee_vacation_balances.entitled_days',
                 'employee_vacation_balances.used_days',
                 'employee_vacation_balances.pending_days',
-                DB::raw('GREATEST(0, employee_vacation_balances.entitled_days - employee_vacation_balances.used_days - employee_vacation_balances.pending_days) AS available_days'),
+                DB::raw('GREATEST(0, CAST(employee_vacation_balances.entitled_days AS SIGNED) - CAST(employee_vacation_balances.used_days AS SIGNED) - CAST(employee_vacation_balances.pending_days AS SIGNED)) AS available_days'),
                 'employees.first_name',
                 'employees.last_name',
                 'employees.ci',
