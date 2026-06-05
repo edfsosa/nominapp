@@ -23,7 +23,7 @@ class ViewWarning extends ViewRecord
             Action::make('export_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
+                ->color('gray')
                 ->url(fn () => route('warnings.pdf', $this->record))
                 ->openUrlInNewTab(),
 

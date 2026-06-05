@@ -376,7 +376,7 @@ class MerchandiseWithdrawalResource extends Resource
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->visible(fn (MerchandiseWithdrawal $record) => $record->isApproved() || $record->isPaid())
                     ->url(fn (MerchandiseWithdrawal $record) => route('merchandise-withdrawals.pdf', $record))
                     ->openUrlInNewTab(),

@@ -89,8 +89,8 @@ class MerchandiseReport extends Page implements HasTable
         return [
             Action::make('export_pdf')
                 ->label('Exportar PDF')
-                ->icon('heroicon-o-document-text')
-                ->color('info')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
                 ->modalHeading('Exportar reporte en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
                 ->form([

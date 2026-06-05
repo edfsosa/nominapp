@@ -16,8 +16,6 @@ class ViewAguinaldo extends ViewRecord
 
     /**
      * Define las acciones del encabezado para la página de vista detallada de un aguinaldo.
-     *
-     * @return array
      */
     protected function getHeaderActions(): array
     {
@@ -26,7 +24,7 @@ class ViewAguinaldo extends ViewRecord
                 ->label('Ver Período')
                 ->icon('heroicon-o-arrow-left')
                 ->color('primary')
-                ->url(fn() => AguinaldoPeriodResource::getUrl('view', ['record' => $this->record->aguinaldo_period_id])),
+                ->url(fn () => AguinaldoPeriodResource::getUrl('view', ['record' => $this->record->aguinaldo_period_id])),
 
             Action::make('mark_paid')
                 ->label('Marcar Pagado')
@@ -34,7 +32,7 @@ class ViewAguinaldo extends ViewRecord
                 ->color('success')
                 ->requiresConfirmation()
                 ->modalHeading('Marcar como Pagado')
-                ->modalDescription(fn() => "¿Confirmar pago del aguinaldo de {$this->record->employee->full_name} por " . Aguinaldo::formatCurrency($this->record->aguinaldo_amount) . "?")
+                ->modalDescription(fn () => "¿Confirmar pago del aguinaldo de {$this->record->employee->full_name} por ".Aguinaldo::formatCurrency($this->record->aguinaldo_amount).'?')
                 ->action(function () {
                     $this->record->markAsPaid();
 
@@ -45,7 +43,7 @@ class ViewAguinaldo extends ViewRecord
 
                     $this->refreshFormData(['status', 'paid_at']);
                 })
-                ->visible(fn() => $this->record->isPending() && $this->record->period->isProcessing()),
+                ->visible(fn () => $this->record->isPending() && $this->record->period->isProcessing()),
 
             Action::make('unmark_paid')
                 ->label('Marcar Pendiente')
@@ -53,7 +51,7 @@ class ViewAguinaldo extends ViewRecord
                 ->color('warning')
                 ->requiresConfirmation()
                 ->modalHeading('¿Marcar como Pendiente?')
-                ->modalDescription(fn() => "Se revertirá el pago del aguinaldo de {$this->record->employee->full_name} por " . Aguinaldo::formatCurrency($this->record->aguinaldo_amount) . " y volverá a estado Pendiente.")
+                ->modalDescription(fn () => "Se revertirá el pago del aguinaldo de {$this->record->employee->full_name} por ".Aguinaldo::formatCurrency($this->record->aguinaldo_amount).' y volverá a estado Pendiente.')
                 ->modalSubmitActionLabel('Sí, marcar como pendiente')
                 ->action(function () {
                     $this->record->markAsPending();
@@ -66,7 +64,7 @@ class ViewAguinaldo extends ViewRecord
 
                     $this->refreshFormData(['status', 'paid_at']);
                 })
-                ->visible(fn() => $this->record->isPaid() && $this->record->period->isProcessing()),
+                ->visible(fn () => $this->record->isPaid() && $this->record->period->isProcessing()),
 
             Action::make('regenerate')
                 ->label('Regenerar')
@@ -94,15 +92,15 @@ class ViewAguinaldo extends ViewRecord
                             ->send();
                     }
                 })
-                ->visible(fn() => $this->record->period->isProcessing()),
+                ->visible(fn () => $this->record->period->isProcessing()),
 
             Action::make('download_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
-                ->url(fn() => route('aguinaldos.download', $this->record))
+                ->color('gray')
+                ->url(fn () => route('aguinaldos.download', $this->record))
                 ->openUrlInNewTab()
-                ->visible(fn() => (bool) $this->record->pdf_path),
+                ->visible(fn () => (bool) $this->record->pdf_path),
         ];
     }
 }

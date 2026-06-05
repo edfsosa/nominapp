@@ -249,7 +249,7 @@ class ViewAdvance extends ViewRecord
             Action::make('export_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
+                ->color('gray')
                 ->visible(fn () => $this->record->isApproved() || $this->record->isDisbursed() || $this->record->isPaid())
                 ->url(fn () => route('advances.pdf', $this->record))
                 ->openUrlInNewTab(),

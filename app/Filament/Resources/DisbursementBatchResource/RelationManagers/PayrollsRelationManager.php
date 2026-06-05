@@ -209,14 +209,14 @@ class PayrollsRelationManager extends RelationManager
                     ->openUrlInNewTab(),
 
                 Action::make('download_pdf')
-                    ->label('PDF')
+                    ->label('Descargar PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->form([
                         Radio::make('mode')
                             ->label('Formato')
                             ->options([
-                                'print'    => 'Para imprimir — 2 copias en hoja horizontal',
+                                'print' => 'Para imprimir — 2 copias en hoja horizontal',
                                 'employee' => 'Para empleado — 1 copia en hoja vertical',
                             ])
                             ->default('print')
@@ -266,8 +266,8 @@ class PayrollsRelationManager extends RelationManager
                         ])
                         ->action(function (Payroll $record, array $data) {
                             $record->update([
-                                'disbursement_batch_id'  => null,
-                                'bank_rejection_reason'  => $data['bank_rejection_reason'],
+                                'disbursement_batch_id' => null,
+                                'bank_rejection_reason' => $data['bank_rejection_reason'],
                             ]);
 
                             Notification::make()

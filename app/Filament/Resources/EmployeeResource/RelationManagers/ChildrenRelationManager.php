@@ -159,8 +159,8 @@ class ChildrenRelationManager extends RelationManager
             ->actions([
                 Action::make('download_certificate')
                     ->label('Descargar certificado')
-                    ->icon('heroicon-o-paper-clip')
-                    ->color('success')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
                     ->visible(fn (EmployeeChild $record) => filled($record->birth_certificate_path))
                     ->url(fn (EmployeeChild $record) => $record->birth_certificate_url)
                     ->openUrlInNewTab(),

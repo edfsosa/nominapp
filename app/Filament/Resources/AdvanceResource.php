@@ -653,7 +653,7 @@ class AdvanceResource extends Resource
                     Action::make('export_pdf')
                         ->label('PDF')
                         ->icon('heroicon-o-arrow-down-tray')
-                        ->color('info')
+                        ->color('gray')
                         ->visible(fn (Advance $record) => $record->isApproved() || $record->isDisbursed() || $record->isPaid())
                         ->url(fn (Advance $record) => route('advances.pdf', $record))
                         ->openUrlInNewTab(),
@@ -849,8 +849,8 @@ class AdvanceResource extends Resource
 
                 BulkAction::make('pdf_masivo')
                     ->label('Descargar PDF')
-                    ->icon('heroicon-o-document-arrow-down')
-                    ->color('info')
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->color('gray')
                     ->action(function (Collection $records, \Livewire\Component $livewire) {
                         $ids = $records->pluck('id')->implode(',');
                         $url = route('advances.pdf.bulk', ['ids' => $ids]);

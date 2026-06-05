@@ -88,7 +88,7 @@ class ViewLiquidacion extends ViewRecord
             Action::make('download_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
+                ->color('gray')
                 ->url(fn () => route('liquidaciones.download', $this->record))
                 ->openUrlInNewTab()
                 ->visible(fn () => $this->record->pdf_path !== null),

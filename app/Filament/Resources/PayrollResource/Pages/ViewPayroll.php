@@ -23,7 +23,7 @@ class ViewPayroll extends ViewRecord
             Action::make('download_pdf')
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
-                ->color('info')
+                ->color('gray')
                 ->form([
                     Radio::make('mode')
                         ->label('Formato')
