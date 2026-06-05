@@ -16,6 +16,7 @@ jobs:
             --max-time 300 \
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            -H "Content-Type: application/json" \
             https://nominapp.sedacosmetica.com/deploy.php)
 
           echo "Server response: $(cat /tmp/deploy_out.json)"
