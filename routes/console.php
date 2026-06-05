@@ -56,6 +56,20 @@ Schedule::call(function () {
 })->dailyAt('02:00')->name('cleanup-mark-failures')->withoutOverlapping();
 
 /**
+ * Generar balances de vacaciones para todos los empleados activos
+ * Se ejecuta el 1° de enero a las 00:05 para el año entrante
+ */
+Schedule::command('vacations:generate-annual-balances')
+    ->yearlyOn(1, 1, '00:05')
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Generación automática de balances de vacaciones completada');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la generación automática de balances de vacaciones');
+    });
+
+/**
  * Expirar enrollments faciales vencidos
  * Se ejecuta cada hora para marcar como 'expired' los registros
  * en estado pending_capture cuyo expires_at ya pasó

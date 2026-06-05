@@ -5,7 +5,6 @@ namespace App\Filament\Pages;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\VacationBalance;
-use App\Services\VacationService;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
 use Filament\Notifications\Notification;
@@ -17,6 +16,7 @@ use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 
 /** Muestra el saldo de días de vacaciones por empleado, filtrable por año y sucursal. */
@@ -80,12 +80,14 @@ class VacationBalances extends Page implements HasTable
                         ->native(false),
                 ])
                 ->action(function (array $data) {
-                    $result = VacationService::generateBalancesForYear($data['year']);
+                    Artisan::call('vacations:generate-annual-balances', [
+                        '--year' => $data['year'],
+                    ]);
 
                     Notification::make()
                         ->success()
                         ->title('Balances generados')
-                        ->body("Se crearon {$result['created']} balances. Se omitieron {$result['skipped']} que ya existían.")
+                        ->body('El proceso finalizó. Revisá la tabla para ver los resultados.')
                         ->send();
                 }),
         ];
