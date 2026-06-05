@@ -222,6 +222,99 @@ it('usa el horario del empleado para determinar si es día laboral', function ()
         ->and(VacationService::isWorkDay($employee, $tuesday))->toBeFalse();
 });
 
+// ─── findBalanceToDebit ──────────────────────────────────────────────────────
+
+it('findBalanceToDebit retorna el balance más antiguo con días suficientes (FIFO)', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::create(2025, 3, 1));
+
+    // 2025: entitled=12, available=12
+    $b2025 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2025,
+        'years_of_service' => 0, 'entitled_days' => 12, 'used_days' => 0, 'pending_days' => 0,
+    ]);
+
+    // 2026: entitled=0 (menos de 1 año al 1/1/2026), available=0
+    $b2026 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2026,
+        'years_of_service' => 0, 'entitled_days' => 0, 'used_days' => 0, 'pending_days' => 0,
+    ]);
+
+    // Vacation starts in 2026 but days should come from 2025 balance
+    $balance = VacationService::findBalanceToDebit($employee, 6, 2026);
+
+    expect($balance->id)->toBe($b2025->id);
+});
+
+it('findBalanceToDebit usa el año de respaldo cuando ningún balance tiene saldo', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::create(2023, 1, 1));
+
+    // 2025: todo consumido
+    VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2025,
+        'years_of_service' => 2, 'entitled_days' => 12, 'used_days' => 12, 'pending_days' => 0,
+    ]);
+
+    // No hay balance 2026 aún
+    $balance = VacationService::findBalanceToDebit($employee, 6, 2026);
+
+    expect($balance->year)->toBe(2026)
+        ->and($balance->employee_id)->toBe($employee->id);
+});
+
+it('findBalanceToDebit excluye días pendientes del balance ya asignado al editar', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::create(2025, 3, 1));
+
+    // 2025: entitled=12, 6 días ya reservados como pending (de la vacación actual)
+    $b2025 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2025,
+        'years_of_service' => 0, 'entitled_days' => 12, 'used_days' => 0, 'pending_days' => 6,
+    ]);
+
+    // 2026: entitled=0
+    $b2026 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2026,
+        'years_of_service' => 0, 'entitled_days' => 0, 'used_days' => 0, 'pending_days' => 0,
+    ]);
+
+    // Sin excluir: 2025 tiene 6 disponibles (12-0-6), necesitamos 6 → OK, igual retorna 2025
+    $balanceNoExclude = VacationService::findBalanceToDebit($employee, 6, 2026);
+    expect($balanceNoExclude->id)->toBe($b2025->id);
+
+    // Con excluir los 6 pending de 2025 (la vacación existente): 2025 tendría 12 disponibles
+    // — sigue siendo 2025, simplemente con más margen
+    $balanceWithExclude = VacationService::findBalanceToDebit($employee, 6, 2026, $b2025->id, 6);
+    expect($balanceWithExclude->id)->toBe($b2025->id);
+});
+
+it('findBalanceToDebit no asigna a balance con entitled_days=0 cuando hay uno con saldo', function () {
+    seedPayrollSettings();
+
+    $employee = makeEmployeeWithHireDate(Carbon::create(2025, 6, 1));
+
+    // 2025: entitled=12, used=5, pending=0 → available=7
+    $b2025 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2025,
+        'years_of_service' => 0, 'entitled_days' => 12, 'used_days' => 5, 'pending_days' => 0,
+    ]);
+
+    // 2026: entitled=0 (recién ingresó en jun 2025, no cumple 1 año al 1/1/2026)
+    $b2026 = VacationBalance::create([
+        'employee_id' => $employee->id, 'year' => 2026,
+        'years_of_service' => 0, 'entitled_days' => 0, 'used_days' => 0, 'pending_days' => 0,
+    ]);
+
+    $balance = VacationService::findBalanceToDebit($employee, 6, 2026);
+
+    expect($balance->id)->toBe($b2025->id)
+        ->and($balance->id)->not->toBe($b2026->id);
+});
+
 // ─── getOrCreateBalance ──────────────────────────────────────────────────────
 
 it('crea un balance de vacaciones correctamente', function () {

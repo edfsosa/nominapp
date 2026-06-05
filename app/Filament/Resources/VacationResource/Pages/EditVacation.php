@@ -4,6 +4,7 @@ namespace App\Filament\Resources\VacationResource\Pages;
 
 use App\Filament\Resources\VacationResource;
 use App\Models\Employee;
+use App\Models\VacationBalance;
 use App\Services\VacationService;
 use Carbon\Carbon;
 use Filament\Actions\DeleteAction;
@@ -78,7 +79,10 @@ class EditVacation extends EditRecord
                 return $data;
             }
             $year = Carbon::parse($data['start_date'])->year;
-            $balance = VacationService::getOrCreateBalance($employee, $year);
+            $businessDays = (int) ($data['business_days'] ?? 0);
+            $oldBalanceId = $this->record->vacation_balance_id;
+            $oldPendingDays = $this->record->isPending() ? (int) ($this->record->business_days ?? 0) : 0;
+            $balance = VacationService::findBalanceToDebit($employee, $businessDays, $year, $oldBalanceId, $oldPendingDays);
             $data['vacation_balance_id'] = $balance->id;
         }
 
@@ -86,19 +90,27 @@ class EditVacation extends EditRecord
     }
 
     /**
-     * Ajusta el balance de días pendientes si cambiaron los días hábiles.
+     * Ajusta el balance de días pendientes si cambiaron los días o el balance asignado.
      */
     protected function beforeSave(): void
     {
         $record = $this->record;
-        $oldBusinessDays = $record->getOriginal('business_days') ?? 0;
-        $newBusinessDays = $this->data['business_days'] ?? 0;
 
-        if ($record->isPending() && $oldBusinessDays !== $newBusinessDays) {
-            if ($record->vacation_balance_id && $record->vacationBalance) {
-                $record->vacationBalance->releasePendingDays($oldBusinessDays);
-                $record->vacationBalance->addPendingDays($newBusinessDays);
-            }
+        if (! $record->isPending()) {
+            return;
+        }
+
+        $oldBusinessDays = (int) ($record->business_days ?? 0);
+        $newBusinessDays = (int) ($this->data['business_days'] ?? 0);
+        $oldBalanceId = $record->vacation_balance_id;
+        $newBalanceId = $this->data['vacation_balance_id'] ?? $oldBalanceId;
+
+        if ($oldBalanceId && $oldBalanceId !== $newBalanceId) {
+            VacationBalance::find($oldBalanceId)?->releasePendingDays($oldBusinessDays);
+            VacationBalance::find($newBalanceId)?->addPendingDays($newBusinessDays);
+        } elseif ($oldBusinessDays !== $newBusinessDays && $record->vacationBalance) {
+            $record->vacationBalance->releasePendingDays($oldBusinessDays);
+            $record->vacationBalance->addPendingDays($newBusinessDays);
         }
     }
 
