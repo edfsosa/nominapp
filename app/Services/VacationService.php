@@ -281,6 +281,45 @@ class VacationService
     }
 
     /**
+     * Retorna el balance al cual debitar días usando criterio FIFO (más antiguo primero).
+     *
+     * Busca el balance más antiguo con días disponibles suficientes para cubrir la solicitud.
+     * Si ninguno la cubre solo, retorna el más antiguo con cualquier saldo positivo.
+     * Acepta parámetros opcionales para excluir días pendientes del propio balance ya asignado
+     * (útil al editar una solicitud existente para no contaminar el conteo disponible).
+     *
+     * @param  int  $fallbackYear  Año al cual crear/buscar balance si ninguno tiene saldo
+     * @param  int|null  $excludeFromBalanceId  ID del balance al que restar $excludePendingDays
+     * @param  int  $excludePendingDays  Días pendientes a excluir del cómputo de disponibles
+     */
+    public static function findBalanceToDebit(
+        Employee $employee,
+        int $days,
+        int $fallbackYear,
+        ?int $excludeFromBalanceId = null,
+        int $excludePendingDays = 0
+    ): VacationBalance {
+        $balances = VacationBalance::where('employee_id', $employee->id)->orderBy('year')->get();
+
+        $available = fn (VacationBalance $b) => $b->entitled_days - $b->used_days - $b->pending_days
+            + ($excludeFromBalanceId === $b->id ? $excludePendingDays : 0);
+
+        foreach ($balances as $balance) {
+            if ($available($balance) >= $days) {
+                return $balance;
+            }
+        }
+
+        foreach ($balances as $balance) {
+            if ($available($balance) > 0) {
+                return $balance;
+            }
+        }
+
+        return self::getOrCreateBalance($employee, $fallbackYear);
+    }
+
+    /**
      * Obtiene o crea el balance de vacaciones del empleado para un año
      */
     public static function getOrCreateBalance(Employee $employee, int $year): VacationBalance

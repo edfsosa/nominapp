@@ -74,7 +74,8 @@ class CreateVacation extends CreateRecord
                 return $data;
             }
             $year = Carbon::parse($data['start_date'])->year;
-            $balance = VacationService::getOrCreateBalance($employee, $year);
+            $businessDays = (int) ($data['business_days'] ?? 0);
+            $balance = VacationService::findBalanceToDebit($employee, $businessDays, $year);
             $data['vacation_balance_id'] = $balance->id;
         }
 
