@@ -329,7 +329,7 @@ class VacationService
             ->first();
 
         if (! $balance) {
-            $yearsOfService = self::getYearsOfService($employee, Carbon::create($year, 1, 1));
+            $yearsOfService = self::getYearsOfService($employee, Carbon::create($year, 12, 31));
             $entitledDays = self::getEntitledDays($yearsOfService);
 
             $balance = VacationBalance::create([
