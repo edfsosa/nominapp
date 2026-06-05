@@ -223,7 +223,7 @@ class WarningResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable()
                     ->wrap(),
@@ -319,7 +319,7 @@ class WarningResource extends Resource
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->url(fn (Warning $record) => route('warnings.pdf', $record))
                     ->openUrlInNewTab(),
 

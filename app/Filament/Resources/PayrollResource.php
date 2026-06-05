@@ -69,7 +69,7 @@ class PayrollResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
@@ -199,7 +199,7 @@ class PayrollResource extends Resource
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->url(fn (Payroll $record) => route('payrolls.download', $record))
                     ->openUrlInNewTab(),
 
@@ -486,8 +486,8 @@ class PayrollResource extends Resource
 
                     BulkAction::make('download_pdfs')
                         ->label('Descargar PDFs')
-                        ->icon('heroicon-o-document-arrow-down')
-                        ->color('info')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->color('gray')
                         ->action(function (Collection $records, \Livewire\Component $livewire) {
                             $records->load('employee');
                             $validRecords = $records->filter(

@@ -420,7 +420,7 @@ class LiquidacionResource extends Resource
                 Action::make('download_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->url(fn (Liquidacion $record) => route('liquidaciones.download', $record))
                     ->openUrlInNewTab()
                     ->visible(fn (Liquidacion $record) => $record->pdf_path !== null),

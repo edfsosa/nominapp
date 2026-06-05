@@ -359,7 +359,7 @@ class LoanResource extends Resource
                     ->searchable(query: fn (Builder $query, string $search) => $query->whereHas(
                         'employee',
                         fn ($q) => $q->where('first_name', 'like', "%{$search}%")
-                                     ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
                     ))
                     ->sortable(['first_name', 'last_name'])
                     ->wrap(),
@@ -512,7 +512,7 @@ class LoanResource extends Resource
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
+                    ->color('gray')
                     ->visible(fn (Loan $record) => $record->isApproved() || $record->isPaid())
                     ->url(fn (Loan $record) => route('loans.pdf', $record))
                     ->openUrlInNewTab(),

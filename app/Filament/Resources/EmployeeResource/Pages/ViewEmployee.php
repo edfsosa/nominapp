@@ -31,7 +31,7 @@ class ViewEmployee extends ViewRecord
         return [
             Action::make('download_legajo')
                 ->label('Descargar Legajo')
-                ->icon('heroicon-o-document-arrow-down')
+                ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
                 ->url(fn () => route('employees.legajo', $this->record))
                 ->openUrlInNewTab(),

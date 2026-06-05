@@ -147,9 +147,9 @@ class AttendanceReport extends Page implements HasTable
         return [
             // ─── ASISTENCIAS ──────────────────────────────────────────────────────
             Action::make('pdf_attendance')
-                ->label('PDF')
-                ->icon('heroicon-o-document-text')
-                ->color('danger')
+                ->label('Exportar PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
                 ->visible(fn () => $this->activeTab === 'attendance')
                 ->modalHeading('Exportar asistencias en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
@@ -248,9 +248,9 @@ class AttendanceReport extends Page implements HasTable
 
             // ─── HORAS EXTRAS Y TARDANZAS ─────────────────────────────────────────
             Action::make('pdf_overtime')
-                ->label('PDF')
-                ->icon('heroicon-o-document-text')
-                ->color('danger')
+                ->label('Exportar PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
                 ->visible(fn () => $this->activeTab === 'overtime')
                 ->modalHeading('Exportar horas extras y tardanzas en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
@@ -352,9 +352,9 @@ class AttendanceReport extends Page implements HasTable
 
             // ─── AUSENCIAS ────────────────────────────────────────────────────────
             Action::make('pdf_absence')
-                ->label('PDF')
-                ->icon('heroicon-o-document-text')
-                ->color('danger')
+                ->label('Exportar PDF')
+                ->icon('heroicon-o-arrow-down-tray')
+                ->color('gray')
                 ->visible(fn () => $this->activeTab === 'absence')
                 ->modalHeading('Exportar ausencias en PDF')
                 ->modalSubmitActionLabel('Generar PDF')
