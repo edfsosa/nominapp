@@ -17,6 +17,7 @@ jobs:
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
             -H "Content-Type: application/json" \
+            -d '{}' \
             https://nominapp.sedacosmetica.com/deploy.php)
 
           echo "Server response: $(cat /tmp/deploy_out.json)"
