@@ -23,6 +23,14 @@ class CreateVacation extends CreateRecord
         $data = $this->data;
 
         if (empty($data['employee_id']) || empty($data['start_date']) || empty($data['end_date'])) {
+            Notification::make()
+                ->danger()
+                ->title('Formulario incompleto')
+                ->body('Seleccione un empleado con derecho a vacaciones y complete las fechas del período.')
+                ->send();
+
+            $this->halt();
+
             return;
         }
 
