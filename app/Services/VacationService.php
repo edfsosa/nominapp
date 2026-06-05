@@ -56,7 +56,7 @@ class VacationService
 
         $asOfDate = $asOfDate ?? Carbon::now();
 
-        return $employee->hire_date->diffInYears($asOfDate);
+        return (int) $employee->hire_date->diffInYears($asOfDate);
     }
 
     /**
