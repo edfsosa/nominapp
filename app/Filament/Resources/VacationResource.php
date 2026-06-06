@@ -111,6 +111,8 @@ class VacationResource extends Resource
                                     ");
                                 }
 
+                                VacationService::getOrCreateBalance($employee, now()->year);
+
                                 $balances = VacationBalance::where('employee_id', $employee->id)->orderByDesc('year')->get();
                                 $totalAvail = VacationService::getTotalAvailableDays($employee);
                                 $totalUsed = $balances->sum('used_days');
@@ -166,6 +168,8 @@ class VacationResource extends Resource
                         if (VacationService::getYearsOfService($employee) < $minYears) {
                             return true;
                         }
+
+                        VacationService::getOrCreateBalance($employee, now()->year);
 
                         return VacationService::getTotalAvailableDays($employee) === 0;
                     })
