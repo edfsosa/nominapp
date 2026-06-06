@@ -340,6 +340,18 @@ class VacationService
                 'used_days' => 0,
                 'pending_days' => 0,
             ]);
+        } elseif ($balance->entitled_days === 0) {
+            // Balance existente con entitled_days=0, posiblemente creado con la referencia
+            // incorrecta (Jan 1 en lugar de Dec 31). Recalcular y corregir si corresponde.
+            $yearsOfService = self::getYearsOfService($employee, Carbon::create($year, 12, 31));
+            $entitledDays = self::getEntitledDays($yearsOfService);
+
+            if ($entitledDays > 0) {
+                $balance->update([
+                    'entitled_days' => $entitledDays,
+                    'years_of_service' => $yearsOfService,
+                ]);
+            }
         }
 
         return $balance;
