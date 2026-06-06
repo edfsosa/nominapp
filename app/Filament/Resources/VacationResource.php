@@ -486,17 +486,25 @@ class VacationResource extends Resource
                     ->label('Desaprobar')
                     ->icon('heroicon-o-arrow-uturn-left')
                     ->color('warning')
-                    ->visible(fn ($record) => $record->status === 'approved' && $record->start_date->isFuture())
+                    ->visible(fn ($record) => $record->status === 'approved' && $record->payment_status !== 'paid')
                     ->requiresConfirmation()
                     ->modalHeading('Desaprobar Solicitud de Vacaciones')
-                    ->modalDescription(fn ($record) => "¿Revertir la aprobación de las vacaciones de {$record->employee->full_name}? La solicitud volverá a estado pendiente.")
+                    ->modalDescription(function ($record) {
+                        $base = "¿Revertir la aprobación de las vacaciones de {$record->employee->full_name}? La solicitud volverá a estado pendiente.";
+
+                        if (! $record->start_date->isFuture()) {
+                            $base = "⚠️ Atención: estas vacaciones ya comenzaron o ya pasaron. Al desaprobar, los días usados se devolverán al balance. Proceda solo si fue un error de carga.\n\n".$base;
+                        }
+
+                        return $base;
+                    })
                     ->modalSubmitActionLabel('Sí, desaprobar')
                     ->action(function ($record) {
                         VacationService::unapprove($record);
 
                         Notification::make()
                             ->title('Vacaciones desaprobadas')
-                            ->body("La solicitud de {$record->employee->full_name} volvió a estado pendiente.")
+                            ->body("Las vacaciones de {$record->employee->full_name} fueron desaprobadas.")
                             ->warning()
                             ->send();
                     }),

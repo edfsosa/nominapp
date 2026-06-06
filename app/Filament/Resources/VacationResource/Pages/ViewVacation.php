@@ -78,10 +78,19 @@ class ViewVacation extends ViewRecord
                 ->label('Desaprobar')
                 ->icon('heroicon-o-arrow-uturn-left')
                 ->color('warning')
-                ->visible(fn () => $this->record->status === 'approved' && $this->record->start_date->isFuture())
+                ->visible(fn () => $this->record->status === 'approved' && $this->record->payment_status !== 'paid')
                 ->requiresConfirmation()
                 ->modalHeading('Desaprobar Solicitud de Vacaciones')
-                ->modalDescription(fn () => "¿Está seguro de revertir la aprobación de las vacaciones de {$this->record->employee->full_name}? La solicitud volverá a estado pendiente.")
+                ->modalDescription(function () {
+                    $record = $this->record;
+                    $base = "¿Está seguro de revertir la aprobación de las vacaciones de {$record->employee->full_name}? La solicitud volverá a estado pendiente.";
+
+                    if (! $record->start_date->isFuture()) {
+                        $base = "⚠️ Atención: estas vacaciones ya comenzaron o ya pasaron. Al desaprobar, los días usados se devolverán al balance. Proceda solo si fue un error de carga.\n\n".$base;
+                    }
+
+                    return $base;
+                })
                 ->modalSubmitActionLabel('Sí, desaprobar')
                 ->action(function () {
                     $record = $this->record;
