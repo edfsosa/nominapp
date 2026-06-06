@@ -136,6 +136,27 @@ class ViewVacation extends ViewRecord
                     $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
                 }),
 
+            Action::make('reverse_payment')
+                ->label('Revertir Pago')
+                ->icon('heroicon-o-arrow-uturn-left')
+                ->color('danger')
+                ->visible(fn () => $this->record->isApproved() && $this->record->payment_status === 'paid')
+                ->requiresConfirmation()
+                ->modalHeading('Revertir registro de pago')
+                ->modalDescription(fn () => '⚠️ Esto solo revierte el registro en el sistema. El dinero entregado al empleado debe gestionarse por fuera. ¿Está seguro?')
+                ->modalSubmitActionLabel('Sí, revertir pago')
+                ->action(function () {
+                    VacationService::reversePayment($this->record);
+
+                    Notification::make()
+                        ->warning()
+                        ->title('Pago revertido')
+                        ->body('El registro de pago fue revertido. La vacación vuelve a estado "aprobada sin pagar".')
+                        ->send();
+
+                    $this->redirect($this->getResource()::getUrl('view', ['record' => $this->record]));
+                }),
+
             Action::make('generateDocuments')
                 ->label('Generar Documentos')
                 ->icon('heroicon-o-arrow-down-tray')
