@@ -7,8 +7,12 @@ use App\Models\AttendanceEvent;
 use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\Grid;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
@@ -251,6 +255,36 @@ class AttendanceEventResource extends Resource
                         ->label('Editar')
                         ->icon('heroicon-o-pencil-square')
                         ->color('primary')
+                        ->modalHeading('Editar marcación')
+                        ->form([
+                            Hidden::make('_date'),
+
+                            Select::make('event_type')
+                                ->label('Tipo de evento')
+                                ->options(AttendanceEvent::getEventTypeOptions())
+                                ->native(false)
+                                ->required(),
+
+                            Placeholder::make('fecha')
+                                ->label('Fecha')
+                                ->content(fn (Get $get) => $get('_date')
+                                    ? Carbon::parse($get('_date'))->translatedFormat('l d/m/Y')
+                                    : '—'),
+
+                            TimePicker::make('time')
+                                ->label('Hora de marcación')
+                                ->seconds(false)
+                                ->native(false)
+                                ->required(),
+                        ])
+                        ->mutateRecordDataUsing(fn (array $data) => array_merge($data, [
+                            'time' => Carbon::parse($data['recorded_at'])->format('H:i'),
+                            '_date' => Carbon::parse($data['recorded_at'])->format('Y-m-d'),
+                        ]))
+                        ->mutateFormDataUsing(fn (array $data) => [
+                            'event_type' => $data['event_type'],
+                            'recorded_at' => Carbon::parse($data['_date'].' '.$data['time']),
+                        ])
                         ->successNotificationTitle('Marcación actualizada'),
 
                     DeleteAction::make()
