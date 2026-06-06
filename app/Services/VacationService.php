@@ -211,6 +211,20 @@ class VacationService
     }
 
     /**
+     * Revierte el registro de pago vacacional, dejando la vacación en estado aprobada sin pagar.
+     *
+     * Solo revierte el registro en el sistema — la devolución del dinero físico
+     * debe gestionarse por fuera.
+     */
+    public static function reversePayment(Vacation $vacation): void
+    {
+        $vacation->update([
+            'payment_status' => 'unpaid',
+            'paid_at' => null,
+        ]);
+    }
+
+    /**
      * Rechaza una solicitud de vacaciones y libera los días pendientes en una transacción.
      */
     public static function reject(Vacation $vacation): void
