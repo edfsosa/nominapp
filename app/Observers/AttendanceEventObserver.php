@@ -88,13 +88,73 @@ class AttendanceEventObserver
 
     /**
      * Handle the AttendanceEvent "updating" event.
-     * Actualizar datos desnormalizados si cambia el attendance_day_id
+     * Si recorded_at cambió de fecha, reasigna attendance_day_id al día correcto.
+     * También repobla datos desnormalizados cuando cambia la relación con el día.
      */
     public function updating(AttendanceEvent $attendanceEvent): void
     {
-        // Solo repoblar si cambió la relación con el día de asistencia
+        if ($attendanceEvent->isDirty('recorded_at')) {
+            $originalDate = $attendanceEvent->getOriginal('recorded_at')
+                ? \Carbon\Carbon::parse($attendanceEvent->getOriginal('recorded_at'))->toDateString()
+                : null;
+            $newDate = $attendanceEvent->recorded_at?->toDateString();
+
+            if ($originalDate !== $newDate && $newDate !== null) {
+                // Obtener el employee_id desde el día actual
+                $employeeId = $attendanceEvent->employee_id
+                    ?? $attendanceEvent->day?->employee_id;
+
+                if ($employeeId) {
+                    $newDay = AttendanceDay::firstOrCreate(
+                        ['employee_id' => $employeeId, 'date' => $newDate],
+                        ['status' => 'present']
+                    );
+
+                    // Guardar el día anterior para recalcular en updated
+                    $attendanceEvent->setAttribute('_old_attendance_day_id', $attendanceEvent->attendance_day_id);
+                    $attendanceEvent->attendance_day_id = $newDay->id;
+                }
+            }
+        }
+
         if ($attendanceEvent->isDirty('attendance_day_id')) {
             $this->populateDenormalizedData($attendanceEvent);
+        }
+    }
+
+    /**
+     * Handle the AttendanceEvent "updated" event.
+     * Recalcular ambos días cuando el evento fue movido a un día diferente.
+     */
+    public function updated(AttendanceEvent $attendanceEvent): void
+    {
+        if (! $attendanceEvent->wasChanged('attendance_day_id')) {
+            return;
+        }
+
+        try {
+            // Recalcular el nuevo día
+            $newDay = $attendanceEvent->day;
+            if ($newDay) {
+                AttendanceCalculator::apply($newDay);
+                $newDay->save();
+            }
+
+            // Recalcular el día anterior (cuyo ID fue guardado en updating)
+            $oldDayId = $attendanceEvent->getAttribute('_old_attendance_day_id');
+            if ($oldDayId && $oldDayId !== $attendanceEvent->attendance_day_id) {
+                $oldDay = AttendanceDay::find($oldDayId);
+                if ($oldDay) {
+                    AttendanceCalculator::apply($oldDay);
+                    $oldDay->save();
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Error recalculando asistencia al mover evento ID {$attendanceEvent->id}: {$e->getMessage()}", [
+                'attendance_event_id' => $attendanceEvent->id,
+                'employee_id' => $attendanceEvent->employee_id,
+                'trace' => $e->getTraceAsString(),
+            ]);
         }
     }
 
