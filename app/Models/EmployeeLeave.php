@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /** Representa una licencia registrada para un empleado. */
 class EmployeeLeave extends Model
@@ -25,9 +27,53 @@ class EmployeeLeave extends Model
     /**
      * Relación con el empleado al que pertenece la licencia.
      */
-    public function employee()
+    public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    /**
+     * Ausencias justificadas por esta licencia.
+     */
+    public function absences(): HasMany
+    {
+        return $this->hasMany(Absence::class);
+    }
+
+    /**
+     * Aprueba la licencia y justifica automáticamente las ausencias del período.
+     *
+     * @return array<string, int> Contiene 'justified_count'
+     */
+    public function approve(int $approvedById): array
+    {
+        $this->update(['status' => 'approved']);
+
+        $absences = Absence::where('employee_id', $this->employee_id)
+            ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$this->start_date, $this->end_date]))
+            ->whereIn('status', ['pending', 'unjustified'])
+            ->get();
+
+        $typeLabel = self::getTypeOptions()[$this->type] ?? $this->type;
+        $period = $this->start_date->format('d/m/Y').' al '.$this->end_date->format('d/m/Y');
+
+        foreach ($absences as $absence) {
+            $absence->justify(
+                $approvedById,
+                "Justificada por licencia: {$typeLabel} ({$period})",
+                $this->id
+            );
+        }
+
+        return ['justified_count' => $absences->count()];
+    }
+
+    /**
+     * Rechaza la licencia.
+     */
+    public function reject(): void
+    {
+        $this->update(['status' => 'rejected']);
     }
 
     /**

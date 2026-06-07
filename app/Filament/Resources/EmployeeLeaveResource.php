@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\EmployeeLeaveResource\Pages;
+use App\Models\Absence;
 use App\Models\EmployeeLeave;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -14,15 +15,20 @@ use Filament\Forms\Get;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
+use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
+/** Recurso Filament para gestionar permisos y licencias de empleados. */
 class EmployeeLeaveResource extends Resource
 {
     protected static ?string $model = EmployeeLeave::class;
@@ -41,6 +47,9 @@ class EmployeeLeaveResource extends Resource
 
     protected static ?int $navigationSort = 4;
 
+    /**
+     * Define el formulario para crear y editar licencias.
+     */
     public static function form(Form $form): Form
     {
         return $form
@@ -58,11 +67,7 @@ class EmployeeLeaveResource extends Resource
 
                         Select::make('status')
                             ->label('Estado')
-                            ->options([
-                                'pending' => 'Pendiente',
-                                'approved' => 'Aprobado',
-                                'rejected' => 'Rechazado',
-                            ])
+                            ->options(EmployeeLeave::getStatusOptions())
                             ->default('pending')
                             ->native(false)
                             ->required()
@@ -72,15 +77,7 @@ class EmployeeLeaveResource extends Resource
 
                         Select::make('type')
                             ->label('Tipo de licencia')
-                            ->options([
-                                'medical_leave' => 'Reposo médico',
-                                'vacation' => 'Vacaciones',
-                                'day_off' => 'Día libre',
-                                'maternity_leave' => 'Licencia de Maternidad',
-                                'paternity_leave' => 'Licencia de Paternidad',
-                                'unpaid_leave' => 'Sin Goce de Sueldo',
-                                'other' => 'Otro',
-                            ])
+                            ->options(EmployeeLeave::getTypeOptions())
                             ->native(false)
                             ->required()
                             ->live()
@@ -153,6 +150,9 @@ class EmployeeLeaveResource extends Resource
             ]);
     }
 
+    /**
+     * Define la tabla con columnas, filtros y acciones de fila.
+     */
     public static function table(Table $table): Table
     {
         return $table
@@ -168,25 +168,9 @@ class EmployeeLeaveResource extends Resource
 
                 TextColumn::make('type')
                     ->label('Tipo')
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'medical_leave' => 'Reposo médico',
-                        'vacation' => 'Vacaciones',
-                        'day_off' => 'Día libre',
-                        'maternity_leave' => 'Maternidad',
-                        'paternity_leave' => 'Paternidad',
-                        'unpaid_leave' => 'Sin goce de sueldo',
-                        'other' => 'Otro',
-                    })
+                    ->formatStateUsing(fn (string $state): string => EmployeeLeave::getTypeOptions()[$state] ?? $state)
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'medical_leave' => 'danger',
-                        'vacation' => 'success',
-                        'day_off' => 'info',
-                        'maternity_leave' => 'pink',
-                        'paternity_leave' => 'blue',
-                        'unpaid_leave' => 'warning',
-                        'other' => 'gray',
-                    })
+                    ->color(fn (string $state): string => EmployeeLeave::getTypeColors()[$state] ?? 'gray')
                     ->sortable()
                     ->searchable(),
 
@@ -208,7 +192,7 @@ class EmployeeLeaveResource extends Resource
                         $start = \Carbon\Carbon::parse($record->start_date);
                         $end = \Carbon\Carbon::parse($record->end_date);
 
-                        return $start->diffInDays($end) + 1;
+                        return (int) $start->diffInDays($end) + 1;
                     })
                     ->badge()
                     ->color('primary')
@@ -216,17 +200,10 @@ class EmployeeLeaveResource extends Resource
 
                 TextColumn::make('status')
                     ->label('Estado')
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    })
+                    ->formatStateUsing(fn (string $state): string => EmployeeLeave::getStatusOptions()[$state] ?? $state)
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
-                        'pending' => 'warning',
-                        'approved' => 'success',
-                        'rejected' => 'danger',
-                    })
+                    ->color(fn (string $state): string => EmployeeLeave::getStatusColors()[$state] ?? 'gray')
+                    ->icon(fn (string $state): string => EmployeeLeave::getStatusIcons()[$state] ?? 'heroicon-o-question-mark-circle')
                     ->sortable()
                     ->searchable(),
 
@@ -254,24 +231,12 @@ class EmployeeLeaveResource extends Resource
             ->filters([
                 SelectFilter::make('type')
                     ->label('Tipo de licencia')
-                    ->options([
-                        'medical_leave' => 'Reposo médico',
-                        'vacation' => 'Vacaciones',
-                        'day_off' => 'Día libre',
-                        'maternity_leave' => 'Maternidad',
-                        'paternity_leave' => 'Paternidad',
-                        'unpaid_leave' => 'Sin goce de sueldo',
-                        'other' => 'Otro',
-                    ])
+                    ->options(EmployeeLeave::getTypeOptions())
                     ->multiple(),
 
                 SelectFilter::make('status')
                     ->label('Estado')
-                    ->options([
-                        'pending' => 'Pendiente',
-                        'approved' => 'Aprobado',
-                        'rejected' => 'Rechazado',
-                    ])
+                    ->options(EmployeeLeave::getStatusOptions())
                     ->multiple(),
 
                 SelectFilter::make('employee_id')
@@ -283,6 +248,60 @@ class EmployeeLeaveResource extends Resource
                     ->multiple(),
             ])
             ->actions([
+                ActionGroup::make([
+                    Action::make('approve')
+                        ->label('Aprobar')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Aprobar Licencia')
+                        ->modalDescription(function (EmployeeLeave $record) {
+                            $count = Absence::where('employee_id', $record->employee_id)
+                                ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$record->start_date, $record->end_date]))
+                                ->whereIn('status', ['pending', 'unjustified'])
+                                ->count();
+
+                            $base = 'Se aprobará la licencia del empleado.';
+                            if ($count > 0) {
+                                $base .= " Se justificarán automáticamente {$count} ausencia(s) registrada(s) en el período.";
+                            }
+
+                            return $base;
+                        })
+                        ->modalSubmitActionLabel('Sí, aprobar')
+                        ->visible(fn (EmployeeLeave $record) => $record->status === 'pending')
+                        ->action(function (EmployeeLeave $record) {
+                            $result = $record->approve(Auth::id());
+
+                            $body = $result['justified_count'] > 0
+                                ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
+                                : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+
+                            Notification::make()
+                                ->success()
+                                ->title('Licencia aprobada')
+                                ->body($body)
+                                ->send();
+                        }),
+
+                    Action::make('reject')
+                        ->label('Rechazar')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Rechazar Licencia')
+                        ->modalDescription('Se rechazará esta solicitud de licencia.')
+                        ->modalSubmitActionLabel('Sí, rechazar')
+                        ->visible(fn (EmployeeLeave $record) => $record->status === 'pending')
+                        ->action(function (EmployeeLeave $record) {
+                            $record->reject();
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Licencia rechazada')
+                                ->send();
+                        }),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -307,6 +326,9 @@ class EmployeeLeaveResource extends Resource
             ->emptyStateIcon('heroicon-o-calendar-days');
     }
 
+    /**
+     * Define el infolist para visualizar los detalles de una licencia.
+     */
     public static function infolist(Infolist $infolist): Infolist
     {
         return $infolist
@@ -348,45 +370,18 @@ class EmployeeLeaveResource extends Resource
                     ->schema([
                         TextEntry::make('type')
                             ->label('Tipo de licencia')
-                            ->formatStateUsing(fn (string $state): string => match ($state) {
-                                'medical_leave' => 'Reposo médico',
-                                'vacation' => 'Vacaciones',
-                                'day_off' => 'Día libre',
-                                'maternity_leave' => 'Licencia de Maternidad',
-                                'paternity_leave' => 'Licencia de Paternidad',
-                                'unpaid_leave' => 'Sin Goce de Sueldo',
-                                'other' => 'Otro',
-                            })
+                            ->formatStateUsing(fn (string $state): string => EmployeeLeave::getTypeOptions()[$state] ?? $state)
                             ->badge()
-                            ->color(fn (string $state): string => match ($state) {
-                                'medical_leave' => 'danger',
-                                'vacation' => 'success',
-                                'day_off' => 'info',
-                                'maternity_leave' => 'pink',
-                                'paternity_leave' => 'blue',
-                                'unpaid_leave' => 'warning',
-                                'other' => 'gray',
-                            })
+                            ->color(fn (string $state): string => EmployeeLeave::getTypeColors()[$state] ?? 'gray')
+                            ->icon(fn (string $state): string => EmployeeLeave::getTypeIcons()[$state] ?? 'heroicon-o-document-text')
                             ->columnSpan(1),
 
                         TextEntry::make('status')
                             ->label('Estado')
-                            ->formatStateUsing(fn (string $state): string => match ($state) {
-                                'pending' => 'Pendiente',
-                                'approved' => 'Aprobado',
-                                'rejected' => 'Rechazado',
-                            })
+                            ->formatStateUsing(fn (string $state): string => EmployeeLeave::getStatusOptions()[$state] ?? $state)
                             ->badge()
-                            ->color(fn (string $state): string => match ($state) {
-                                'pending' => 'warning',
-                                'approved' => 'success',
-                                'rejected' => 'danger',
-                            })
-                            ->icon(fn (string $state): string => match ($state) {
-                                'pending' => 'heroicon-o-clock',
-                                'approved' => 'heroicon-o-check-circle',
-                                'rejected' => 'heroicon-o-x-circle',
-                            })
+                            ->color(fn (string $state): string => EmployeeLeave::getStatusColors()[$state] ?? 'gray')
+                            ->icon(fn (string $state): string => EmployeeLeave::getStatusIcons()[$state] ?? 'heroicon-o-question-mark-circle')
                             ->columnSpan(1),
 
                         TextEntry::make('document_path')
@@ -418,9 +413,7 @@ class EmployeeLeaveResource extends Resource
                         TextEntry::make('duration')
                             ->label('Duración total')
                             ->getStateUsing(function ($record) {
-                                $start = \Carbon\Carbon::parse($record->start_date);
-                                $end = \Carbon\Carbon::parse($record->end_date);
-                                $days = $start->diffInDays($end) + 1;
+                                $days = (int) $record->start_date->diffInDays($record->end_date) + 1;
 
                                 return $days.' '.($days === 1 ? 'día' : 'días');
                             })
@@ -433,6 +426,11 @@ class EmployeeLeaveResource extends Resource
             ]);
     }
 
+    /**
+     * Registra las páginas del recurso.
+     *
+     * @return array<string, \Filament\Resources\Pages\PageRegistration>
+     */
     public static function getPages(): array
     {
         return [

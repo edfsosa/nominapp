@@ -19,6 +19,7 @@ class Absence extends Model
         'review_notes',
         'documents',
         'employee_deduction_id',
+        'employee_leave_id',
     ];
 
     protected $casts = [
@@ -65,6 +66,14 @@ class Absence extends Model
     public function employeeDeduction(): BelongsTo
     {
         return $this->belongsTo(EmployeeDeduction::class);
+    }
+
+    /**
+     * Permiso o licencia que justifica esta ausencia
+     */
+    public function employeeLeave(): BelongsTo
+    {
+        return $this->belongsTo(EmployeeLeave::class);
     }
 
     /**
@@ -187,7 +196,7 @@ class Absence extends Model
      */
     public function hasDeduction(): bool
     {
-        return !is_null($this->employee_deduction_id);
+        return ! is_null($this->employee_deduction_id);
     }
 
     /**
@@ -201,11 +210,12 @@ class Absence extends Model
     /**
      * Marca la ausencia como justificada
      *
-     * @param int $reviewedById ID del usuario que revisa
-     * @param string|null $reviewNotes Notas de revisión
-     * @return array Resultado con 'success' y 'message'
+     * @param  int  $reviewedById  ID del usuario que revisa
+     * @param  string|null  $reviewNotes  Notas de revisión
+     * @param  int|null  $employeeLeaveId  ID del permiso/licencia que la justifica
+     * @return array<string, mixed> Resultado con 'success' y 'message'
      */
-    public function justify(int $reviewedById, ?string $reviewNotes = null): array
+    public function justify(int $reviewedById, ?string $reviewNotes = null, ?int $employeeLeaveId = null): array
     {
         $wasUnjustified = $this->isUnjustified();
 
@@ -224,6 +234,7 @@ class Absence extends Model
             'reviewed_by_id' => $reviewedById,
             'review_notes' => $reviewNotes ?? $this->review_notes,
             'employee_deduction_id' => null,
+            'employee_leave_id' => $employeeLeaveId ?? $this->employee_leave_id,
         ]);
 
         // Actualizar attendance_day
@@ -244,8 +255,8 @@ class Absence extends Model
     /**
      * Marca la ausencia como injustificada y genera la deducción correspondiente
      *
-     * @param int $reviewedById ID del usuario que revisa
-     * @param string $reviewNotes Notas de revisión (requerido)
+     * @param  int  $reviewedById  ID del usuario que revisa
+     * @param  string  $reviewNotes  Notas de revisión (requerido)
      * @return array Resultado con 'success', 'message' y 'deduction_amount'
      */
     public function markAsUnjustified(int $reviewedById, string $reviewNotes): array
@@ -269,7 +280,7 @@ class Absence extends Model
         $employmentTypeLabel = null;
 
         // Si ya tenía una deducción, no crear otra
-        if (!$this->employee_deduction_id) {
+        if (! $this->employee_deduction_id) {
             // Buscar o crear la deducción por ausencias
             $deduction = Deduction::firstOrCreate(
                 ['code' => 'AUS-INJ'],
@@ -302,11 +313,11 @@ class Absence extends Model
             ]);
 
             $employmentTypeLabel = $employee->employment_type === 'day_laborer' ? 'jornalero' : 'tiempo completo';
-            $message = "Se generó una deducción de " . number_format($deductionAmount, 0, ',', '.') . " Gs. (empleado {$employmentTypeLabel}).";
+            $message = 'Se generó una deducción de '.number_format($deductionAmount, 0, ',', '.')." Gs. (empleado {$employmentTypeLabel}).";
         } else {
             $message = $wasJustified
-                ? "Se cambió el estado a injustificada. La deducción ya existe."
-                : "Se marcó como injustificada.";
+                ? 'Se cambió el estado a injustificada. La deducción ya existe.'
+                : 'Se marcó como injustificada.';
         }
 
         return [
