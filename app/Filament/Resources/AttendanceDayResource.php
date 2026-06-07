@@ -8,6 +8,7 @@ use App\Models\AttendanceDay;
 use App\Models\Branch;
 use App\Models\Employee;
 use App\Services\AttendanceCalculator;
+use App\Settings\PayrollSettings;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -705,25 +706,28 @@ class AttendanceDayResource extends Resource
 
     private static function buildOvertimeModalDescription(AttendanceDay $record): string
     {
+        $settings = app(PayrollSettings::class);
+        $pctDiurno = (int) (($settings->overtime_multiplier_diurno - 1) * 100);
+        $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
+
         $action = $record->overtime_approved ? 'Se revocara la aprobacion de' : 'Se aprobaran';
         $desc = "{$action} {$record->extra_hours} hrs extra para {$record->employee->full_name} del {$record->date->format('d/m/Y')}.";
 
         if ($record->extra_hours_diurnas > 0 || $record->extra_hours_nocturnas > 0) {
             $parts = [];
             if ($record->extra_hours_diurnas > 0) {
-                $parts[] = "{$record->extra_hours_diurnas}h diurnas (50%)";
+                $parts[] = "{$record->extra_hours_diurnas}h diurnas ({$pctDiurno}%)";
             }
             if ($record->extra_hours_nocturnas > 0) {
-                $parts[] = "{$record->extra_hours_nocturnas}h nocturnas (160%)";
+                $parts[] = "{$record->extra_hours_nocturnas}h nocturnas ({$pctNocturno}%)";
             }
             $desc .= ' Desglose: '.implode(' + ', $parts).'.';
         }
 
-        // Resumen semanal
-        $settings = app(\App\Settings\PayrollSettings::class);
-        $weekStart = $record->date->startOfWeek()->toDateString();
+        // Resumen semanal — usar copy() para no mutar $record->date
+        $weekStart = $record->date->copy()->startOfWeek()->toDateString();
         $weekEnd = $record->date->copy()->endOfWeek()->toDateString();
-        $weeklyOtherHours = \App\Models\AttendanceDay::where('employee_id', $record->employee_id)
+        $weeklyOtherHours = AttendanceDay::where('employee_id', $record->employee_id)
             ->whereBetween('date', [$weekStart, $weekEnd])
             ->where('id', '!=', $record->id)
             ->sum('extra_hours');
@@ -938,6 +942,10 @@ class AttendanceDayResource extends Resource
      */
     public static function getAdjustExtraHoursTableAction(): TableAction
     {
+        $settings = app(PayrollSettings::class);
+        $pctDiurno = (int) (($settings->overtime_multiplier_diurno - 1) * 100);
+        $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
+
         return TableAction::make('adjust_extra_hours')
             ->label('Ajustar HE')
             ->icon('heroicon-o-clock')
@@ -952,7 +960,7 @@ class AttendanceDayResource extends Resource
             })
             ->form([
                 TextInput::make('extra_hours_diurnas')
-                    ->label('Horas extras diurnas (50%)')
+                    ->label("Horas extras diurnas ({$pctDiurno}%)")
                     ->numeric()
                     ->step(0.5)
                     ->minValue(0)
@@ -961,7 +969,89 @@ class AttendanceDayResource extends Resource
                     ->suffix('hrs'),
 
                 TextInput::make('extra_hours_nocturnas')
-                    ->label('Horas extras nocturnas (160%)')
+                    ->label("Horas extras nocturnas ({$pctNocturno}%)")
+                    ->numeric()
+                    ->step(0.5)
+                    ->minValue(0)
+                    ->maxValue(24)
+                    ->default(0)
+                    ->suffix('hrs'),
+
+                Textarea::make('notes')
+                    ->label('Notas')
+                    ->maxLength(500)
+                    ->rows(2)
+                    ->columnSpanFull(),
+            ])
+            ->modalHeading(fn (AttendanceDay $record) => 'Ajustar horas extras — '.$record->employee?->full_name.' — '.$record->date->format('d/m/Y'))
+            ->modalSubmitActionLabel('Guardar')
+            ->action(function (AttendanceDay $record, array $data) {
+                $diurnas = (float) ($data['extra_hours_diurnas'] ?? 0);
+                $nocturnas = (float) ($data['extra_hours_nocturnas'] ?? 0);
+                $total = round($diurnas + $nocturnas, 2);
+
+                $record->extra_hours_diurnas = $diurnas;
+                $record->extra_hours_nocturnas = $nocturnas;
+                $record->extra_hours = $total;
+
+                if (filled($data['notes'] ?? null)) {
+                    $record->notes = $data['notes'];
+                }
+
+                if ($total > 0) {
+                    $record->manual_adjustment = true;
+                    $record->overtime_approved = true;
+                    $record->status = 'present';
+                    $record->is_calculated = true;
+                } else {
+                    $record->manual_adjustment = false;
+                }
+
+                $record->save();
+
+                Notification::make()
+                    ->title('Horas extras actualizadas')
+                    ->body($total > 0
+                        ? "Se registraron {$total} hrs extras ({$diurnas}h diurnas + {$nocturnas}h nocturnas)."
+                        : 'Las horas extras fueron removidas del registro.')
+                    ->success()
+                    ->send();
+            });
+    }
+
+    /**
+     * Retorna la acción de ajuste manual de horas extras para páginas (header actions)
+     */
+    public static function getAdjustExtraHoursAction(): Action
+    {
+        $settings = app(PayrollSettings::class);
+        $pctDiurno = (int) (($settings->overtime_multiplier_diurno - 1) * 100);
+        $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
+
+        return Action::make('adjust_extra_hours')
+            ->label('Ajustar Horas Extra')
+            ->icon('heroicon-o-clock')
+            ->color('warning')
+            ->tooltip('Cargar horas extras manualmente para este día')
+            ->mountUsing(function (\Filament\Forms\Form $form, AttendanceDay $record) {
+                $form->fill([
+                    'extra_hours_diurnas' => $record->extra_hours_diurnas ?? 0,
+                    'extra_hours_nocturnas' => $record->extra_hours_nocturnas ?? 0,
+                    'notes' => $record->notes,
+                ]);
+            })
+            ->form([
+                TextInput::make('extra_hours_diurnas')
+                    ->label("Horas extras diurnas ({$pctDiurno}%)")
+                    ->numeric()
+                    ->step(0.5)
+                    ->minValue(0)
+                    ->maxValue(24)
+                    ->default(0)
+                    ->suffix('hrs'),
+
+                TextInput::make('extra_hours_nocturnas')
+                    ->label("Horas extras nocturnas ({$pctNocturno}%)")
                     ->numeric()
                     ->step(0.5)
                     ->minValue(0)
@@ -1016,6 +1106,10 @@ class AttendanceDayResource extends Resource
      */
     public static function getRegisterExtraHoursAction(): Action
     {
+        $settings = app(PayrollSettings::class);
+        $pctDiurno = (int) (($settings->overtime_multiplier_diurno - 1) * 100);
+        $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
+
         return Action::make('register_extra_hours')
             ->label('Registrar Horas Extras')
             ->icon('heroicon-o-plus-circle')
@@ -1024,13 +1118,15 @@ class AttendanceDayResource extends Resource
             ->form([
                 Select::make('employee_id')
                     ->label('Empleado')
-                    ->options(fn () => Employee::orderBy('first_name')->orderBy('last_name')
+                    ->options(fn () => Employee::where('status', 'active')
+                        ->orderBy('first_name')->orderBy('last_name')
                         ->get()
                         ->mapWithKeys(fn ($e) => [$e->id => "{$e->first_name} {$e->last_name} (CI: {$e->ci})"])
                     )
                     ->searchable()
                     ->native(false)
                     ->required()
+                    ->live()
                     ->columnSpanFull(),
 
                 DatePicker::make('date')
@@ -1039,10 +1135,11 @@ class AttendanceDayResource extends Resource
                     ->maxDate(now())
                     ->native(false)
                     ->displayFormat('d/m/Y')
-                    ->closeOnDateSelection(),
+                    ->closeOnDateSelection()
+                    ->live(),
 
                 TextInput::make('extra_hours_diurnas')
-                    ->label('Horas extras diurnas (50%)')
+                    ->label("Horas extras diurnas ({$pctDiurno}%)")
                     ->numeric()
                     ->step(0.5)
                     ->minValue(0)
@@ -1051,7 +1148,7 @@ class AttendanceDayResource extends Resource
                     ->suffix('hrs'),
 
                 TextInput::make('extra_hours_nocturnas')
-                    ->label('Horas extras nocturnas (160%)')
+                    ->label("Horas extras nocturnas ({$pctNocturno}%)")
                     ->numeric()
                     ->step(0.5)
                     ->minValue(0)
@@ -1063,6 +1160,38 @@ class AttendanceDayResource extends Resource
                     ->label('Notas')
                     ->maxLength(500)
                     ->rows(2)
+                    ->columnSpanFull(),
+
+                Placeholder::make('existing_warning')
+                    ->label('Aviso')
+                    ->content(function (Get $get) {
+                        $employeeId = $get('employee_id');
+                        $date = $get('date');
+
+                        if (! $employeeId || ! $date) {
+                            return null;
+                        }
+
+                        $existing = AttendanceDay::where('employee_id', $employeeId)
+                            ->where('date', $date)
+                            ->first();
+
+                        if (! $existing) {
+                            return null;
+                        }
+
+                        $statusLabel = AttendanceDay::getStatusLabel($existing->status);
+                        $msg = "Ya existe un registro para este empleado en esta fecha (estado: {$statusLabel}";
+
+                        if ((float) $existing->extra_hours > 0) {
+                            $msg .= ", {$existing->extra_hours} hrs extra registradas";
+                        }
+
+                        return $msg.'). Los valores de horas extras serán reemplazados.';
+                    })
+                    ->visible(fn (Get $get) => filled($get('employee_id')) && filled($get('date'))
+                        && AttendanceDay::where('employee_id', $get('employee_id'))->where('date', $get('date'))->exists()
+                    )
                     ->columnSpanFull(),
             ])
             ->modalHeading('Registrar horas extras manuales')

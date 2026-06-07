@@ -187,20 +187,24 @@ class AttendanceDay extends Model
         $action = $wasCalculated ? 'recalculado' : 'calculado';
 
         return match ($this->status) {
-            'present' => "✓ Empleado presente - Cálculos {$action}s",
-            'absent' => "⚠ Empleado ausente",
-            'on_leave' => "📋 Empleado con permiso/vacaciones",
-            'holiday' => "🎉 Día feriado",
-            'weekend' => "📅 Fin de semana",
+            'present' => "Empleado presente — Cálculos {$action}s",
+            'absent' => 'Empleado ausente',
+            'on_leave' => 'Empleado con permiso o vacaciones',
+            'holiday' => 'Día feriado',
+            'weekend' => 'Fin de semana',
             default => "Cálculo {$action}",
         };
     }
 
     /**
-     * Obtiene el color para la columna de entrada según si llegó tarde
+     * Obtiene el color para la columna de entrada según si llegó tarde o no marcó
      */
     public function getCheckInStatusColor(): string
     {
+        if (! $this->check_in_time) {
+            return 'gray';
+        }
+
         return $this->late_minutes > 0 ? 'danger' : 'success';
     }
 
@@ -209,7 +213,7 @@ class AttendanceDay extends Model
      */
     public function getCheckInTooltip(): string
     {
-        if (!$this->check_in_time) {
+        if (! $this->check_in_time) {
             return 'Sin marcación de entrada';
         }
 
@@ -219,10 +223,14 @@ class AttendanceDay extends Model
     }
 
     /**
-     * Obtiene el color para la columna de salida según si salió antes
+     * Obtiene el color para la columna de salida según si salió antes o no marcó
      */
     public function getCheckOutStatusColor(): string
     {
+        if (! $this->check_out_time) {
+            return 'gray';
+        }
+
         return $this->early_leave_minutes > 0 ? 'warning' : 'success';
     }
 
@@ -231,7 +239,7 @@ class AttendanceDay extends Model
      */
     public function getCheckOutTooltip(): string
     {
-        if (!$this->check_out_time) {
+        if (! $this->check_out_time) {
             return 'Sin marcación de salida';
         }
 
@@ -246,7 +254,7 @@ class AttendanceDay extends Model
     public function getCalculationTooltip(): string
     {
         return $this->calculated_at
-            ? 'Calculado: ' . $this->calculated_at->format('d/m/Y H:i')
+            ? 'Calculado: '.$this->calculated_at->format('d/m/Y H:i')
             : 'Aún no calculado';
     }
 
@@ -258,11 +266,11 @@ class AttendanceDay extends Model
         $action = $wasCalculated ? 'recalculado' : 'calculado';
 
         return [
-            'present' => "✓ Empleado presente - Cálculos {$action}s",
-            'absent' => "⚠ Empleado ausente",
-            'on_leave' => "📋 Empleado con permiso/vacaciones",
-            'holiday' => "🎉 Día feriado",
-            'weekend' => "📅 Fin de semana",
+            'present' => "Empleado presente — Cálculos {$action}s",
+            'absent' => 'Empleado ausente',
+            'on_leave' => 'Empleado con permiso o vacaciones',
+            'holiday' => 'Día feriado',
+            'weekend' => 'Fin de semana',
         ];
     }
 }

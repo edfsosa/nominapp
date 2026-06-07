@@ -4,8 +4,12 @@ namespace App\Filament\Resources\AttendanceDayResource\RelationManagers;
 
 use App\Models\AttendanceEvent;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
@@ -16,6 +20,7 @@ use Filament\Tables\Actions\ViewAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Carbon;
 
 /** RelationManager que muestra y gestiona las marcaciones de un día de asistencia. */
 class EventsRelationManager extends RelationManager
@@ -152,7 +157,42 @@ class EventsRelationManager extends RelationManager
                 EditAction::make()
                     ->modalHeading('Editar Marcación')
                     ->modalSubmitActionLabel('Guardar cambios')
-                    ->successNotificationTitle('Marcación actualizada'),
+                    ->successNotificationTitle('Marcación actualizada')
+                    ->form([
+                        Select::make('event_type')
+                            ->label('Tipo de Evento')
+                            ->options(AttendanceEvent::getEventTypeOptions())
+                            ->native(false)
+                            ->required()
+                            ->columnSpanFull(),
+
+                        Hidden::make('_date'),
+
+                        Placeholder::make('fecha_display')
+                            ->label('Fecha')
+                            ->content(fn (Get $get) => $get('_date')
+                                ? Carbon::parse($get('_date'))->translatedFormat('l d/m/Y')
+                                : '—'
+                            ),
+
+                        TimePicker::make('time')
+                            ->label('Hora')
+                            ->seconds(false)
+                            ->native(false)
+                            ->required(),
+                    ])
+                    ->mutateRecordDataUsing(function (array $data) {
+                        $dt = Carbon::parse($data['recorded_at']);
+
+                        return array_merge($data, [
+                            'time' => $dt->format('H:i'),
+                            '_date' => $dt->format('Y-m-d'),
+                        ]);
+                    })
+                    ->mutateFormDataUsing(fn (array $data) => [
+                        'event_type' => $data['event_type'],
+                        'recorded_at' => Carbon::parse($data['_date'].' '.$data['time'])->format('Y-m-d H:i:s'),
+                    ]),
 
                 DeleteAction::make()
                     ->label('Eliminar')
