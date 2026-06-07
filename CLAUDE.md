@@ -213,11 +213,21 @@ Agrupa adelantos de salario para generar un único archivo TXT/Excel en formato 
 
 ### Módulo de Permisos y Licencias (EmployeeLeave)
 
-Registro documental de permisos y licencias de empleados. **Sin integración con nómina actualmente** — es puramente documental, igual que las Amonestaciones.
+Registro documental de permisos y licencias de empleados. **Sin integración con nómina** — no afecta el cálculo de salarios, pero sí justifica ausencias automáticamente al aprobar.
 
 **Tipos disponibles:** `medical_leave`, `vacation`, `day_off`, `maternity_leave`, `paternity_leave`, `unpaid_leave`, `other`
 
-**Ciclo de vida:** `pending` → `approved` / `rejected` (sin acciones complejas — solo actualización de estado)
+**Ciclo de vida:** `pending` → `approved` / `rejected`
+
+**Integración bidireccional con Ausencias (`Absence`):**
+- `EmployeeLeave::approve(int $approvedById): array` — al aprobar, busca todas las `Absence` del empleado en el período con estado `pending` o `unjustified` y llama a `justify()` en cada una. Retorna `['justified_count' => N]`.
+- `Absence::justify(int $reviewedById, ?string $reviewNotes, ?int $employeeLeaveId)` — al justificar una ausencia desde el modal, siempre se requiere vincular un `EmployeeLeave` aprobado que cubra esa fecha. La FK `employee_leave_id` queda almacenada en la ausencia.
+- Una licencia no puede **crear** ausencias — solo justifica las que ya existen en el período.
+- No se puede justificar una ausencia sin vincularla a un permiso aprobado. Si no existe ninguno, el modal muestra un aviso y deshabilita el campo.
+
+**UI — acciones disponibles según estado:**
+- `pending`: Aprobar (tabla + ViewRecord con descripción dinámica del nº de ausencias afectadas), Rechazar (tabla + ViewRecord), Editar.
+- `approved` / `rejected`: sin acciones de mutación.
 
 ### Módulo de Amonestaciones
 
@@ -358,6 +368,20 @@ Cada Resource tiene sus Pages en `app/Filament/Resources/{Resource}Resource/Page
 **Acciones en tabla (`->actions([])`)**
 - No agregar `ViewAction` ni `EditAction` en las filas de la tabla: el clic sobre el registro ya navega a `ViewRecord` por defecto, y el usuario accede a edición desde el `EditAction` en el encabezado de `ViewRecord`
 - Solo agregar acciones de fila para operaciones específicas del dominio (ej: `view_map`, `download`, `approve`)
+
+**`->tooltip()` en acciones similares dentro de un `ActionGroup`**
+Cuando un `ActionGroup` agrupa varias acciones con propósito parecido, usar `->tooltip()` para que el usuario entienda cuándo usar cada una sin tener que abrir el modal:
+
+```php
+ActionGroup::make([
+    Action::make('register_attendance')
+        ->tooltip('El empleado SÍ estuvo presente pero no marcó — crea marcaciones y justifica automáticamente'),
+    Action::make('justify')
+        ->tooltip('El empleado NO estuvo presente pero tiene razón válida — vincula un permiso aprobado, sin crear marcaciones'),
+    Action::make('mark_unjustified')
+        ->tooltip('El empleado faltó sin justificación válida — genera deducción salarial automática'),
+])
+```
 
 ### Public Routes (no auth)
 Kiosk/terminal marking and face enrollment run on public routes, served by their own JS entry points:
@@ -684,8 +708,8 @@ use Filament\Infolists\Components\Grid as InfoGrid;
 **`modalSubmitActionLabel` obligatorio en acciones con confirmación**
 Toda acción con `->requiresConfirmation()` — tanto en filas como en `BulkAction` — debe tener `->modalSubmitActionLabel('Sí, [verbo]')`. El botón genérico "OK" de Filament no es suficiente.
 
-**`->mountUsing()` para validaciones antes de abrir un modal**
-`->before()` corre **después** de que el formulario del modal es enviado — no sirve para prevenir que el modal abra. Para ejecutar lógica pre-modal (ej: verificar disponibilidad y cancelar si no hay datos), usar `->mountUsing()`:
+**`->mountUsing()` para inicializar el estado del form antes de abrir un modal**
+`->before()` corre **después** de que el formulario del modal es enviado — no sirve para prevenir que el modal abra. Para ejecutar lógica pre-modal (ej: pre-calcular datos disponibles), usar `->mountUsing()`:
 
 ```php
 Action::make('add_items')
@@ -702,6 +726,73 @@ Action::make('add_items')
 ```
 
 Regla: siempre llamar `$form->fill()` en el path normal — Filament lo necesita para inicializar el formulario. Omitirlo resulta en un form vacío.
+
+**Bug conocido: `$action->halt()` en `mountUsing` no es confiable en clicks repetidos**
+En Livewire 3 + Filament 3, al llamar `$action->halt()` dentro de `mountUsing`, el primer click funciona correctamente (el modal no abre). Sin embargo, en el segundo click Livewire reutiliza el estado cacheado de la acción y el modal **abre igual**, ignorando el `mountUsing`.
+
+**Solución**: no usar `halt()` en `mountUsing`. En cambio, siempre abrir el modal y mostrar contenido diferente según el estado. Usar `Hidden` para trasladar el resultado de la query (ejecutada una sola vez en `mountUsing`) a los closures de visibilidad de los campos:
+
+```php
+Action::make('justify')
+    ->mountUsing(function (Form $form, Model $record) {
+        $hasOptions = RelatedModel::where('...')->exists(); // 1 sola query
+        $form->fill(['has_options' => $hasOptions]);
+    })
+    ->form([
+        Hidden::make('has_options'),
+
+        Placeholder::make('no_options_notice')
+            ->label('Sin opciones disponibles')
+            ->content('No hay registros disponibles. Cree uno primero.')
+            ->visible(fn (Get $get) => ! $get('has_options')),
+
+        Select::make('related_id')
+            ->options(fn (Model $record) => RelatedModel::where('...')->pluck('name', 'id'))
+            ->required(fn (Get $get) => (bool) $get('has_options'))
+            ->visible(fn (Get $get) => (bool) $get('has_options')),
+    ])
+    ->action(function (Model $record, array $data, Action $action) {
+        // Validación defensiva adicional
+        if (empty($data['related_id'])) {
+            Notification::make()->warning()->title('Sin selección')->send();
+            $action->halt();
+            return;
+        }
+        // ...
+    })
+```
+
+El `Hidden::make('has_options')` es necesario para que `Get $get` pueda leer el valor establecido por `$form->fill()`. Sin el campo en el schema, el valor no es accesible desde los closures.
+
+**Edición parcial de campos `datetime` en modales — solo hora**
+Cuando el modal de edición debe permitir cambiar únicamente la hora (no la fecha completa), usar `Hidden` para pasar la fecha como dato oculto de solo lectura, `Placeholder` para mostrarla, y `TimePicker` para capturar la hora. `mutateRecordDataUsing` descompone el valor original; `mutateFormDataUsing` lo recompone:
+
+```php
+EditAction::make()
+    ->form([
+        Hidden::make('_date'),
+        Placeholder::make('fecha')
+            ->label('Fecha')
+            ->content(fn (Get $get) => $get('_date')
+                ? Carbon::parse($get('_date'))->translatedFormat('l d/m/Y')
+                : '—'),
+        TimePicker::make('time')
+            ->label('Hora')
+            ->seconds(false)
+            ->native(false)
+            ->required(),
+    ])
+    ->mutateRecordDataUsing(fn (array $data) => array_merge($data, [
+        'time'  => Carbon::parse($data['recorded_at'])->format('H:i'),
+        '_date' => Carbon::parse($data['recorded_at'])->format('Y-m-d'),
+    ]))
+    ->mutateFormDataUsing(fn (array $data) => [
+        'event_type'  => $data['event_type'],
+        'recorded_at' => Carbon::parse($data['_date'].' '.$data['time']),
+    ])
+```
+
+El prefijo `_` en `_date` indica campo virtual (no mapea a columna del modelo). Este patrón evita que el admin mueva un evento a otro día de forma accidental al editar.
 
 **Advertencias no-bloqueantes en modales de confirmación**
 `->before()` con `$action->halt()` es para bloqueos hard (el usuario no puede continuar). Para casos donde el usuario *puede* continuar pero conviene informarle (ej. hay empleados sin recibo al cerrar la planilla), agregar la advertencia dentro de `->modalDescription()` con closure — no bloquear:
