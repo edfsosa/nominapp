@@ -318,14 +318,11 @@ class AttendanceDayResource extends Resource
                     }),
             ])
             ->actions([
-                self::getApproveOvertimeTableAction(),
-
-                self::getApproveTardinessTableAction(),
-
-                self::getExportPdfTableAction(),
-
                 TableActionGroup::make([
+                    self::getApproveOvertimeTableAction(),
+                    self::getApproveTardinessTableAction(),
                     self::getAdjustExtraHoursTableAction(),
+                    self::getExportPdfTableAction(),
                     self::getCalculateTableAction(),
                 ]),
             ])
@@ -752,7 +749,7 @@ class AttendanceDayResource extends Resource
     public static function getExportPdfTableAction(): TableAction
     {
         return TableAction::make('export')
-            ->label('PDF')
+            ->label('Exportar PDF')
             ->icon('heroicon-o-arrow-down-tray')
             ->color('info')
             ->tooltip('Exportar registro como PDF')
@@ -947,7 +944,7 @@ class AttendanceDayResource extends Resource
         $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
 
         return TableAction::make('adjust_extra_hours')
-            ->label('Ajustar HE')
+            ->label('Ajustar Horas Extra')
             ->icon('heroicon-o-clock')
             ->color('warning')
             ->tooltip('Cargar horas extras manualmente para este día')
