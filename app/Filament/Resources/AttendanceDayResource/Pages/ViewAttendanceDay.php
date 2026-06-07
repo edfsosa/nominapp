@@ -12,7 +12,9 @@ class ViewAttendanceDay extends ViewRecord
     protected static string $resource = AttendanceDayResource::class;
 
     /**
-     * Funcion que define las acciones del encabezado
+     * Acciones del encabezado: editar, aprobar HE/tardanza, ajustar HE, exportar PDF y calcular.
+     *
+     * @return array<\Filament\Actions\Action>
      */
     protected function getHeaderActions(): array
     {
@@ -25,6 +27,8 @@ class ViewAttendanceDay extends ViewRecord
             AttendanceDayResource::getApproveOvertimeAction(),
 
             AttendanceDayResource::getApproveTardinessAction(),
+
+            AttendanceDayResource::getAdjustExtraHoursAction(),
 
             AttendanceDayResource::getExportPdfAction(),
 

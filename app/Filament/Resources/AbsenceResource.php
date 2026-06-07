@@ -13,6 +13,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
@@ -448,25 +449,14 @@ class AbsenceResource extends Resource
                             ? '⚠️ Esta ausencia tiene una deducción generada. Al justificarla se eliminará la deducción.'
                             : null)
                         ->modalSubmitActionLabel('Justificar')
-                        ->mountUsing(function (Form $form, Absence $record, Action $action) {
-                            $leaveCount = EmployeeLeave::where('employee_id', $record->employee_id)
+                        ->mountUsing(function (Form $form, Absence $record) {
+                            $hasLeaves = EmployeeLeave::where('employee_id', $record->employee_id)
                                 ->where('status', 'approved')
                                 ->whereDate('start_date', '<=', $record->attendanceDay->date)
                                 ->whereDate('end_date', '>=', $record->attendanceDay->date)
-                                ->count();
+                                ->exists();
 
-                            if ($leaveCount === 0) {
-                                Notification::make()
-                                    ->warning()
-                                    ->title('Sin permisos aprobados')
-                                    ->body('No hay permisos aprobados que cubran el '.$record->attendanceDay->date->format('d/m/Y').'. Apruebe primero un permiso en el módulo Licencias.')
-                                    ->send();
-                                $action->halt();
-
-                                return;
-                            }
-
-                            $form->fill();
+                            $form->fill(['has_approved_leaves' => $hasLeaves]);
                         })
                         ->form([
                             Placeholder::make('employee_info')
@@ -474,6 +464,14 @@ class AbsenceResource extends Resource
                                 ->content(fn (Absence $record) => $record->employee->full_name
                                     .' — '
                                     .$record->attendanceDay->date->translatedFormat('l d/m/Y')),
+
+                            // Campo oculto para trasladar el resultado del mountUsing a los closures del form
+                            Hidden::make('has_approved_leaves'),
+
+                            Placeholder::make('no_leaves_notice')
+                                ->label('Sin permisos disponibles')
+                                ->content('No hay permisos aprobados que cubran esta fecha. Para justificar esta ausencia, primero cree y apruebe una licencia en el módulo Licencias para el empleado y el período correspondiente.')
+                                ->visible(fn (Get $get) => ! $get('has_approved_leaves')),
 
                             Select::make('employee_leave_id')
                                 ->label('Permiso / Licencia')
@@ -487,15 +485,28 @@ class AbsenceResource extends Resource
                                             .' ('.$leave->start_date->format('d/m/Y').' al '.$leave->end_date->format('d/m/Y').')',
                                     ]))
                                 ->native(false)
-                                ->required()
-                                ->helperText('Solo se muestran permisos aprobados que cubren este día'),
+                                ->required(fn (Get $get) => (bool) $get('has_approved_leaves'))
+                                ->helperText('Solo se muestran permisos aprobados que cubren este día')
+                                ->visible(fn (Get $get) => (bool) $get('has_approved_leaves')),
 
                             Textarea::make('review_notes')
                                 ->label('Notas adicionales')
                                 ->placeholder('Observaciones opcionales...')
-                                ->rows(2),
+                                ->rows(2)
+                                ->visible(fn (Get $get) => (bool) $get('has_approved_leaves')),
                         ])
-                        ->action(function (Absence $record, array $data) {
+                        ->action(function (Absence $record, array $data, Action $action) {
+                            if (empty($data['employee_leave_id'])) {
+                                Notification::make()
+                                    ->warning()
+                                    ->title('Sin permiso seleccionado')
+                                    ->body('No hay permisos aprobados para vincular. Cree y apruebe una licencia en el módulo Licencias primero.')
+                                    ->send();
+                                $action->halt();
+
+                                return;
+                            }
+
                             $result = $record->justify(
                                 Auth::id(),
                                 $data['review_notes'] ?? null,
