@@ -41,6 +41,8 @@ class ContractReportController extends Controller
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
         $days = $request->query('days') ? (int) $request->query('days') : null;
         $period = $request->query('period') ? (int) $request->query('period') : null;
+        $startDateFrom = $request->query('startDateFrom') ?: null;
+        $startDateUntil = $request->query('startDateUntil') ?: null;
 
         $columnsParam = $request->query('columns');
         $selectedColumns = $columnsParam
@@ -54,7 +56,7 @@ class ContractReportController extends Controller
         $columnLabels = ContractReportExport::availableColumns($tab);
 
         // ── Query según tab ──────────────────────────────────────────────────
-        $export = new ContractReportExport($tab, $companyId, $branchId, $days, $period, $selectedColumns);
+        $export = new ContractReportExport($tab, $companyId, $branchId, $days, $period, $selectedColumns, $startDateFrom, $startDateUntil);
         $records = $export->query()->get();
 
         // ── Modo de agrupación adaptativo ────────────────────────────────────
@@ -105,7 +107,7 @@ class ContractReportController extends Controller
         }
 
         $pdf = Pdf::loadView('pdf.contract-report', compact(
-            'records', 'groups', 'groupMode', 'tab', 'days', 'period',
+            'records', 'groups', 'groupMode', 'tab', 'days', 'period', 'startDateFrom', 'startDateUntil',
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'employerNumber', 'city',

@@ -145,6 +145,10 @@
         @if ($tab === 'vencer' && $days) &nbsp;·&nbsp; Próximos {{ $days }} días @endif
         @if ($tab === 'prueba' && $days) &nbsp;·&nbsp; Próximos {{ $days }} días @endif
         @if ($tab === 'rescindidos' && $period) &nbsp;·&nbsp; Últimos {{ $period }} meses @endif
+        @if ($startDateFrom && $startDateUntil) &nbsp;·&nbsp; Inicio: {{ \Carbon\Carbon::parse($startDateFrom)->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($startDateUntil)->format('d/m/Y') }}
+        @elseif ($startDateFrom) &nbsp;·&nbsp; Inicio desde {{ \Carbon\Carbon::parse($startDateFrom)->format('d/m/Y') }}
+        @elseif ($startDateUntil) &nbsp;·&nbsp; Inicio hasta {{ \Carbon\Carbon::parse($startDateUntil)->format('d/m/Y') }}
+        @endif
     </div>
 
     @php

@@ -10,6 +10,7 @@ use App\Models\Employee;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
@@ -117,7 +118,7 @@ class ContractReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $days, $period] = $this->resolveActiveFilters();
+                    [$companyId, $branchId, $days, $period, $startDateFrom, $startDateUntil] = $this->resolveActiveFilters();
 
                     $params = array_filter([
                         'tab' => $this->activeTab,
@@ -125,6 +126,8 @@ class ContractReport extends Page implements HasTable
                         'branchId' => $branchId,
                         'days' => $days,
                         'period' => $period,
+                        'startDateFrom' => $startDateFrom,
+                        'startDateUntil' => $startDateUntil,
                         'columns' => implode(',', $data['columns']),
                         'orientation' => $data['orientation'] ?? 'landscape',
                     ], fn ($v) => $v !== null);
@@ -149,12 +152,12 @@ class ContractReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $days, $period] = $this->resolveActiveFilters();
+                    [$companyId, $branchId, $days, $period, $startDateFrom, $startDateUntil] = $this->resolveActiveFilters();
 
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new ContractReportExport($this->activeTab, $companyId, $branchId, $days, $period, $data['columns']),
+                        new ContractReportExport($this->activeTab, $companyId, $branchId, $days, $period, $data['columns'], $startDateFrom, $startDateUntil),
                         'contratos_'.$this->activeTab.'_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
@@ -608,6 +611,38 @@ class ContractReport extends Page implements HasTable
                 });
         }
 
+        if (in_array($this->activeTab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
+            $filters[] = Filter::make('start_date_range')
+                ->label('Período de inicio')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('start_from')->label('Inicio desde')->native(false)->displayFormat('d/m/Y'),
+                    DatePicker::make('start_until')->label('Inicio hasta')->native(false)->displayFormat('d/m/Y'),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['start_from'] ?? null)) {
+                        $query->where('contracts.start_date', '>=', $data['start_from']);
+                    }
+                    if (filled($data['start_until'] ?? null)) {
+                        $query->where('contracts.start_date', '<=', $data['start_until']);
+                    }
+
+                    return $query;
+                })
+                ->indicateUsing(function (array $data): ?string {
+                    $parts = [];
+                    if (filled($data['start_from'] ?? null)) {
+                        $parts[] = 'desde '.Carbon::parse($data['start_from'])->format('d/m/Y');
+                    }
+                    if (filled($data['start_until'] ?? null)) {
+                        $parts[] = 'hasta '.Carbon::parse($data['start_until'])->format('d/m/Y');
+                    }
+
+                    return $parts ? 'Inicio: '.implode(' — ', $parts) : null;
+                });
+        }
+
         return $filters;
     }
 
@@ -618,7 +653,7 @@ class ContractReport extends Page implements HasTable
     /**
      * Extrae los filtros activos de la sesión para pasarlos a las exportaciones.
      *
-     * @return array{int|null, int|null, int|null, int|null}
+     * @return array{int|null, int|null, int|null, int|null, string|null, string|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -629,6 +664,8 @@ class ContractReport extends Page implements HasTable
             isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
             isset($f['days']['value']) && $f['days']['value'] !== '' ? (int) $f['days']['value'] : null,
             isset($f['period']['value']) && $f['period']['value'] !== '' ? (int) $f['period']['value'] : null,
+            filled($f['start_date_range']['start_from'] ?? null) ? $f['start_date_range']['start_from'] : null,
+            filled($f['start_date_range']['start_until'] ?? null) ? $f['start_date_range']['start_until'] : null,
         ];
     }
 }

@@ -30,6 +30,8 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
      * @param  int|null  $days  Umbral de días al vencimiento (solo vencer/prueba)
      * @param  int|null  $period  Meses hacia atrás (solo rescindidos)
      * @param  array<string>  $columns  Claves de columnas seleccionadas
+     * @param  string|null  $startDateFrom  Fecha de inicio del contrato desde (Y-m-d)
+     * @param  string|null  $startDateUntil  Fecha de inicio del contrato hasta (Y-m-d)
      */
     public function __construct(
         private readonly string $tab,
@@ -38,6 +40,8 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
         private readonly ?int $days,
         private readonly ?int $period,
         private readonly array $columns = [],
+        private readonly ?string $startDateFrom = null,
+        private readonly ?string $startDateUntil = null,
     ) {}
 
     /**
@@ -133,8 +137,17 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             $query->where('branches.company_id', $this->companyId);
         }
         if ($this->branchId) {
-            $colTable = $this->tab === 'sin_contrato' ? 'employees' : 'employees';
-            $query->where("{$colTable}.branch_id", $this->branchId);
+            $query->where('employees.branch_id', $this->branchId);
+        }
+
+        // Filtro por período de inicio (tabs con contrato)
+        if (in_array($this->tab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
+            if ($this->startDateFrom) {
+                $query->where('contracts.start_date', '>=', $this->startDateFrom);
+            }
+            if ($this->startDateUntil) {
+                $query->where('contracts.start_date', '<=', $this->startDateUntil);
+            }
         }
 
         return $query;
