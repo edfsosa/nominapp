@@ -101,6 +101,29 @@ class EditEmployee extends EditRecord
     }
 
     /**
+     * Bloquea el guardado si se intenta desactivar un empleado con contrato activo.
+     * El flujo correcto para dar de baja a un empleado es procesar una Liquidación.
+     */
+    protected function beforeSave(): void
+    {
+        $newStatus = $this->data['status'] ?? null;
+
+        if ($newStatus === 'inactive'
+            && $this->record->status !== 'inactive'
+            && $this->record->activeContract !== null
+        ) {
+            Notification::make()
+                ->danger()
+                ->title('No se puede desactivar')
+                ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                ->persistent()
+                ->send();
+
+            $this->halt();
+        }
+    }
+
+    /**
      * Modifica los datos del formulario antes de actualizar el registro. Mantiene el descriptor facial actual para evitar sobrescribirlo si no se captura uno nuevo.
      */
     protected function mutateFormDataBeforeSave(array $data): array

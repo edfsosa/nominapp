@@ -959,7 +959,18 @@ class EmployeeResource extends Resource
                             ->required()
                             ->native(false),
                     ])
-                    ->action(function (Employee $record, array $data): void {
+                    ->action(function (Employee $record, array $data, Action $action): void {
+                        if ($data['status'] === 'inactive' && $record->activeContract !== null) {
+                            Notification::make()
+                                ->danger()
+                                ->title('No se puede desactivar')
+                                ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                                ->send();
+                            $action->halt();
+
+                            return;
+                        }
+
                         $record->update(['status' => $data['status']]);
 
                         Notification::make()
@@ -1015,15 +1026,37 @@ class EmployeeResource extends Resource
                         ->color('danger')
                         ->requiresConfirmation()
                         ->modalHeading('Desactivar empleados')
-                        ->modalDescription(fn (Collection $records) => "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
+                        ->modalDescription(function (Collection $records) {
+                            $records->loadMissing('activeContract');
+                            $withContract = $records->filter(fn ($e) => $e->activeContract !== null)->count();
+                            $base = "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.";
+
+                            return $withContract > 0
+                                ? $base." Atención: {$withContract} empleado(s) con contrato activo serán ignorados (procesá una Liquidación para darlos de baja)."
+                                : $base;
+                        })
                         ->modalSubmitActionLabel('Sí, desactivar')
                         ->action(function (Collection $records): void {
-                            $count = $records->count();
-                            Employee::whereIn('id', $records->pluck('id'))->update(['status' => 'inactive']);
+                            $records->loadMissing('activeContract');
+                            $withContract = $records->filter(fn ($e) => $e->activeContract !== null);
+                            $toDeactivate = $records->reject(fn ($e) => $e->activeContract !== null);
+
+                            if ($toDeactivate->isNotEmpty()) {
+                                Employee::whereIn('id', $toDeactivate->pluck('id'))->update(['status' => 'inactive']);
+                            }
+
+                            $parts = [];
+                            if ($toDeactivate->isNotEmpty()) {
+                                $parts[] = "{$toDeactivate->count()} desactivado(s)";
+                            }
+                            if ($withContract->isNotEmpty()) {
+                                $parts[] = "{$withContract->count()} ignorado(s) por tener contrato activo";
+                            }
+
                             Notification::make()
-                                ->success()
-                                ->title('Empleados desactivados')
-                                ->body("{$count} empleado(s) desactivado(s) correctamente.")
+                                ->{$toDeactivate->isEmpty() ? 'warning' : 'success'}()
+                                ->title($toDeactivate->isEmpty() ? 'Sin cambios' : 'Empleados desactivados')
+                                ->body(implode(', ', $parts).'.')
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
