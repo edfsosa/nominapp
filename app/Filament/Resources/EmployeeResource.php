@@ -1005,25 +1005,6 @@ class EmployeeResource extends Resource
                         })
                         ->deselectRecordsAfterCompletion(),
 
-                    BulkAction::make('suspend')
-                        ->label('Suspender seleccionados')
-                        ->icon('heroicon-o-pause-circle')
-                        ->color('warning')
-                        ->requiresConfirmation()
-                        ->modalHeading('Suspender empleados')
-                        ->modalDescription(fn (Collection $records) => "Se suspenderán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
-                        ->modalSubmitActionLabel('Sí, suspender')
-                        ->action(function (Collection $records): void {
-                            $count = $records->count();
-                            Employee::whereIn('id', $records->pluck('id'))->update(['status' => 'suspended']);
-                            Notification::make()
-                                ->success()
-                                ->title('Empleados suspendidos')
-                                ->body("{$count} empleado(s) suspendido(s) correctamente.")
-                                ->send();
-                        })
-                        ->deselectRecordsAfterCompletion(),
-
                     BulkAction::make('deactivate')
                         ->label('Desactivar seleccionados')
                         ->icon('heroicon-o-x-circle')

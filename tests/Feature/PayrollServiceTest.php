@@ -72,6 +72,7 @@ function makePayEmployee(
     int $salary = 2_550_000,
     string $payrollType = 'monthly',
     string $status = 'active',
+    string $contractStatus = 'active',
 ): Employee {
     static $ci = 1000000;
     $n = $ci++;
@@ -99,7 +100,7 @@ function makePayEmployee(
         'payroll_type' => $payrollType,
         'position_id' => $position->id,
         'department_id' => $department->id,
-        'status' => 'active',
+        'status' => $contractStatus,
     ]);
 
     return $employee->fresh();
@@ -135,10 +136,10 @@ it('generateForPeriod retorna 0 si no hay empleados activos', function () {
     expect($count)->toBe(0);
 });
 
-it('generateForPeriod solo procesa empleados activos', function () {
+it('generateForPeriod solo procesa empleados activos con contrato activo', function () {
     $period = makePayPeriod('draft');
     makePayEmployee(status: 'inactive');
-    makePayEmployee(status: 'suspended');
+    makePayEmployee(contractStatus: 'suspended'); // empleado activo pero contrato suspendido
 
     $count = makePayService()->generateForPeriod($period);
 

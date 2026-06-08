@@ -39,7 +39,6 @@ class ListEmployees extends ListRecords
     public function getTabs(): array
     {
         $counts = Employee::getTabCounts();
-        $statusOptions = Employee::getStatusOptions();
 
         return [
             'all' => Tab::make('Todos')
@@ -47,23 +46,17 @@ class ListEmployees extends ListRecords
                 ->badgeColor('gray')
                 ->icon('heroicon-o-users'),
 
-            'active' => Tab::make($statusOptions['active'])
+            'active' => Tab::make('Activo')
                 ->modifyQueryUsing(fn (Builder $query) => $query->active())
                 ->badge($counts['active'] ?: null)
                 ->badgeColor('success')
                 ->icon('heroicon-o-check-circle'),
 
-            'inactive' => Tab::make($statusOptions['inactive'])
+            'inactive' => Tab::make('Inactivo')
                 ->modifyQueryUsing(fn (Builder $query) => $query->inactive())
                 ->badge($counts['inactive'] ?: null)
                 ->badgeColor('danger')
                 ->icon('heroicon-o-x-circle'),
-
-            'suspended' => Tab::make($statusOptions['suspended'])
-                ->modifyQueryUsing(fn (Builder $query) => $query->suspended())
-                ->badge($counts['suspended'] ?: null)
-                ->badgeColor('warning')
-                ->icon('heroicon-o-pause-circle'),
 
             'weak_face' => Tab::make('Descriptor débil')
                 ->modifyQueryUsing(fn (Builder $query) => $query->active()->withWeakFaceDescriptor())

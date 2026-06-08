@@ -33,7 +33,7 @@ class EmployeeFactory extends Factory
             'email' => $this->faker->unique()->safeEmail,
             'branch_id' => ! empty(static::$branchIds) ? $this->faker->randomElement(static::$branchIds) : Branch::factory(),
             'schedule_id' => ! empty(static::$scheduleIds) ? $this->faker->randomElement(static::$scheduleIds) : null,
-            'status' => $this->faker->randomElement(['active', 'inactive', 'suspended']),
+            'status' => $this->faker->randomElement(['active', 'inactive']),
             'face_descriptor' => null,
         ];
     }
