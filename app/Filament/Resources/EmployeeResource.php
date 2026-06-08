@@ -218,6 +218,27 @@ class EmployeeResource extends Resource
                             ->required()
                             ->helperText('Sucursal donde trabaja el empleado.'),
 
+                        Select::make('reports_to_id')
+                            ->label('Reporta a')
+                            ->options(function (Get $get, ?Employee $record) {
+                                $companyId = $get('company_id');
+
+                                return Employee::where('status', 'active')
+                                    ->when($companyId, fn ($q) => $q->whereHas('branch', fn ($b) => $b->where('company_id', $companyId)))
+                                    ->when($record?->id, fn ($q) => $q->where('id', '!=', $record->id))
+                                    ->orderBy('last_name')->orderBy('first_name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($e) => [
+                                        $e->id => $e->last_name.', '.$e->first_name.($e->activeContract?->position ? ' ('.$e->activeContract->position->name.')' : ''),
+                                    ])
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->native(false)
+                            ->nullable()
+                            ->placeholder('Sin superior directo')
+                            ->helperText('Superior jerárquico directo del empleado.'),
+
                         Select::make('status')
                             ->label('Estado')
                             ->options(Employee::getStatusOptions())
@@ -543,6 +564,23 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-building-storefront')
                         ->badge()
                         ->color('info'),
+
+                    TextEntry::make('reportsTo.full_name')
+                        ->label('Reporta a')
+                        ->icon('heroicon-o-arrow-up-circle')
+                        ->getStateUsing(fn (Employee $record) => $record->reportsTo
+                            ? $record->reportsTo->full_name.($record->reportsTo->activeContract?->position ? ' · '.$record->reportsTo->activeContract->position->name : '')
+                            : null
+                        )
+                        ->placeholder('Sin superior asignado'),
+
+                    TextEntry::make('subordinates_count')
+                        ->label('Subordinados directos')
+                        ->icon('heroicon-o-arrow-down-circle')
+                        ->getStateUsing(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count())
+                        ->suffix(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count() === 1 ? ' empleado' : ' empleados')
+                        ->badge()
+                        ->color(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count() > 0 ? 'primary' : 'gray'),
 
                     TextEntry::make('employment_type')
                         ->label('Tipo de empleo')
