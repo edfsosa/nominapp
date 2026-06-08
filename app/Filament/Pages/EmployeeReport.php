@@ -13,6 +13,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select as FormSelect;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Notifications\Notification;
@@ -63,6 +64,17 @@ class EmployeeReport extends Page implements HasTable
     public function mount(): void
     {
         $this->tableFilters['status']['value'] ??= 'active';
+    }
+
+    /**
+     * Limpia los filtros hijos (sucursal, departamento) cuando cambia la empresa seleccionada.
+     */
+    public function updated(string $name): void
+    {
+        if ($name === 'tableFilters.company_id.value') {
+            $this->tableFilters['branch_id']['value'] = '';
+            $this->tableFilters['department_id']['value'] = '';
+        }
     }
 
     /**
@@ -316,12 +328,18 @@ class EmployeeReport extends Page implements HasTable
                         }
                         $hire = Carbon::parse($record->hire_date);
                         $years = (int) $hire->diffInYears(now());
+                        $totalMonths = (int) $hire->diffInMonths(now());
                         if ($years >= 1) {
-                            return $years.' año'.($years !== 1 ? 's' : '');
+                            $remainderMonths = $totalMonths - ($years * 12);
+                            $result = $years.' año'.($years !== 1 ? 's' : '');
+                            if ($remainderMonths > 0) {
+                                $result .= ' '.$remainderMonths.' mes'.($remainderMonths !== 1 ? 'es' : '');
+                            }
+
+                            return $result;
                         }
-                        $months = (int) $hire->diffInMonths(now());
-                        if ($months >= 1) {
-                            return $months.' mes'.($months !== 1 ? 'es' : '');
+                        if ($totalMonths >= 1) {
+                            return $totalMonths.' mes'.($totalMonths !== 1 ? 'es' : '');
                         }
                         $days = (int) $hire->diffInDays(now());
 
@@ -470,31 +488,69 @@ class EmployeeReport extends Page implements HasTable
         $filters = [];
 
         if (Company::active()->count() > 1) {
-            $filters[] = SelectFilter::make('company_id')
-                ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('branches.company_id', $data['value'])
-                    : $query);
+            $filters[] = Filter::make('company_id')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Empresa')
+                        ->options(fn () => Company::orderBy('name')->pluck('name', 'id')->toArray())
+                        ->searchable()
+                        ->placeholder('Todas')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('branches.company_id', (int) $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                    ? 'Empresa: '.Company::find($data['value'])?->name
+                    : null
+                );
         }
 
         return array_merge($filters, [
-            SelectFilter::make('branch_id')
-                ->label('Sucursal')
-                ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('employees.branch_id', $data['value'])
-                    : $query),
+            Filter::make('branch_id')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Sucursal')
+                        ->options(function () {
+                            $companyId = $this->tableFilters['company_id']['value'] ?? null;
 
-            SelectFilter::make('department_id')
-                ->label('Departamento')
-                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('contracts.department_id', $data['value'])
-                    : $query),
+                            return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todas'),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('employees.branch_id', (int) $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                    ? 'Sucursal: '.Branch::find($data['value'])?->name
+                    : null
+                ),
+
+            Filter::make('department_id')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Departamento')
+                        ->options(function () {
+                            $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                            return Department::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todos'),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'])
+                    ? $query->where('contracts.department_id', (int) $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                    ? 'Departamento: '.Department::find($data['value'])?->name
+                    : null
+                ),
 
             SelectFilter::make('contract_type')
                 ->label('Tipo de contrato')

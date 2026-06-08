@@ -264,13 +264,17 @@
                     $salaryFmt   = $e->salary ? number_format((float) $e->salary, 0, ',', '.') : '—';
 
                     if ($hireDate && $e->status === 'active') {
-                        $years  = (int) $hireDate->diffInYears(now());
-                        $months = (int) $hireDate->diffInMonths(now());
-                        $days   = (int) $hireDate->diffInDays(now());
+                        $years       = (int) $hireDate->diffInYears(now());
+                        $totalMonths = (int) $hireDate->diffInMonths(now());
+                        $days        = (int) $hireDate->diffInDays(now());
                         if ($years >= 1) {
-                            $antiguedadFmt = $years . ' año' . ($years !== 1 ? 's' : '');
-                        } elseif ($months >= 1) {
-                            $antiguedadFmt = $months . ' mes' . ($months !== 1 ? 'es' : '');
+                            $remainderMonths = $totalMonths - ($years * 12);
+                            $antiguedadFmt   = $years . ' año' . ($years !== 1 ? 's' : '');
+                            if ($remainderMonths > 0) {
+                                $antiguedadFmt .= ' ' . $remainderMonths . ' mes' . ($remainderMonths !== 1 ? 'es' : '');
+                            }
+                        } elseif ($totalMonths >= 1) {
+                            $antiguedadFmt = $totalMonths . ' mes' . ($totalMonths !== 1 ? 'es' : '');
                         } else {
                             $antiguedadFmt = $days . ' día' . ($days !== 1 ? 's' : '');
                         }
