@@ -39,6 +39,8 @@ class ContractReport extends Page implements HasTable
 {
     use InteractsWithTable;
 
+    protected static ?string $slug = 'reporte-contratos';
+
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?string $navigationLabel = 'Reporte de Contratos';
