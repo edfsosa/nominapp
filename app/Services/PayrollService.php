@@ -44,7 +44,7 @@ class PayrollService
 
         $employees = Employee::query()
             ->where('status', 'active')
-            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary'))
+            ->whereHas('activeContract', fn ($q) => $q->where('status', 'active')->where('payroll_type', $period->frequency)->whereNotNull('salary'))
             ->when($period->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $period->company_id)))
             ->with('activeContract')
             ->get();

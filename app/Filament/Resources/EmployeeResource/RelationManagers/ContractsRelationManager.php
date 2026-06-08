@@ -23,6 +23,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
@@ -482,6 +483,36 @@ class ContractsRelationManager extends RelationManager
                     }),
 
                 ActionGroup::make([
+                    Action::make('suspend_contract')
+                        ->label('Suspender contrato')
+                        ->icon('heroicon-o-pause-circle')
+                        ->color('warning')
+                        ->tooltip('Suspender temporalmente el contrato — desactiva percepciones y deducciones')
+                        ->visible(fn (Contract $record) => $record->status === 'active')
+                        ->requiresConfirmation()
+                        ->modalHeading('Suspender contrato')
+                        ->modalDescription(fn (Contract $record) => "Se suspenderá el contrato de {$record->employee->full_name}. Sus percepciones y deducciones serán desactivadas temporalmente. Podrá reactivarse en cualquier momento.")
+                        ->modalSubmitActionLabel('Sí, suspender')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'suspended']);
+                            Notification::make()->success()->title('Contrato suspendido')->send();
+                        }),
+
+                    Action::make('reactivate_contract')
+                        ->label('Reactivar contrato')
+                        ->icon('heroicon-o-play-circle')
+                        ->color('success')
+                        ->tooltip('Reactivar el contrato suspendido — reactiva percepciones y deducciones')
+                        ->visible(fn (Contract $record) => $record->status === 'suspended')
+                        ->requiresConfirmation()
+                        ->modalHeading('Reactivar contrato')
+                        ->modalDescription(fn (Contract $record) => "Se reactivará el contrato de {$record->employee->full_name}. Sus percepciones y deducciones desactivadas por el sistema serán restauradas.")
+                        ->modalSubmitActionLabel('Sí, reactivar')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'active']);
+                            Notification::make()->success()->title('Contrato reactivado')->send();
+                        }),
+
                     EditAction::make()
                         ->label('Editar')
                         ->icon('heroicon-o-pencil-square')

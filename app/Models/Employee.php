@@ -416,7 +416,7 @@ class Employee extends Model
 
     /**
      * Obtiene el contrato vigente del empleado (activo o suspendido).
-     * Se incluye 'suspended' porque la suspensión es temporal — el vínculo laboral continúa.
+     * Un contrato suspendido sigue siendo el contrato vigente — el vínculo laboral continúa.
      */
     public function activeContract()
     {
@@ -469,14 +469,6 @@ class Employee extends Model
     public function scopeInactive($query)
     {
         return $query->where('status', 'inactive');
-    }
-
-    /**
-     * Scope para filtrar empleados suspendidos
-     */
-    public function scopeSuspended($query)
-    {
-        return $query->where('status', 'suspended');
     }
 
     /**
@@ -569,10 +561,9 @@ class Employee extends Model
             'all' => static::count(),
             'active' => $statusCounts['active'] ?? 0,
             'inactive' => $statusCounts['inactive'] ?? 0,
-            'suspended' => $statusCounts['suspended'] ?? 0,
             'with_face' => $faceCounts->with_face ?? 0,
             'without_face' => $faceCounts->without_face ?? 0,
-            'weak_face' => static::withWeakFaceDescriptor()->count(),
+            'weak_face' => static::active()->withWeakFaceDescriptor()->count(),
         ];
     }
 
@@ -651,7 +642,6 @@ class Employee extends Model
         return [
             'active' => 'Activo',
             'inactive' => 'Inactivo',
-            'suspended' => 'Suspendido',
         ];
     }
 
@@ -829,7 +819,6 @@ class Employee extends Model
         return match ($this->status) {
             'active' => 'success',
             'inactive' => 'danger',
-            'suspended' => 'warning',
             default => 'gray',
         };
     }
@@ -842,7 +831,6 @@ class Employee extends Model
         return match ($this->status) {
             'active' => 'heroicon-o-check-circle',
             'inactive' => 'heroicon-o-x-circle',
-            'suspended' => 'heroicon-o-pause-circle',
             default => 'heroicon-o-question-mark-circle',
         };
     }

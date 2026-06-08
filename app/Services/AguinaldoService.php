@@ -38,7 +38,7 @@ class AguinaldoService
 
         $employees = Employee::query()
             ->whereHas('branch', fn ($q) => $q->where('company_id', $companyId))
-            ->whereIn('status', ['active', 'suspended'])
+            ->where('status', 'active')
             ->get();
 
         foreach ($employees as $employee) {

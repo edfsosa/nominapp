@@ -25,15 +25,17 @@ function makeAguService(): AguinaldoService
 {
     $pdf = \Mockery::mock(AguinaldoPDFGenerator::class);
     $pdf->shouldReceive('generate')->andReturn('mock/aguinaldo.pdf');
+
     return new AguinaldoService($pdf);
 }
 
 function makeAguCompany(): Company
 {
     static $n = 8000000;
+
     return Company::create([
-        'name'            => "Empresa {$n}",
-        'ruc'             => "{$n}-1",
+        'name' => "Empresa {$n}",
+        'ruc' => "{$n}-1",
         'employer_number' => $n++,
     ]);
 }
@@ -43,28 +45,28 @@ function makeAguEmployee(Company $company, string $status = 'active'): Employee
     static $ci = 8100000;
     $n = $ci++;
 
-    $branch     = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
+    $branch = Branch::create(['name' => "Sucursal {$n}", 'company_id' => $company->id]);
     $department = Department::create(['name' => "Depto {$n}", 'company_id' => $company->id]);
-    $position   = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
+    $position = Position::create(['name' => "Cargo {$n}", 'department_id' => $department->id]);
 
     $employee = Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Agu',
-        'ci'         => (string) $n,
-        'email'      => "agu{$n}@test.com",
-        'branch_id'  => $branch->id,
-        'status'     => $status,
+        'last_name' => 'Agu',
+        'ci' => (string) $n,
+        'email' => "agu{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => $status,
     ]);
 
     Contract::create([
-        'employee_id'   => $employee->id,
-        'type'          => 'indefinido',
-        'start_date'    => Carbon::now()->subYears(2),
-        'salary_type'   => 'mensual',
-        'salary'        => 2_550_000,
-        'position_id'   => $position->id,
+        'employee_id' => $employee->id,
+        'type' => 'indefinido',
+        'start_date' => Carbon::now()->subYears(2),
+        'salary_type' => 'mensual',
+        'salary' => 2_550_000,
+        'position_id' => $position->id,
         'department_id' => $department->id,
-        'status'        => 'active',
+        'status' => 'active',
     ]);
 
     return $employee->fresh();
@@ -74,35 +76,36 @@ function makeAguPeriod(Company $company, int $year = 2025): AguinaldoPeriod
 {
     return AguinaldoPeriod::create([
         'company_id' => $company->id,
-        'year'       => $year,
-        'status'     => 'draft',
+        'year' => $year,
+        'status' => 'draft',
     ]);
 }
 
 function makeAguinaldoPayPeriod(int $year, int $month): PayrollPeriod
 {
     $start = Carbon::create($year, $month, 1);
+
     return PayrollPeriod::create([
-        'name'       => $start->format('F Y'),
+        'name' => $start->format('F Y'),
         'start_date' => $start->toDateString(),
-        'end_date'   => $start->endOfMonth()->toDateString(),
-        'frequency'  => 'monthly',
-        'status'     => 'closed',
+        'end_date' => $start->endOfMonth()->toDateString(),
+        'frequency' => 'monthly',
+        'status' => 'closed',
     ]);
 }
 
 function makePayroll(Employee $employee, PayrollPeriod $period, float $baseSalary, float $perceptions = 0): Payroll
 {
     return Payroll::create([
-        'employee_id'        => $employee->id,
-        'payroll_period_id'  => $period->id,
-        'base_salary'        => $baseSalary,
-        'total_perceptions'  => $perceptions,
-        'ips_perceptions'    => $perceptions,
-        'gross_salary'       => $baseSalary + $perceptions,
-        'total_deductions'   => 0,
-        'net_salary'         => $baseSalary + $perceptions,
-        'status'             => 'approved',
+        'employee_id' => $employee->id,
+        'payroll_period_id' => $period->id,
+        'base_salary' => $baseSalary,
+        'total_perceptions' => $perceptions,
+        'ips_perceptions' => $perceptions,
+        'gross_salary' => $baseSalary + $perceptions,
+        'total_deductions' => 0,
+        'net_salary' => $baseSalary + $perceptions,
+        'status' => 'approved',
     ]);
 }
 
@@ -110,7 +113,7 @@ function makePayroll(Employee $employee, PayrollPeriod $period, float $baseSalar
 
 it('retorna 0 si no hay empleados en la empresa', function () {
     $company = makeAguCompany();
-    $period  = makeAguPeriod($company, 2025);
+    $period = makeAguPeriod($company, 2025);
 
     $count = makeAguService()->generateForPeriod($period);
 
@@ -118,8 +121,8 @@ it('retorna 0 si no hay empleados en la empresa', function () {
 });
 
 it('retorna 0 si los empleados no tienen nóminas en el año', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     // Sin nóminas en 2025
@@ -130,8 +133,8 @@ it('retorna 0 si los empleados no tienen nóminas en el año', function () {
 });
 
 it('genera aguinaldo correctamente para un empleado con nóminas', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     $payPeriod = makeAguinaldoPayPeriod(2025, 6);
@@ -149,8 +152,8 @@ it('genera aguinaldo correctamente para un empleado con nóminas', function () {
 });
 
 it('calcula aguinaldo_amount como total_earned dividido 12', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     // 3 nóminas: 2,550,000 + 200,000 perceptions cada una
@@ -162,7 +165,7 @@ it('calcula aguinaldo_amount como total_earned dividido 12', function () {
     makeAguService()->generateForPeriod($period);
 
     $aguinaldo = Aguinaldo::first();
-    $expectedTotal  = 3 * (2_550_000 + 200_000); // 8,250,000
+    $expectedTotal = 3 * (2_550_000 + 200_000); // 8,250,000
     $expectedAmount = round($expectedTotal / 12, 2); // 687,500
 
     expect((float) $aguinaldo->total_earned)->toBe((float) $expectedTotal)
@@ -170,8 +173,8 @@ it('calcula aguinaldo_amount como total_earned dividido 12', function () {
 });
 
 it('crea un AguinaldoItem por cada nómina del año', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     foreach ([1, 2, 3, 4] as $month) {
@@ -184,8 +187,8 @@ it('crea un AguinaldoItem por cada nómina del año', function () {
 });
 
 it('no duplica aguinaldo si el empleado ya tiene uno en el período', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     makePayroll($employee, makeAguinaldoPayPeriod(2025, 6), 2_550_000);
@@ -197,17 +200,20 @@ it('no duplica aguinaldo si el empleado ya tiene uno en el período', function (
     expect(Aguinaldo::count())->toBe(1);
 });
 
-it('solo incluye empleados activos y suspendidos, no inactivos', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+it('solo incluye empleados activos (incluso con contrato suspendido), no inactivos', function () {
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
 
-    $active    = makeAguEmployee($company, 'active');
-    $suspended = makeAguEmployee($company, 'suspended');
-    $inactive  = makeAguEmployee($company, 'inactive');
+    $active = makeAguEmployee($company, 'active');
+    $withSuspendedContract = makeAguEmployee($company, 'active');  // activo, contrato suspendido
+    $inactive = makeAguEmployee($company, 'inactive');
+
+    // Suspender el contrato del segundo empleado activo
+    $withSuspendedContract->contracts()->update(['status' => 'suspended']);
 
     $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     makePayroll($active, $payPeriod, 2_550_000);
-    makePayroll($suspended, $payPeriod, 2_550_000);
+    makePayroll($withSuspendedContract, $payPeriod, 2_550_000);
     makePayroll($inactive, $payPeriod, 2_550_000);
 
     $count = makeAguService()->generateForPeriod($period);
@@ -217,12 +223,12 @@ it('solo incluye empleados activos y suspendidos, no inactivos', function () {
 });
 
 it('solo procesa nóminas del año del período, no de otros años', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     makePayroll($employee, makeAguinaldoPayPeriod(2024, 12), 2_550_000); // año anterior
-    makePayroll($employee, makeAguinaldoPayPeriod(2025, 6),  2_550_000); // año correcto
+    makePayroll($employee, makeAguinaldoPayPeriod(2025, 6), 2_550_000); // año correcto
 
     makeAguService()->generateForPeriod($period);
 
@@ -233,12 +239,12 @@ it('solo procesa nóminas del año del período, no de otros años', function ()
 // ─── Separación de horas extra ───────────────────────────────────────────────
 
 it('separa horas extra de percepciones ordinarias en los items', function () {
-    $company  = makeAguCompany();
-    $period   = makeAguPeriod($company, 2025);
+    $company = makeAguCompany();
+    $period = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     $payPeriod = makeAguinaldoPayPeriod(2025, 6);
-    $payroll   = makePayroll($employee, $payPeriod, 2_550_000, 350_000);
+    $payroll = makePayroll($employee, $payPeriod, 2_550_000, 350_000);
 
     // 200,000 de horas extra — identificadas por perception_type, no por descripción
     PayrollItem::create(['payroll_id' => $payroll->id, 'type' => 'perception', 'perception_type' => 'extra_hours', 'description' => 'Horas Extras Diurnas', 'amount' => 200_000]);
@@ -255,28 +261,28 @@ it('separa horas extra de percepciones ordinarias en los items', function () {
 // ─── regenerateForEmployee ───────────────────────────────────────────────────
 
 it('lanza excepción si el empleado no tiene nóminas en el año', function () {
-    $company  = makeAguCompany();
+    $company = makeAguCompany();
     $aguPeriod = makeAguPeriod($company, 2025);
     $employee = makeAguEmployee($company);
 
     $aguinaldo = Aguinaldo::create([
         'aguinaldo_period_id' => $aguPeriod->id,
-        'employee_id'         => $employee->id,
-        'total_earned'        => 0,
-        'months_worked'       => 0,
-        'aguinaldo_amount'    => 0,
-        'status'              => 'pending',
-        'generated_at'        => now(),
+        'employee_id' => $employee->id,
+        'total_earned' => 0,
+        'months_worked' => 0,
+        'aguinaldo_amount' => 0,
+        'status' => 'pending',
+        'generated_at' => now(),
     ]);
 
-    expect(fn() => makeAguService()->regenerateForEmployee($aguinaldo))
+    expect(fn () => makeAguService()->regenerateForEmployee($aguinaldo))
         ->toThrow(\RuntimeException::class);
 });
 
 it('regenera correctamente el aguinaldo con nuevos montos', function () {
-    $company   = makeAguCompany();
+    $company = makeAguCompany();
     $aguPeriod = makeAguPeriod($company, 2025);
-    $employee  = makeAguEmployee($company);
+    $employee = makeAguEmployee($company);
 
     $payPeriod = makeAguinaldoPayPeriod(2025, 6);
     makePayroll($employee, $payPeriod, 2_550_000);
@@ -284,12 +290,12 @@ it('regenera correctamente el aguinaldo con nuevos montos', function () {
     // Crear aguinaldo inicial con monto incorrecto
     $aguinaldo = Aguinaldo::create([
         'aguinaldo_period_id' => $aguPeriod->id,
-        'employee_id'         => $employee->id,
-        'total_earned'        => 999,
-        'months_worked'       => 0,
-        'aguinaldo_amount'    => 999,
-        'status'              => 'pending',
-        'generated_at'        => now(),
+        'employee_id' => $employee->id,
+        'total_earned' => 999,
+        'months_worked' => 0,
+        'aguinaldo_amount' => 999,
+        'status' => 'pending',
+        'generated_at' => now(),
     ]);
 
     makeAguService()->regenerateForEmployee($aguinaldo);

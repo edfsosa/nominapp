@@ -14,6 +14,7 @@ use App\Models\FaceEnrollment;
 use App\Models\Position;
 use App\Models\Schedule;
 use App\Settings\GeneralSettings;
+use Carbon\Carbon;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -36,6 +37,7 @@ use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
+use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\BulkAction;
 use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Columns\ImageColumn;
@@ -852,11 +854,11 @@ class EmployeeResource extends Resource
                         return $query
                             ->when(
                                 $data['hired_from'],
-                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->whereDate('start_date', '>=', $date)),
+                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->where('start_date', '>=', Carbon::parse($date)->startOfDay())),
                             )
                             ->when(
                                 $data['hired_until'],
-                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->whereDate('start_date', '<=', $date)),
+                                fn (Builder $query, $date): Builder => $query->whereHas('activeContract', fn ($q) => $q->where('start_date', '<=', Carbon::parse($date)->endOfDay())),
                             );
                     }),
 
@@ -899,86 +901,88 @@ class EmployeeResource extends Resource
 
             ])
             ->actions([
-                Action::make('capture_face')
-                    ->label(fn (Employee $record): string => $record->has_face ? 'Re-enrolar' : 'Enrolar')
-                    ->icon('heroicon-o-camera')
-                    ->tooltip(fn (Employee $record): string => $record->has_face ? 'Re-enrolar rostro (actualmente registrado)' : 'Enrolar rostro (no se ha registrado ningún rostro)')
-                    ->url(fn (Employee $record): string => route('face.capture', $record))
-                    ->color(fn (Employee $record): string => $record->has_face ? 'warning' : 'success')
-                    ->visible(fn (Employee $record): bool => $record->status === 'active'),
+                ActionGroup::make([
+                    Action::make('capture_face')
+                        ->label(fn (Employee $record): string => $record->has_face ? 'Re-enrolar rostro' : 'Enrolar rostro')
+                        ->icon('heroicon-o-camera')
+                        ->tooltip(fn (Employee $record): string => $record->has_face ? 'Capturar nuevo descriptor facial (reemplaza el actual)' : 'Registrar rostro del empleado por primera vez')
+                        ->url(fn (Employee $record): string => route('face.capture', $record))
+                        ->color(fn (Employee $record): string => $record->has_face ? 'warning' : 'success')
+                        ->visible(fn (Employee $record): bool => $record->status === 'active'),
 
-                Action::make('generate_enrollment')
-                    ->label('Generar enlace')
-                    ->icon('heroicon-o-link')
-                    ->color('info')
-                    ->tooltip('Generar enlace para que el empleado registre su rostro')
-                    ->visible(fn (Employee $record): bool => $record->status === 'active')
-                    ->requiresConfirmation()
-                    ->modalHeading('Generar Enlace de Registro Facial')
-                    ->modalDescription(fn (Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en ".app(GeneralSettings::class)->face_enrollment_expiry_hours.' horas.')
-                    ->modalSubmitActionLabel('Generar Enlace')
-                    ->action(function (Employee $record) {
-                        $settings = app(GeneralSettings::class);
-                        $enrollment = FaceEnrollment::createForEmployee(
-                            $record,
-                            Auth::id(),
-                            $settings->face_enrollment_expiry_hours
-                        );
+                    Action::make('generate_enrollment')
+                        ->label('Generar enlace de enrolamiento')
+                        ->icon('heroicon-o-link')
+                        ->color('info')
+                        ->tooltip('Generar enlace temporal para que el empleado registre su rostro desde su propio dispositivo')
+                        ->visible(fn (Employee $record): bool => $record->status === 'active')
+                        ->requiresConfirmation()
+                        ->modalHeading('Generar Enlace de Registro Facial')
+                        ->modalDescription(fn (Employee $record) => "Se generará un enlace temporal para que {$record->first_name} {$record->last_name} registre su rostro. El enlace expirará en ".app(GeneralSettings::class)->face_enrollment_expiry_hours.' horas.')
+                        ->modalSubmitActionLabel('Generar Enlace')
+                        ->action(function (Employee $record) {
+                            $settings = app(GeneralSettings::class);
+                            $enrollment = FaceEnrollment::createForEmployee(
+                                $record,
+                                Auth::id(),
+                                $settings->face_enrollment_expiry_hours
+                            );
 
-                        $url = route('face-enrollment.show', $enrollment->token);
+                            $url = route('face-enrollment.show', $enrollment->token);
 
-                        Notification::make()
-                            ->success()
-                            ->title('Enlace generado — expira en '.$settings->face_enrollment_expiry_hours.'h')
-                            ->body($url)
-                            ->persistent()
-                            ->actions([
-                                NotificationAction::make('send_whatsapp')
-                                    ->label('Enviar por WhatsApp')
-                                    ->url('https://api.whatsapp.com/send?phone=595'.ltrim($record->phone ?? '', '0').'&text='.urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
-                                    ->openUrlInNewTab()
-                                    ->visible(fn () => filled($record->phone)),
-                            ])
-                            ->send();
-                    }),
-
-                Action::make('change_status')
-                    ->label('Cambiar estado')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('gray')
-                    ->tooltip('Cambiar el estado del empleado (activo, suspendido, inactivo)')
-                    ->modalSubmitActionLabel('Cambiar estado')
-                    ->form([
-                        Select::make('status')
-                            ->label('Nuevo estado')
-                            ->options(
-                                fn (Employee $record) => collect(Employee::getStatusOptions())
-                                    ->except($record->status)
-                                    ->toArray()
-                            )
-                            ->required()
-                            ->native(false),
-                    ])
-                    ->action(function (Employee $record, array $data, Action $action): void {
-                        if ($data['status'] === 'inactive' && $record->activeContract !== null) {
                             Notification::make()
-                                ->danger()
-                                ->title('No se puede desactivar')
-                                ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                                ->success()
+                                ->title('Enlace generado — expira en '.$settings->face_enrollment_expiry_hours.'h')
+                                ->body($url)
+                                ->persistent()
+                                ->actions([
+                                    NotificationAction::make('send_whatsapp')
+                                        ->label('Enviar por WhatsApp')
+                                        ->url('https://api.whatsapp.com/send?phone=595'.ltrim($record->phone ?? '', '0').'&text='.urlencode("Hola {$record->first_name}, usa este enlace para registrar tu rostro: {$url}"))
+                                        ->openUrlInNewTab()
+                                        ->visible(fn () => filled($record->phone)),
+                                ])
                                 ->send();
-                            $action->halt();
+                        }),
 
-                            return;
-                        }
+                    Action::make('change_status')
+                        ->label('Cambiar estado')
+                        ->icon('heroicon-o-arrow-path')
+                        ->color('gray')
+                        ->tooltip('Cambiar el estado del empleado (activo, suspendido, inactivo)')
+                        ->modalSubmitActionLabel('Cambiar estado')
+                        ->form([
+                            Select::make('status')
+                                ->label('Nuevo estado')
+                                ->options(
+                                    fn (Employee $record) => collect(Employee::getStatusOptions())
+                                        ->except($record->status)
+                                        ->toArray()
+                                )
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Employee $record, array $data, Action $action): void {
+                            if ($data['status'] === 'inactive' && $record->activeContract !== null) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('No se puede desactivar')
+                                    ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                                    ->send();
+                                $action->halt();
 
-                        $record->update(['status' => $data['status']]);
+                                return;
+                            }
 
-                        Notification::make()
-                            ->success()
-                            ->title('Estado actualizado')
-                            ->body("El estado de {$record->full_name} cambió a: ".Employee::getStatusOptions()[$data['status']])
-                            ->send();
-                    }),
+                            $record->update(['status' => $data['status']]);
+
+                            Notification::make()
+                                ->success()
+                                ->title('Estado actualizado')
+                                ->body("El estado de {$record->full_name} cambió a: ".Employee::getStatusOptions()[$data['status']])
+                                ->send();
+                        }),
+                ]),
             ])
             ->bulkActions([
                 BulkActionGroup::make([
@@ -997,25 +1001,6 @@ class EmployeeResource extends Resource
                                 ->success()
                                 ->title('Empleados activados')
                                 ->body("{$count} empleado(s) activado(s) correctamente.")
-                                ->send();
-                        })
-                        ->deselectRecordsAfterCompletion(),
-
-                    BulkAction::make('suspend')
-                        ->label('Suspender seleccionados')
-                        ->icon('heroicon-o-pause-circle')
-                        ->color('warning')
-                        ->requiresConfirmation()
-                        ->modalHeading('Suspender empleados')
-                        ->modalDescription(fn (Collection $records) => "Se suspenderán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
-                        ->modalSubmitActionLabel('Sí, suspender')
-                        ->action(function (Collection $records): void {
-                            $count = $records->count();
-                            Employee::whereIn('id', $records->pluck('id'))->update(['status' => 'suspended']);
-                            Notification::make()
-                                ->success()
-                                ->title('Empleados suspendidos')
-                                ->body("{$count} empleado(s) suspendido(s) correctamente.")
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),
