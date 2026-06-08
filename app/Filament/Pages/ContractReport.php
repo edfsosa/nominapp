@@ -304,6 +304,7 @@ class ContractReport extends Page implements HasTable
                 'employees.last_name',
                 'employees.ci',
                 'employees.status as employee_status',
+                'employees.created_at',
                 'branches.name as branch_name',
                 'companies.id as company_id',
                 'companies.name as company_name',
@@ -546,6 +547,14 @@ class ContractReport extends Page implements HasTable
                     return 'gray';
                 })
                 ->hidden(fn () => $this->activeTab !== 'antiguedad'),
+
+            // ── Fecha de registro (sin contrato) ─────────────────────────────
+            TextColumn::make('created_at')
+                ->label('Registrado el')
+                ->date('d/m/Y')
+                ->sortable()
+                ->toggleable(isToggledHiddenByDefault: true)
+                ->hidden(fn () => $this->activeTab !== 'sin_contrato'),
 
             // ── Estado empleado (sin contrato) ────────────────────────────────
             TextColumn::make('employee_status')
@@ -803,6 +812,39 @@ class ContractReport extends Page implements HasTable
                 });
         }
 
+        // ── Rango de registro en sistema (solo sin_contrato) ─────────────────
+        if ($this->activeTab === 'sin_contrato') {
+            $filters[] = Filter::make('created_at_range')
+                ->label('Registrado en el sistema')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('created_from')->label('Desde')->native(false)->displayFormat('d/m/Y'),
+                    DatePicker::make('created_until')->label('Hasta')->native(false)->displayFormat('d/m/Y'),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['created_from'] ?? null)) {
+                        $query->where('employees.created_at', '>=', Carbon::parse($data['created_from'])->startOfDay());
+                    }
+                    if (filled($data['created_until'] ?? null)) {
+                        $query->where('employees.created_at', '<=', Carbon::parse($data['created_until'])->endOfDay());
+                    }
+
+                    return $query;
+                })
+                ->indicateUsing(function (array $data): ?string {
+                    $parts = [];
+                    if (filled($data['created_from'] ?? null)) {
+                        $parts[] = 'desde '.Carbon::parse($data['created_from'])->format('d/m/Y');
+                    }
+                    if (filled($data['created_until'] ?? null)) {
+                        $parts[] = 'hasta '.Carbon::parse($data['created_until'])->format('d/m/Y');
+                    }
+
+                    return $parts ? 'Registrado: '.implode(' — ', $parts) : null;
+                });
+        }
+
         // ── Rango de fecha de rescisión (solo rescindidos) ───────────────────
         if ($this->activeTab === 'rescindidos') {
             $filters[] = Filter::make('terminated_range')
@@ -867,6 +909,8 @@ class ContractReport extends Page implements HasTable
             'endDateUntil' => filled($f['end_date_range']['end_until'] ?? null) ? $f['end_date_range']['end_until'] : null,
             'terminatedFrom' => filled($f['terminated_range']['terminated_from'] ?? null) ? $f['terminated_range']['terminated_from'] : null,
             'terminatedUntil' => filled($f['terminated_range']['terminated_until'] ?? null) ? $f['terminated_range']['terminated_until'] : null,
+            'createdFrom' => filled($f['created_at_range']['created_from'] ?? null) ? $f['created_at_range']['created_from'] : null,
+            'createdUntil' => filled($f['created_at_range']['created_until'] ?? null) ? $f['created_at_range']['created_until'] : null,
         ];
     }
 }

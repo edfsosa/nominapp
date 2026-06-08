@@ -66,6 +66,7 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
         return match ($tab) {
             'sin_contrato' => $base + [
                 'employee_status' => 'Estado',
+                'created_at' => 'Registrado el',
             ],
             'prueba' => $base + [
                 'position_name' => 'Cargo',
@@ -188,6 +189,16 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             }
             if ($until = $this->filter('terminatedUntil')) {
                 $query->where('contracts.terminated_at', '<=', $until);
+            }
+        }
+
+        // ── Rango de registro en sistema (solo sin_contrato) ─────────────────
+        if ($this->tab === 'sin_contrato') {
+            if ($from = $this->filter('createdFrom')) {
+                $query->where('employees.created_at', '>=', Carbon::parse($from)->startOfDay());
+            }
+            if ($until = $this->filter('createdUntil')) {
+                $query->where('employees.created_at', '<=', Carbon::parse($until)->endOfDay());
             }
         }
 
@@ -317,6 +328,7 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'employees.last_name',
                 'employees.ci',
                 'employees.status as employee_status',
+                'employees.created_at',
                 'branches.name as branch_name',
                 'companies.id as company_id',
                 'companies.name as company_name',
@@ -412,6 +424,7 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 'draft' => 'Borrador',
                 default => $r->employee_status ?? '—',
             },
+            'created_at' => $r->created_at ? Carbon::parse($r->created_at)->format('d/m/Y') : '—',
         ];
     }
 
