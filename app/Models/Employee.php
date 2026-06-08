@@ -33,6 +33,7 @@ class Employee extends Model
         'marital_status',
         'nationality',
         'branch_id',
+        'reports_to_id',
         'schedule_id',
         'status',
         'face_descriptor',
@@ -98,9 +99,21 @@ class Employee extends Model
     /**
      * Relación con el modelo Branch, un empleado pertenece a una sucursal
      */
-    public function branch()
+    public function branch(): BelongsTo
     {
         return $this->belongsTo(Branch::class);
+    }
+
+    /** Superior directo del empleado. */
+    public function reportsTo(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'reports_to_id');
+    }
+
+    /** Subordinados directos del empleado. */
+    public function subordinates(): HasMany
+    {
+        return $this->hasMany(Employee::class, 'reports_to_id');
     }
 
     /**

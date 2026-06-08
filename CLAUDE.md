@@ -44,7 +44,7 @@ Two separate axes that converge in `Contract`:
 - **Physical/location:** `Company → Branch → Employee`
 - **Organizational:** `Company → Department → Position` (`departments.company_id` FK — each company defines its own departments)
 
-`Employee` has `branch_id` (company is derived via `employee→branch→company`). Active salary, position, and start date live in the active `Contract` — not on `Employee` directly. `employee.position_id` is a legacy field; always use `employee.activeContract.position`. Employee status flows through the contract lifecycle.
+`Employee` has `branch_id` (NOT NULL — company is derived via `employee→branch→company`). Active salary, position, and start date live in the active `Contract` — not on `Employee` directly. `employee.position_id` and `employee.position` are virtual accessors that delegate to `activeContract.position_id` / `activeContract.position` — the column no longer exists on the `employees` table. Employee status flows through the contract lifecycle.
 
 ### Modules
 

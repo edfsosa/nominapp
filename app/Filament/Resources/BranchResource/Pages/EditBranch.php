@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\BranchResource\Pages;
 
 use App\Filament\Resources\BranchResource;
+use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Notification;
@@ -32,10 +33,21 @@ class EditBranch extends EditRecord
                 ->color('danger')
                 ->modalHeading('¿Eliminar sucursal?')
                 ->modalDescription(fn () => $this->record->employees()->count() > 0
-                    ? "Esta sucursal tiene {$this->record->employees()->count()} empleado(s) asignado(s). Al eliminarla quedarán sin sucursal."
+                    ? "Esta sucursal tiene {$this->record->employees()->count()} empleado(s) asignado(s). No es posible eliminarla mientras tenga empleados."
                     : "¿Estás seguro de que deseas eliminar la sucursal \"{$this->record->name}\"? Esta acción no se puede deshacer."
                 )
                 ->modalSubmitActionLabel('Sí, eliminar')
+                ->before(function (Action $action) {
+                    if ($this->record->employees()->exists()) {
+                        Notification::make()
+                            ->danger()
+                            ->title('No se puede eliminar')
+                            ->body('Reasigna o elimina los empleados de esta sucursal primero.')
+                            ->send();
+
+                        $action->halt();
+                    }
+                })
                 ->successNotificationTitle('Sucursal eliminada')
                 ->successRedirectUrl($this->getResource()::getUrl('index')),
         ];

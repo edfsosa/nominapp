@@ -218,6 +218,27 @@ class EmployeeResource extends Resource
                             ->required()
                             ->helperText('Sucursal donde trabaja el empleado.'),
 
+                        Select::make('reports_to_id')
+                            ->label('Reporta a')
+                            ->options(function (Get $get, ?Employee $record) {
+                                $companyId = $get('company_id');
+
+                                return Employee::where('status', 'active')
+                                    ->when($companyId, fn ($q) => $q->whereHas('branch', fn ($b) => $b->where('company_id', $companyId)))
+                                    ->when($record?->id, fn ($q) => $q->where('id', '!=', $record->id))
+                                    ->orderBy('last_name')->orderBy('first_name')
+                                    ->get()
+                                    ->mapWithKeys(fn ($e) => [
+                                        $e->id => $e->last_name.', '.$e->first_name.($e->activeContract?->position ? ' ('.$e->activeContract->position->name.')' : ''),
+                                    ])
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->native(false)
+                            ->nullable()
+                            ->placeholder('Sin superior directo')
+                            ->helperText('Superior jerárquico directo del empleado.'),
+
                         Select::make('status')
                             ->label('Estado')
                             ->options(Employee::getStatusOptions())
@@ -543,6 +564,23 @@ class EmployeeResource extends Resource
                         ->icon('heroicon-o-building-storefront')
                         ->badge()
                         ->color('info'),
+
+                    TextEntry::make('reportsTo.full_name')
+                        ->label('Reporta a')
+                        ->icon('heroicon-o-arrow-up-circle')
+                        ->getStateUsing(fn (Employee $record) => $record->reportsTo
+                            ? $record->reportsTo->full_name.($record->reportsTo->activeContract?->position ? ' · '.$record->reportsTo->activeContract->position->name : '')
+                            : null
+                        )
+                        ->placeholder('Sin superior asignado'),
+
+                    TextEntry::make('subordinates_count')
+                        ->label('Subordinados directos')
+                        ->icon('heroicon-o-arrow-down-circle')
+                        ->getStateUsing(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count())
+                        ->suffix(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count() === 1 ? ' empleado' : ' empleados')
+                        ->badge()
+                        ->color(fn (Employee $record) => $record->subordinates()->where('status', 'active')->count() > 0 ? 'primary' : 'gray'),
 
                     TextEntry::make('employment_type')
                         ->label('Tipo de empleo')
@@ -921,7 +959,18 @@ class EmployeeResource extends Resource
                             ->required()
                             ->native(false),
                     ])
-                    ->action(function (Employee $record, array $data): void {
+                    ->action(function (Employee $record, array $data, Action $action): void {
+                        if ($data['status'] === 'inactive' && $record->activeContract !== null) {
+                            Notification::make()
+                                ->danger()
+                                ->title('No se puede desactivar')
+                                ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                                ->send();
+                            $action->halt();
+
+                            return;
+                        }
+
                         $record->update(['status' => $data['status']]);
 
                         Notification::make()
@@ -977,15 +1026,37 @@ class EmployeeResource extends Resource
                         ->color('danger')
                         ->requiresConfirmation()
                         ->modalHeading('Desactivar empleados')
-                        ->modalDescription(fn (Collection $records) => "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.")
+                        ->modalDescription(function (Collection $records) {
+                            $records->loadMissing('activeContract');
+                            $withContract = $records->filter(fn ($e) => $e->activeContract !== null)->count();
+                            $base = "Se desactivarán {$records->count()} empleado(s). Esta acción no se puede deshacer.";
+
+                            return $withContract > 0
+                                ? $base." Atención: {$withContract} empleado(s) con contrato activo serán ignorados (procesá una Liquidación para darlos de baja)."
+                                : $base;
+                        })
                         ->modalSubmitActionLabel('Sí, desactivar')
                         ->action(function (Collection $records): void {
-                            $count = $records->count();
-                            Employee::whereIn('id', $records->pluck('id'))->update(['status' => 'inactive']);
+                            $records->loadMissing('activeContract');
+                            $withContract = $records->filter(fn ($e) => $e->activeContract !== null);
+                            $toDeactivate = $records->reject(fn ($e) => $e->activeContract !== null);
+
+                            if ($toDeactivate->isNotEmpty()) {
+                                Employee::whereIn('id', $toDeactivate->pluck('id'))->update(['status' => 'inactive']);
+                            }
+
+                            $parts = [];
+                            if ($toDeactivate->isNotEmpty()) {
+                                $parts[] = "{$toDeactivate->count()} desactivado(s)";
+                            }
+                            if ($withContract->isNotEmpty()) {
+                                $parts[] = "{$withContract->count()} ignorado(s) por tener contrato activo";
+                            }
+
                             Notification::make()
-                                ->success()
-                                ->title('Empleados desactivados')
-                                ->body("{$count} empleado(s) desactivado(s) correctamente.")
+                                ->{$toDeactivate->isEmpty() ? 'warning' : 'success'}()
+                                ->title($toDeactivate->isEmpty() ? 'Sin cambios' : 'Empleados desactivados')
+                                ->body(implode(', ', $parts).'.')
                                 ->send();
                         })
                         ->deselectRecordsAfterCompletion(),

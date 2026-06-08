@@ -142,9 +142,24 @@
     </div>
     <div class="subtitle">
         Generado el {{ now()->format('d/m/Y H:i') }}
-        @if ($tab === 'vencer' && $days) &nbsp;·&nbsp; Próximos {{ $days }} días @endif
-        @if ($tab === 'prueba' && $days) &nbsp;·&nbsp; Próximos {{ $days }} días @endif
-        @if ($tab === 'rescindidos' && $period) &nbsp;·&nbsp; Últimos {{ $period }} meses @endif
+        @if ($tab === 'vencer' && $filters['days']) &nbsp;·&nbsp; Próximos {{ $filters['days'] }} días @endif
+        @if ($tab === 'prueba' && $filters['days']) &nbsp;·&nbsp; Próximos {{ $filters['days'] }} días @endif
+        @if ($tab === 'rescindidos' && $filters['period']) &nbsp;·&nbsp; Últimos {{ $filters['period'] }} meses @endif
+        @if ($filters['startDateFrom'] && $filters['startDateUntil']) &nbsp;·&nbsp; Inicio: {{ \Carbon\Carbon::parse($filters['startDateFrom'])->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($filters['startDateUntil'])->format('d/m/Y') }}
+        @elseif ($filters['startDateFrom']) &nbsp;·&nbsp; Inicio desde {{ \Carbon\Carbon::parse($filters['startDateFrom'])->format('d/m/Y') }}
+        @elseif ($filters['startDateUntil']) &nbsp;·&nbsp; Inicio hasta {{ \Carbon\Carbon::parse($filters['startDateUntil'])->format('d/m/Y') }}
+        @endif
+        @if ($filters['endDateFrom'] && $filters['endDateUntil']) &nbsp;·&nbsp; Vence: {{ \Carbon\Carbon::parse($filters['endDateFrom'])->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($filters['endDateUntil'])->format('d/m/Y') }}
+        @elseif ($filters['endDateFrom']) &nbsp;·&nbsp; Vence desde {{ \Carbon\Carbon::parse($filters['endDateFrom'])->format('d/m/Y') }}
+        @elseif ($filters['endDateUntil']) &nbsp;·&nbsp; Vence hasta {{ \Carbon\Carbon::parse($filters['endDateUntil'])->format('d/m/Y') }}
+        @endif
+        @if ($filters['terminatedFrom'] && $filters['terminatedUntil']) &nbsp;·&nbsp; Rescisión: {{ \Carbon\Carbon::parse($filters['terminatedFrom'])->format('d/m/Y') }} — {{ \Carbon\Carbon::parse($filters['terminatedUntil'])->format('d/m/Y') }}
+        @elseif ($filters['terminatedFrom']) &nbsp;·&nbsp; Rescisión desde {{ \Carbon\Carbon::parse($filters['terminatedFrom'])->format('d/m/Y') }}
+        @elseif ($filters['terminatedUntil']) &nbsp;·&nbsp; Rescisión hasta {{ \Carbon\Carbon::parse($filters['terminatedUntil'])->format('d/m/Y') }}
+        @endif
+        @foreach ($activeFilterLabels as $label)
+            &nbsp;·&nbsp; {{ $label }}
+        @endforeach
     </div>
 
     @php

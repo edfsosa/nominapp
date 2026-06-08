@@ -6,11 +6,15 @@ use App\Exports\ContractReportExport;
 use App\Models\Branch;
 use App\Models\Company;
 use App\Models\Contract;
+use App\Models\Department;
 use App\Models\Employee;
+use App\Models\Position;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select as FormSelect;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Notifications\Notification;
@@ -19,6 +23,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -28,10 +33,15 @@ use Maatwebsite\Excel\Facades\Excel;
 /**
  * Reporte de contratos: vencimientos, períodos de prueba, sin contrato activo,
  * antigüedad, suspendidos, todos activos y rescindidos recientes.
+ * Solo incluye empleados con status = active (excepto tabs de suspendidos y rescindidos).
  */
 class ContractReport extends Page implements HasTable
 {
     use InteractsWithTable;
+
+    protected static ?string $slug = 'reporte-contratos';
+
+    protected static ?string $title = 'Reporte de Contratos';
 
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
@@ -52,10 +62,28 @@ class ContractReport extends Page implements HasTable
      */
     public string $activeTab = 'vencer';
 
-    /** Reconstruye la tabla (query, filtros, paginación) al cambiar de tab. */
+    /** Reconstruye la tabla al cambiar de tab. */
     public function updatedActiveTab(): void
     {
         $this->resetTable();
+    }
+
+    /**
+     * Limpia filtros hijos al cambiar el filtro padre.
+     * Empresa → limpia Sucursal, Departamento y Cargo.
+     * Departamento → limpia Cargo.
+     */
+    public function updated(string $name): void
+    {
+        if ($name === 'tableFilters.company_id.value') {
+            $this->tableFilters['branch_id']['value'] = '';
+            $this->tableFilters['department_id']['value'] = '';
+            $this->tableFilters['position_id']['value'] = '';
+        }
+
+        if ($name === 'tableFilters.department_id.value') {
+            $this->tableFilters['position_id']['value'] = '';
+        }
     }
 
     /** Subheading dinámico según el tab activo. */
@@ -117,17 +145,13 @@ class ContractReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $days, $period] = $this->resolveActiveFilters();
+                    $filters = $this->resolveActiveFilters();
 
-                    $params = array_filter([
+                    $params = array_filter(array_merge([
                         'tab' => $this->activeTab,
-                        'companyId' => $companyId,
-                        'branchId' => $branchId,
-                        'days' => $days,
-                        'period' => $period,
                         'columns' => implode(',', $data['columns']),
                         'orientation' => $data['orientation'] ?? 'landscape',
-                    ], fn ($v) => $v !== null);
+                    ], $filters), fn ($v) => $v !== null && $v !== '');
 
                     $url = route('contracts.report.pdf', $params);
                     $this->js("window.open('".addslashes($url)."', '_blank')");
@@ -149,12 +173,12 @@ class ContractReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $days, $period] = $this->resolveActiveFilters();
+                    $filters = $this->resolveActiveFilters();
 
                     Notification::make()->success()->title('Exportación iniciada')->body('El archivo se descargará en breve.')->send();
 
                     return Excel::download(
-                        new ContractReportExport($this->activeTab, $companyId, $branchId, $days, $period, $data['columns']),
+                        new ContractReportExport($this->activeTab, $data['columns'], $filters),
                         'contratos_'.$this->activeTab.'_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
@@ -201,12 +225,13 @@ class ContractReport extends Page implements HasTable
 
     /**
      * Base de contratos con joins comunes para empleado, sucursal, empresa y cargo.
+     * Cuando el estado es 'active', restringe a empleados activos.
      *
      * @param  string  $status  Estado del contrato a filtrar.
      */
     private function baseContractQuery(string $status = 'active'): Builder
     {
-        return Contract::query()
+        $query = Contract::query()
             ->select([
                 'contracts.id',
                 'contracts.start_date',
@@ -229,10 +254,17 @@ class ContractReport extends Page implements HasTable
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
             ->leftJoin('positions', 'positions.id', '=', 'contracts.position_id')
             ->where('contracts.status', $status);
+
+        // Solo empleados activos para contratos vigentes
+        if ($status === 'active') {
+            $query->where('employees.status', 'active');
+        }
+
+        return $query;
     }
 
     /**
-     * Tab "Por Vencer": contratos activos con end_date, ordenados por días restantes ASC.
+     * Tab "Por Vencer": contratos activos (empleados activos) con end_date, ordenados por días restantes ASC.
      */
     private function queryVencer(): Builder
     {
@@ -246,7 +278,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Período de Prueba": contratos activos aún dentro del período de prueba.
+     * Tab "Período de Prueba": contratos activos (empleados activos) en período de prueba.
      */
     private function queryPrueba(): Builder
     {
@@ -261,8 +293,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Sin Contrato": empleados que no tienen ningún contrato activo.
-     * La query base es Employee (no Contract).
+     * Tab "Sin Contrato": empleados activos sin ningún contrato activo.
      */
     private function querySinContrato(): Builder
     {
@@ -279,14 +310,14 @@ class ContractReport extends Page implements HasTable
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
+            ->where('employees.status', 'active')
             ->whereDoesntHave('contracts', fn ($q) => $q->where('status', 'active'))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name');
     }
 
     /**
-     * Tab "Por Antigüedad": todos los contratos activos, ordenados por start_date ASC.
-     * Incluye años y meses de servicio calculados.
+     * Tab "Por Antigüedad": contratos activos (empleados activos), ordenados por start_date ASC.
      */
     private function queryAntiguedad(): Builder
     {
@@ -299,7 +330,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Suspendidos": contratos con status = suspended.
+     * Tab "Suspendidos": contratos suspendidos (sin restricción de status de empleado).
      */
     private function querySuspendidos(): Builder
     {
@@ -309,7 +340,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Todos Activos": todos los contratos con status = active, ordenados por apellido.
+     * Tab "Todos Activos": todos los contratos activos (empleados activos), ordenados por apellido.
      */
     private function queryActivos(): Builder
     {
@@ -319,8 +350,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Rescindidos": contratos terminados, ordenados por fecha de rescisión DESC.
-     * updated_at se usa como proxy de la fecha de rescisión.
+     * Tab "Rescindidos": contratos terminados (sin restricción de status de empleado).
      */
     private function queryRescindidos(): Builder
     {
@@ -544,6 +574,7 @@ class ContractReport extends Page implements HasTable
 
     /**
      * Construye los filtros dinámicos según el tab activo.
+     * Los filtros Empresa → Sucursal y Departamento → Cargo son en cascada.
      *
      * @return array<int, mixed>
      */
@@ -551,26 +582,123 @@ class ContractReport extends Page implements HasTable
     {
         $filters = [];
 
+        // ── Empresa (cascada padre) ──────────────────────────────────────────
         if (Company::active()->count() > 1) {
-            $filters[] = SelectFilter::make('company_id')
+            $filters[] = Filter::make('company_id')
                 ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('branches.company_id', $data['value'])
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Empresa')
+                        ->options(fn () => Company::active()->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->searchable()
+                        ->placeholder('Todas')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('branches.company_id', (int) $data['value'])
                     : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Empresa: '.Company::find($data['value'])?->name
+                    : null
                 );
         }
 
-        $filters[] = SelectFilter::make('branch_id')
+        // ── Sucursal (filtrada por empresa seleccionada) ─────────────────────
+        $filters[] = Filter::make('branch_id')
             ->label('Sucursal')
-            ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
-            ->searchable()
-            ->query(fn (Builder $query, array $data) => $data['value']
-                ? $query->where('employees.branch_id', $data['value'])
+            ->form([
+                FormSelect::make('value')
+                    ->label('Sucursal')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                        return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                            ->orderBy('name')->pluck('name', 'id')->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Todas')
+                    ->live(),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                ? $query->where('employees.branch_id', (int) $data['value'])
                 : $query
+            )
+            ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                ? 'Sucursal: '.Branch::find($data['value'])?->name
+                : null
             );
 
+        // ── Filtros de contrato (todos los tabs salvo sin_contrato) ──────────
+        if ($this->activeTab !== 'sin_contrato') {
+            $filters[] = SelectFilter::make('type')
+                ->label('Tipo de contrato')
+                ->options(Contract::getTypeOptions())
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->where('contracts.type', $data['value'])
+                    : $query
+                );
+
+            $filters[] = SelectFilter::make('salary_type')
+                ->label('Tipo de salario')
+                ->options(['mensual' => 'Mensual', 'jornal' => 'Jornal'])
+                ->query(fn (Builder $query, array $data) => $data['value']
+                    ? $query->where('contracts.salary_type', $data['value'])
+                    : $query
+                );
+
+            // ── Departamento (filtrado por empresa seleccionada) ─────────────
+            $filters[] = Filter::make('department_id')
+                ->label('Departamento')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Departamento')
+                        ->options(function () {
+                            $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                            return Department::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todos')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('contracts.department_id', (int) $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Dpto: '.Department::find($data['value'])?->name
+                    : null
+                );
+
+            // ── Cargo (filtrado por departamento seleccionado) ───────────────
+            $filters[] = Filter::make('position_id')
+                ->label('Cargo')
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Cargo')
+                        ->options(function () {
+                            $deptId = $this->tableFilters['department_id']['value'] ?? null;
+
+                            return Position::when($deptId, fn ($q) => $q->where('department_id', $deptId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todos')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('contracts.position_id', (int) $data['value'])
+                    : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Cargo: '.Position::find($data['value'])?->name
+                    : null
+                );
+        }
+
+        // ── "Vencer en X días" (vencer / prueba) ────────────────────────────
         if (in_array($this->activeTab, ['vencer', 'prueba'])) {
             $filters[] = SelectFilter::make('days')
                 ->label('Vencer en')
@@ -594,6 +722,7 @@ class ContractReport extends Page implements HasTable
                 });
         }
 
+        // ── Período de rescisión rápido (rescindidos) ────────────────────────
         if ($this->activeTab === 'rescindidos') {
             $filters[] = SelectFilter::make('period')
                 ->label('Rescindidos en los últimos')
@@ -608,6 +737,105 @@ class ContractReport extends Page implements HasTable
                 });
         }
 
+        // ── Rango de fecha de inicio ─────────────────────────────────────────
+        if (in_array($this->activeTab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
+            $filters[] = Filter::make('start_date_range')
+                ->label('Período de inicio')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('start_from')->label('Inicio desde')->native(false)->displayFormat('d/m/Y'),
+                    DatePicker::make('start_until')->label('Inicio hasta')->native(false)->displayFormat('d/m/Y'),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['start_from'] ?? null)) {
+                        $query->where('contracts.start_date', '>=', $data['start_from']);
+                    }
+                    if (filled($data['start_until'] ?? null)) {
+                        $query->where('contracts.start_date', '<=', $data['start_until']);
+                    }
+
+                    return $query;
+                })
+                ->indicateUsing(function (array $data): ?string {
+                    $parts = [];
+                    if (filled($data['start_from'] ?? null)) {
+                        $parts[] = 'desde '.Carbon::parse($data['start_from'])->format('d/m/Y');
+                    }
+                    if (filled($data['start_until'] ?? null)) {
+                        $parts[] = 'hasta '.Carbon::parse($data['start_until'])->format('d/m/Y');
+                    }
+
+                    return $parts ? 'Inicio: '.implode(' — ', $parts) : null;
+                });
+        }
+
+        // ── Rango de fecha de vencimiento (solo vencer) ──────────────────────
+        if ($this->activeTab === 'vencer') {
+            $filters[] = Filter::make('end_date_range')
+                ->label('Período de vencimiento')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('end_from')->label('Vence desde')->native(false)->displayFormat('d/m/Y'),
+                    DatePicker::make('end_until')->label('Vence hasta')->native(false)->displayFormat('d/m/Y'),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['end_from'] ?? null)) {
+                        $query->where('contracts.end_date', '>=', $data['end_from']);
+                    }
+                    if (filled($data['end_until'] ?? null)) {
+                        $query->where('contracts.end_date', '<=', $data['end_until']);
+                    }
+
+                    return $query;
+                })
+                ->indicateUsing(function (array $data): ?string {
+                    $parts = [];
+                    if (filled($data['end_from'] ?? null)) {
+                        $parts[] = 'desde '.Carbon::parse($data['end_from'])->format('d/m/Y');
+                    }
+                    if (filled($data['end_until'] ?? null)) {
+                        $parts[] = 'hasta '.Carbon::parse($data['end_until'])->format('d/m/Y');
+                    }
+
+                    return $parts ? 'Vencimiento: '.implode(' — ', $parts) : null;
+                });
+        }
+
+        // ── Rango de fecha de rescisión (solo rescindidos) ───────────────────
+        if ($this->activeTab === 'rescindidos') {
+            $filters[] = Filter::make('terminated_range')
+                ->label('Período de rescisión')
+                ->columnSpan(2)
+                ->form([
+                    DatePicker::make('terminated_from')->label('Rescindido desde')->native(false)->displayFormat('d/m/Y'),
+                    DatePicker::make('terminated_until')->label('Rescindido hasta')->native(false)->displayFormat('d/m/Y'),
+                ])
+                ->columns(2)
+                ->query(function (Builder $query, array $data): Builder {
+                    if (filled($data['terminated_from'] ?? null)) {
+                        $query->where('contracts.terminated_at', '>=', $data['terminated_from']);
+                    }
+                    if (filled($data['terminated_until'] ?? null)) {
+                        $query->where('contracts.terminated_at', '<=', $data['terminated_until']);
+                    }
+
+                    return $query;
+                })
+                ->indicateUsing(function (array $data): ?string {
+                    $parts = [];
+                    if (filled($data['terminated_from'] ?? null)) {
+                        $parts[] = 'desde '.Carbon::parse($data['terminated_from'])->format('d/m/Y');
+                    }
+                    if (filled($data['terminated_until'] ?? null)) {
+                        $parts[] = 'hasta '.Carbon::parse($data['terminated_until'])->format('d/m/Y');
+                    }
+
+                    return $parts ? 'Rescisión: '.implode(' — ', $parts) : null;
+                });
+        }
+
         return $filters;
     }
 
@@ -618,17 +846,27 @@ class ContractReport extends Page implements HasTable
     /**
      * Extrae los filtros activos de la sesión para pasarlos a las exportaciones.
      *
-     * @return array{int|null, int|null, int|null, int|null}
+     * @return array<string, mixed>
      */
     private function resolveActiveFilters(): array
     {
         $f = $this->tableFilters ?? [];
 
         return [
-            isset($f['company_id']['value']) && $f['company_id']['value'] !== '' ? (int) $f['company_id']['value'] : null,
-            isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
-            isset($f['days']['value']) && $f['days']['value'] !== '' ? (int) $f['days']['value'] : null,
-            isset($f['period']['value']) && $f['period']['value'] !== '' ? (int) $f['period']['value'] : null,
+            'companyId' => filled($f['company_id']['value'] ?? null) ? (int) $f['company_id']['value'] : null,
+            'branchId' => filled($f['branch_id']['value'] ?? null) ? (int) $f['branch_id']['value'] : null,
+            'type' => filled($f['type']['value'] ?? null) ? $f['type']['value'] : null,
+            'salaryType' => filled($f['salary_type']['value'] ?? null) ? $f['salary_type']['value'] : null,
+            'departmentId' => filled($f['department_id']['value'] ?? null) ? (int) $f['department_id']['value'] : null,
+            'positionId' => filled($f['position_id']['value'] ?? null) ? (int) $f['position_id']['value'] : null,
+            'days' => filled($f['days']['value'] ?? null) ? (int) $f['days']['value'] : null,
+            'period' => filled($f['period']['value'] ?? null) ? (int) $f['period']['value'] : null,
+            'startDateFrom' => filled($f['start_date_range']['start_from'] ?? null) ? $f['start_date_range']['start_from'] : null,
+            'startDateUntil' => filled($f['start_date_range']['start_until'] ?? null) ? $f['start_date_range']['start_until'] : null,
+            'endDateFrom' => filled($f['end_date_range']['end_from'] ?? null) ? $f['end_date_range']['end_from'] : null,
+            'endDateUntil' => filled($f['end_date_range']['end_until'] ?? null) ? $f['end_date_range']['end_until'] : null,
+            'terminatedFrom' => filled($f['terminated_range']['terminated_from'] ?? null) ? $f['terminated_range']['terminated_from'] : null,
+            'terminatedUntil' => filled($f['terminated_range']['terminated_until'] ?? null) ? $f['terminated_range']['terminated_until'] : null,
         ];
     }
 }
