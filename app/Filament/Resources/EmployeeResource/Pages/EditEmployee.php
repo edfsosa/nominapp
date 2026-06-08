@@ -7,13 +7,11 @@ use App\Models\Employee;
 use App\Models\FaceEnrollment;
 use App\Settings\GeneralSettings;
 use Filament\Actions\Action;
-use Filament\Actions\DeleteAction;
 use Filament\Actions\ViewAction;
 use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Storage;
 
 class EditEmployee extends EditRecord
 {
@@ -75,20 +73,49 @@ class EditEmployee extends EditRecord
                         ->send();
                 }),
 
-            DeleteAction::make()
-                ->label('Eliminar')
-                ->icon('heroicon-o-trash')
-                ->color('danger')
-                ->modalHeading('¿Eliminar empleado?')
-                ->modalDescription(fn () => 'Esta acción no se puede deshacer. Se eliminará al empleado "'.$this->record->full_name.'" y todos sus registros relacionados.')
-                ->modalSubmitActionLabel('Sí, eliminar')
-                ->successNotificationTitle('Empleado eliminado')
-                ->before(function () {
-                    if ($this->record->photo && Storage::disk('public')->exists($this->record->photo)) {
-                        Storage::disk('public')->delete($this->record->photo);
+            Action::make('toggle_status')
+                ->label(fn () => $this->record->status === 'inactive' ? 'Activar' : 'Inactivar')
+                ->icon(fn () => $this->record->status === 'inactive' ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                ->color(fn () => $this->record->status === 'inactive' ? 'success' : 'danger')
+                ->visible(fn () => in_array($this->record->status, ['active', 'inactive']))
+                ->requiresConfirmation()
+                ->modalHeading(fn () => $this->record->status === 'inactive' ? 'Activar empleado' : 'Inactivar empleado')
+                ->modalDescription(function () {
+                    if ($this->record->status === 'inactive') {
+                        return "Se activará al empleado {$this->record->full_name}. Podrá operar con normalidad en el sistema.";
                     }
+
+                    if ($this->record->activeContract !== null) {
+                        return "No se puede inactivar a {$this->record->full_name} porque tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.";
+                    }
+
+                    return "Se inactivará al empleado {$this->record->full_name}. Esta acción puede revertirse activándolo nuevamente.";
                 })
-                ->successRedirectUrl($this->getResource()::getUrl('index')),
+                ->modalSubmitActionLabel(fn () => $this->record->status === 'inactive' ? 'Sí, activar' : 'Sí, inactivar')
+                ->action(function (Action $action) {
+                    if ($this->record->status === 'active' && $this->record->activeContract !== null) {
+                        Notification::make()
+                            ->danger()
+                            ->title('No se puede inactivar')
+                            ->body('El empleado tiene un contrato activo. Procesá una Liquidación primero para cerrar el contrato y liquidar los haberes correctamente.')
+                            ->persistent()
+                            ->send();
+                        $action->halt();
+
+                        return;
+                    }
+
+                    $newStatus = $this->record->status === 'inactive' ? 'active' : 'inactive';
+                    $this->record->update(['status' => $newStatus]);
+
+                    Notification::make()
+                        ->success()
+                        ->title($newStatus === 'active' ? 'Empleado activado' : 'Empleado inactivado')
+                        ->body("El estado de {$this->record->full_name} fue actualizado correctamente.")
+                        ->send();
+
+                    $this->redirectRoute('filament.admin.resources.employees.view', $this->record);
+                }),
         ];
     }
 
