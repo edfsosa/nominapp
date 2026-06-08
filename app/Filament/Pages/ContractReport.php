@@ -14,6 +14,7 @@ use Filament\Actions\Action;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select as FormSelect;
 use Filament\Forms\Get;
 use Filament\Forms\Set;
 use Filament\Notifications\Notification;
@@ -32,6 +33,7 @@ use Maatwebsite\Excel\Facades\Excel;
 /**
  * Reporte de contratos: vencimientos, períodos de prueba, sin contrato activo,
  * antigüedad, suspendidos, todos activos y rescindidos recientes.
+ * Solo incluye empleados con status = active (excepto tabs de suspendidos y rescindidos).
  */
 class ContractReport extends Page implements HasTable
 {
@@ -56,10 +58,28 @@ class ContractReport extends Page implements HasTable
      */
     public string $activeTab = 'vencer';
 
-    /** Reconstruye la tabla (query, filtros, paginación) al cambiar de tab. */
+    /** Reconstruye la tabla al cambiar de tab. */
     public function updatedActiveTab(): void
     {
         $this->resetTable();
+    }
+
+    /**
+     * Limpia filtros hijos al cambiar el filtro padre.
+     * Empresa → limpia Sucursal, Departamento y Cargo.
+     * Departamento → limpia Cargo.
+     */
+    public function updated(string $name): void
+    {
+        if ($name === 'tableFilters.company_id.value') {
+            $this->tableFilters['branch_id']['value'] = '';
+            $this->tableFilters['department_id']['value'] = '';
+            $this->tableFilters['position_id']['value'] = '';
+        }
+
+        if ($name === 'tableFilters.department_id.value') {
+            $this->tableFilters['position_id']['value'] = '';
+        }
     }
 
     /** Subheading dinámico según el tab activo. */
@@ -201,12 +221,13 @@ class ContractReport extends Page implements HasTable
 
     /**
      * Base de contratos con joins comunes para empleado, sucursal, empresa y cargo.
+     * Cuando el estado es 'active', restringe a empleados activos.
      *
      * @param  string  $status  Estado del contrato a filtrar.
      */
     private function baseContractQuery(string $status = 'active'): Builder
     {
-        return Contract::query()
+        $query = Contract::query()
             ->select([
                 'contracts.id',
                 'contracts.start_date',
@@ -229,10 +250,17 @@ class ContractReport extends Page implements HasTable
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
             ->leftJoin('positions', 'positions.id', '=', 'contracts.position_id')
             ->where('contracts.status', $status);
+
+        // Solo empleados activos para contratos vigentes
+        if ($status === 'active') {
+            $query->where('employees.status', 'active');
+        }
+
+        return $query;
     }
 
     /**
-     * Tab "Por Vencer": contratos activos con end_date, ordenados por días restantes ASC.
+     * Tab "Por Vencer": contratos activos (empleados activos) con end_date, ordenados por días restantes ASC.
      */
     private function queryVencer(): Builder
     {
@@ -246,7 +274,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Período de Prueba": contratos activos aún dentro del período de prueba.
+     * Tab "Período de Prueba": contratos activos (empleados activos) en período de prueba.
      */
     private function queryPrueba(): Builder
     {
@@ -261,8 +289,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Sin Contrato": empleados que no tienen ningún contrato activo.
-     * La query base es Employee (no Contract).
+     * Tab "Sin Contrato": empleados activos sin ningún contrato activo.
      */
     private function querySinContrato(): Builder
     {
@@ -279,14 +306,14 @@ class ContractReport extends Page implements HasTable
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
+            ->where('employees.status', 'active')
             ->whereDoesntHave('contracts', fn ($q) => $q->where('status', 'active'))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name');
     }
 
     /**
-     * Tab "Por Antigüedad": todos los contratos activos, ordenados por start_date ASC.
-     * Incluye años y meses de servicio calculados.
+     * Tab "Por Antigüedad": contratos activos (empleados activos), ordenados por start_date ASC.
      */
     private function queryAntiguedad(): Builder
     {
@@ -299,7 +326,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Suspendidos": contratos con status = suspended.
+     * Tab "Suspendidos": contratos suspendidos (sin restricción de status de empleado).
      */
     private function querySuspendidos(): Builder
     {
@@ -309,7 +336,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Todos Activos": todos los contratos con status = active, ordenados por apellido.
+     * Tab "Todos Activos": todos los contratos activos (empleados activos), ordenados por apellido.
      */
     private function queryActivos(): Builder
     {
@@ -319,8 +346,7 @@ class ContractReport extends Page implements HasTable
     }
 
     /**
-     * Tab "Rescindidos": contratos terminados, ordenados por fecha de rescisión DESC.
-     * updated_at se usa como proxy de la fecha de rescisión.
+     * Tab "Rescindidos": contratos terminados (sin restricción de status de empleado).
      */
     private function queryRescindidos(): Builder
     {
@@ -544,6 +570,7 @@ class ContractReport extends Page implements HasTable
 
     /**
      * Construye los filtros dinámicos según el tab activo.
+     * Los filtros Empresa → Sucursal y Departamento → Cargo son en cascada.
      *
      * @return array<int, mixed>
      */
@@ -551,26 +578,51 @@ class ContractReport extends Page implements HasTable
     {
         $filters = [];
 
-        // ── Empresa (condicional si hay más de una activa) ───────────────────
+        // ── Empresa (cascada padre) ──────────────────────────────────────────
         if (Company::active()->count() > 1) {
-            $filters[] = SelectFilter::make('company_id')
+            $filters[] = Filter::make('company_id')
                 ->label('Empresa')
-                ->options(fn () => Company::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('branches.company_id', $data['value'])
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Empresa')
+                        ->options(fn () => Company::active()->orderBy('name')->pluck('name', 'id')->toArray())
+                        ->searchable()
+                        ->placeholder('Todas')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('branches.company_id', (int) $data['value'])
                     : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Empresa: '.Company::find($data['value'])?->name
+                    : null
                 );
         }
 
-        // ── Sucursal ─────────────────────────────────────────────────────────
-        $filters[] = SelectFilter::make('branch_id')
+        // ── Sucursal (filtrada por empresa seleccionada) ─────────────────────
+        $filters[] = Filter::make('branch_id')
             ->label('Sucursal')
-            ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
-            ->searchable()
-            ->query(fn (Builder $query, array $data) => $data['value']
-                ? $query->where('employees.branch_id', $data['value'])
+            ->form([
+                FormSelect::make('value')
+                    ->label('Sucursal')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                        return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                            ->orderBy('name')->pluck('name', 'id')->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Todas')
+                    ->live(),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                ? $query->where('employees.branch_id', (int) $data['value'])
                 : $query
+            )
+            ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                ? 'Sucursal: '.Branch::find($data['value'])?->name
+                : null
             );
 
         // ── Filtros de contrato (todos los tabs salvo sin_contrato) ──────────
@@ -585,31 +637,60 @@ class ContractReport extends Page implements HasTable
 
             $filters[] = SelectFilter::make('salary_type')
                 ->label('Tipo de salario')
-                ->options(fn () => collect(Contract::getSalaryTypeOptions())
-                    ->map(fn ($label) => explode(' ', $label)[0])  // "Mensualizado" → "Mensualizado", "Jornalero" → "Jornalero"
-                    ->toArray()
-                )
+                ->options(['mensual' => 'Mensual', 'jornal' => 'Jornal'])
                 ->query(fn (Builder $query, array $data) => $data['value']
                     ? $query->where('contracts.salary_type', $data['value'])
                     : $query
                 );
 
-            $filters[] = SelectFilter::make('department_id')
+            // ── Departamento (filtrado por empresa seleccionada) ─────────────
+            $filters[] = Filter::make('department_id')
                 ->label('Departamento')
-                ->options(fn () => Department::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('contracts.department_id', $data['value'])
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Departamento')
+                        ->options(function () {
+                            $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                            return Department::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todos')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('contracts.department_id', (int) $data['value'])
                     : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Dpto: '.Department::find($data['value'])?->name
+                    : null
                 );
 
-            $filters[] = SelectFilter::make('position_id')
+            // ── Cargo (filtrado por departamento seleccionado) ───────────────
+            $filters[] = Filter::make('position_id')
                 ->label('Cargo')
-                ->options(fn () => Position::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('contracts.position_id', $data['value'])
+                ->form([
+                    FormSelect::make('value')
+                        ->label('Cargo')
+                        ->options(function () {
+                            $deptId = $this->tableFilters['department_id']['value'] ?? null;
+
+                            return Position::when($deptId, fn ($q) => $q->where('department_id', $deptId))
+                                ->orderBy('name')->pluck('name', 'id')->toArray();
+                        })
+                        ->searchable()
+                        ->placeholder('Todos')
+                        ->live(),
+                ])
+                ->query(fn (Builder $query, array $data) => filled($data['value'] ?? null)
+                    ? $query->where('contracts.position_id', (int) $data['value'])
                     : $query
+                )
+                ->indicateUsing(fn (array $data): ?string => filled($data['value'] ?? null)
+                    ? 'Cargo: '.Position::find($data['value'])?->name
+                    : null
                 );
         }
 
@@ -652,7 +733,7 @@ class ContractReport extends Page implements HasTable
                 });
         }
 
-        // ── Rango de fecha de inicio (vencer / activos / antigüedad / rescindidos) ──
+        // ── Rango de fecha de inicio ─────────────────────────────────────────
         if (in_array($this->activeTab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
             $filters[] = Filter::make('start_date_range')
                 ->label('Período de inicio')
@@ -768,14 +849,14 @@ class ContractReport extends Page implements HasTable
         $f = $this->tableFilters ?? [];
 
         return [
-            'companyId' => isset($f['company_id']['value']) && $f['company_id']['value'] !== '' ? (int) $f['company_id']['value'] : null,
-            'branchId' => isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
-            'type' => isset($f['type']['value']) && $f['type']['value'] !== '' ? $f['type']['value'] : null,
-            'salaryType' => isset($f['salary_type']['value']) && $f['salary_type']['value'] !== '' ? $f['salary_type']['value'] : null,
-            'departmentId' => isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null,
-            'positionId' => isset($f['position_id']['value']) && $f['position_id']['value'] !== '' ? (int) $f['position_id']['value'] : null,
-            'days' => isset($f['days']['value']) && $f['days']['value'] !== '' ? (int) $f['days']['value'] : null,
-            'period' => isset($f['period']['value']) && $f['period']['value'] !== '' ? (int) $f['period']['value'] : null,
+            'companyId' => filled($f['company_id']['value'] ?? null) ? (int) $f['company_id']['value'] : null,
+            'branchId' => filled($f['branch_id']['value'] ?? null) ? (int) $f['branch_id']['value'] : null,
+            'type' => filled($f['type']['value'] ?? null) ? $f['type']['value'] : null,
+            'salaryType' => filled($f['salary_type']['value'] ?? null) ? $f['salary_type']['value'] : null,
+            'departmentId' => filled($f['department_id']['value'] ?? null) ? (int) $f['department_id']['value'] : null,
+            'positionId' => filled($f['position_id']['value'] ?? null) ? (int) $f['position_id']['value'] : null,
+            'days' => filled($f['days']['value'] ?? null) ? (int) $f['days']['value'] : null,
+            'period' => filled($f['period']['value'] ?? null) ? (int) $f['period']['value'] : null,
             'startDateFrom' => filled($f['start_date_range']['start_from'] ?? null) ? $f['start_date_range']['start_from'] : null,
             'startDateUntil' => filled($f['start_date_range']['start_until'] ?? null) ? $f['start_date_range']['start_until'] : null,
             'endDateFrom' => filled($f['end_date_range']['end_from'] ?? null) ? $f['end_date_range']['end_from'] : null,

@@ -242,7 +242,7 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
 
     private function baseContractQuery(string $status = 'active'): Builder
     {
-        return Contract::query()
+        $query = Contract::query()
             ->select([
                 'contracts.id',
                 'contracts.start_date',
@@ -264,6 +264,13 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
             ->leftJoin('positions', 'positions.id', '=', 'contracts.position_id')
             ->where('contracts.status', $status);
+
+        // Solo empleados activos para contratos vigentes
+        if ($status === 'active') {
+            $query->where('employees.status', 'active');
+        }
+
+        return $query;
     }
 
     private function queryVencer(): Builder
@@ -316,6 +323,7 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ])
             ->join('branches', 'branches.id', '=', 'employees.branch_id')
             ->leftJoin('companies', 'companies.id', '=', 'branches.company_id')
+            ->where('employees.status', 'active')
             ->whereDoesntHave('contracts', fn ($q) => $q->where('status', 'active'))
             ->orderBy('companies.name')->orderBy('branches.name')
             ->orderBy('employees.last_name')->orderBy('employees.first_name');
