@@ -977,6 +977,91 @@ private function resolveActiveFilters(): array
 }
 ```
 
+#### Filtros en cascada en reportes (`Filter::make` + `updated()`)
+
+Cuando las opciones de un filtro dependen del valor de otro (ej. Sucursal filtra por Empresa), **no usar `SelectFilter`** — su callback `->query()` puede omitirse cuando el filtro está inactivo y sus opciones no son reactivas. Usar siempre `Filter::make()` con `FormSelect` + `->live()`:
+
+```php
+Filter::make('branch_id')
+    ->form([
+        FormSelect::make('value')
+            ->label('Sucursal')
+            ->options(function () {
+                $companyId = $this->tableFilters['company_id']['value'] ?? null;
+                return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                    ->orderBy('name')->pluck('name', 'id')->toArray();
+            })
+            ->searchable()
+            ->placeholder('Todas')
+            ->live(),   // dispara updated() al cambiar
+    ])
+    ->query(fn (Builder $query, array $data) => filled($data['value'])
+        ? $query->where('employees.branch_id', (int) $data['value'])
+        : $query
+    )
+    ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+        ? 'Sucursal: '.Branch::find($data['value'])?->name
+        : null
+    );
+```
+
+**Limpiar filtros hijos con `updated()`** — el hook de Livewire recibe el nombre completo de la propiedad que cambió. Asignar `''` (no `null`) para resetear el valor del filtro:
+
+```php
+public function updated(string $name): void
+{
+    // Empresa → limpia todo lo que depende de ella
+    if ($name === 'tableFilters.company_id.value') {
+        $this->tableFilters['period_id']['value'] = '';
+        $this->tableFilters['branch_id']['value'] = '';
+        $this->tableFilters['department_id']['value'] = '';
+        $this->tableFilters['employee_id']['value'] = '';
+    }
+    // Sucursal o Departamento → limpia solo Empleado (son ejes paralelos)
+    if ($name === 'tableFilters.branch_id.value' || $name === 'tableFilters.department_id.value') {
+        $this->tableFilters['employee_id']['value'] = '';
+    }
+}
+```
+
+**Regla:** solo los filtros que tienen hijos necesitan `->live()`. Los filtros hoja (sin dependientes) no lo necesitan.
+
+**Filtrar por relaciones complejas (ej. Departamento vía contrato activo)** — cuando el modelo intermedio no está en el JOIN base de la query, usar `whereExists` correlacionado:
+
+```php
+->query(fn (Builder $query, array $data) => filled($data['value'])
+    ? $query->whereExists(fn ($sub) => $sub
+        ->select(DB::raw(1))
+        ->from('contracts')
+        ->join('positions', 'positions.id', '=', 'contracts.position_id')
+        ->whereColumn('contracts.employee_id', 'employees.id')  // correlación
+        ->where('contracts.status', 'active')
+        ->where('positions.department_id', (int) $data['value'])
+    )
+    : $query
+)
+```
+
+**Guardia en `buildQuery()` para filtros obligatorios** — si el reporte no tiene sentido sin un filtro clave (ej. Planilla), poner la guardia en `buildQuery()`, **no** en el callback del filtro — `SelectFilter` puede saltarse su callback cuando está inactivo:
+
+```php
+private function buildQuery(): Builder
+{
+    $periodId = isset($this->tableFilters['period_id']['value'])
+        && $this->tableFilters['period_id']['value'] !== ''
+        ? (int) $this->tableFilters['period_id']['value']
+        : null;
+
+    $query = Payroll::query()->select([...])->join(...);
+
+    if (! $periodId) {
+        $query->whereRaw('1=0');   // sin planilla → tabla vacía
+    }
+
+    return $query;
+}
+```
+
 #### Columnas seleccionables en PDF y Excel (reportes)
 
 Para reportes con columnas opcionales, centralizar el catálogo en la clase Export:
