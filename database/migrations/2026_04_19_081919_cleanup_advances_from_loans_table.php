@@ -21,11 +21,10 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // 1. Eliminar cuotas de los adelantos
+        // 1. Eliminar cuotas de los adelantos (usando subquery para compatibilidad SQLite)
         DB::statement("
-            DELETE li FROM loan_installments li
-            INNER JOIN loans l ON l.id = li.loan_id
-            WHERE l.type = 'advance'
+            DELETE FROM loan_installments
+            WHERE loan_id IN (SELECT id FROM loans WHERE type = 'advance')
         ");
 
         // 2. Eliminar los adelantos de loans

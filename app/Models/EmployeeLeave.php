@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Facades\Log;
 
-/** Representa una licencia registrada para un empleado. */
+/** Representa una licencia o permiso registrado para un empleado. */
 class EmployeeLeave extends Model
 {
     protected $fillable = [
@@ -14,6 +16,10 @@ class EmployeeLeave extends Model
         'type',
         'start_date',
         'end_date',
+        'start_time',
+        'end_time',
+        'generates_deduction',
+        'employee_deduction_id',
         'reason',
         'document_path',
         'status',
@@ -22,59 +28,159 @@ class EmployeeLeave extends Model
     protected $casts = [
         'start_date' => 'date',
         'end_date' => 'date',
+        'generates_deduction' => 'boolean',
     ];
 
-    /**
-     * Relación con el empleado al que pertenece la licencia.
-     */
+    // ─── Relaciones ──────────────────────────────────────────────────────────
+
+    /** Empleado al que pertenece la licencia. */
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
     }
 
-    /**
-     * Ausencias justificadas por esta licencia.
-     */
+    /** Ausencias justificadas por esta licencia. */
     public function absences(): HasMany
     {
         return $this->hasMany(Absence::class);
     }
 
-    /**
-     * Aprueba la licencia y justifica automáticamente las ausencias del período.
-     *
-     * @return array<string, int> Contiene 'justified_count'
-     */
-    public function approve(int $approvedById): array
+    /** Deducción generada al aprobar un permiso parcial con descuento. */
+    public function employeeDeduction(): BelongsTo
     {
-        $this->update(['status' => 'approved']);
+        return $this->belongsTo(EmployeeDeduction::class);
+    }
 
-        $absences = Absence::where('employee_id', $this->employee_id)
-            ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$this->start_date, $this->end_date]))
-            ->whereIn('status', ['pending', 'unjustified'])
-            ->get();
+    // ─── Helpers ─────────────────────────────────────────────────────────────
 
-        $typeLabel = self::getTypeOptions()[$this->type] ?? $this->type;
-        $period = $this->start_date->format('d/m/Y').' al '.$this->end_date->format('d/m/Y');
-
-        foreach ($absences as $absence) {
-            $absence->justify(
-                $approvedById,
-                "Justificada por licencia: {$typeLabel} ({$period})",
-                $this->id
-            );
-        }
-
-        return ['justified_count' => $absences->count()];
+    /** Indica si es un permiso parcial (por horas, no por días completos). */
+    public function isPartialDay(): bool
+    {
+        return filled($this->start_time) && filled($this->end_time);
     }
 
     /**
-     * Rechaza la licencia.
+     * Duración en horas del permiso parcial (fracción decimal).
+     * Retorna 0 si no es un permiso parcial o si los tiempos son inválidos.
      */
+    public function durationInHours(): float
+    {
+        if (! $this->isPartialDay()) {
+            return 0.0;
+        }
+
+        $start = Carbon::parse($this->start_date->format('Y-m-d').' '.$this->start_time);
+        $end = Carbon::parse($this->start_date->format('Y-m-d').' '.$this->end_time);
+
+        if ($end->lte($start)) {
+            return 0.0;
+        }
+
+        return round($start->floatDiffInHours($end), 2);
+    }
+
+    /**
+     * Monto de la deducción calculado según el salario del contrato activo.
+     * Mensual: salario / (30 × 8) × horas
+     * Jornalero: salario_diario / 8 × horas
+     */
+    public function calculatedDeductionAmount(): float
+    {
+        $hours = $this->durationInHours();
+        if ($hours <= 0) {
+            return 0.0;
+        }
+
+        $contract = $this->employee?->activeContract;
+        if (! $contract) {
+            return 0.0;
+        }
+
+        $salary = (float) $contract->salary;
+        if ($salary <= 0) {
+            return 0.0;
+        }
+
+        $hourlyRate = $contract->salary_type === 'mensual'
+            ? $salary / (30 * 8)
+            : $salary / 8;
+
+        return round($hourlyRate * $hours, 2);
+    }
+
+    // ─── Ciclo de vida ────────────────────────────────────────────────────────
+
+    /**
+     * Aprueba la licencia.
+     * - Permisos parciales (por horas): si generates_deduction, crea un EmployeeDeduction con LIC001.
+     * - Permisos por días completos: justifica automáticamente las ausencias del período.
+     *
+     * @return array{justified_count: int}
+     */
+    public function approve(int $approvedById): array
+    {
+        $updates = ['status' => 'approved'];
+
+        if ($this->generates_deduction && $this->isPartialDay() && ! $this->employee_deduction_id) {
+            $deductionRecord = Deduction::where('code', 'LIC001')->first();
+
+            if ($deductionRecord) {
+                $amount = $this->calculatedDeductionAmount();
+                $typeLabel = self::getTypeOptions()[$this->type] ?? $this->type;
+                $period = $this->start_date->format('d/m/Y').' '.$this->start_time.' - '.$this->end_time;
+
+                $employeeDeduction = EmployeeDeduction::create([
+                    'employee_id' => $this->employee_id,
+                    'deduction_id' => $deductionRecord->id,
+                    'start_date' => now()->toDateString(),
+                    'end_date' => now()->toDateString(),
+                    'custom_amount' => $amount,
+                    'notes' => "Permiso parcial: {$typeLabel} ({$period})",
+                ]);
+
+                $updates['employee_deduction_id'] = $employeeDeduction->id;
+            } else {
+                Log::warning('EmployeeLeave::approve — código LIC001 no encontrado en deductions. Descuento no generado.', [
+                    'employee_leave_id' => $this->id,
+                    'employee_id' => $this->employee_id,
+                ]);
+            }
+        }
+
+        $this->update($updates);
+
+        // Solo justifica ausencias en licencias de día completo
+        $justifiedCount = 0;
+        if (! $this->isPartialDay()) {
+            $absences = Absence::where('employee_id', $this->employee_id)
+                ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$this->start_date, $this->end_date]))
+                ->whereIn('status', ['pending', 'unjustified'])
+                ->get();
+
+            $typeLabel = self::getTypeOptions()[$this->type] ?? $this->type;
+            $period = $this->start_date->format('d/m/Y').' al '.$this->end_date->format('d/m/Y');
+
+            foreach ($absences as $absence) {
+                $absence->justify(
+                    $approvedById,
+                    "Justificada por licencia: {$typeLabel} ({$period})",
+                    $this->id
+                );
+            }
+
+            $justifiedCount = $absences->count();
+        }
+
+        return ['justified_count' => $justifiedCount];
+    }
+
+    /** Rechaza la licencia. */
     public function reject(): void
     {
         $this->update(['status' => 'rejected']);
     }
+
+    // ─── Opciones estáticas ───────────────────────────────────────────────────
 
     /**
      * Opciones de tipo de licencia para selects y filtros.

@@ -15,19 +15,31 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('advances', function (Blueprint $table) {
-            $table->string('payment_method')->default('transfer')->after('notes');
-        });
+        if (! Schema::hasColumn('advances', 'payment_method')) {
+            Schema::table('advances', function (Blueprint $table) {
+                $table->string('payment_method')->default('transfer')->after('notes');
+            });
+        }
 
-        // Actualizar adelantos existentes: si el contrato activo del empleado
-        // tiene payment_method = 'cash', el adelanto también se paga en efectivo.
-        DB::statement("
-            UPDATE advances a
-            INNER JOIN employees e ON e.id = a.employee_id
-            INNER JOIN contracts c ON c.employee_id = e.id AND c.status = 'active'
-            SET a.payment_method = 'cash'
-            WHERE c.payment_method = 'cash'
-        ");
+        // Actualizar adelantos existentes según método de pago del contrato activo
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("
+                UPDATE advances a
+                INNER JOIN employees e ON e.id = a.employee_id
+                INNER JOIN contracts c ON c.employee_id = e.id AND c.status = 'active'
+                SET a.payment_method = 'cash'
+                WHERE c.payment_method = 'cash'
+            ");
+        } else {
+            DB::statement("
+                UPDATE advances SET payment_method = 'cash'
+                WHERE employee_id IN (
+                    SELECT e.id FROM employees e
+                    INNER JOIN contracts c ON c.employee_id = e.id AND c.status = 'active'
+                    WHERE c.payment_method = 'cash'
+                )
+            ");
+        }
     }
 
     /**

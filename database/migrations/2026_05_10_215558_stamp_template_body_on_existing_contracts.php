@@ -12,13 +12,26 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement('
-            UPDATE contracts c
-            JOIN contract_templates t ON t.type = c.type
-            SET c.body = t.body
-            WHERE c.body IS NULL
-              AND t.body IS NOT NULL
-        ');
+        // MySQL JOIN-UPDATE syntax — en SQLite usamos subquery
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement('
+                UPDATE contracts c
+                JOIN contract_templates t ON t.type = c.type
+                SET c.body = t.body
+                WHERE c.body IS NULL
+                  AND t.body IS NOT NULL
+            ');
+        } else {
+            DB::statement('
+                UPDATE contracts
+                SET body = (
+                    SELECT t.body FROM contract_templates t
+                    WHERE t.type = contracts.type AND t.body IS NOT NULL
+                    LIMIT 1
+                )
+                WHERE body IS NULL
+            ');
+        }
     }
 
     public function down(): void

@@ -2,13 +2,19 @@
 
 namespace App\Filament\Resources\EmployeeResource\RelationManagers;
 
+use App\Models\Absence;
 use App\Models\EmployeeLeave;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
@@ -22,6 +28,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 
 /** Gestiona las licencias del empleado desde su vista de detalle. */
@@ -60,6 +67,14 @@ class LeavesRelationManager extends RelationManager
                     ->default(now())
                     ->native(false)
                     ->required()
+                    ->live()
+                    ->afterStateUpdated(function (Get $get, $set) {
+                        $startDate = $get('start_date');
+                        $endDate = $get('end_date');
+                        if ($startDate && $endDate && $endDate < $startDate) {
+                            $set('end_date', null);
+                        }
+                    })
                     ->maxDate(fn (Get $get) => $get('end_date')),
 
                 DatePicker::make('end_date')
@@ -69,6 +84,59 @@ class LeavesRelationManager extends RelationManager
                     ->required()
                     ->minDate(fn (Get $get) => $get('start_date'))
                     ->afterOrEqual('start_date'),
+
+                Placeholder::make('duration')
+                    ->label('Duración')
+                    ->content(function (Get $get) {
+                        $start = $get('start_date');
+                        $end = $get('end_date');
+                        $startTime = $get('start_time');
+                        $endTime = $get('end_time');
+
+                        if (! $start || ! $end) {
+                            return '-';
+                        }
+
+                        if (filled($startTime) && filled($endTime)) {
+                            $from = Carbon::parse($start.' '.$startTime);
+                            $to = Carbon::parse($start.' '.$endTime);
+                            if ($to->gt($from)) {
+                                $diffMinutes = (int) $from->diffInMinutes($to);
+                                $hours = intdiv($diffMinutes, 60);
+                                $minutes = $diffMinutes % 60;
+
+                                return $minutes > 0 ? "{$hours}h {$minutes}min" : "{$hours}h";
+                            }
+                        }
+
+                        $days = (int) Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
+
+                        return $days.' '.($days === 1 ? 'día' : 'días');
+                    }),
+
+                // Partial-day section — hidden by default, collapsed unless record is partial
+                TimePicker::make('start_time')
+                    ->label('Hora de inicio (permiso parcial)')
+                    ->seconds(false)
+                    ->native(false)
+                    ->live()
+                    ->columnSpanFull(),
+
+                TimePicker::make('end_time')
+                    ->label('Hora de fin (permiso parcial)')
+                    ->seconds(false)
+                    ->native(false)
+                    ->live()
+                    ->after('start_time')
+                    ->required(fn (Get $get) => filled($get('start_time')))
+                    ->columnSpanFull(),
+
+                Toggle::make('generates_deduction')
+                    ->label('Genera descuento en la próxima nómina')
+                    ->helperText('El monto se calcula automáticamente según el salario y las horas tomadas.')
+                    ->default(false)
+                    ->visible(fn (Get $get) => filled($get('start_time')) && filled($get('end_time')))
+                    ->columnSpanFull(),
 
                 Textarea::make('reason')
                     ->label('Descripción o motivo')
@@ -119,7 +187,18 @@ class LeavesRelationManager extends RelationManager
                         fn ($record) => $record->start_date->format('d/m/Y').' → '.$record->end_date->format('d/m/Y')
                     )
                     ->description(function ($record) {
-                        $days = $record->start_date->diffInDays($record->end_date) + 1;
+                        if ($record->isPartialDay()) {
+                            $diffMinutes = (int) Carbon::parse($record->start_date->format('Y-m-d').' '.$record->start_time)
+                                ->diffInMinutes(Carbon::parse($record->start_date->format('Y-m-d').' '.$record->end_time));
+                            $hours = intdiv($diffMinutes, 60);
+                            $minutes = $diffMinutes % 60;
+
+                            return $minutes > 0
+                                ? "{$record->start_time} – {$record->end_time} ({$hours}h {$minutes}min)"
+                                : "{$record->start_time} – {$record->end_time} ({$hours}h)";
+                        }
+
+                        $days = (int) $record->start_date->diffInDays($record->end_date) + 1;
 
                         return $days.' '.($days === 1 ? 'día' : 'días');
                     })
@@ -198,9 +277,49 @@ class LeavesRelationManager extends RelationManager
                     ->visible(fn ($record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Aprobar licencia')
-                    ->modalDescription('¿Estás seguro de que deseas aprobar esta licencia?')
+                    ->modalDescription(function (EmployeeLeave $record) {
+                        if ($record->isPartialDay()) {
+                            $base = "Se aprobará el permiso parcial ({$record->start_time} - {$record->end_time}).";
+                            if ($record->generates_deduction) {
+                                $amount = number_format($record->calculatedDeductionAmount(), 0, ',', '.');
+                                $base .= " Se generará un descuento de Gs. {$amount} en la próxima nómina.";
+                            }
+
+                            return $base;
+                        }
+
+                        $count = Absence::where('employee_id', $record->employee_id)
+                            ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$record->start_date, $record->end_date]))
+                            ->whereIn('status', ['pending', 'unjustified'])
+                            ->count();
+
+                        $base = 'Se aprobará la licencia del empleado.';
+                        if ($count > 0) {
+                            $base .= " Se justificarán automáticamente {$count} ausencia(s) registrada(s) en el período.";
+                        }
+
+                        return $base;
+                    })
                     ->modalSubmitActionLabel('Sí, aprobar')
-                    ->action(fn ($record) => $record->update(['status' => 'approved'])),
+                    ->action(function (EmployeeLeave $record) {
+                        $result = $record->approve(Auth::id());
+
+                        if ($record->isPartialDay()) {
+                            $body = $record->generates_deduction
+                                ? 'El permiso fue aprobado. Se generó un descuento para la próxima nómina.'
+                                : 'El permiso fue aprobado.';
+                        } else {
+                            $body = $result['justified_count'] > 0
+                                ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
+                                : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                        }
+
+                        Notification::make()
+                            ->success()
+                            ->title('Licencia aprobada')
+                            ->body($body)
+                            ->send();
+                    }),
 
                 Action::make('reject')
                     ->label('Rechazar')
@@ -209,9 +328,16 @@ class LeavesRelationManager extends RelationManager
                     ->visible(fn ($record) => $record->status === 'pending')
                     ->requiresConfirmation()
                     ->modalHeading('Rechazar licencia')
-                    ->modalDescription('¿Estás seguro de que deseas rechazar esta licencia?')
+                    ->modalDescription('Se rechazará esta solicitud de licencia.')
                     ->modalSubmitActionLabel('Sí, rechazar')
-                    ->action(fn ($record) => $record->update(['status' => 'rejected'])),
+                    ->action(function (EmployeeLeave $record) {
+                        $record->reject();
+
+                        Notification::make()
+                            ->warning()
+                            ->title('Licencia rechazada')
+                            ->send();
+                    }),
 
                 Action::make('download')
                     ->label('Descargar')
@@ -261,9 +387,21 @@ class LeavesRelationManager extends RelationManager
                         ->modalHeading('Aprobar licencias')
                         ->modalDescription('Se aprobarán las licencias seleccionadas que estén en estado pendiente.')
                         ->modalSubmitActionLabel('Sí, aprobar')
-                        ->action(fn ($records) => $records->each(
-                            fn ($record) => $record->status === 'pending' && $record->update(['status' => 'approved'])
-                        )),
+                        ->action(function ($records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'pending') {
+                                    $record->approve(Auth::id());
+                                    $processed++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->success()
+                                ->title('Licencias aprobadas')
+                                ->body("{$processed} licencia(s) aprobada(s).")
+                                ->send();
+                        }),
 
                     BulkAction::make('reject_selected')
                         ->label('Rechazar')
@@ -273,9 +411,21 @@ class LeavesRelationManager extends RelationManager
                         ->modalHeading('Rechazar licencias')
                         ->modalDescription('Se rechazarán las licencias seleccionadas que estén en estado pendiente.')
                         ->modalSubmitActionLabel('Sí, rechazar')
-                        ->action(fn ($records) => $records->each(
-                            fn ($record) => $record->status === 'pending' && $record->update(['status' => 'rejected'])
-                        )),
+                        ->action(function ($records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'pending') {
+                                    $record->reject();
+                                    $processed++;
+                                }
+                            }
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Licencias rechazadas')
+                                ->body("{$processed} licencia(s) rechazada(s).")
+                                ->send();
+                        }),
 
                     DeleteBulkAction::make()
                         ->modalHeading('Eliminar licencias')
