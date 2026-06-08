@@ -5,6 +5,8 @@ namespace App\Filament\Pages;
 use App\Exports\SalaryReportExport;
 use App\Models\Branch;
 use App\Models\Company;
+use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Payroll;
 use App\Models\PayrollPeriod;
 use Filament\Actions\Action;
@@ -49,14 +51,22 @@ class SalaryReport extends Page implements HasTable
     protected ?string $heading = 'Reporte de Salarios';
 
     /**
-     * Limpia el filtro de planilla cuando cambia la empresa seleccionada,
-     * ya que el período anterior puede no pertenecer a la nueva empresa.
+     * Limpia los filtros dependientes en cascada cuando cambia un filtro padre.
+     * Cadena: empresa → planilla, sucursal, departamento, empleado
+     *         sucursal → empleado
+     *         departamento → empleado
      */
     public function updated(string $name): void
     {
         if ($name === 'tableFilters.company_id.value') {
             $this->tableFilters['period_id']['value'] = '';
             $this->tableFilters['branch_id']['value'] = '';
+            $this->tableFilters['department_id']['value'] = '';
+            $this->tableFilters['employee_id']['value'] = '';
+        }
+
+        if ($name === 'tableFilters.branch_id.value' || $name === 'tableFilters.department_id.value') {
+            $this->tableFilters['employee_id']['value'] = '';
         }
     }
 
@@ -100,10 +110,6 @@ class SalaryReport extends Page implements HasTable
         $columnOptions = SalaryReportExport::availableColumns();
         $columnDefaults = SalaryReportExport::defaultColumns();
 
-        if (Company::active()->count() <= 1) {
-            // company_name no está en las columnas del SalaryReport, no hay ajuste necesario
-        }
-
         $subtableOptions = [
             'perceptions' => 'Desglose de Percepciones',
             'deductions' => 'Desglose de Deducciones',
@@ -138,12 +144,14 @@ class SalaryReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$periodId, $companyId, $branchId, $status, $paymentMethod] = $this->resolveActiveFilters();
+                    [$periodId, $companyId, $branchId, $status, $paymentMethod, $departmentId, $employeeId] = $this->resolveActiveFilters();
 
                     $params = array_filter([
                         'periodId' => $periodId,
                         'companyId' => $companyId,
                         'branchId' => $branchId,
+                        'departmentId' => $departmentId,
+                        'employeeId' => $employeeId,
                         'status' => $status,
                         'paymentMethod' => $paymentMethod,
                         'columns' => implode(',', $data['columns']),
@@ -172,7 +180,7 @@ class SalaryReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$periodId, $companyId, $branchId, $status, $paymentMethod] = $this->resolveActiveFilters();
+                    [$periodId, $companyId, $branchId, $status, $paymentMethod, $departmentId, $employeeId] = $this->resolveActiveFilters();
 
                     Notification::make()
                         ->success()
@@ -181,7 +189,7 @@ class SalaryReport extends Page implements HasTable
                         ->send();
 
                     return Excel::download(
-                        new SalaryReportExport($periodId, $companyId, $branchId, $status, $paymentMethod, $data['columns']),
+                        new SalaryReportExport($periodId, $companyId, $branchId, $status, $paymentMethod, $data['columns'], $departmentId, $employeeId),
                         'salarios_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
                 }),
@@ -193,10 +201,10 @@ class SalaryReport extends Page implements HasTable
         return $table
             ->query($this->buildQuery())
             ->filters($this->buildFilters(), layout: FiltersLayout::AboveContent)
-            ->filtersFormColumns(5)
+            ->filtersFormColumns(4)
             ->persistFiltersInSession()
             ->defaultSort('employees.last_name', 'asc')
-            ->paginated([25, 50, 100, 'all'])
+            ->paginationPageOptions([25, 50, 100])
             ->striped()
             ->columns([
                 TextColumn::make('employee_name')
@@ -308,10 +316,16 @@ class SalaryReport extends Page implements HasTable
 
     /**
      * Query base con subqueries para montos de deducciones por tipo.
+     * Retorna 0 registros si no hay planilla seleccionada — la guardia aquí es
+     * necesaria porque SelectFilter puede omitir su callback cuando está inactivo.
      */
     private function buildQuery(): Builder
     {
-        return Payroll::query()
+        $periodId = isset($this->tableFilters['period_id']['value']) && $this->tableFilters['period_id']['value'] !== ''
+            ? (int) $this->tableFilters['period_id']['value']
+            : null;
+
+        $query = Payroll::query()
             ->select([
                 'payrolls.id',
                 'payrolls.employee_id',
@@ -333,9 +347,20 @@ class SalaryReport extends Page implements HasTable
             ])
             ->join('employees', 'employees.id', '=', 'payrolls.employee_id')
             ->join('branches', 'branches.id', '=', 'employees.branch_id');
+
+        if (! $periodId) {
+            $query->whereRaw('1=0');
+        }
+
+        return $query;
     }
 
     /**
+     * Construye los filtros con cascada dinámica:
+     * Empresa → Planilla, Sucursal, Departamento, Empleado
+     * Sucursal → Empleado
+     * Departamento → Empleado
+     *
      * @return array<int, mixed>
      */
     private function buildFilters(): array
@@ -362,41 +387,134 @@ class SalaryReport extends Page implements HasTable
                 );
         }
 
-        $filters[] = SelectFilter::make('period_id')
-            ->label('Planilla')
-            ->options(function () {
-                $companyId = $this->tableFilters['company_id']['value'] ?? null;
-                $showCompanyInLabel = Company::active()->count() > 1 && ! $companyId;
+        $filters[] = Filter::make('period_id')
+            ->form([
+                FormSelect::make('value')
+                    ->label('Planilla')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
+                        $showCompanyInLabel = Company::active()->count() > 1 && ! $companyId;
 
-                return PayrollPeriod::when($companyId, fn ($q) => $q->where('company_id', $companyId))
-                    ->when($showCompanyInLabel, fn ($q) => $q->with('company'))
-                    ->orderByDesc('start_date')
-                    ->get()
-                    ->mapWithKeys(fn ($p) => [
-                        $p->id => $showCompanyInLabel
-                            ? "{$p->name} — {$p->company->name}"
-                            : $p->name,
-                    ])
-                    ->toArray();
-            })
-            ->searchable()
-            ->query(
-                fn (Builder $query, array $data) => $data['value']
-                    ? $query->where('payrolls.payroll_period_id', $data['value'])
-                    : $query->whereRaw('1=0')
+                        return PayrollPeriod::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                            ->when($showCompanyInLabel, fn ($q) => $q->with('company'))
+                            ->orderByDesc('start_date')
+                            ->get()
+                            ->mapWithKeys(fn ($p) => [
+                                $p->id => $showCompanyInLabel
+                                    ? "{$p->name} — {$p->company->name}"
+                                    : $p->name,
+                            ])
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Seleccione una planilla')
+                    ->live(),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'])
+                ? $query->where('payrolls.payroll_period_id', (int) $data['value'])
+                : $query
+            )
+            ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                ? 'Planilla: '.PayrollPeriod::find($data['value'])?->name
+                : null
             );
 
-        return array_merge($filters, [
-            SelectFilter::make('branch_id')
-                ->label('Sucursal')
-                ->options(fn () => Branch::orderBy('name')->pluck('name', 'id'))
-                ->searchable()
-                ->query(
-                    fn (Builder $query, array $data) => $data['value']
-                        ? $query->where('employees.branch_id', $data['value'])
-                        : $query
-                ),
+        $filters[] = Filter::make('branch_id')
+            ->form([
+                FormSelect::make('value')
+                    ->label('Sucursal')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
 
+                        return Branch::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Todas')
+                    ->live(),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'])
+                ? $query->where('employees.branch_id', (int) $data['value'])
+                : $query
+            )
+            ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                ? 'Sucursal: '.Branch::find($data['value'])?->name
+                : null
+            );
+
+        $filters[] = Filter::make('department_id')
+            ->form([
+                FormSelect::make('value')
+                    ->label('Departamento')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
+
+                        return Department::when($companyId, fn ($q) => $q->where('company_id', $companyId))
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Todos')
+                    ->live(),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'])
+                ? $query->whereExists(fn ($sub) => $sub
+                    ->select(DB::raw(1))
+                    ->from('contracts')
+                    ->join('positions', 'positions.id', '=', 'contracts.position_id')
+                    ->whereColumn('contracts.employee_id', 'employees.id')
+                    ->where('contracts.status', 'active')
+                    ->where('positions.department_id', (int) $data['value'])
+                )
+                : $query
+            )
+            ->indicateUsing(fn (array $data): ?string => filled($data['value'])
+                ? 'Departamento: '.Department::find($data['value'])?->name
+                : null
+            );
+
+        $filters[] = Filter::make('employee_id')
+            ->form([
+                FormSelect::make('value')
+                    ->label('Empleado')
+                    ->options(function () {
+                        $companyId = $this->tableFilters['company_id']['value'] ?? null;
+                        $branchId = $this->tableFilters['branch_id']['value'] ?? null;
+                        $departmentId = $this->tableFilters['department_id']['value'] ?? null;
+
+                        return Employee::query()
+                            ->when($companyId, fn ($q) => $q->whereHas('branch', fn ($b) => $b->where('company_id', $companyId)))
+                            ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
+                            ->when($departmentId, fn ($q) => $q->whereHas('contracts', fn ($c) => $c
+                                ->where('status', 'active')
+                                ->whereHas('position', fn ($p) => $p->where('department_id', $departmentId))
+                            ))
+                            ->orderBy('first_name')
+                            ->orderBy('last_name')
+                            ->get()
+                            ->mapWithKeys(fn ($e) => [$e->id => "{$e->first_name} {$e->last_name} (CI: {$e->ci})"])
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->placeholder('Todos'),
+            ])
+            ->query(fn (Builder $query, array $data) => filled($data['value'])
+                ? $query->where('payrolls.employee_id', (int) $data['value'])
+                : $query
+            )
+            ->indicateUsing(function (array $data): ?string {
+                if (! filled($data['value'])) {
+                    return null;
+                }
+                $employee = Employee::find($data['value']);
+
+                return $employee ? "Empleado: {$employee->first_name} {$employee->last_name}" : null;
+            });
+
+        return array_merge($filters, [
             SelectFilter::make('status')
                 ->label('Estado')
                 ->options(Payroll::getStatusLabels())
@@ -422,7 +540,7 @@ class SalaryReport extends Page implements HasTable
     /**
      * Extrae los valores activos de los filtros para export/PDF.
      *
-     * @return array{int|null, int|null, int|null, string|null, string|null}
+     * @return array{int|null, int|null, int|null, string|null, string|null, int|null, int|null}
      */
     private function resolveActiveFilters(): array
     {
@@ -434,6 +552,8 @@ class SalaryReport extends Page implements HasTable
             isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null,
             isset($f['status']['value']) && $f['status']['value'] !== '' ? $f['status']['value'] : null,
             isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null,
+            isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null,
+            isset($f['employee_id']['value']) && $f['employee_id']['value'] !== '' ? (int) $f['employee_id']['value'] : null,
         ];
     }
 }

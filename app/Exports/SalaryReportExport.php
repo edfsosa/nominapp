@@ -40,6 +40,8 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
      * @param  string|null  $status  Filtrar por estado (null = todos).
      * @param  string|null  $paymentMethod  Filtrar por método de pago (null = todos).
      * @param  array<string>  $columns  Claves de columnas a incluir (ver availableColumns()).
+     * @param  int|null  $departmentId  Filtrar por departamento vía contrato activo (null = todos).
+     * @param  int|null  $employeeId  Filtrar por empleado específico (null = todos).
      */
     public function __construct(
         protected ?int $periodId = null,
@@ -48,6 +50,8 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
         protected ?string $status = null,
         protected ?string $paymentMethod = null,
         protected array $columns = [],
+        protected ?int $departmentId = null,
+        protected ?int $employeeId = null,
     ) {
         if (empty($this->columns)) {
             $this->columns = static::defaultColumns();
@@ -130,6 +134,15 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->status, fn ($q) => $q->where('payrolls.status', $this->status))
             ->when($this->paymentMethod, fn ($q) => $q->where('payrolls.payment_method', $this->paymentMethod))
+            ->when($this->departmentId, fn ($q) => $q->whereExists(fn ($sub) => $sub
+                ->select(\DB::raw(1))
+                ->from('contracts')
+                ->join('positions', 'positions.id', '=', 'contracts.position_id')
+                ->whereColumn('contracts.employee_id', 'employees.id')
+                ->where('contracts.status', 'active')
+                ->where('positions.department_id', $this->departmentId)
+            ))
+            ->when($this->employeeId, fn ($q) => $q->where('payrolls.employee_id', $this->employeeId))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name');
     }
@@ -283,6 +296,15 @@ class SalaryReportExport implements FromQuery, ShouldAutoSize, WithEvents, WithH
             ->when($this->branchId, fn ($q) => $q->where('employees.branch_id', $this->branchId))
             ->when($this->status, fn ($q) => $q->where('payrolls.status', $this->status))
             ->when($this->paymentMethod, fn ($q) => $q->where('payrolls.payment_method', $this->paymentMethod))
+            ->when($this->departmentId, fn ($q) => $q->whereExists(fn ($sub) => $sub
+                ->select(\DB::raw(1))
+                ->from('contracts')
+                ->join('positions', 'positions.id', '=', 'contracts.position_id')
+                ->whereColumn('contracts.employee_id', 'employees.id')
+                ->where('contracts.status', 'active')
+                ->where('positions.department_id', $this->departmentId)
+            ))
+            ->when($this->employeeId, fn ($q) => $q->where('payrolls.employee_id', $this->employeeId))
             ->pluck('payrolls.id');
 
         $base = Payroll::whereIn('id', $payrollIds)

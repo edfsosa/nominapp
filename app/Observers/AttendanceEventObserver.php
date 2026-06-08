@@ -20,15 +20,13 @@ class AttendanceEventObserver
 
     /**
      * Handle the AttendanceEvent "created" event.
-     * Crear o actualizar AttendanceDay cuando se marca entrada
+     * Recalcula el AttendanceDay en tres situaciones:
+     * - check_in cuando el día estaba marcado como ausente (entrada tardía)
+     * - check_out: actualiza horas trabajadas y horas extras en tiempo real
+     * - break_end: actualiza minutos de pausa en tiempo real
      */
     public function created(AttendanceEvent $attendanceEvent): void
     {
-        // Solo procesar eventos de check_in (entrada)
-        if ($attendanceEvent->event_type !== 'check_in') {
-            return;
-        }
-
         try {
             $day = $attendanceEvent->day;
 
@@ -41,15 +39,24 @@ class AttendanceEventObserver
                 return;
             }
 
-            // Si el registro existe y está marcado como ausente, actualizarlo
-            if ($day->status === 'absent') {
+            $type = $attendanceEvent->event_type;
+
+            // Entrada tardía: el día ya existía como ausente y ahora el empleado llegó
+            if ($type === 'check_in' && $day->status === 'absent') {
                 Log::info("Entrada tardía registrada — CI {$attendanceEvent->employee_ci} {$attendanceEvent->employee_name}: de ausente a presente ({$day->date})", [
                     'attendance_day_id' => $day->id,
                     'employee_id' => $day->employee_id,
                     'date' => $day->date,
                 ]);
 
-                // Calcular y actualizar el registro
+                AttendanceCalculator::apply($day);
+                $day->save();
+
+                return;
+            }
+
+            // Salida o fin de pausa: recalcular totales y horas extras en tiempo real
+            if ($type === 'check_out' || $type === 'break_end') {
                 AttendanceCalculator::apply($day);
                 $day->save();
             }

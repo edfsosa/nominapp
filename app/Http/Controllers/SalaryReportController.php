@@ -26,6 +26,8 @@ class SalaryReportController extends Controller
         $periodId = $request->query('periodId') ? (int) $request->query('periodId') : null;
         $companyId = $request->query('companyId') ? (int) $request->query('companyId') : null;
         $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
+        $departmentId = $request->query('departmentId') ? (int) $request->query('departmentId') : null;
+        $employeeId = $request->query('employeeId') ? (int) $request->query('employeeId') : null;
         $status = $request->query('status') ?: null;
         $paymentMethod = $request->query('paymentMethod') ?: null;
 
@@ -74,6 +76,15 @@ class SalaryReportController extends Controller
             ->when($branchId, fn ($q) => $q->where('employees.branch_id', $branchId))
             ->when($status, fn ($q) => $q->where('payrolls.status', $status))
             ->when($paymentMethod, fn ($q) => $q->where('payrolls.payment_method', $paymentMethod))
+            ->when($departmentId, fn ($q) => $q->whereExists(fn ($sub) => $sub
+                ->select(\DB::raw(1))
+                ->from('contracts')
+                ->join('positions', 'positions.id', '=', 'contracts.position_id')
+                ->whereColumn('contracts.employee_id', 'employees.id')
+                ->where('contracts.status', 'active')
+                ->where('positions.department_id', $departmentId)
+            ))
+            ->when($employeeId, fn ($q) => $q->where('payrolls.employee_id', $employeeId))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
             ->get();
@@ -132,6 +143,13 @@ class SalaryReportController extends Controller
         }
         if ($branchId) {
             $appliedFilters['Sucursal'] = Branch::find($branchId)?->name ?? 'ID '.$branchId;
+        }
+        if ($departmentId) {
+            $appliedFilters['Departamento'] = \App\Models\Department::find($departmentId)?->name ?? 'ID '.$departmentId;
+        }
+        if ($employeeId) {
+            $emp = \App\Models\Employee::find($employeeId);
+            $appliedFilters['Empleado'] = $emp ? "{$emp->first_name} {$emp->last_name}" : 'ID '.$employeeId;
         }
         if ($status) {
             $appliedFilters['Estado'] = Payroll::getStatusLabels()[$status] ?? $status;
