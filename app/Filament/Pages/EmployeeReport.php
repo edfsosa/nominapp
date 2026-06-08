@@ -150,14 +150,24 @@ class EmployeeReport extends Page implements HasTable
         $columnDefaults = EmployeeReportExport::defaultColumns();
         $orientationThreshold = 8;
 
-        if (Company::active()->count() <= 1) {
+        $f = $this->tableFilters ?? [];
+        $activeCompanyId = isset($f['company_id']['value']) && $f['company_id']['value'] !== '' ? (int) $f['company_id']['value'] : null;
+        $activeBranchId = isset($f['branch_id']['value']) && $f['branch_id']['value'] !== '' ? (int) $f['branch_id']['value'] : null;
+        $activeDepartmentId = isset($f['department_id']['value']) && $f['department_id']['value'] !== '' ? (int) $f['department_id']['value'] : null;
+
+        if (Company::active()->count() <= 1 || $activeCompanyId !== null) {
             unset($columnOptions['company_name']);
             $columnDefaults = array_values(array_diff($columnDefaults, ['company_name']));
         }
 
-        if (Branch::whereHas('company', fn ($q) => $q->active())->count() <= 1) {
+        if (Branch::whereHas('company', fn ($q) => $q->active())->count() <= 1 || $activeBranchId !== null) {
             unset($columnOptions['branch_name']);
             $columnDefaults = array_values(array_diff($columnDefaults, ['branch_name']));
+        }
+
+        if ($activeDepartmentId !== null) {
+            unset($columnOptions['department_name']);
+            $columnDefaults = array_values(array_diff($columnDefaults, ['department_name']));
         }
 
         return [
