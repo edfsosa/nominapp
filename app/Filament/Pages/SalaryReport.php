@@ -486,6 +486,7 @@ class SalaryReport extends Page implements HasTable
                         $departmentId = $this->tableFilters['department_id']['value'] ?? null;
 
                         return Employee::query()
+                            ->where('status', 'active')
                             ->when($companyId, fn ($q) => $q->whereHas('branch', fn ($b) => $b->where('company_id', $companyId)))
                             ->when($branchId, fn ($q) => $q->where('branch_id', $branchId))
                             ->when($departmentId, fn ($q) => $q->whereHas('contracts', fn ($c) => $c
