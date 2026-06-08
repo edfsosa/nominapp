@@ -572,7 +572,7 @@ class Employee extends Model
             'suspended' => $statusCounts['suspended'] ?? 0,
             'with_face' => $faceCounts->with_face ?? 0,
             'without_face' => $faceCounts->without_face ?? 0,
-            'weak_face' => static::withWeakFaceDescriptor()->count(),
+            'weak_face' => static::active()->withWeakFaceDescriptor()->count(),
         ];
     }
 
