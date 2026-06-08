@@ -5,13 +5,17 @@ namespace App\Filament\Resources;
 use App\Filament\Resources\EmployeeLeaveResource\Pages;
 use App\Models\Absence;
 use App\Models\EmployeeLeave;
+use Carbon\Carbon;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TimePicker;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -116,19 +120,65 @@ class EmployeeLeaveResource extends Resource
                             ->content(function (Get $get) {
                                 $start = $get('start_date');
                                 $end = $get('end_date');
+                                $startTime = $get('start_time');
+                                $endTime = $get('end_time');
 
                                 if (! $start || ! $end) {
                                     return '-';
                                 }
 
-                                $days = \Carbon\Carbon::parse($start)
-                                    ->diffInDays(\Carbon\Carbon::parse($end)) + 1;
+                                // Permiso parcial: mostrar horas
+                                if (filled($startTime) && filled($endTime)) {
+                                    $from = Carbon::parse($start.' '.$startTime);
+                                    $to = Carbon::parse($start.' '.$endTime);
+                                    if ($to->gt($from)) {
+                                        $diffMinutes = (int) $from->diffInMinutes($to);
+                                        $hours = intdiv($diffMinutes, 60);
+                                        $minutes = $diffMinutes % 60;
+
+                                        return $minutes > 0
+                                            ? "{$hours}h {$minutes}min"
+                                            : "{$hours}h";
+                                    }
+                                }
+
+                                $days = (int) Carbon::parse($start)->diffInDays(Carbon::parse($end)) + 1;
 
                                 return $days.' '.($days === 1 ? 'día' : 'días');
                             })
                             ->columnSpan(1),
                     ])
                     ->columns(3),
+
+                Section::make('Permiso por horas (opcional)')
+                    ->description('Completa este bloque solo si el permiso es parcial (no abarca el día completo).')
+                    ->schema([
+                        TimePicker::make('start_time')
+                            ->label('Hora de inicio')
+                            ->seconds(false)
+                            ->native(false)
+                            ->live()
+                            ->columnSpan(1),
+
+                        TimePicker::make('end_time')
+                            ->label('Hora de fin')
+                            ->seconds(false)
+                            ->native(false)
+                            ->live()
+                            ->after('start_time')
+                            ->required(fn (Get $get) => filled($get('start_time')))
+                            ->columnSpan(1),
+
+                        Toggle::make('generates_deduction')
+                            ->label('Genera descuento en la próxima nómina')
+                            ->helperText('El monto se calcula automáticamente según el salario y las horas tomadas.')
+                            ->default(false)
+                            ->visible(fn (Get $get) => filled($get('start_time')) && filled($get('end_time')))
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2)
+                    ->collapsible()
+                    ->collapsed(fn (?EmployeeLeave $record) => ! $record?->isPartialDay()),
 
                 Section::make('Detalles')
                     ->schema([
@@ -186,13 +236,21 @@ class EmployeeLeaveResource extends Resource
                     ->sortable()
                     ->searchable(),
 
-                TextColumn::make('days')
-                    ->label('Días')
-                    ->getStateUsing(function ($record) {
-                        $start = \Carbon\Carbon::parse($record->start_date);
-                        $end = \Carbon\Carbon::parse($record->end_date);
+                TextColumn::make('duration')
+                    ->label('Duración')
+                    ->getStateUsing(function (EmployeeLeave $record): string {
+                        if ($record->isPartialDay()) {
+                            $diffMinutes = (int) (Carbon::parse($record->start_date->format('Y-m-d').' '.$record->start_time)
+                                ->diffInMinutes(Carbon::parse($record->start_date->format('Y-m-d').' '.$record->end_time)));
+                            $hours = intdiv($diffMinutes, 60);
+                            $minutes = $diffMinutes % 60;
 
-                        return (int) $start->diffInDays($end) + 1;
+                            return $minutes > 0 ? "{$hours}h {$minutes}min" : "{$hours}h";
+                        }
+
+                        $days = (int) $record->start_date->diffInDays($record->end_date) + 1;
+
+                        return $days.' '.($days === 1 ? 'día' : 'días');
                     })
                     ->badge()
                     ->color('primary')
@@ -256,6 +314,17 @@ class EmployeeLeaveResource extends Resource
                         ->requiresConfirmation()
                         ->modalHeading('Aprobar Licencia')
                         ->modalDescription(function (EmployeeLeave $record) {
+                            if ($record->isPartialDay()) {
+                                $hours = $record->durationInHours();
+                                $base = "Se aprobará el permiso parcial ({$record->start_time} - {$record->end_time}).";
+                                if ($record->generates_deduction) {
+                                    $amount = number_format($record->calculatedDeductionAmount(), 0, ',', '.');
+                                    $base .= " Se generará un descuento de Gs. {$amount} en la próxima nómina.";
+                                }
+
+                                return $base;
+                            }
+
                             $count = Absence::where('employee_id', $record->employee_id)
                                 ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$record->start_date, $record->end_date]))
                                 ->whereIn('status', ['pending', 'unjustified'])
@@ -273,9 +342,15 @@ class EmployeeLeaveResource extends Resource
                         ->action(function (EmployeeLeave $record) {
                             $result = $record->approve(Auth::id());
 
-                            $body = $result['justified_count'] > 0
-                                ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
-                                : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                            if ($record->isPartialDay()) {
+                                $body = $record->generates_deduction
+                                    ? 'El permiso fue aprobado. Se generó un descuento para la próxima nómina.'
+                                    : 'El permiso fue aprobado.';
+                            } else {
+                                $body = $result['justified_count'] > 0
+                                    ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
+                                    : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                            }
 
                             Notification::make()
                                 ->success()
@@ -410,9 +485,18 @@ class EmployeeLeaveResource extends Resource
                             ->icon('heroicon-o-calendar')
                             ->columnSpan(1),
 
-                        TextEntry::make('duration')
+                        TextEntry::make('duration_display')
                             ->label('Duración total')
-                            ->getStateUsing(function ($record) {
+                            ->getStateUsing(function (EmployeeLeave $record): string {
+                                if ($record->isPartialDay()) {
+                                    $diffMinutes = (int) Carbon::parse($record->start_date->format('Y-m-d').' '.$record->start_time)
+                                        ->diffInMinutes(Carbon::parse($record->start_date->format('Y-m-d').' '.$record->end_time));
+                                    $hours = intdiv($diffMinutes, 60);
+                                    $minutes = $diffMinutes % 60;
+
+                                    return $minutes > 0 ? "{$hours}h {$minutes}min" : "{$hours}h";
+                                }
+
                                 $days = (int) $record->start_date->diffInDays($record->end_date) + 1;
 
                                 return $days.' '.($days === 1 ? 'día' : 'días');
@@ -423,6 +507,37 @@ class EmployeeLeaveResource extends Resource
                             ->columnSpan(1),
                     ])
                     ->columns(3),
+
+                InfolistSection::make('Horario del permiso parcial')
+                    ->schema([
+                        TextEntry::make('start_time')
+                            ->label('Hora de inicio')
+                            ->icon('heroicon-o-clock')
+                            ->columnSpan(1),
+
+                        TextEntry::make('end_time')
+                            ->label('Hora de fin')
+                            ->icon('heroicon-o-clock')
+                            ->columnSpan(1),
+
+                        IconEntry::make('generates_deduction')
+                            ->label('Genera descuento en nómina')
+                            ->boolean()
+                            ->columnSpan(1),
+
+                        TextEntry::make('deduction_amount_display')
+                            ->label('Monto del descuento')
+                            ->getStateUsing(fn (EmployeeLeave $record) => $record->employee_deduction_id
+                                ? 'Gs. '.number_format($record->employeeDeduction?->custom_amount ?? 0, 0, ',', '.')
+                                : ($record->generates_deduction ? 'Gs. '.number_format($record->calculatedDeductionAmount(), 0, ',', '.') : '—')
+                            )
+                            ->badge()
+                            ->color('warning')
+                            ->visible(fn (EmployeeLeave $record) => $record->generates_deduction)
+                            ->columnSpan(1),
+                    ])
+                    ->columns(4)
+                    ->visible(fn (EmployeeLeave $record) => $record->isPartialDay()),
             ]);
     }
 

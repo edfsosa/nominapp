@@ -31,6 +31,17 @@ class ViewEmployeeLeaves extends ViewRecord
                 ->modalHeading('Aprobar Licencia')
                 ->modalDescription(function () {
                     $record = $this->record;
+
+                    if ($record->isPartialDay()) {
+                        $base = "Se aprobará el permiso parcial ({$record->start_time} - {$record->end_time}).";
+                        if ($record->generates_deduction) {
+                            $amount = number_format($record->calculatedDeductionAmount(), 0, ',', '.');
+                            $base .= " Se generará un descuento de Gs. {$amount} en la próxima nómina.";
+                        }
+
+                        return $base;
+                    }
+
                     $count = Absence::where('employee_id', $record->employee_id)
                         ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$record->start_date, $record->end_date]))
                         ->whereIn('status', ['pending', 'unjustified'])
@@ -48,9 +59,15 @@ class ViewEmployeeLeaves extends ViewRecord
                 ->action(function () {
                     $result = $this->record->approve(Auth::id());
 
-                    $body = $result['justified_count'] > 0
-                        ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
-                        : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                    if ($this->record->isPartialDay()) {
+                        $body = $this->record->generates_deduction
+                            ? 'El permiso fue aprobado. Se generó un descuento para la próxima nómina.'
+                            : 'El permiso fue aprobado.';
+                    } else {
+                        $body = $result['justified_count'] > 0
+                            ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
+                            : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                    }
 
                     Notification::make()
                         ->success()

@@ -123,6 +123,19 @@ class ProductionSeeder extends Seeder
                 'apply_judicial_limit' => false,
                 'is_active' => true,
             ],
+            [
+                'name' => 'Descuento por Permiso Parcial',
+                'code' => 'LIC001',
+                'type' => 'voluntary',
+                'description' => 'Descuento por horas de permiso parcial aprobado. El monto se calcula automáticamente según el salario y las horas tomadas.',
+                'calculation' => 'fixed',
+                'amount' => null,
+                'percent' => null,
+                'is_mandatory' => false,
+                'affects_irp' => false,
+                'apply_judicial_limit' => false,
+                'is_active' => true,
+            ],
         ];
 
         foreach ($deductions as $deduction) {
@@ -135,7 +148,7 @@ class ProductionSeeder extends Seeder
             );
         }
 
-        $this->command->info('Deducciones sembradas: IPS (9%), PRE001, ADE001, MER001.');
+        $this->command->info('Deducciones sembradas: IPS (9%), PRE001, ADE001, MER001, LIC001.');
     }
 
     private function printChecklist(): void

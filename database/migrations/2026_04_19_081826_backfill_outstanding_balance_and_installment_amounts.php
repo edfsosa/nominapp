@@ -18,13 +18,13 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // Poblar outstanding_balance en loans existentes
+        // Poblar outstanding_balance en loans existentes (sin alias de tabla para compatibilidad SQLite)
         DB::statement('
-            UPDATE loans l
-            SET l.outstanding_balance = (
+            UPDATE loans
+            SET outstanding_balance = (
                 SELECT COALESCE(SUM(li.amount), 0)
                 FROM loan_installments li
-                WHERE li.loan_id = l.id
+                WHERE li.loan_id = loans.id
                   AND li.status = \'pending\'
             )
         ');

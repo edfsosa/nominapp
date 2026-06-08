@@ -13,12 +13,15 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Ampliar el ENUM de status para incluir 'disbursed' (dinero entregado, pendiente de nómina)
-        DB::statement("ALTER TABLE advances MODIFY COLUMN status ENUM('pending','approved','disbursed','paid','rejected','cancelled') NOT NULL DEFAULT 'pending'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE advances MODIFY COLUMN status ENUM('pending','approved','disbursed','paid','rejected','cancelled') NOT NULL DEFAULT 'pending'");
+        }
 
-        Schema::table('advances', function (Blueprint $table) {
-            $table->date('disbursement_batch_at')->nullable()->after('payment_method');
-        });
+        if (! Schema::hasColumn('advances', 'disbursement_batch_at')) {
+            Schema::table('advances', function (Blueprint $table) {
+                $table->date('disbursement_batch_at')->nullable()->after('payment_method');
+            });
+        }
     }
 
     /**
@@ -30,6 +33,8 @@ return new class extends Migration
             $table->dropColumn('disbursement_batch_at');
         });
 
-        DB::statement("ALTER TABLE advances MODIFY COLUMN status ENUM('pending','approved','paid','rejected','cancelled') NOT NULL DEFAULT 'pending'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE advances MODIFY COLUMN status ENUM('pending','approved','paid','rejected','cancelled') NOT NULL DEFAULT 'pending'");
+        }
     }
 };

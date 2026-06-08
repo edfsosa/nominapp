@@ -7,12 +7,16 @@ return new class extends Migration
 {
     public function up(): void
     {
-        DB::statement("ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed','suspended') NOT NULL DEFAULT 'active'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed','suspended') NOT NULL DEFAULT 'active'");
+        }
     }
 
     public function down(): void
     {
         DB::statement("UPDATE contracts SET status = 'active' WHERE status = 'suspended'");
-        DB::statement("ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed') NOT NULL DEFAULT 'active'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE contracts MODIFY COLUMN status ENUM('active','expired','terminated','renewed') NOT NULL DEFAULT 'active'");
+        }
     }
 };

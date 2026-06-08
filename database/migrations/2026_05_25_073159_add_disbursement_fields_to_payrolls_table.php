@@ -20,16 +20,28 @@ return new class extends Migration
     public function up(): void
     {
         // 1. Ampliar el enum de status para incluir 'disbursed'
-        DB::statement("ALTER TABLE payrolls MODIFY COLUMN status ENUM('draft','approved','disbursed','paid') NOT NULL DEFAULT 'draft'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE payrolls MODIFY COLUMN status ENUM('draft','approved','disbursed','paid') NOT NULL DEFAULT 'draft'");
+        }
 
         Schema::table('payrolls', function (Blueprint $table) {
-            $table->enum('payment_method', ['transfer', 'cash'])->nullable()->after('status');
-            $table->timestamp('disbursed_at')->nullable()->after('payment_method');
-            $table->foreignId('disbursed_by_id')->nullable()->after('disbursed_at')
-                ->constrained('users')->nullOnDelete();
-            $table->foreignId('disbursement_batch_id')->nullable()->after('disbursed_by_id')
-                ->constrained('disbursement_batches')->nullOnDelete();
-            $table->string('bank_rejection_reason')->nullable()->after('disbursement_batch_id');
+            if (! Schema::hasColumn('payrolls', 'payment_method')) {
+                $table->enum('payment_method', ['transfer', 'cash'])->nullable()->after('status');
+            }
+            if (! Schema::hasColumn('payrolls', 'disbursed_at')) {
+                $table->timestamp('disbursed_at')->nullable()->after('payment_method');
+            }
+            if (! Schema::hasColumn('payrolls', 'disbursed_by_id')) {
+                $table->foreignId('disbursed_by_id')->nullable()->after('disbursed_at')
+                    ->constrained('users')->nullOnDelete();
+            }
+            if (! Schema::hasColumn('payrolls', 'disbursement_batch_id')) {
+                $table->foreignId('disbursement_batch_id')->nullable()->after('disbursed_by_id')
+                    ->constrained('disbursement_batches')->nullOnDelete();
+            }
+            if (! Schema::hasColumn('payrolls', 'bank_rejection_reason')) {
+                $table->string('bank_rejection_reason')->nullable()->after('disbursement_batch_id');
+            }
         });
     }
 
@@ -47,6 +59,8 @@ return new class extends Migration
             ]);
         });
 
-        DB::statement("ALTER TABLE payrolls MODIFY COLUMN status ENUM('draft','approved','paid') NOT NULL DEFAULT 'draft'");
+        if (DB::connection()->getDriverName() === 'mysql') {
+            DB::statement("ALTER TABLE payrolls MODIFY COLUMN status ENUM('draft','approved','paid') NOT NULL DEFAULT 'draft'");
+        }
     }
 };
