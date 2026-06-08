@@ -20,29 +20,34 @@ use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
  * Soporta los 7 tabs del ContractReport: vencer, prueba, sin_contrato,
  * antiguedad, suspendidos, activos, rescindidos.
  * Las columnas disponibles y por defecto varían según el tab activo.
+ *
+ * Los filtros se reciben como array con claves:
+ *   companyId, branchId, days, period,
+ *   type, salaryType, positionId, departmentId,
+ *   startDateFrom, startDateUntil,
+ *   endDateFrom, endDateUntil,
+ *   terminatedFrom, terminatedUntil
  */
 class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithMapping, WithStyles
 {
     /**
      * @param  string  $tab  'vencer'|'prueba'|'sin_contrato'|'antiguedad'|'suspendidos'|'activos'|'rescindidos'
-     * @param  int|null  $companyId  Filtro por empresa
-     * @param  int|null  $branchId  Filtro por sucursal
-     * @param  int|null  $days  Umbral de días al vencimiento (solo vencer/prueba)
-     * @param  int|null  $period  Meses hacia atrás (solo rescindidos)
      * @param  array<string>  $columns  Claves de columnas seleccionadas
-     * @param  string|null  $startDateFrom  Fecha de inicio del contrato desde (Y-m-d)
-     * @param  string|null  $startDateUntil  Fecha de inicio del contrato hasta (Y-m-d)
+     * @param  array<string, mixed>  $filters  Filtros activos
      */
     public function __construct(
         private readonly string $tab,
-        private readonly ?int $companyId,
-        private readonly ?int $branchId,
-        private readonly ?int $days,
-        private readonly ?int $period,
         private readonly array $columns = [],
-        private readonly ?string $startDateFrom = null,
-        private readonly ?string $startDateUntil = null,
+        private readonly array $filters = [],
     ) {}
+
+    /**
+     * Acceso tipado a un filtro individual.
+     */
+    private function filter(string $key, mixed $default = null): mixed
+    {
+        return $this->filters[$key] ?? $default;
+    }
 
     /**
      * Columnas disponibles según el tab.
@@ -132,21 +137,57 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             default => $this->queryVencer(),
         };
 
-        // Filtros comunes: empresa y sucursal
-        if ($this->companyId) {
-            $query->where('branches.company_id', $this->companyId);
+        // ── Empresa y sucursal (todos los tabs) ─────────────────────────────
+        if ($companyId = $this->filter('companyId')) {
+            $query->where('branches.company_id', $companyId);
         }
-        if ($this->branchId) {
-            $query->where('employees.branch_id', $this->branchId);
+        if ($branchId = $this->filter('branchId')) {
+            $query->where('employees.branch_id', $branchId);
         }
 
-        // Filtro por período de inicio (tabs con contrato)
-        if (in_array($this->tab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
-            if ($this->startDateFrom) {
-                $query->where('contracts.start_date', '>=', $this->startDateFrom);
+        // ── Filtros de contrato (todos los tabs salvo sin_contrato) ──────────
+        if ($this->tab !== 'sin_contrato') {
+            if ($type = $this->filter('type')) {
+                $query->where('contracts.type', $type);
             }
-            if ($this->startDateUntil) {
-                $query->where('contracts.start_date', '<=', $this->startDateUntil);
+            if ($salaryType = $this->filter('salaryType')) {
+                $query->where('contracts.salary_type', $salaryType);
+            }
+            if ($positionId = $this->filter('positionId')) {
+                $query->where('contracts.position_id', $positionId);
+            }
+            if ($departmentId = $this->filter('departmentId')) {
+                $query->where('contracts.department_id', $departmentId);
+            }
+        }
+
+        // ── Período de inicio (tabs que tienen start_date relevante) ─────────
+        if (in_array($this->tab, ['vencer', 'activos', 'antiguedad', 'rescindidos'])) {
+            if ($from = $this->filter('startDateFrom')) {
+                $query->where('contracts.start_date', '>=', $from);
+            }
+            if ($until = $this->filter('startDateUntil')) {
+                $query->where('contracts.start_date', '<=', $until);
+            }
+        }
+
+        // ── Período de vencimiento (solo vencer) ─────────────────────────────
+        if ($this->tab === 'vencer') {
+            if ($from = $this->filter('endDateFrom')) {
+                $query->where('contracts.end_date', '>=', $from);
+            }
+            if ($until = $this->filter('endDateUntil')) {
+                $query->where('contracts.end_date', '<=', $until);
+            }
+        }
+
+        // ── Período de rescisión (solo rescindidos) ──────────────────────────
+        if ($this->tab === 'rescindidos') {
+            if ($from = $this->filter('terminatedFrom')) {
+                $query->where('contracts.terminated_at', '>=', $from);
+            }
+            if ($until = $this->filter('terminatedUntil')) {
+                $query->where('contracts.terminated_at', '<=', $until);
             }
         }
 
@@ -234,8 +275,8 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ->orderBy('companies.name')->orderBy('branches.name')
             ->orderByRaw('DATEDIFF(contracts.end_date, CURDATE()) ASC');
 
-        if ($this->days) {
-            $q->whereRaw('DATEDIFF(contracts.end_date, CURDATE()) <= ?', [$this->days]);
+        if ($days = $this->filter('days')) {
+            $q->whereRaw('DATEDIFF(contracts.end_date, CURDATE()) <= ?', [$days]);
         }
 
         return $q;
@@ -253,8 +294,8 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ->orderBy('companies.name')->orderBy('branches.name')
             ->orderByRaw('DATEDIFF(DATE_ADD(contracts.start_date, INTERVAL contracts.trial_days DAY), CURDATE()) ASC');
 
-        if ($this->days) {
-            $q->whereRaw('DATEDIFF(DATE_ADD(contracts.start_date, INTERVAL contracts.trial_days DAY), CURDATE()) <= ?', [$this->days]);
+        if ($days = $this->filter('days')) {
+            $q->whereRaw('DATEDIFF(DATE_ADD(contracts.start_date, INTERVAL contracts.trial_days DAY), CURDATE()) <= ?', [$days]);
         }
 
         return $q;
@@ -332,8 +373,8 @@ class ContractReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
             ->orderBy('companies.name')->orderBy('branches.name')
             ->orderByRaw('contracts.terminated_at DESC, contracts.updated_at DESC');
 
-        if ($this->period) {
-            $q->where('contracts.terminated_at', '>=', now()->subMonths($this->period));
+        if ($period = $this->filter('period')) {
+            $q->where('contracts.terminated_at', '>=', now()->subMonths($period));
         }
 
         return $q;

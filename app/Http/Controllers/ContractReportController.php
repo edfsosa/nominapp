@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Exports\ContractReportExport;
 use App\Models\Company;
+use App\Models\Department;
+use App\Models\Position;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -29,20 +31,41 @@ class ContractReportController extends Controller
      *   tab            — tab activo (default: 'vencer')
      *   companyId      — filtro por empresa
      *   branchId       — filtro por sucursal
-     *   days        — umbral de días al vencimiento (solo vencer/prueba)
-     *   period      — meses hacia atrás (solo rescindidos)
-     *   columns     — columnas seleccionadas separadas por coma
-     *   orientation — 'portrait' | 'landscape'
+     *   type           — filtro por tipo de contrato
+     *   salaryType     — filtro por tipo de salario
+     *   departmentId   — filtro por departamento
+     *   positionId     — filtro por cargo
+     *   days           — umbral de días al vencimiento (solo vencer/prueba)
+     *   period         — meses hacia atrás (solo rescindidos)
+     *   startDateFrom  — inicio de contrato desde (Y-m-d)
+     *   startDateUntil — inicio de contrato hasta (Y-m-d)
+     *   endDateFrom    — vencimiento desde (Y-m-d, solo vencer)
+     *   endDateUntil   — vencimiento hasta (Y-m-d, solo vencer)
+     *   terminatedFrom — rescisión desde (Y-m-d, solo rescindidos)
+     *   terminatedUntil— rescisión hasta (Y-m-d, solo rescindidos)
+     *   columns        — columnas seleccionadas separadas por coma
+     *   orientation    — 'portrait' | 'landscape'
      */
     public function pdf(Request $request): Response
     {
         $tab = $request->query('tab', 'vencer');
-        $companyId = $request->query('companyId') ? (int) $request->query('companyId') : null;
-        $branchId = $request->query('branchId') ? (int) $request->query('branchId') : null;
-        $days = $request->query('days') ? (int) $request->query('days') : null;
-        $period = $request->query('period') ? (int) $request->query('period') : null;
-        $startDateFrom = $request->query('startDateFrom') ?: null;
-        $startDateUntil = $request->query('startDateUntil') ?: null;
+
+        $filters = [
+            'companyId' => $request->query('companyId') ? (int) $request->query('companyId') : null,
+            'branchId' => $request->query('branchId') ? (int) $request->query('branchId') : null,
+            'type' => $request->query('type') ?: null,
+            'salaryType' => $request->query('salaryType') ?: null,
+            'departmentId' => $request->query('departmentId') ? (int) $request->query('departmentId') : null,
+            'positionId' => $request->query('positionId') ? (int) $request->query('positionId') : null,
+            'days' => $request->query('days') ? (int) $request->query('days') : null,
+            'period' => $request->query('period') ? (int) $request->query('period') : null,
+            'startDateFrom' => $request->query('startDateFrom') ?: null,
+            'startDateUntil' => $request->query('startDateUntil') ?: null,
+            'endDateFrom' => $request->query('endDateFrom') ?: null,
+            'endDateUntil' => $request->query('endDateUntil') ?: null,
+            'terminatedFrom' => $request->query('terminatedFrom') ?: null,
+            'terminatedUntil' => $request->query('terminatedUntil') ?: null,
+        ];
 
         $columnsParam = $request->query('columns');
         $selectedColumns = $columnsParam
@@ -56,10 +79,13 @@ class ContractReportController extends Controller
         $columnLabels = ContractReportExport::availableColumns($tab);
 
         // ── Query según tab ──────────────────────────────────────────────────
-        $export = new ContractReportExport($tab, $companyId, $branchId, $days, $period, $selectedColumns, $startDateFrom, $startDateUntil);
+        $export = new ContractReportExport($tab, $selectedColumns, $filters);
         $records = $export->query()->get();
 
         // ── Modo de agrupación adaptativo ────────────────────────────────────
+        $companyId = $filters['companyId'];
+        $branchId = $filters['branchId'];
+
         $groupMode = match (true) {
             $companyId === null && $branchId === null => 'company_branch',
             $companyId !== null && $branchId === null => 'branch',
@@ -95,6 +121,27 @@ class ContractReportController extends Controller
         $employerNumber = $company?->employer_number ?? '';
         $city = $company?->city ?? '';
 
+        // ── Etiquetas de filtros activos para el subtítulo del PDF ───────────
+        $activeFilterLabels = [];
+        if ($filters['type']) {
+            $activeFilterLabels[] = 'Tipo: '.(\App\Models\Contract::getTypeLabel($filters['type']));
+        }
+        if ($filters['salaryType']) {
+            $activeFilterLabels[] = 'Salario: '.(\App\Models\Contract::getSalaryTypeLabel($filters['salaryType']));
+        }
+        if ($filters['departmentId']) {
+            $dept = Department::find($filters['departmentId']);
+            if ($dept) {
+                $activeFilterLabels[] = 'Dpto: '.$dept->name;
+            }
+        }
+        if ($filters['positionId']) {
+            $pos = Position::find($filters['positionId']);
+            if ($pos) {
+                $activeFilterLabels[] = 'Cargo: '.$pos->name;
+            }
+        }
+
         // ── Estadísticas para el total general ──────────────────────────────
         $totalRecords = $records->count();
 
@@ -107,7 +154,7 @@ class ContractReportController extends Controller
         }
 
         $pdf = Pdf::loadView('pdf.contract-report', compact(
-            'records', 'groups', 'groupMode', 'tab', 'days', 'period', 'startDateFrom', 'startDateUntil',
+            'records', 'groups', 'groupMode', 'tab', 'filters', 'activeFilterLabels',
             'showCompanyHeader',
             'companyLogo', 'companyName', 'companyRuc', 'companyAddress',
             'companyPhone', 'companyEmail', 'employerNumber', 'city',
@@ -115,7 +162,7 @@ class ContractReportController extends Controller
             'selectedColumns', 'columnLabels', 'orientation'
         ))->setPaper('a4', $orientation);
 
-        $suffix = $days ? "-{$days}d" : ($period ? "-{$period}m" : '');
+        $suffix = $filters['days'] ? "-{$filters['days']}d" : ($filters['period'] ? "-{$filters['period']}m" : '');
 
         return response($pdf->output(), 200, [
             'Content-Type' => 'application/pdf',
