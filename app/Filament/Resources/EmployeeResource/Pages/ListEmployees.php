@@ -2,8 +2,10 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
+use App\Filament\Pages\EmployeeReport;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
@@ -19,6 +21,12 @@ class ListEmployees extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('go_to_report')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
+                ->color('gray')
+                ->url(EmployeeReport::getUrl()),
+
             CreateAction::make()
                 ->label('Nuevo Empleado')
                 ->icon('heroicon-o-plus'),
