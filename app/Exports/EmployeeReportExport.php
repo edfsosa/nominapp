@@ -179,12 +179,14 @@ class EmployeeReportExport implements FromQuery, ShouldAutoSize, WithHeadings, W
                 }
                 $hire = \Carbon\Carbon::parse($row->hire_date);
                 $years = (int) $hire->diffInYears(now());
+                $totalMonths = (int) $hire->diffInMonths(now());
                 if ($years >= 1) {
-                    return $years.' año'.($years !== 1 ? 's' : '');
+                    $remainderMonths = $totalMonths - ($years * 12);
+
+                    return $years.' año'.($years !== 1 ? 's' : '').($remainderMonths > 0 ? ' '.$remainderMonths.' mes'.($remainderMonths !== 1 ? 'es' : '') : '');
                 }
-                $months = (int) $hire->diffInMonths(now());
-                if ($months >= 1) {
-                    return $months.' mes'.($months !== 1 ? 'es' : '');
+                if ($totalMonths >= 1) {
+                    return $totalMonths.' mes'.($totalMonths !== 1 ? 'es' : '');
                 }
                 $days = (int) $hire->diffInDays(now());
 
