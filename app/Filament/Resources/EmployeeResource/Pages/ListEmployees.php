@@ -2,16 +2,12 @@
 
 namespace App\Filament\Resources\EmployeeResource\Pages;
 
-use App\Exports\EmployeesExport;
 use App\Filament\Resources\EmployeeResource;
 use App\Models\Employee;
-use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
-use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Facades\Excel;
 
 class ListEmployees extends ListRecords
 {
@@ -23,27 +19,6 @@ class ListEmployees extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('export_excel')
-                ->label('Exportar')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->requiresConfirmation()
-                ->modalHeading('¿Exportar Empleados a Excel?')
-                ->modalDescription('Se exportarán todos los empleados con sus datos personales y de contrato activo.')
-                ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
-                    Notification::make()
-                        ->success()
-                        ->title('Exportación lista')
-                        ->body('El listado de empleados se está descargando.')
-                        ->send();
-
-                    return Excel::download(
-                        new EmployeesExport,
-                        'empleados_'.now()->format('Y_m_d_H_i_s').'.xlsx'
-                    );
-                }),
-
             CreateAction::make()
                 ->label('Nuevo Empleado')
                 ->icon('heroicon-o-plus'),
