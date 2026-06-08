@@ -1362,6 +1362,121 @@ public function cancel(): array
 
 La modal de confirmación de cancelar debe advertir explícitamente si hay cuotas pendientes (aunque ninguna pagada), para que el usuario sepa cuántas cuotas se eliminarán.
 
+### Carbon — mutación accidental de atributos de fecha del modelo
+
+Carbon 3 (usado en Laravel 12) es **mutable por defecto**. Al llamar modificadores como `startOfWeek()`, `endOfWeek()`, `startOfMonth()` sobre un atributo Carbon del modelo, se muta el valor almacenado en la instancia — afectando cualquier acceso posterior al atributo en el mismo request.
+
+Siempre usar `.copy()` antes de aplicar modificadores:
+
+```php
+// ❌ Muta $record->date — cualquier acceso posterior verá startOfWeek()
+$weekStart = $record->date->startOfWeek()->toDateString();
+
+// ✅ Seguro — el original no se toca
+$weekStart = $record->date->copy()->startOfWeek()->toDateString();
+$weekEnd   = $record->date->copy()->endOfWeek()->toDateString();
+```
+
+Aplica a cualquier campo con cast `'date'` o `'datetime'` en el modelo.
+
+### Valores de configuración en labels de acciones estáticas
+
+Cuando una acción (definida como método `static`) necesita valores de `PayrollSettings` u otro objeto de configuración para construir sus labels o descripciones, resolver el settings una sola vez al inicio del método factory:
+
+```php
+// ✅ Resolver settings al inicio del factory estático
+public static function getAdjustExtraHoursTableAction(): TableAction
+{
+    $settings    = app(PayrollSettings::class);
+    $pctDiurno   = (int) (($settings->overtime_multiplier_diurno - 1) * 100);
+    $pctNocturno = (int) (($settings->overtime_multiplier_nocturno - 1) * 100);
+
+    return TableAction::make('adjust_extra_hours')
+        ->form([
+            TextInput::make('extra_hours_diurnas')
+                ->label("Horas extra diurnas (+{$pctDiurno}%)")
+                // ...
+        ]);
+}
+```
+
+Nunca hardcodear multiplicadores, porcentajes o tasas directamente en labels — si cambian en `PayrollSettings`, el label quedaría desactualizado.
+
+### Consolidar row actions en un único `ActionGroup`
+
+Cuando un recurso tiene múltiples row actions que pueden aparecer condicionalmente, consolidarlas en un único `ActionGroup` para evitar una columna de acciones congestionada visualmente:
+
+```php
+->actions([
+    TableActionGroup::make([
+        self::getApproveOvertimeTableAction(),
+        self::getApproveTardinessTableAction(),
+        self::getAdjustExtraHoursTableAction(),
+        self::getExportPdfTableAction(),
+        self::getCalculateTableAction(),
+    ]),
+])
+```
+
+**Labels en dropdown:** dentro de un `ActionGroup` expandir labels abreviados a nombres descriptivos completos — el espacio no es limitado como en botones de fila:
+- `"PDF"` → `"Exportar PDF"`
+- `"Ajustar HE"` → `"Ajustar Horas Extra"`
+
+Agregar `->tooltip()` a cada acción cuando varias tienen propósito similar y el label solo no basta para diferenciarlas.
+
+### Filtrar solo empleados activos en selects de modales
+
+Cualquier `Select` de empleado en formularios de acciones (modales) debe filtrar `where('status', 'active')` — nunca mostrar empleados desvinculados o inactivos como opción seleccionable:
+
+```php
+Select::make('employee_id')
+    ->label('Empleado')
+    ->options(fn () => Employee::where('status', 'active')
+        ->orderBy('first_name')->orderBy('last_name')
+        ->get()
+        ->mapWithKeys(fn ($e) => [$e->id => "{$e->first_name} {$e->last_name} (CI: {$e->ci})"])
+        ->toArray()
+    )
+    ->searchable()
+    ->required()
+```
+
+Incluir la CI en el label del option para facilitar la identificación cuando hay homónimos.
+
+### Advertencia reactiva de sobreescritura en patrones `firstOrNew`
+
+Cuando una acción usa `firstOrNew()` o `updateOrCreate()` para crear-o-actualizar un registro, agregar un `Placeholder` reactivo que avise al usuario si el registro ya existe, mostrando su estado actual. Requiere `->live()` en los campos identificadores:
+
+```php
+Select::make('employee_id')->live(),
+DatePicker::make('date')->live(),
+
+Placeholder::make('existing_warning')
+    ->label('')
+    ->content(function (Get $get): ?string {
+        $existing = AttendanceDay::where('employee_id', $get('employee_id'))
+            ->where('date', $get('date'))->first();
+        if (! $existing) {
+            return null;
+        }
+        $statusLabel = AttendanceDay::getStatusLabel($existing->status);
+        $msg = "Ya existe un registro para este empleado en esta fecha (estado: {$statusLabel}";
+        if ((float) $existing->extra_hours > 0) {
+            $msg .= ", {$existing->extra_hours} hrs registradas";
+        }
+
+        return $msg.'). Los valores serán reemplazados.';
+    })
+    ->visible(fn (Get $get): bool =>
+        filled($get('employee_id')) && filled($get('date')) &&
+        AttendanceDay::where('employee_id', $get('employee_id'))
+            ->where('date', $get('date'))->exists()
+    )
+    ->columnSpanFull(),
+```
+
+El `Placeholder` debe mostrar datos relevantes del registro existente (estado, valores actuales) para que el usuario decida conscientemente si continuar.
+
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation
