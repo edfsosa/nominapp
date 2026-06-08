@@ -196,7 +196,7 @@ class SalaryReport extends Page implements HasTable
             ->filtersFormColumns(5)
             ->persistFiltersInSession()
             ->defaultSort('employees.last_name', 'asc')
-            ->paginated([25, 50, 100, 'all'])
+            ->paginationPageOptions([25, 50, 100])
             ->striped()
             ->columns([
                 TextColumn::make('employee_name')
@@ -308,10 +308,16 @@ class SalaryReport extends Page implements HasTable
 
     /**
      * Query base con subqueries para montos de deducciones por tipo.
+     * Retorna 0 registros si no hay planilla seleccionada — la guardia aquí es
+     * necesaria porque SelectFilter puede omitir su callback cuando está inactivo.
      */
     private function buildQuery(): Builder
     {
-        return Payroll::query()
+        $periodId = isset($this->tableFilters['period_id']['value']) && $this->tableFilters['period_id']['value'] !== ''
+            ? (int) $this->tableFilters['period_id']['value']
+            : null;
+
+        $query = Payroll::query()
             ->select([
                 'payrolls.id',
                 'payrolls.employee_id',
@@ -333,6 +339,12 @@ class SalaryReport extends Page implements HasTable
             ])
             ->join('employees', 'employees.id', '=', 'payrolls.employee_id')
             ->join('branches', 'branches.id', '=', 'employees.branch_id');
+
+        if (! $periodId) {
+            $query->whereRaw('1=0');
+        }
+
+        return $query;
     }
 
     /**
@@ -383,7 +395,7 @@ class SalaryReport extends Page implements HasTable
             ->query(
                 fn (Builder $query, array $data) => $data['value']
                     ? $query->where('payrolls.payroll_period_id', $data['value'])
-                    : $query->whereRaw('1=0')
+                    : $query
             );
 
         return array_merge($filters, [
