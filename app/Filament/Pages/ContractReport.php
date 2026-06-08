@@ -41,6 +41,8 @@ class ContractReport extends Page implements HasTable
 
     protected static ?string $slug = 'reporte-contratos';
 
+    protected static ?string $title = 'Reporte de Contratos';
+
     protected static ?string $navigationIcon = 'heroicon-o-document-check';
 
     protected static ?string $navigationLabel = 'Reporte de Contratos';
