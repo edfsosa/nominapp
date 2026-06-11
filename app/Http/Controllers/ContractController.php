@@ -110,18 +110,18 @@ class ContractController extends Controller
     /**
      * Genera un PDF de vista previa de la plantilla usando datos de muestra.
      */
-    public function previewTemplate(ContractTemplate $template)
+    public function previewTemplate(ContractTemplate $contractTemplate)
     {
         $sampleVars = self::buildSampleVarsMap();
 
-        $introText = $template->intro_text
-            ? ContractTemplate::resolveVariables($template->intro_text, $sampleVars)
+        $introText = $contractTemplate->intro_text
+            ? ContractTemplate::resolveVariables($contractTemplate->intro_text, $sampleVars)
             : null;
-        $closingText = $template->closing_text
-            ? ContractTemplate::resolveVariables($template->closing_text, $sampleVars)
+        $closingText = $contractTemplate->closing_text
+            ? ContractTemplate::resolveVariables($contractTemplate->closing_text, $sampleVars)
             : null;
-        $signatureNotes = $template->signature_notes
-            ? ContractTemplate::resolveVariables($template->signature_notes, $sampleVars)
+        $signatureNotes = $contractTemplate->signature_notes
+            ? ContractTemplate::resolveVariables($contractTemplate->signature_notes, $sampleVars)
             : null;
 
         // Objeto mock para que el blade funcione con datos ficticios
@@ -130,8 +130,8 @@ class ContractController extends Controller
         $fakeEmployee->ci = '2.345.678';
 
         $fakeContract = new \stdClass;
-        $fakeContract->type = $template->type;
-        $fakeContract->body = $template->body;
+        $fakeContract->type = $contractTemplate->type;
+        $fakeContract->body = $contractTemplate->body;
         $fakeContract->id = 'VISTA PREVIA';
         $fakeContract->employee = $fakeEmployee;
         $fakeContract->start_date = Carbon::parse('2025-01-01');
@@ -156,7 +156,7 @@ class ContractController extends Controller
             'signatureNotes' => $signatureNotes,
         ])->setPaper('a4', 'portrait');
 
-        $response = $pdf->stream("preview_plantilla_{$template->type}.pdf");
+        $response = $pdf->stream("preview_plantilla_{$contractTemplate->type}.pdf");
         $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
         $response->headers->set('Pragma', 'no-cache');
 
