@@ -114,16 +114,18 @@ class ContractController extends Controller
     {
         $sampleVars = self::buildSampleVarsMap();
 
-        // Usar contenido guardado o caer al texto base si el campo está vacío
-        $introSrc = $contractTemplate->intro_text ?: ContractTemplate::getDefaultIntroText();
-        $bodySrc = $contractTemplate->body ?: ContractTemplate::getDefaultBodyText();
-        $closingSrc = $contractTemplate->closing_text ?: ContractTemplate::getDefaultClosingText();
-        $signatureNotesSrc = $contractTemplate->signature_notes ?: ContractTemplate::getDefaultSignatureNotes();
-
-        $introText = ContractTemplate::resolveVariables($introSrc, $sampleVars);
-        $closingText = ContractTemplate::resolveVariables($closingSrc, $sampleVars);
-        $signatureNotes = ContractTemplate::resolveVariables($signatureNotesSrc, $sampleVars);
-        $bodyResolved = ContractTemplate::resolveVariables($bodySrc, $sampleVars);
+        $introText = $contractTemplate->intro_text
+            ? ContractTemplate::resolveVariables($contractTemplate->intro_text, $sampleVars)
+            : null;
+        $closingText = $contractTemplate->closing_text
+            ? ContractTemplate::resolveVariables($contractTemplate->closing_text, $sampleVars)
+            : null;
+        $signatureNotes = $contractTemplate->signature_notes
+            ? ContractTemplate::resolveVariables($contractTemplate->signature_notes, $sampleVars)
+            : null;
+        $bodyResolved = $contractTemplate->body
+            ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
+            : null;
 
         // Objeto mock para que el blade funcione con datos ficticios
         $fakeEmployee = new \stdClass;
@@ -131,7 +133,7 @@ class ContractController extends Controller
         $fakeEmployee->ci = '2.345.678';
 
         $fakeContract = new \stdClass;
-        $fakeContract->type = $contractTemplate->type ?: 'indefinido';
+        $fakeContract->type = $contractTemplate->type;
         $fakeContract->body = $bodyResolved;
         $fakeContract->id = 'VISTA PREVIA';
         $fakeContract->employee = $fakeEmployee;
