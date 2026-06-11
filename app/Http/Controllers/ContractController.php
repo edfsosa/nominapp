@@ -100,7 +100,11 @@ class ContractController extends Controller
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
 
-        return $pdf->stream("contrato_{$employeeCi}_{$contract->start_date->format('Y_m_d')}.pdf");
+        $response = $pdf->stream("contrato_{$employeeCi}_{$contract->start_date->format('Y_m_d')}.pdf");
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        $response->headers->set('Pragma', 'no-cache');
+
+        return $response;
     }
 
     /**
@@ -152,7 +156,11 @@ class ContractController extends Controller
             'signatureNotes' => $signatureNotes,
         ])->setPaper('a4', 'portrait');
 
-        return $pdf->stream("preview_plantilla_{$template->type}.pdf");
+        $response = $pdf->stream("preview_plantilla_{$template->type}.pdf");
+        $response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+        $response->headers->set('Pragma', 'no-cache');
+
+        return $response;
     }
 
     /**
