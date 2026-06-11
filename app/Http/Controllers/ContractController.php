@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Contract;
+use App\Models\ContractTemplate;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
@@ -54,6 +55,33 @@ class ContractController extends Controller
         $employee = $contract->employee;
         $genderMap = ['masculino' => 'Masculino', 'femenino' => 'Femenino'];
 
+        // Construir mapa de variables para reemplazar tokens en las secciones de la plantilla
+        $vars = self::buildVarsMap(
+            contract: $contract,
+            company: $company,
+            employee: $employee,
+            genderMap: $genderMap,
+            yearInWords: $yearInWords,
+            weeklyHours: $weeklyHours,
+            weeklyHoursInWords: $weeklyHoursInWords,
+            shiftTypeLabel: $shiftTypeLabel,
+            trialDaysInWords: $trialDaysInWords,
+            durationDescription: $durationDescription,
+            employeeAge: $employeeAge,
+        );
+
+        // Resolver secciones de la plantilla (si existe)
+        $template = ContractTemplate::getForType($contract->type);
+        $introText = $template?->intro_text
+            ? ContractTemplate::resolveVariables($template->intro_text, $vars)
+            : null;
+        $closingText = $template?->closing_text
+            ? ContractTemplate::resolveVariables($template->closing_text, $vars)
+            : null;
+        $signatureNotes = $template?->signature_notes
+            ? ContractTemplate::resolveVariables($template->signature_notes, $vars)
+            : null;
+
         $pdf = Pdf::loadView('pdf.contract', [
             'contract' => $contract,
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
@@ -64,29 +92,150 @@ class ContractController extends Controller
             'companyEmail' => $company?->email ?? '',
             'employerNumber' => $company?->employer_number ?? '',
             'city' => $company?->city ?? '',
-            'legalRepName' => $company?->legal_rep_name ?? '',
-            'legalRepCi' => $company?->legal_rep_ci ?? '',
-            'employeeGender' => $genderMap[$employee?->gender] ?? '',
-            'employeeMaritalStatus' => $employee?->marital_status_label ?? '',
-            'employeeNationality' => $employee?->nationality ?? '',
-            'employeeAddress' => $employee?->address ?? '',
-            'employeePosition' => $contract->position?->name ?? '',
-            'salaryInWords' => self::numberToWords((int) $contract->salary).' guaranies',
-            'weekdayDay' => $weekdayDay,
-            'saturdayDay' => $saturdayDay,
-            'breakMinutes' => $breakMinutes,
-            'shiftTypeLabel' => $shiftTypeLabel,
-            'weeklyHours' => $weeklyHours,
-            'weeklyHoursInWords' => $weeklyHoursInWords,
-            'employeeAge' => $employeeAge,
-            'yearInWords' => $yearInWords,
-            'durationDescription' => $durationDescription,
-            'trialDaysInWords' => $trialDaysInWords,
+            // Secciones resueltas desde la plantilla
+            'introText' => $introText,
+            'closingText' => $closingText,
+            'signatureNotes' => $signatureNotes,
         ])->setPaper('a4', 'portrait');
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
 
         return $pdf->stream("contrato_{$employeeCi}_{$contract->start_date->format('Y_m_d')}.pdf");
+    }
+
+    /**
+     * Genera un PDF de vista previa de la plantilla usando datos de muestra.
+     */
+    public function previewTemplate(ContractTemplate $template)
+    {
+        $sampleVars = self::buildSampleVarsMap();
+
+        $introText = $template->intro_text
+            ? ContractTemplate::resolveVariables($template->intro_text, $sampleVars)
+            : null;
+        $closingText = $template->closing_text
+            ? ContractTemplate::resolveVariables($template->closing_text, $sampleVars)
+            : null;
+        $signatureNotes = $template->signature_notes
+            ? ContractTemplate::resolveVariables($template->signature_notes, $sampleVars)
+            : null;
+
+        // Objeto mock para que el blade funcione con datos ficticios
+        $fakeEmployee = new \stdClass;
+        $fakeEmployee->full_name = 'MARÍA GÓMEZ MARTÍNEZ';
+        $fakeEmployee->ci = '2.345.678';
+
+        $fakeContract = new \stdClass;
+        $fakeContract->type = $template->type;
+        $fakeContract->body = $template->body;
+        $fakeContract->id = 'VISTA PREVIA';
+        $fakeContract->employee = $fakeEmployee;
+        $fakeContract->start_date = Carbon::parse('2025-01-01');
+        $fakeContract->end_date = Carbon::parse('2025-12-31');
+        $fakeContract->trial_days = 90;
+        $fakeContract->salary = 2500000;
+        $fakeContract->position = null;
+
+        $pdf = Pdf::loadView('pdf.contract', [
+            'contract' => $fakeContract,
+            'companyLogo' => null,
+            'companyName' => 'EMPRESA DE EJEMPLO S.A.',
+            'companyRuc' => '80012345-6',
+            'companyAddress' => 'Av. España 1234',
+            'companyPhone' => '0981123456',
+            'companyEmail' => 'empresa@ejemplo.com.py',
+            'employerNumber' => '12345678',
+            'city' => 'Asunción',
+            // Secciones resueltas desde la plantilla
+            'introText' => $introText,
+            'closingText' => $closingText,
+            'signatureNotes' => $signatureNotes,
+        ])->setPaper('a4', 'portrait');
+
+        return $pdf->stream("preview_plantilla_{$template->type}.pdf");
+    }
+
+    /**
+     * Construye el mapa de variables resueltas desde los datos reales del contrato.
+     *
+     * @return array<string, string>
+     */
+    private static function buildVarsMap(
+        Contract $contract,
+        mixed $company,
+        mixed $employee,
+        array $genderMap,
+        string $yearInWords,
+        int $weeklyHours,
+        string $weeklyHoursInWords,
+        string $shiftTypeLabel,
+        string $trialDaysInWords,
+        string $durationDescription,
+        ?int $employeeAge,
+    ): array {
+        return [
+            '{ciudad}' => $company?->city ?? '.............................',
+            '{dia}' => $contract->start_date->format('d'),
+            '{mes}' => strtoupper($contract->start_date->translatedFormat('F')),
+            '{año}' => strtoupper($yearInWords),
+            '{representante_legal}' => $company?->legal_rep_name ?? '......................................',
+            '{ci_representante}' => $company?->legal_rep_ci ?? '.......................',
+            '{nombre_empresa}' => $company?->name ?? '......................................',
+            '{ruc_empresa}' => $company?->ruc ?? '.......................',
+            '{domicilio_empresa}' => $company?->address ?? '......................................................................................................',
+            '{nombre_empleado}' => strtoupper($employee?->full_name ?? '......................................................................'),
+            '{ci_empleado}' => $employee?->ci ?? '.......................',
+            '{edad_empleado}' => (string) ($employeeAge ?? '......'),
+            '{sexo_empleado}' => $genderMap[$employee?->gender] ?? '...................',
+            '{estado_civil_empleado}' => $employee?->marital_status_label ?? '...................',
+            '{cargo}' => $contract->position?->name ?? '.....................................',
+            '{nacionalidad_empleado}' => $employee?->nationality ?? '...................',
+            '{domicilio_empleado}' => $employee?->address ?? '......................................................................................................',
+            '{salario}' => number_format((float) $contract->salary, 0, ',', '.'),
+            '{salario_en_palabras}' => self::numberToWords((int) $contract->salary).' guaranies',
+            '{tipo_jornada}' => $shiftTypeLabel,
+            '{horas_semanales}' => (string) $weeklyHours,
+            '{horas_semanales_en_palabras}' => $weeklyHoursInWords,
+            '{dias_prueba}' => (string) ((int) ($contract->trial_days ?? 0)),
+            '{dias_prueba_en_palabras}' => $trialDaysInWords,
+            '{duracion_contrato}' => $durationDescription ?: '......',
+        ];
+    }
+
+    /**
+     * Construye el mapa de variables con datos ficticios para la vista previa de plantilla.
+     *
+     * @return array<string, string>
+     */
+    private static function buildSampleVarsMap(): array
+    {
+        return [
+            '{ciudad}' => 'Asunción',
+            '{dia}' => '01',
+            '{mes}' => 'ENERO',
+            '{año}' => 'DOS MIL VEINTICINCO',
+            '{representante_legal}' => 'JUAN PÉREZ GARCÍA',
+            '{ci_representante}' => '1.234.567',
+            '{nombre_empresa}' => 'EMPRESA DE EJEMPLO S.A.',
+            '{ruc_empresa}' => '80012345-6',
+            '{domicilio_empresa}' => 'Av. España 1234, Asunción',
+            '{nombre_empleado}' => 'MARÍA GÓMEZ MARTÍNEZ',
+            '{ci_empleado}' => '2.345.678',
+            '{edad_empleado}' => '28',
+            '{sexo_empleado}' => 'Femenino',
+            '{estado_civil_empleado}' => 'Soltera',
+            '{cargo}' => 'Asistente Administrativo',
+            '{nacionalidad_empleado}' => 'Paraguaya',
+            '{domicilio_empleado}' => 'Calle Mayor 456, Asunción',
+            '{salario}' => '2.500.000',
+            '{salario_en_palabras}' => 'dos millones quinientos mil guaranies',
+            '{tipo_jornada}' => 'DIURNA',
+            '{horas_semanales}' => '48',
+            '{horas_semanales_en_palabras}' => 'cuarenta y ocho',
+            '{dias_prueba}' => '90',
+            '{dias_prueba_en_palabras}' => 'noventa',
+            '{duracion_contrato}' => 'un (1) año',
+        ];
     }
 
     /**

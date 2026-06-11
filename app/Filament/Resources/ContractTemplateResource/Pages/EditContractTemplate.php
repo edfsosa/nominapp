@@ -15,6 +15,13 @@ class EditContractTemplate extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('preview_pdf')
+                ->label('Vista Previa PDF')
+                ->icon('heroicon-o-eye')
+                ->color('gray')
+                ->url(fn () => route('contract-templates.preview', $this->record))
+                ->openUrlInNewTab(),
+
             Action::make('back')
                 ->label('Volver al listado')
                 ->icon('heroicon-o-arrow-left')

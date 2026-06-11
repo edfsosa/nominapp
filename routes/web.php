@@ -152,6 +152,7 @@ Route::middleware(['auth'])->group(function () {
 
     // Contratos laborales
     Route::get('/contratos/{contract}/pdf', [ContractController::class, 'show'])->name('contracts.pdf');
+    Route::get('/preview/plantilla-contrato/{contractTemplate}', [ContractController::class, 'previewTemplate'])->name('contract-templates.preview');
 
     // Legajo del empleado
     Route::get('/empleados/{employee}/legajo', [EmployeeController::class, 'legajo'])->name('employees.legajo');

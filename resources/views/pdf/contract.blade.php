@@ -144,6 +144,13 @@
             font-size: 9px;
         }
 
+        .signature-notes {
+            text-align: center;
+            font-size: 9px;
+            margin-top: 10px;
+            color: #333;
+        }
+
         /* ── Cuerpo editable ── */
         .contract-body {
             margin: 20px 0;
@@ -232,49 +239,29 @@
             De Aprendizaje
         @elseif ($contract->type === 'pasantia')
             De Pasantia
-        @else
+        @elseif ($contract->type)
             {{ \App\Models\Contract::getTypeLabel($contract->type) }}
         @endif
     </div>
 
     <div class="doc-art">(En cumplimiento del Art. 48 del C. De T.)</div>
 
-    {{-- Parrafo introductorio --}}
-    <p class="intro">
-        En la ciudad de <strong>{{ $city ?: '.............................' }}</strong>
-        a los <strong>{{ $contract->start_date->format('d') }}</strong>
-        dia del mes de <strong>{{ strtoupper($contract->start_date->translatedFormat('F')) }}</strong>
-        del año <strong>{{ strtoupper($yearInWords) }}</strong>
-        por una parte el señor/a <strong>{{ $legalRepName ?: '......................................................................' }}</strong>,
-        con C.I.N.: <strong>{{ $legalRepCi ?: '.......................' }}</strong>, de .......... años de edad;
-        sexo ......................... estado civil ...............................,
-        de profesion ..............................., de nacionalidad ...............................
-        y con domicilio para todos sus efectos legales en la casa de las calles
-        <strong>{{ $companyAddress ?: '......................................................................................................' }}</strong>,
-        en nombre y representacion de la firma <strong>{{ $companyName }}</strong>
-        en su calidad de ............................... de la misma,
-        denominado en adelante <strong>"EMPLEADOR"</strong>,
-        y por la otra el señor/a
-        <strong>{{ strtoupper($contract->employee?->full_name) }}</strong>
-        con C.I.N. <strong>{{ $contract->employee?->ci }}</strong>,
-        de <strong>{{ $employeeAge ?? '......' }}</strong> años de edad;
-        sexo <strong>{{ $employeeGender ?: '...................' }}</strong>
-        de estado civil <strong>{{ $employeeMaritalStatus ?: '...................' }}</strong>,
-        profesion u otro oficio
-        <strong>{{ $employeePosition ?: '.....................................' }}</strong>
-        nacionalidad <strong>{{ $employeeNationality ?: '...................' }}</strong>
-        y con domicilio en la casa de las calles
-        <strong>{{ $employeeAddress ?: '......................................................................................................' }}</strong>
-        denominada en adelante <strong>"TRABAJADOR"</strong>
-        conviene en celebrar el presente
-        <strong>CONTRATO INDIVIDUAL DE TRABAJO</strong>
-        bajo las siguientes clausulas:
-    </p>
+    {{-- Párrafo introductorio: solo se renderiza si fue definido en la plantilla --}}
+    @if (!empty($introText))
+        <div class="intro">{!! $introText !!}</div>
+    @endif
 
     {{-- Cuerpo del contrato (cláusulas editables) --}}
     @if ($contract->body)
         <div class="contract-body">
             {!! $contract->body !!}
+        </div>
+    @endif
+
+    {{-- Texto de cierre (desde plantilla, opcional) --}}
+    @if (!empty($closingText))
+        <div class="contract-body" style="margin-top: 10px;">
+            {!! $closingText !!}
         </div>
     @endif
 
@@ -293,6 +280,11 @@
             <div class="signature-sublabel">Firma y Sello</div>
         </div>
     </div>
+
+    {{-- Notas en firmas (desde plantilla, opcional) --}}
+    @if (!empty($signatureNotes))
+        <div class="signature-notes">{{ $signatureNotes }}</div>
+    @endif
 
     {{-- Footer --}}
     <div class="footer">
