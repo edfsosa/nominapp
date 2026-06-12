@@ -50,7 +50,7 @@ class ContractTemplateResource extends Resource
         $vars = ContractTemplate::getAvailableVariables();
 
         $items = collect($vars)
-            ->map(fn ($desc, $token) => '<code style="background:#f3f4f6;padding:1px 4px;border-radius:3px;font-size:11px;">'
+            ->map(fn ($desc, $token) => '<code style="background:#f3f4f6;color:#1f2937;padding:1px 4px;border-radius:3px;font-size:11px;">'
                 .e($token).'</code> — '
                 .e($desc))
             ->implode('<br>');
