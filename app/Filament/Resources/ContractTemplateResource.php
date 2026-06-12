@@ -251,6 +251,7 @@ class ContractTemplateResource extends Resource
 
                 TextColumn::make('sections_configured')
                     ->label('Secciones')
+                    ->html()
                     ->getStateUsing(function (ContractTemplate $record): HtmlString {
                         $sections = [
                             'Intro'     => filled($record->intro_text),
@@ -269,12 +270,6 @@ class ContractTemplateResource extends Resource
 
                         return new HtmlString("<div style=\"display:flex;flex-wrap:wrap;gap:2px\">{$badges}</div>");
                     }),
-
-                TextColumn::make('body')
-                    ->label('Vista previa (cláusulas)')
-                    ->html()
-                    ->limit(100)
-                    ->placeholder('Sin cláusulas'),
 
                 TextColumn::make('updated_at')
                     ->label('Última modificación')
