@@ -70,6 +70,20 @@ Schedule::command('vacations:generate-annual-balances')
     });
 
 /**
+ * Notificar contratos próximos a vencer o ya vencidos
+ * Se ejecuta diariamente a las 08:00 — una sola notificación por contrato (no duplica)
+ */
+Schedule::command('contracts:notify-expiring')
+    ->dailyAt('08:00')
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Notificación de contratos por vencer completada');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la notificación de contratos por vencer');
+    });
+
+/**
  * Expirar enrollments faciales vencidos
  * Se ejecuta cada hora para marcar como 'expired' los registros
  * en estado pending_capture cuyo expires_at ya pasó
