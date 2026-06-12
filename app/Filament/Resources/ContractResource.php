@@ -941,6 +941,16 @@ class ContractResource extends Resource
     }
 
     /**
+     * @return array<int, class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ContractAuditsRelationManager::class,
+        ];
+    }
+
+    /**
      * Definición de las páginas del recurso.
      */
     public static function getPages(): array
