@@ -18,6 +18,11 @@ return new class extends Migration
         $existingTemplates = DB::table('contract_templates')->whereNull('company_id')->get();
         $companies = DB::table('companies')->where('is_active', 1)->orderBy('id')->pluck('id');
 
+        // Dropar el índice único en type ANTES de los inserts para evitar violaciones
+        Schema::table('contract_templates', function (Blueprint $table) {
+            $table->dropUnique(['type']);
+        });
+
         if ($companies->isNotEmpty() && $existingTemplates->isNotEmpty()) {
             // Asignar las filas originales a la primera empresa
             DB::table('contract_templates')
@@ -43,7 +48,6 @@ return new class extends Migration
         }
 
         Schema::table('contract_templates', function (Blueprint $table) {
-            $table->dropUnique(['type']);
             $table->unique(['company_id', 'type']);
         });
     }
