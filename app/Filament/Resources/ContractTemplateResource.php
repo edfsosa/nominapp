@@ -17,6 +17,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action as TableAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -274,6 +275,12 @@ class ContractTemplateResource extends Resource
                     ->sortable(),
             ])
             ->actions([
+                TableAction::make('preview_pdf')
+                    ->label('Vista Previa')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->url(fn (ContractTemplate $record) => route('contract-templates.preview', $record))
+                    ->openUrlInNewTab(),
                 EditAction::make()
                     ->label('Editar plantilla')
                     ->icon('heroicon-o-pencil-square')
