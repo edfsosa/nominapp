@@ -21,44 +21,53 @@ return new class extends Migration
         $existingTemplates = DB::table('contract_templates')->whereNull('company_id')->get();
         $companies = DB::table('companies')->where('is_active', 1)->orderBy('id')->pluck('id');
 
-        // Dropar el índice único en type ANTES de los inserts (solo si aún existe)
-        $sm = Schema::getConnection()->getDoctrineSchemaManager();
-        $indexes = array_keys($sm->listTableIndexes('contract_templates'));
-        if (in_array('contract_templates_type_unique', $indexes)) {
+        // Dropar el índice único en type ANTES de los inserts (try/catch para idempotencia en Laravel 12)
+        try {
             Schema::table('contract_templates', function (Blueprint $table) {
                 $table->dropUnique(['type']);
             });
+        } catch (\Throwable $e) {
+            // El índice ya fue eliminado en un deploy anterior parcial — continuar
         }
 
         if ($companies->isNotEmpty() && $existingTemplates->isNotEmpty()) {
-            // Asignar las filas originales a la primera empresa
+            // Asignar las filas originales a la primera empresa (solo las que siguen sin empresa)
             DB::table('contract_templates')
                 ->whereNull('company_id')
                 ->update(['company_id' => $companies->first()]);
 
-            // Copiar cada plantilla a las demás empresas activas
+            // Copiar cada plantilla a las demás empresas activas, evitando duplicados
             $now = now();
             foreach ($companies->skip(1) as $companyId) {
                 foreach ($existingTemplates as $template) {
-                    DB::table('contract_templates')->insert([
-                        'company_id'      => $companyId,
-                        'type'            => $template->type,
-                        'body'            => $template->body,
-                        'intro_text'      => $template->intro_text ?? null,
-                        'closing_text'    => $template->closing_text ?? null,
-                        'signature_notes' => $template->signature_notes ?? null,
-                        'created_at'      => $now,
-                        'updated_at'      => $now,
-                    ]);
+                    $exists = DB::table('contract_templates')
+                        ->where('company_id', $companyId)
+                        ->where('type', $template->type)
+                        ->exists();
+
+                    if (! $exists) {
+                        DB::table('contract_templates')->insert([
+                            'company_id'      => $companyId,
+                            'type'            => $template->type,
+                            'body'            => $template->body,
+                            'intro_text'      => $template->intro_text ?? null,
+                            'closing_text'    => $template->closing_text ?? null,
+                            'signature_notes' => $template->signature_notes ?? null,
+                            'created_at'      => $now,
+                            'updated_at'      => $now,
+                        ]);
+                    }
                 }
             }
         }
 
-        // Agregar índice compuesto solo si no existe aún
-        if (! in_array('contract_templates_company_id_type_unique', $indexes)) {
+        // Agregar índice compuesto (try/catch para idempotencia en caso de deploy parcial anterior)
+        try {
             Schema::table('contract_templates', function (Blueprint $table) {
                 $table->unique(['company_id', 'type']);
             });
+        } catch (\Throwable $e) {
+            // El índice ya existe por un deploy anterior parcial — continuar
         }
     }
 
