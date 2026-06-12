@@ -10,18 +10,25 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('contract_templates', function (Blueprint $table) {
-            $table->foreignId('company_id')->nullable()->constrained('companies')->after('id');
-        });
+        // Guard: la columna puede ya existir si un deploy anterior falló a mitad
+        if (! Schema::hasColumn('contract_templates', 'company_id')) {
+            Schema::table('contract_templates', function (Blueprint $table) {
+                $table->foreignId('company_id')->nullable()->constrained('companies')->after('id');
+            });
+        }
 
-        // Capturar el contenido de las plantillas antes de asignar company_id
+        // Capturar plantillas sin empresa asignada para copiarlas
         $existingTemplates = DB::table('contract_templates')->whereNull('company_id')->get();
         $companies = DB::table('companies')->where('is_active', 1)->orderBy('id')->pluck('id');
 
-        // Dropar el índice único en type ANTES de los inserts para evitar violaciones
-        Schema::table('contract_templates', function (Blueprint $table) {
-            $table->dropUnique(['type']);
-        });
+        // Dropar el índice único en type ANTES de los inserts (solo si aún existe)
+        $sm = Schema::getConnection()->getDoctrineSchemaManager();
+        $indexes = array_keys($sm->listTableIndexes('contract_templates'));
+        if (in_array('contract_templates_type_unique', $indexes)) {
+            Schema::table('contract_templates', function (Blueprint $table) {
+                $table->dropUnique(['type']);
+            });
+        }
 
         if ($companies->isNotEmpty() && $existingTemplates->isNotEmpty()) {
             // Asignar las filas originales a la primera empresa
@@ -47,9 +54,12 @@ return new class extends Migration
             }
         }
 
-        Schema::table('contract_templates', function (Blueprint $table) {
-            $table->unique(['company_id', 'type']);
-        });
+        // Agregar índice compuesto solo si no existe aún
+        if (! in_array('contract_templates_company_id_type_unique', $indexes)) {
+            Schema::table('contract_templates', function (Blueprint $table) {
+                $table->unique(['company_id', 'type']);
+            });
+        }
     }
 
     public function down(): void
