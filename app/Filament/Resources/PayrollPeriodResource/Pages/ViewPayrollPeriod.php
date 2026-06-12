@@ -9,7 +9,9 @@ use App\Models\Company;
 use App\Models\DisbursementBatch;
 use App\Models\Employee;
 use App\Models\Payroll;
+use App\Models\Contract;
 use App\Models\PayrollPeriod;
+use App\Settings\GeneralSettings;
 use App\Services\PayrollService;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
@@ -109,6 +111,34 @@ class ViewPayrollPeriod extends ViewRecord
                             ->title($reciboLabel)
                             ->body(implode(' · ', $bodyParts))
                             ->send();
+
+                        // Alerta si hay contratos por vencer en el período de esta planilla
+                        $alertDays = app(GeneralSettings::class)->contract_alert_days;
+                        $expiringCount = Contract::expiringSoon($alertDays)
+                            ->when($this->record->company_id, fn ($q) => $q->whereHas(
+                                'employee.branch',
+                                fn ($q) => $q->where('company_id', $this->record->company_id)
+                            ))
+                            ->count();
+
+                        if ($expiringCount > 0) {
+                            $label = $expiringCount === 1
+                                ? '1 empleado tiene contrato por vencer'
+                                : "{$expiringCount} empleados tienen contrato por vencer";
+
+                            Notification::make()
+                                ->warning()
+                                ->title('Contratos por vencer')
+                                ->body("{$label} en los próximos {$alertDays} días.")
+                                ->persistent()
+                                ->actions([
+                                    \Filament\Notifications\Actions\Action::make('ver_reporte')
+                                        ->label('Ver reporte')
+                                        ->url(\App\Filament\Pages\ContractReport::getUrl())
+                                        ->button(),
+                                ])
+                                ->send();
+                        }
 
                         $this->js('window.location.reload()');
                     } else {
