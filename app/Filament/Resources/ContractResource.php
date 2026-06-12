@@ -34,11 +34,14 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
@@ -933,6 +936,84 @@ class ContractResource extends Resource
                 ])
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->tooltip('Más acciones'),
+            ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    BulkAction::make('bulk_activate')
+                        ->label('Activar seleccionados')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Activar contratos')
+                        ->modalDescription('Se activarán todos los contratos en estado Borrador del grupo seleccionado. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, activar')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'draft') {
+                                    $record->update(['status' => 'active']);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) activados.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar en Borrador.";
+                            }
+                            Notification::make()->success()->title('Contratos activados')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('bulk_suspend')
+                        ->label('Suspender seleccionados')
+                        ->icon('heroicon-o-pause-circle')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Suspender contratos')
+                        ->modalDescription('Se suspenderán todos los contratos Vigentes del grupo seleccionado. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, suspender')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'active') {
+                                    $record->update(['status' => 'suspended']);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) suspendidos.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar Vigentes.";
+                            }
+                            Notification::make()->success()->title('Contratos suspendidos')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('bulk_terminate')
+                        ->label('Terminar seleccionados')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Terminar contratos')
+                        ->modalDescription('Se terminarán todos los contratos Vigentes del grupo seleccionado. Esta acción no se puede deshacer. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, terminar')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'active') {
+                                    ContractService::terminate($record);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) terminados.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar Vigentes.";
+                            }
+                            Notification::make()->warning()->title('Contratos terminados')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                ]),
             ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('No hay contratos registrados')
