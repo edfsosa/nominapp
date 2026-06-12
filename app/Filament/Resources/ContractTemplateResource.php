@@ -249,19 +249,25 @@ class ContractTemplateResource extends Resource
                     ->icon(fn ($state) => $state ? Contract::getTypeIcon($state) : null),
 
                 TextColumn::make('sections_configured')
-                    ->label('Secciones configuradas')
-                    ->getStateUsing(function (ContractTemplate $record): string {
-                        $sections = collect([
-                            $record->intro_text ? 'Intro' : null,
-                            $record->body ? 'Cláusulas' : null,
-                            $record->closing_text ? 'Cierre' : null,
-                            $record->signature_notes ? 'Firmas' : null,
-                        ])->filter()->implode(', ');
+                    ->label('Secciones')
+                    ->getStateUsing(function (ContractTemplate $record): HtmlString {
+                        $sections = [
+                            'Intro'     => filled($record->intro_text),
+                            'Cláusulas' => filled($record->body),
+                            'Cierre'    => filled($record->closing_text),
+                            'Firmas'    => filled($record->signature_notes),
+                        ];
 
-                        return $sections ?: 'Sin personalizar';
-                    })
-                    ->badge()
-                    ->color(fn (string $state): string => $state === 'Sin personalizar' ? 'gray' : 'success'),
+                        $badges = collect($sections)->map(function (bool $filled, string $label): string {
+                            $color = $filled
+                                ? 'background:rgb(var(--color-success-100));color:rgb(var(--color-success-700));'
+                                : 'background:rgb(var(--color-warning-100));color:rgb(var(--color-warning-700));';
+
+                            return "<span style=\"{$color}display:inline-block;padding:1px 8px;border-radius:9999px;font-size:0.75rem;font-weight:500;margin:1px 2px\">{$label}</span>";
+                        })->implode('');
+
+                        return new HtmlString("<div style=\"display:flex;flex-wrap:wrap;gap:2px\">{$badges}</div>");
+                    }),
 
                 TextColumn::make('body')
                     ->label('Vista previa (cláusulas)')
