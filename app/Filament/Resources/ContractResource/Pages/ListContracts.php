@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ContractResource\Pages;
 use App\Filament\Pages\ContractReport;
 use App\Filament\Resources\ContractResource;
 use App\Models\Contract;
+use App\Settings\GeneralSettings;
 use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
@@ -36,14 +37,17 @@ class ListContracts extends ListRecords
                 ->pluck('total', 'status')
                 ->toArray();
 
+            $alertDays = app(GeneralSettings::class)->contract_alert_days;
+
             $this->contractCounts = [
-                'all'        => array_sum($counts),
-                'draft'      => $counts['draft'] ?? 0,
-                'active'     => $counts['active'] ?? 0,
-                'suspended'  => $counts['suspended'] ?? 0,
-                'expired'    => $counts['expired'] ?? 0,
-                'terminated' => $counts['terminated'] ?? 0,
-                'renewed'    => $counts['renewed'] ?? 0,
+                'all'          => array_sum($counts),
+                'expiring'     => Contract::expiringSoon($alertDays)->count(),
+                'draft'        => $counts['draft'] ?? 0,
+                'active'       => $counts['active'] ?? 0,
+                'suspended'    => $counts['suspended'] ?? 0,
+                'expired'      => $counts['expired'] ?? 0,
+                'terminated'   => $counts['terminated'] ?? 0,
+                'renewed'      => $counts['renewed'] ?? 0,
             ];
         }
 
@@ -63,6 +67,12 @@ class ListContracts extends ListRecords
             'all' => Tab::make('Todos')
                 ->badge($counts['all'])
                 ->badgeColor('gray'),
+
+            'expiring' => Tab::make('Por vencer')
+                ->badge($counts['expiring'] ?: null)
+                ->badgeColor('warning')
+                ->icon('heroicon-o-clock')
+                ->modifyQueryUsing(fn (Builder $q) => $q->expiringSoon(app(GeneralSettings::class)->contract_alert_days)),
 
             'draft' => Tab::make('Borrador')
                 ->badge($counts['draft'])
