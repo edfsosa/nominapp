@@ -87,6 +87,48 @@ class EditContract extends EditRecord
 
             // --- Acciones de gestión ---
 
+            Action::make('activate')
+                ->label('Activar Contrato')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Activar contrato')
+                ->modalDescription('¿Confirmás que querés activar este contrato? Pasará a estado Vigente.')
+                ->modalSubmitActionLabel('Sí, activar')
+                ->visible(fn (Contract $record) => $record->status === 'draft')
+                ->action(function (Contract $record) {
+                    $record->update(['status' => 'active']);
+                    Notification::make()->success()->title('Contrato activado')->send();
+                }),
+
+            Action::make('suspend')
+                ->label('Suspender')
+                ->icon('heroicon-o-pause-circle')
+                ->color('warning')
+                ->visible(fn (Contract $record) => $record->status === 'active')
+                ->requiresConfirmation()
+                ->modalHeading('Suspender contrato')
+                ->modalDescription(fn (Contract $record) => "Se suspenderá el contrato de {$record->employee->full_name}. Sus percepciones y deducciones serán desactivadas temporalmente.")
+                ->modalSubmitActionLabel('Sí, suspender')
+                ->action(function (Contract $record) {
+                    $record->update(['status' => 'suspended']);
+                    Notification::make()->success()->title('Contrato suspendido')->send();
+                }),
+
+            Action::make('reactivate')
+                ->label('Reactivar')
+                ->icon('heroicon-o-play-circle')
+                ->color('success')
+                ->visible(fn (Contract $record) => $record->status === 'suspended')
+                ->requiresConfirmation()
+                ->modalHeading('Reactivar contrato')
+                ->modalDescription(fn (Contract $record) => "Se reactivará el contrato de {$record->employee->full_name}. Sus percepciones y deducciones serán restauradas.")
+                ->modalSubmitActionLabel('Sí, reactivar')
+                ->action(function (Contract $record) {
+                    $record->update(['status' => 'active']);
+                    Notification::make()->success()->title('Contrato reactivado')->send();
+                }),
+
             Action::make('renew')
                 ->label('Renovar')
                 ->icon('heroicon-o-arrow-path')
@@ -186,11 +228,13 @@ class EditContract extends EditRecord
                 }),
 
             DeleteAction::make()
-                ->label('Eliminar')
+                ->label('Eliminar borrador')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
+                ->visible(fn (Contract $record) => $record->status === 'draft')
                 ->modalHeading('¿Eliminar contrato?')
-                ->modalSubmitActionLabel('Sí, eliminar'),
+                ->modalSubmitActionLabel('Sí, eliminar')
+                ->successRedirectUrl(ContractResource::getUrl('index')),
         ];
     }
 
