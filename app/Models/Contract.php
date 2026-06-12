@@ -27,7 +27,7 @@ class Contract extends Model
         'document_path',
         'status',
         'notes',
-        'body',
+        'additional_clauses',
         'created_by_id',
     ];
 
@@ -114,6 +114,7 @@ class Contract extends Model
     public static function getStatusOptions(): array
     {
         return [
+            'draft' => 'Borrador',
             'active' => 'Vigente',
             'suspended' => 'Suspendido',
             'expired' => 'Vencido',
@@ -130,6 +131,7 @@ class Contract extends Model
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
+            'draft' => 'gray',
             'active' => 'success',
             'suspended' => 'warning',
             'expired' => 'danger',
@@ -142,6 +144,7 @@ class Contract extends Model
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
+            'draft' => 'heroicon-o-pencil',
             'active' => 'heroicon-o-check-circle',
             'suspended' => 'heroicon-o-pause-circle',
             'expired' => 'heroicon-o-exclamation-triangle',

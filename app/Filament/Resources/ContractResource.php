@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractResource\Pages;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
 use App\Models\Department;
@@ -77,7 +78,7 @@ class ContractResource extends Resource
                                 name: 'employee',
                                 modifyQueryUsing: fn (Builder $query) => $query
                                     ->where('status', 'active')
-                                    ->whereDoesntHave('contracts', fn (Builder $q) => $q->where('status', 'active'))
+                                    ->whereDoesntHave('contracts', fn (Builder $q) => $q->whereIn('status', ['active', 'draft']))
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
@@ -89,7 +90,7 @@ class ContractResource extends Resource
                             ->live()
                             ->disabled(fn (string $operation) => $operation === 'edit')
                             ->columnSpan(2)
-                            ->helperText('Solo se muestran empleados activos sin contrato vigente'),
+                            ->helperText('Solo se muestran empleados activos sin contrato vigente o en borrador'),
 
                         Select::make('type')
                             ->label('Tipo de Contrato')
@@ -97,17 +98,11 @@ class ContractResource extends Resource
                             ->required()
                             ->native(false)
                             ->live()
-                            ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
+                            ->afterStateUpdated(function (?string $state, Set $set) {
                                 if ($state === 'indefinido') {
                                     $set('end_date', null);
                                 }
                                 $set('trial_days', 30);
-                                if ($state && ! $get('body')) {
-                                    $employeeId = $get('employee_id');
-                                    $employee = $employeeId ? \App\Models\Employee::with('branch')->find($employeeId) : null;
-                                    $companyId = $employee?->branch?->company_id;
-                                    $set('body', ContractTemplate::getForType($state, $companyId)?->body);
-                                }
                             }),
 
                         Placeholder::make('template_warning')
@@ -347,25 +342,6 @@ class ContractResource extends Resource
                     ])
                     ->visible(fn (string $operation) => $operation === 'edit'),
 
-                Section::make('Cuerpo del Contrato')
-                    ->description('Cláusulas y condiciones del contrato')
-                    ->icon('heroicon-o-document-text')
-                    ->schema([
-                        RichEditor::make('body')
-                            ->label('Cuerpo del Contrato')
-                            ->helperText('Se pre-rellena con la plantilla del tipo elegido. Podés editarlo libremente.')
-                            ->columnSpanFull()
-                            ->toolbarButtons([
-                                'bold',
-                                'italic',
-                                'underline',
-                                'orderedList',
-                                'bulletList',
-                                'redo',
-                                'undo',
-                            ]),
-                    ]),
-
                 Section::make('Notas')
                     ->schema([
                         Textarea::make('notes')
@@ -374,6 +350,20 @@ class ContractResource extends Resource
                             ->rows(2)
                             ->columnSpanFull(),
                     ]),
+
+                Section::make('Cláusulas Adicionales')
+                    ->description('Cláusulas específicas para este contrato, que se agregan al final del cuerpo de la plantilla')
+                    ->icon('heroicon-o-document-plus')
+                    ->collapsible()
+                    ->collapsed(fn (?Model $record) => $record === null || ! $record->additional_clauses)
+                    ->schema([
+                        RichEditor::make('additional_clauses')
+                            ->label('Cláusulas adicionales')
+                            ->helperText('Se mostrarán después de las cláusulas estándar de la plantilla en el PDF.')
+                            ->toolbarButtons(['bold', 'italic', 'underline', 'orderedList', 'bulletList', 'redo', 'undo'])
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
 
                 Section::make('Estado')
                     ->schema([
@@ -593,17 +583,18 @@ class ContractResource extends Resource
                 })
                 ->columns(2),
 
-            InfoSection::make('Cuerpo del Contrato')
-                ->description('Cláusulas y condiciones editables')
-                ->icon('heroicon-o-document-text')
+            InfoSection::make('Cláusulas Adicionales')
+                ->icon('heroicon-o-document-plus')
                 ->collapsible()
+                ->collapsed()
                 ->schema([
-                    TextEntry::make('body')
+                    TextEntry::make('additional_clauses')
                         ->label('')
                         ->html()
-                        ->columnSpanFull(),
+                        ->columnSpanFull()
+                        ->placeholder('Sin cláusulas adicionales'),
                 ])
-                ->visible(fn (Contract $record) => (bool) $record->body),
+                ->visible(fn ($record) => filled($record->additional_clauses)),
 
             InfoSection::make('Notas')
                 ->collapsible()
@@ -673,6 +664,13 @@ class ContractResource extends Resource
                     ->icon(fn (string $state): string => Contract::getTypeIcon($state))
                     ->sortable(),
 
+                TextColumn::make('employee.branch.company.name')
+                    ->label('Empresa')
+                    ->badge()
+                    ->color('primary')
+                    ->sortable()
+                    ->visible(fn () => Company::active()->count() > 1),
+
                 TextColumn::make('position.name')
                     ->label('Cargo')
                     ->sortable()
@@ -694,14 +692,6 @@ class ContractResource extends Resource
                     ->icon(fn (string $state): string => Contract::getWorkModalityIcon($state))
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => Contract::getStatusLabel($state))
-                    ->color(fn (string $state): string => Contract::getStatusColor($state))
-                    ->icon(fn (string $state): string => Contract::getStatusIcon($state))
-                    ->sortable(),
-
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -712,11 +702,6 @@ class ContractResource extends Resource
                 SelectFilter::make('type')
                     ->label('Tipo de Contrato')
                     ->options(Contract::getTypeOptions())
-                    ->native(false),
-
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options(Contract::getStatusOptions())
                     ->native(false),
 
                 SelectFilter::make('salary_type')

@@ -31,6 +31,21 @@ class ViewContract extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('activate')
+                ->label('Activar Contrato')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Activar contrato')
+                ->modalDescription('¿Confirmás que querés activar este contrato? Pasará a estado Vigente.')
+                ->modalSubmitActionLabel('Sí, activar')
+                ->visible(fn () => $this->record->status === 'draft')
+                ->action(function () {
+                    $this->record->update(['status' => 'active']);
+                    Notification::make()->success()->title('Contrato activado')->send();
+                    $this->refreshFormData(['status']);
+                }),
+
             Action::make('generate_pdf')
                 ->label('Generar PDF')
                 ->icon('heroicon-o-printer')
@@ -186,6 +201,11 @@ class ViewContract extends ViewRecord
                 ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
                 ->color('primary'),
+
+            \Filament\Actions\DeleteAction::make()
+                ->label('Eliminar borrador')
+                ->visible(fn () => $this->record->status === 'draft')
+                ->successRedirectUrl(ContractResource::getUrl('index')),
         ];
     }
 }

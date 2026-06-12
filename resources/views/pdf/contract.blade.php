@@ -251,10 +251,18 @@
         <div class="intro">{!! $introText !!}</div>
     @endif
 
-    {{-- Cuerpo del contrato (cláusulas editables) --}}
-    @if ($contract->body)
+    {{-- Cuerpo del contrato (desde plantilla con variables resueltas) --}}
+    @if ($contractBody)
         <div class="contract-body">
-            {!! $contract->body !!}
+            {!! $contractBody !!}
+        </div>
+    @endif
+
+    {{-- Cláusulas adicionales del contrato (específicas de este contrato) --}}
+    @if ($additionalClauses)
+        <div class="contract-body" style="margin-top: 15px;">
+            <div class="section-header">Cláusulas Adicionales</div>
+            {!! $additionalClauses !!}
         </div>
     @endif
 

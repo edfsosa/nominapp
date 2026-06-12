@@ -83,10 +83,15 @@ class ContractController extends Controller
             ? ContractTemplate::resolveVariables($template->signature_notes, $vars)
             : null;
 
-        // Body: usa el campo del contrato si tiene contenido; si no, cae a la plantilla con variables resueltas
-        if (! $contract->body && $template?->body) {
-            $contract->body = ContractTemplate::resolveVariables($template->body, $vars);
-        }
+        // Body siempre desde la plantilla con variables resueltas
+        $contractBody = ($template && $template->body)
+            ? ContractTemplate::resolveVariables($template->body, $vars)
+            : null;
+
+        // Cláusulas adicionales del contrato (si las tiene)
+        $additionalClauses = $contract->additional_clauses
+            ? ContractTemplate::resolveVariables($contract->additional_clauses, $vars)
+            : null;
 
         $pdf = Pdf::loadView('pdf.contract', [
             'contract' => $contract,
@@ -102,6 +107,8 @@ class ContractController extends Controller
             'introText' => $introText,
             'closingText' => $closingText,
             'signatureNotes' => $signatureNotes,
+            'contractBody' => $contractBody,
+            'additionalClauses' => $additionalClauses,
         ])->setPaper('a4', 'portrait');
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
@@ -129,10 +136,6 @@ class ContractController extends Controller
         $signatureNotes = $contractTemplate->signature_notes
             ? ContractTemplate::resolveVariables($contractTemplate->signature_notes, $sampleVars)
             : null;
-        $bodyResolved = $contractTemplate->body
-            ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
-            : null;
-
         // Objeto mock para que el blade funcione con datos ficticios
         $fakeEmployee = new \stdClass;
         $fakeEmployee->full_name = 'MARÍA GÓMEZ MARTÍNEZ';
@@ -140,7 +143,6 @@ class ContractController extends Controller
 
         $fakeContract = new \stdClass;
         $fakeContract->type = $contractTemplate->type;
-        $fakeContract->body = $bodyResolved;
         $fakeContract->id = 'VISTA PREVIA';
         $fakeContract->employee = $fakeEmployee;
         $fakeContract->start_date = Carbon::parse('2025-01-01');
@@ -163,6 +165,10 @@ class ContractController extends Controller
             'introText' => $introText,
             'closingText' => $closingText,
             'signatureNotes' => $signatureNotes,
+            'contractBody' => $contractTemplate->body
+                ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
+                : null,
+            'additionalClauses' => null,
         ])->setPaper('a4', 'portrait');
 
         $response = $pdf->stream("preview_plantilla_{$contractTemplate->type}.pdf");
