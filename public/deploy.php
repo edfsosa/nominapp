@@ -69,9 +69,15 @@ $steps = [
     "{$artisan} up 2>&1",
 ];
 
-$failed = false;
+$failed   = false;
+$pulled   = false; // tracks whether git pull already ran
+$prevSha  = '';
 
-file_put_contents($log, PHP_EOL . '[' . date('Y-m-d H:i:s') . '] === Deploy started ===' . PHP_EOL, FILE_APPEND);
+// Record the current HEAD before pulling so we can roll back if needed
+exec("cd {$base} && git rev-parse HEAD 2>&1", $shaOut);
+$prevSha = trim($shaOut[0] ?? '');
+
+file_put_contents($log, PHP_EOL . '[' . date('Y-m-d H:i:s') . '] === Deploy started (prev SHA: ' . substr($prevSha, 0, 8) . ') ===' . PHP_EOL, FILE_APPEND);
 
 foreach ($steps as $cmd) {
     $result = [];
@@ -85,8 +91,24 @@ foreach ($steps as $cmd) {
         FILE_APPEND
     );
 
+    // Mark once git pull has run so rollback makes sense from here on
+    if (str_contains($cmd, 'git pull')) {
+        $pulled = true;
+    }
+
     if ($code !== 0 && ! str_contains($cmd, '|| true')) {
         $failed = true;
+
+        // Roll back to previous commit if pull already ran and we have a SHA
+        if ($pulled && $prevSha !== '') {
+            exec("cd {$base} && git reset --hard {$prevSha} 2>&1", $resetOut);
+            file_put_contents(
+                $log,
+                '[' . date('H:i:s') . '] Rolled back to ' . substr($prevSha, 0, 8) . ': ' . implode(' ', $resetOut) . PHP_EOL,
+                FILE_APPEND
+            );
+        }
+
         exec("cd {$base} && {$artisan} up 2>&1");
         file_put_contents($log, '[' . date('H:i:s') . '] Step failed — site restored.' . PHP_EOL, FILE_APPEND);
         break;
