@@ -262,10 +262,10 @@ class ContractTemplateResource extends Resource
 
                         $badges = collect($sections)->map(function (bool $filled, string $label): string {
                             $color = $filled
-                                ? 'background:rgb(var(--color-success-100));color:rgb(var(--color-success-700));'
-                                : 'background:rgb(var(--color-warning-100));color:rgb(var(--color-warning-700));';
+                                ? 'background:#166534;color:#bbf7d0;'
+                                : 'background:#92400e;color:#fde68a;';
 
-                            return "<span style=\"{$color}display:inline-block;padding:1px 8px;border-radius:9999px;font-size:0.75rem;font-weight:500;margin:1px 2px\">{$label}</span>";
+                            return "<span style=\"{$color}display:inline-block;padding:2px 10px;border-radius:9999px;font-size:0.72rem;font-weight:600;margin:2px 2px\">{$label}</span>";
                         })->implode('');
 
                         return new HtmlString("<div style=\"display:flex;flex-wrap:wrap;gap:2px\">{$badges}</div>");
@@ -284,7 +284,7 @@ class ContractTemplateResource extends Resource
                     ->url(fn (ContractTemplate $record) => route('contract-templates.preview', $record))
                     ->openUrlInNewTab(),
                 EditAction::make()
-                    ->label('Editar plantilla')
+                    ->label('Editar')
                     ->icon('heroicon-o-pencil-square')
                     ->color('primary'),
             ])
