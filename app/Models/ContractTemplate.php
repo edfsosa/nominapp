@@ -3,18 +3,58 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** Plantilla de cuerpo/cláusulas por tipo de contrato. Una por cada tipo. */
+/** Plantilla de cuerpo/cláusulas por tipo de contrato, con alcance por empresa. */
 class ContractTemplate extends Model
 {
-    protected $fillable = ['type', 'body', 'intro_text', 'closing_text', 'signature_notes'];
+    protected $fillable = [
+        'company_id',
+        'type',
+        'body',
+        'intro_text',
+        'closing_text',
+        'signature_notes',
+        'document_title',
+        'document_subtitle',
+        'document_art_reference',
+        'signature_employee_label',
+        'signature_employer_label',
+        'signature_employer_sublabel',
+        'show_header',
+        'show_footer',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'show_header' => 'boolean',
+            'show_footer' => 'boolean',
+        ];
+    }
 
     /**
-     * Retorna la plantilla para el tipo de contrato dado, o null si no existe.
+     * Empresa a la que pertenece esta plantilla.
      */
-    public static function getForType(string $type): ?static
+    public function company(): BelongsTo
     {
-        return static::where('type', $type)->first();
+        return $this->belongsTo(Company::class);
+    }
+
+    /**
+     * Retorna la plantilla para el tipo de contrato y empresa dados, o null si no existe.
+     * Si no se provee companyId, retorna null.
+     *
+     * @param  string  $type       Tipo de contrato (ej: 'indefinido', 'plazo_fijo')
+     * @param  int|null  $companyId  ID de la empresa; si es null retorna null
+     */
+    public static function getForType(string $type, ?int $companyId = null): ?static
+    {
+        if ($companyId === null) {
+            return null;
+        }
+
+        return static::where('type', $type)->where('company_id', $companyId)->first();
     }
 
     /**

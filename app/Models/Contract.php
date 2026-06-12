@@ -7,9 +7,28 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Contract extends Model
+class Contract extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** Solo auditar campos relevantes para el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'salary',
+        'salary_type',
+        'position_id',
+        'department_id',
+        'start_date',
+        'end_date',
+        'trial_days',
+        'work_modality',
+        'payment_method',
+        'notes',
+    ];
     protected $fillable = [
         'employee_id',
         'type',
@@ -27,7 +46,7 @@ class Contract extends Model
         'document_path',
         'status',
         'notes',
-        'body',
+        'additional_clauses',
         'created_by_id',
     ];
 
@@ -114,6 +133,7 @@ class Contract extends Model
     public static function getStatusOptions(): array
     {
         return [
+            'draft' => 'Borrador',
             'active' => 'Vigente',
             'suspended' => 'Suspendido',
             'expired' => 'Vencido',
@@ -130,6 +150,7 @@ class Contract extends Model
     public static function getStatusColor(string $status): string
     {
         return match ($status) {
+            'draft' => 'gray',
             'active' => 'success',
             'suspended' => 'warning',
             'expired' => 'danger',
@@ -142,6 +163,7 @@ class Contract extends Model
     public static function getStatusIcon(string $status): string
     {
         return match ($status) {
+            'draft' => 'heroicon-o-pencil',
             'active' => 'heroicon-o-check-circle',
             'suspended' => 'heroicon-o-pause-circle',
             'expired' => 'heroicon-o-exclamation-triangle',
@@ -499,5 +521,75 @@ class Contract extends Model
         }
 
         return (int) now()->startOfDay()->diffInDays($trialEnd->startOfDay(), false);
+    }
+
+    /**
+     * Formatea los campos auditados para su presentación en el RelationManager de historial.
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status'        => 'Estado',
+            'salary'        => 'Salario',
+            'salary_type'   => 'Tipo de salario',
+            'position_id'   => 'Cargo',
+            'department_id' => 'Departamento',
+            'start_date'    => 'Fecha de inicio',
+            'end_date'      => 'Fecha de fin',
+            'trial_days'    => 'Días de prueba',
+            'work_modality' => 'Modalidad',
+            'payment_method' => 'Método de pago',
+            'notes'         => 'Notas',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /**
+     * Convierte el valor crudo de un campo auditado a su representación legible.
+     */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status'        => static::getStatusLabel($value),
+            'salary_type'   => $value === 'mensual' ? 'Mensual' : 'Jornal',
+            'work_modality' => match ($value) {
+                'presencial' => 'Presencial',
+                'remoto'     => 'Remoto',
+                'hibrido'    => 'Híbrido',
+                default      => (string) $value,
+            },
+            'payment_method' => match ($value) {
+                'cash'   => 'Efectivo',
+                'debit'  => 'Débito bancario',
+                'check'  => 'Cheque',
+                default  => (string) $value,
+            },
+            'salary'        => 'Gs. '.number_format((int) $value, 0, ',', '.'),
+            'position_id'   => Position::find($value)?->name ?? "ID {$value}",
+            'department_id' => Department::find($value)?->name ?? "ID {$value}",
+            'start_date', 'end_date' => Carbon::parse($value)->format('d/m/Y'),
+            'trial_days'    => $value.' días',
+            'notes'         => Str::limit((string) $value, 120),
+            default         => (string) $value,
+        };
     }
 }

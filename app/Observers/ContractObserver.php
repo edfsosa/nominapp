@@ -5,8 +5,8 @@ namespace App\Observers;
 use App\Models\Contract;
 
 /**
- * Sincroniza percepciones y deducciones del empleado cuando el estado
- * del contrato cambia entre active y suspended.
+ * Sincroniza el estado del empleado y sus percepciones/deducciones
+ * cuando el estado del contrato cambia.
  */
 class ContractObserver
 {
@@ -31,6 +31,16 @@ class ContractObserver
                 ->where('deactivated_by_system', true)
                 ->get()
                 ->each(fn ($d) => $d->update(['end_date' => null, 'deactivated_by_system' => false]));
+        } elseif (in_array($contract->status, ['expired', 'terminated'])) {
+            // Solo marcar inactivo si no tiene otro contrato vigente
+            $hasOtherActive = $employee->contracts()
+                ->where('id', '!=', $contract->id)
+                ->where('status', 'active')
+                ->exists();
+
+            if (! $hasOtherActive) {
+                $employee->update(['status' => 'inactive']);
+            }
         }
     }
 }

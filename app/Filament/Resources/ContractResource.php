@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractResource\Pages;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
 use App\Models\Department;
@@ -33,11 +34,14 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
+use Filament\Tables\Actions\BulkAction;
+use Filament\Tables\Actions\BulkActionGroup;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Storage;
 
@@ -77,7 +81,7 @@ class ContractResource extends Resource
                                 name: 'employee',
                                 modifyQueryUsing: fn (Builder $query) => $query
                                     ->where('status', 'active')
-                                    ->whereDoesntHave('contracts', fn (Builder $q) => $q->where('status', 'active'))
+                                    ->whereDoesntHave('contracts', fn (Builder $q) => $q->whereIn('status', ['active', 'draft']))
                                     ->orderBy('first_name')
                                     ->orderBy('last_name'),
                             )
@@ -89,7 +93,7 @@ class ContractResource extends Resource
                             ->live()
                             ->disabled(fn (string $operation) => $operation === 'edit')
                             ->columnSpan(2)
-                            ->helperText('Solo se muestran empleados activos sin contrato vigente'),
+                            ->helperText('Solo se muestran empleados activos sin contrato vigente o en borrador'),
 
                         Select::make('type')
                             ->label('Tipo de Contrato')
@@ -97,15 +101,33 @@ class ContractResource extends Resource
                             ->required()
                             ->native(false)
                             ->live()
-                            ->afterStateUpdated(function (?string $state, Set $set, Get $get) {
+                            ->afterStateUpdated(function (?string $state, Set $set) {
                                 if ($state === 'indefinido') {
                                     $set('end_date', null);
                                 }
                                 $set('trial_days', 30);
-                                if ($state && ! $get('body')) {
-                                    $set('body', ContractTemplate::getForType($state)?->body);
-                                }
                             }),
+
+                        Placeholder::make('template_warning')
+                            ->label('')
+                            ->content(new \Illuminate\Support\HtmlString(
+                                '<div style="color:#b45309;font-size:12px;">⚠️ No hay plantilla configurada para este tipo de contrato en esta empresa. El PDF se generará sin cláusulas predefinidas.</div>'
+                            ))
+                            ->visible(function (Get $get) {
+                                $type = $get('type');
+                                $employeeId = $get('employee_id');
+                                if (! $type || ! $employeeId) {
+                                    return false;
+                                }
+                                $employee = \App\Models\Employee::with('branch')->find($employeeId);
+                                $companyId = $employee?->branch?->company_id;
+                                if (! $companyId) {
+                                    return false;
+                                }
+
+                                return ! ContractTemplate::where('type', $type)->where('company_id', $companyId)->exists();
+                            })
+                            ->columnSpan(3),
                     ])
                     ->columns(3),
 
@@ -323,25 +345,6 @@ class ContractResource extends Resource
                     ])
                     ->visible(fn (string $operation) => $operation === 'edit'),
 
-                Section::make('Cuerpo del Contrato')
-                    ->description('Cláusulas y condiciones del contrato')
-                    ->icon('heroicon-o-document-text')
-                    ->schema([
-                        RichEditor::make('body')
-                            ->label('Cuerpo del Contrato')
-                            ->helperText('Se pre-rellena con la plantilla del tipo elegido. Podés editarlo libremente.')
-                            ->columnSpanFull()
-                            ->toolbarButtons([
-                                'bold',
-                                'italic',
-                                'underline',
-                                'orderedList',
-                                'bulletList',
-                                'redo',
-                                'undo',
-                            ]),
-                    ]),
-
                 Section::make('Notas')
                     ->schema([
                         Textarea::make('notes')
@@ -350,6 +353,20 @@ class ContractResource extends Resource
                             ->rows(2)
                             ->columnSpanFull(),
                     ]),
+
+                Section::make('Cláusulas Adicionales')
+                    ->description('Cláusulas específicas para este contrato, que se agregan al final del cuerpo de la plantilla')
+                    ->icon('heroicon-o-document-plus')
+                    ->collapsible()
+                    ->collapsed(fn (?Model $record) => $record === null || ! $record->additional_clauses)
+                    ->schema([
+                        RichEditor::make('additional_clauses')
+                            ->label('Cláusulas adicionales')
+                            ->helperText('Se mostrarán después de las cláusulas estándar de la plantilla en el PDF.')
+                            ->toolbarButtons(['bold', 'italic', 'underline', 'orderedList', 'bulletList', 'redo', 'undo'])
+                            ->columnSpanFull(),
+                    ])
+                    ->columnSpanFull(),
 
                 Section::make('Estado')
                     ->schema([
@@ -569,17 +586,18 @@ class ContractResource extends Resource
                 })
                 ->columns(2),
 
-            InfoSection::make('Cuerpo del Contrato')
-                ->description('Cláusulas y condiciones editables')
-                ->icon('heroicon-o-document-text')
+            InfoSection::make('Cláusulas Adicionales')
+                ->icon('heroicon-o-document-plus')
                 ->collapsible()
+                ->collapsed()
                 ->schema([
-                    TextEntry::make('body')
+                    TextEntry::make('additional_clauses')
                         ->label('')
                         ->html()
-                        ->columnSpanFull(),
+                        ->columnSpanFull()
+                        ->placeholder('Sin cláusulas adicionales'),
                 ])
-                ->visible(fn (Contract $record) => (bool) $record->body),
+                ->visible(fn ($record) => filled($record->additional_clauses)),
 
             InfoSection::make('Notas')
                 ->collapsible()
@@ -649,6 +667,13 @@ class ContractResource extends Resource
                     ->icon(fn (string $state): string => Contract::getTypeIcon($state))
                     ->sortable(),
 
+                TextColumn::make('employee.branch.company.name')
+                    ->label('Empresa')
+                    ->badge()
+                    ->color('primary')
+                    ->sortable()
+                    ->visible(fn () => Company::active()->count() > 1),
+
                 TextColumn::make('position.name')
                     ->label('Cargo')
                     ->sortable()
@@ -670,14 +695,6 @@ class ContractResource extends Resource
                     ->icon(fn (string $state): string => Contract::getWorkModalityIcon($state))
                     ->toggleable(isToggledHiddenByDefault: true),
 
-                TextColumn::make('status')
-                    ->label('Estado')
-                    ->badge()
-                    ->formatStateUsing(fn (string $state) => Contract::getStatusLabel($state))
-                    ->color(fn (string $state): string => Contract::getStatusColor($state))
-                    ->icon(fn (string $state): string => Contract::getStatusIcon($state))
-                    ->sortable(),
-
                 TextColumn::make('created_at')
                     ->label('Creado')
                     ->dateTime('d/m/Y H:i')
@@ -688,11 +705,6 @@ class ContractResource extends Resource
                 SelectFilter::make('type')
                     ->label('Tipo de Contrato')
                     ->options(Contract::getTypeOptions())
-                    ->native(false),
-
-                SelectFilter::make('status')
-                    ->label('Estado')
-                    ->options(Contract::getStatusOptions())
                     ->native(false),
 
                 SelectFilter::make('salary_type')
@@ -860,6 +872,34 @@ class ContractResource extends Resource
                             'contrato_firmado_'.($record->employee?->ci ?? 'sin_ci').'_'.$record->start_date->format('Y_m_d').'.pdf'
                         )),
 
+                    Action::make('suspend')
+                        ->label('Suspender Contrato')
+                        ->icon('heroicon-o-pause-circle')
+                        ->color('warning')
+                        ->visible(fn (Contract $record) => $record->status === 'active')
+                        ->requiresConfirmation()
+                        ->modalHeading('Suspender contrato')
+                        ->modalDescription(fn (Contract $record) => 'Se suspenderá el contrato de '.($record->employee?->full_name ?? 'empleado').'. Sus percepciones y deducciones serán desactivadas temporalmente.')
+                        ->modalSubmitActionLabel('Sí, suspender')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'suspended']);
+                            Notification::make()->success()->title('Contrato suspendido')->send();
+                        }),
+
+                    Action::make('reactivate')
+                        ->label('Reactivar Contrato')
+                        ->icon('heroicon-o-play-circle')
+                        ->color('success')
+                        ->visible(fn (Contract $record) => $record->status === 'suspended')
+                        ->requiresConfirmation()
+                        ->modalHeading('Reactivar contrato')
+                        ->modalDescription(fn (Contract $record) => 'Se reactivará el contrato de '.($record->employee?->full_name ?? 'empleado').'. Sus percepciones y deducciones serán restauradas.')
+                        ->modalSubmitActionLabel('Sí, reactivar')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'active']);
+                            Notification::make()->success()->title('Contrato reactivado')->send();
+                        }),
+
                     Action::make('terminate')
                         ->label('Terminar Contrato')
                         ->icon('heroicon-o-x-circle')
@@ -897,10 +937,98 @@ class ContractResource extends Resource
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->tooltip('Más acciones'),
             ])
+            ->bulkActions([
+                BulkActionGroup::make([
+                    BulkAction::make('bulk_activate')
+                        ->label('Activar seleccionados')
+                        ->icon('heroicon-o-check-circle')
+                        ->color('success')
+                        ->requiresConfirmation()
+                        ->modalHeading('Activar contratos')
+                        ->modalDescription('Se activarán todos los contratos en estado Borrador del grupo seleccionado. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, activar')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'draft') {
+                                    $record->update(['status' => 'active']);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) activados.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar en Borrador.";
+                            }
+                            Notification::make()->success()->title('Contratos activados')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('bulk_suspend')
+                        ->label('Suspender seleccionados')
+                        ->icon('heroicon-o-pause-circle')
+                        ->color('warning')
+                        ->requiresConfirmation()
+                        ->modalHeading('Suspender contratos')
+                        ->modalDescription('Se suspenderán todos los contratos Vigentes del grupo seleccionado. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, suspender')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'active') {
+                                    $record->update(['status' => 'suspended']);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) suspendidos.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar Vigentes.";
+                            }
+                            Notification::make()->success()->title('Contratos suspendidos')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
+                    BulkAction::make('bulk_terminate')
+                        ->label('Terminar seleccionados')
+                        ->icon('heroicon-o-x-circle')
+                        ->color('danger')
+                        ->requiresConfirmation()
+                        ->modalHeading('Terminar contratos')
+                        ->modalDescription('Se terminarán todos los contratos Vigentes del grupo seleccionado. Esta acción no se puede deshacer. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Sí, terminar')
+                        ->action(function (Collection $records) {
+                            $processed = 0;
+                            foreach ($records as $record) {
+                                if ($record->status === 'active') {
+                                    ContractService::terminate($record);
+                                    $processed++;
+                                }
+                            }
+                            $ignored = $records->count() - $processed;
+                            $msg = "{$processed} contrato(s) terminados.";
+                            if ($ignored > 0) {
+                                $msg .= " {$ignored} ignorado(s) por no estar Vigentes.";
+                            }
+                            Notification::make()->warning()->title('Contratos terminados')->body($msg)->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                ]),
+            ])
             ->defaultSort('created_at', 'desc')
             ->emptyStateHeading('No hay contratos registrados')
             ->emptyStateDescription('Comienza agregando el primer contrato al sistema')
             ->emptyStateIcon('heroicon-o-document-text');
+    }
+
+    /**
+     * @return array<int, class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ContractAuditsRelationManager::class,
+        ];
     }
 
     /**

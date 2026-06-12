@@ -14,6 +14,10 @@ class ContractController extends Controller
      */
     public function show(Contract $contract)
     {
+        if (! $contract->start_date) {
+            abort(422, 'El contrato no tiene fecha de inicio definida.');
+        }
+
         $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
 
         $company = $contract->employee?->company;
@@ -70,8 +74,9 @@ class ContractController extends Controller
             employeeAge: $employeeAge,
         );
 
-        // Resolver secciones de la plantilla (si existe)
-        $template = ContractTemplate::getForType($contract->type);
+        // Resolver secciones de la plantilla (si existe), con scope por empresa
+        $companyId = $company?->id;
+        $template = ContractTemplate::getForType($contract->type, $companyId);
         $introText = $template?->intro_text
             ? ContractTemplate::resolveVariables($template->intro_text, $vars)
             : null;
@@ -80,6 +85,16 @@ class ContractController extends Controller
             : null;
         $signatureNotes = $template?->signature_notes
             ? ContractTemplate::resolveVariables($template->signature_notes, $vars)
+            : null;
+
+        // Body siempre desde la plantilla con variables resueltas
+        $contractBody = ($template && $template->body)
+            ? ContractTemplate::resolveVariables($template->body, $vars)
+            : null;
+
+        // Cláusulas adicionales del contrato (si las tiene)
+        $additionalClauses = $contract->additional_clauses
+            ? ContractTemplate::resolveVariables($contract->additional_clauses, $vars)
             : null;
 
         $pdf = Pdf::loadView('pdf.contract', [
@@ -96,6 +111,17 @@ class ContractController extends Controller
             'introText' => $introText,
             'closingText' => $closingText,
             'signatureNotes' => $signatureNotes,
+            'contractBody' => $contractBody,
+            'additionalClauses' => $additionalClauses,
+            // Presentación
+            'showHeader' => $template ? (bool) $template->show_header : true,
+            'showFooter' => $template ? (bool) $template->show_footer : true,
+            'documentTitle' => $template?->document_title ?: null,
+            'documentSubtitle' => $template?->document_subtitle ?: null,
+            'documentArtReference' => $template ? ($template->document_art_reference ?? null) : null,
+            'signatureEmployeeLabel' => $template?->signature_employee_label ?: null,
+            'signatureEmployerLabel' => $template?->signature_employer_label ?: null,
+            'signatureEmployerSublabel' => $template?->signature_employer_sublabel ?: null,
         ])->setPaper('a4', 'portrait');
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
@@ -123,10 +149,6 @@ class ContractController extends Controller
         $signatureNotes = $contractTemplate->signature_notes
             ? ContractTemplate::resolveVariables($contractTemplate->signature_notes, $sampleVars)
             : null;
-        $bodyResolved = $contractTemplate->body
-            ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
-            : null;
-
         // Objeto mock para que el blade funcione con datos ficticios
         $fakeEmployee = new \stdClass;
         $fakeEmployee->full_name = 'MARÍA GÓMEZ MARTÍNEZ';
@@ -134,7 +156,6 @@ class ContractController extends Controller
 
         $fakeContract = new \stdClass;
         $fakeContract->type = $contractTemplate->type;
-        $fakeContract->body = $bodyResolved;
         $fakeContract->id = 'VISTA PREVIA';
         $fakeContract->employee = $fakeEmployee;
         $fakeContract->start_date = Carbon::parse('2025-01-01');
@@ -157,6 +178,19 @@ class ContractController extends Controller
             'introText' => $introText,
             'closingText' => $closingText,
             'signatureNotes' => $signatureNotes,
+            'contractBody' => $contractTemplate->body
+                ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
+                : null,
+            'additionalClauses' => null,
+            // Presentación
+            'showHeader' => (bool) $contractTemplate->show_header,
+            'showFooter' => (bool) $contractTemplate->show_footer,
+            'documentTitle' => $contractTemplate->document_title ?: null,
+            'documentSubtitle' => $contractTemplate->document_subtitle ?: null,
+            'documentArtReference' => $contractTemplate->document_art_reference ?? null,
+            'signatureEmployeeLabel' => $contractTemplate->signature_employee_label ?: null,
+            'signatureEmployerLabel' => $contractTemplate->signature_employer_label ?: null,
+            'signatureEmployerSublabel' => $contractTemplate->signature_employer_sublabel ?: null,
         ])->setPaper('a4', 'portrait');
 
         $response = $pdf->stream("preview_plantilla_{$contractTemplate->type}.pdf");
@@ -202,8 +236,8 @@ class ContractController extends Controller
             '{cargo}' => $contract->position?->name ?? '.....................................',
             '{nacionalidad_empleado}' => $employee?->nationality ?? '...................',
             '{domicilio_empleado}' => $employee?->address ?? '......................................................................................................',
-            '{salario}' => number_format((float) $contract->salary, 0, ',', '.'),
-            '{salario_en_palabras}' => self::numberToWords((int) $contract->salary).' guaranies',
+            '{salario}' => $contract->salary !== null ? number_format((float) $contract->salary, 0, ',', '.') : '...................',
+            '{salario_en_palabras}' => $contract->salary !== null ? self::numberToWords((int) $contract->salary).' guaranies' : '...................',
             '{tipo_jornada}' => $shiftTypeLabel,
             '{horas_semanales}' => (string) $weeklyHours,
             '{horas_semanales_en_palabras}' => $weeklyHoursInWords,

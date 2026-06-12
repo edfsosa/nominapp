@@ -31,6 +31,21 @@ class ViewContract extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('activate')
+                ->label('Activar Contrato')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Activar contrato')
+                ->modalDescription('¿Confirmás que querés activar este contrato? Pasará a estado Vigente.')
+                ->modalSubmitActionLabel('Sí, activar')
+                ->visible(fn () => $this->record->status === 'draft')
+                ->action(function () {
+                    $this->record->update(['status' => 'active']);
+                    Notification::make()->success()->title('Contrato activado')->send();
+                    $this->refreshFormData(['status']);
+                }),
+
             Action::make('generate_pdf')
                 ->label('Generar PDF')
                 ->icon('heroicon-o-printer')
@@ -148,6 +163,36 @@ class ViewContract extends ViewRecord
                     return redirect(ContractResource::getUrl('view', ['record' => $newContract]));
                 }),
 
+            Action::make('suspend')
+                ->label('Suspender')
+                ->icon('heroicon-o-pause-circle')
+                ->color('warning')
+                ->visible(fn () => $this->record->status === 'active')
+                ->requiresConfirmation()
+                ->modalHeading('Suspender contrato')
+                ->modalDescription(fn () => "Se suspenderá el contrato de {$this->record->employee->full_name}. Sus percepciones y deducciones serán desactivadas temporalmente. Podrá reactivarse en cualquier momento.")
+                ->modalSubmitActionLabel('Sí, suspender')
+                ->action(function () {
+                    $this->record->update(['status' => 'suspended']);
+                    Notification::make()->success()->title('Contrato suspendido')->send();
+                    $this->refreshFormData(['status']);
+                }),
+
+            Action::make('reactivate')
+                ->label('Reactivar')
+                ->icon('heroicon-o-play-circle')
+                ->color('success')
+                ->visible(fn () => $this->record->status === 'suspended')
+                ->requiresConfirmation()
+                ->modalHeading('Reactivar contrato')
+                ->modalDescription(fn () => "Se reactivará el contrato de {$this->record->employee->full_name}. Sus percepciones y deducciones desactivadas por el sistema serán restauradas.")
+                ->modalSubmitActionLabel('Sí, reactivar')
+                ->action(function () {
+                    $this->record->update(['status' => 'active']);
+                    Notification::make()->success()->title('Contrato reactivado')->send();
+                    $this->refreshFormData(['status']);
+                }),
+
             Action::make('terminate')
                 ->label('Terminar')
                 ->icon('heroicon-o-x-circle')
@@ -186,6 +231,11 @@ class ViewContract extends ViewRecord
                 ->label('Editar')
                 ->icon('heroicon-o-pencil-square')
                 ->color('primary'),
+
+            \Filament\Actions\DeleteAction::make()
+                ->label('Eliminar borrador')
+                ->visible(fn () => $this->record->status === 'draft')
+                ->successRedirectUrl(ContractResource::getUrl('index')),
         ];
     }
 }

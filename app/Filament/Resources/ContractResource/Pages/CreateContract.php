@@ -9,9 +9,18 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Auth;
 
+/**
+ * Página de creación de contrato laboral.
+ *
+ * Ofrece dos modos de guardado: activar directamente o guardar como borrador
+ * para revisar el PDF antes de activar.
+ */
 class CreateContract extends CreateRecord
 {
     protected static string $resource = ContractResource::class;
+
+    /** @var bool Indica si el contrato se está guardando como borrador. */
+    protected bool $savingAsDraft = false;
 
     /**
      * Pre-rellena employee_id desde el query param ?employee_id cuando se llega desde la ficha del empleado.
@@ -26,11 +35,16 @@ class CreateContract extends CreateRecord
     }
 
     /**
-     * Antes de crear el contrato, valida que el empleado no tenga un contrato activo y que las fechas no se solapen. También asigna el usuario creador.
+     * Antes de crear el contrato, valida que el empleado no tenga un contrato activo o en borrador
+     * y que las fechas no se solapen. También asigna el usuario creador y el estado inicial.
+     *
+     * @param  array<string, mixed> $data
+     * @return array<string, mixed>
      */
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by_id'] = Auth::id();
+        $data['status'] = $this->savingAsDraft ? 'draft' : 'active';
 
         // Validar que no tenga un contrato activo
         $hasActive = Contract::where('employee_id', $data['employee_id'])
@@ -97,10 +111,43 @@ class CreateContract extends CreateRecord
     }
 
     /**
+     * Redirige a la vista del contrato al guardar como borrador, o al listado al activar directamente.
+     */
+    protected function getRedirectUrl(): string
+    {
+        if ($this->savingAsDraft) {
+            return ContractResource::getUrl('view', ['record' => $this->getRecord()]);
+        }
+
+        return ContractResource::getUrl('index');
+    }
+
+    /**
      * Personaliza el mensaje de notificación después de crear el contrato.
      */
     protected function getCreatedNotificationTitle(): ?string
     {
         return 'Contrato creado exitosamente';
+    }
+
+    /**
+     * Define las acciones del formulario de creación, incluyendo la opción de guardar como borrador.
+     *
+     * @return array<int, mixed>
+     */
+    protected function getFormActions(): array
+    {
+        return [
+            $this->getCreateFormAction(),
+            \Filament\Actions\Action::make('save_draft_and_preview')
+                ->label('Guardar borrador y previsualizar')
+                ->icon('heroicon-o-eye')
+                ->color('gray')
+                ->action(function () {
+                    $this->savingAsDraft = true;
+                    $this->create();
+                }),
+            $this->getCancelFormAction(),
+        ];
     }
 }

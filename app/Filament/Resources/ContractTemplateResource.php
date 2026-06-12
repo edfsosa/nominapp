@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractTemplateResource\Pages;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
 use Filament\Forms\Components\Actions;
@@ -11,6 +12,8 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\RichEditor;
 use Filament\Forms\Components\Tabs;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
@@ -68,6 +71,12 @@ class ContractTemplateResource extends Resource
     {
         return $form
             ->schema([
+                Placeholder::make('company_name_display')
+                    ->label('Empresa')
+                    ->content(fn ($record) => $record?->company?->name ?? '—')
+                    ->visible(fn ($record) => $record !== null)
+                    ->columnSpanFull(),
+
                 Tabs::make('Secciones del contrato')
                     ->tabs([
                         Tabs\Tab::make('Párrafo Introductorio')
@@ -150,6 +159,68 @@ class ContractTemplateResource extends Resource
                                     ->label('Notas en la sección de firmas')
                                     ->rows(4)
                                     ->columnSpanFull(),
+
+                                Placeholder::make('signature_labels_help')
+                                    ->label('Etiquetas de las líneas de firma')
+                                    ->content('Si se dejan vacíos, se usarán los textos por defecto.')
+                                    ->columnSpanFull(),
+
+                                TextInput::make('signature_employee_label')
+                                    ->label('Etiqueta lado empleado')
+                                    ->placeholder('Trabajador')
+                                    ->maxLength(100),
+
+                                TextInput::make('signature_employer_label')
+                                    ->label('Etiqueta lado empleador')
+                                    ->placeholder('Empleador o responsable legal')
+                                    ->maxLength(100),
+
+                                TextInput::make('signature_employer_sublabel')
+                                    ->label('Sub-etiqueta lado empleador')
+                                    ->placeholder('Firma y Sello')
+                                    ->maxLength(100),
+                            ])
+                            ->columns(3),
+
+                        Tabs\Tab::make('Presentación')
+                            ->icon('heroicon-o-adjustments-horizontal')
+                            ->schema([
+                                Toggle::make('show_header')
+                                    ->label('Mostrar encabezado de empresa')
+                                    ->helperText('Muestra el logo, nombre, RUC y datos de contacto de la empresa en la parte superior del PDF.')
+                                    ->default(true)
+                                    ->columnSpanFull(),
+
+                                Toggle::make('show_footer')
+                                    ->label('Mostrar pie de página')
+                                    ->helperText('Muestra "Documento generado el [fecha]" al final del PDF.')
+                                    ->default(true)
+                                    ->columnSpanFull(),
+
+                                Placeholder::make('title_help')
+                                    ->label('Título del documento')
+                                    ->content('Si se dejan vacíos, se usarán los textos por defecto. El subtítulo por defecto se deriva del tipo de contrato.')
+                                    ->columnSpanFull(),
+
+                                TextInput::make('document_title')
+                                    ->label('Título principal')
+                                    ->placeholder('CONTRATO INDIVIDUAL DE TRABAJO')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+
+                                TextInput::make('document_subtitle')
+                                    ->label('Subtítulo')
+                                    ->placeholder('Derivado del tipo (ej: Por Tiempo Indefinido)')
+                                    ->helperText('Si se define, reemplaza el subtítulo derivado del tipo de contrato.')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
+
+                                TextInput::make('document_art_reference')
+                                    ->label('Referencia al artículo legal')
+                                    ->placeholder('(En cumplimiento del Art. 48 del C. De T.)')
+                                    ->helperText('Dejar en blanco para mostrar el texto por defecto. Borrar el texto para ocultar esta línea.')
+                                    ->maxLength(255)
+                                    ->columnSpanFull(),
                             ]),
                     ])
                     ->columnSpanFull(),
@@ -163,6 +234,12 @@ class ContractTemplateResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('company.name')
+                    ->label('Empresa')
+                    ->badge()
+                    ->color('primary')
+                    ->visible(fn () => Company::active()->count() > 1),
+
                 TextColumn::make('type')
                     ->label('Tipo de Contrato')
                     ->formatStateUsing(fn ($state) => $state ? Contract::getTypeLabel($state) : '—')
