@@ -14,6 +14,10 @@ class ContractController extends Controller
      */
     public function show(Contract $contract)
     {
+        if (! $contract->start_date) {
+            abort(422, 'El contrato no tiene fecha de inicio definida.');
+        }
+
         $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
 
         $company = $contract->employee?->company;
@@ -232,8 +236,8 @@ class ContractController extends Controller
             '{cargo}' => $contract->position?->name ?? '.....................................',
             '{nacionalidad_empleado}' => $employee?->nationality ?? '...................',
             '{domicilio_empleado}' => $employee?->address ?? '......................................................................................................',
-            '{salario}' => number_format((float) $contract->salary, 0, ',', '.'),
-            '{salario_en_palabras}' => self::numberToWords((int) $contract->salary).' guaranies',
+            '{salario}' => $contract->salary !== null ? number_format((float) $contract->salary, 0, ',', '.') : '...................',
+            '{salario_en_palabras}' => $contract->salary !== null ? self::numberToWords((int) $contract->salary).' guaranies' : '...................',
             '{tipo_jornada}' => $shiftTypeLabel,
             '{horas_semanales}' => (string) $weeklyHours,
             '{horas_semanales_en_palabras}' => $weeklyHoursInWords,
