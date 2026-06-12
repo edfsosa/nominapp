@@ -20,7 +20,10 @@ jobs:
             -d '{}' \
             https://nominapp.sedacosmetica.com/deploy.php)
 
-          echo "Server response: $(cat /tmp/deploy_out.json)"
+          # Print the deploy log from the server response
+          echo "=== Deploy log ==="
+          cat /tmp/deploy_out.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('log','(no log)'))" 2>/dev/null || cat /tmp/deploy_out.json
+          echo "=================="
 
           if [ "$HTTP_STATUS" != "200" ]; then
             echo "Deploy failed — HTTP $HTTP_STATUS"

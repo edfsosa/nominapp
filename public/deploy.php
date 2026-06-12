@@ -72,6 +72,13 @@ foreach ($steps as $cmd) {
 
 file_put_contents($log, '[' . date('H:i:s') . '] === Deploy ' . ($failed ? 'FAILED' : 'OK') . ' ===' . PHP_EOL, FILE_APPEND);
 
+$logContent = @file_get_contents($log) ?: '';
+// Extract only the last deploy run (from the last "=== Deploy started ===" onwards)
+$lastRun = $logContent;
+if (($pos = strrpos($logContent, '=== Deploy started ===')) !== false) {
+    $lastRun = substr($logContent, max(0, $pos - 24)); // include the timestamp prefix
+}
+
 http_response_code($failed ? 500 : 200);
 header('Content-Type: application/json');
-echo json_encode(['status' => $failed ? 'failed' : 'ok']);
+echo json_encode(['status' => $failed ? 'failed' : 'ok', 'log' => $lastRun]);
