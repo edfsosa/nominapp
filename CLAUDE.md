@@ -1219,35 +1219,34 @@ Las columnas calculadas por subquery en el SELECT (`DB::raw('(SELECT ...) AS ali
 
 **Limitación Node 16:** Vite 6 + Rollup requieren Node ≥18 y ~512MB RAM para compilar. El servidor falla con `RangeError: WebAssembly.instantiate(): Out of memory`. **Solución permanente: buildear en local y subir assets via rsync.**
 
-**Checklist de deployment:**
-```bash
-# En el servidor
-php artisan down
-git pull origin main
-composer install --no-dev --optimize-autoloader
+**Deploy automático:** El deploy a producción se dispara automáticamente al hacer push/merge a `main` via GitHub Actions (`.github/workflows/deploy.yml`). El workflow llama a un webhook en `public/deploy.php` que ejecuta en orden:
+1. `artisan down`
+2. `git pull origin main`
+3. `composer install --no-dev --optimize-autoloader`
+4. `artisan migrate --force`
+5. `artisan optimize:clear && optimize && filament:optimize`
+6. `artisan queue:restart`
+7. `artisan up`
 
-# En local (dev)
+El log del deploy queda en `storage/logs/deploy.log` en el servidor. Si el deploy falla en algún paso, se ejecuta `artisan up` automáticamente para restaurar el sitio.
+
+**Antes de hacer merge a main verificar:**
+- Si hay nuevas variables de entorno (`.env`), agregarlas al servidor antes del merge
+- Si hay cambios en assets frontend (Blade, JS, CSS), buildear en local y subir via rsync antes del merge:
+```bash
 npm run build
 rsync -avz --delete public/build/ sedvouco@bh7104:/ruta/nominapp/public/build/
-
-# De vuelta en el servidor
-# Si hay nuevas variables en .env, agregarlas antes de migrate
-php artisan migrate --force
-php artisan optimize:clear
-php artisan optimize
-php artisan filament:optimize
-php artisan queue:restart
-php artisan up
 ```
 
 **Variables de entorno requeridas en producción:**
 - `GOOGLE_MAPS_API_KEY` — requerida por `cheesegrits/filament-google-maps` para el mapa de sucursales
+- `DEPLOY_TOKEN` — token secreto para autenticar el webhook de deploy
 
 **Scheduler configurado** (`crontab -l`):
 ```
 * * * * * cd /ruta/nominapp && /opt/cpanel/ea-php82/root/usr/bin/php artisan schedule:run >> storage/logs/cron.log 2>&1
 ```
-Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora).
+Tareas activas: `app:calculate-attendance` (23:00 diario), `attendance:check-missing` (cada 15min, 6am-8pm, lun-sáb), `face:expire-enrollments` (cada hora), `contracts:expire` (00:05 diario), `contracts:notify-expiring` (08:00 diario).
 
 ### RelationManagers de asignación con vigencia por fechas (`EmployeePerception`, `EmployeeDeduction`)
 
