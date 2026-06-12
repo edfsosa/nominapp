@@ -62,6 +62,8 @@ $steps = [
     "{$composer} install --no-dev --optimize-autoloader 2>&1",
     "mysqldump --host={$dbHost} --port={$dbPort} --user={$dbUser} --password=" . escapeshellarg($dbPass) . " --single-transaction --quick {$dbName} 2>&1 | gzip > " . escapeshellarg($backupFile) . " && echo 'Backup OK: {$backupFile}'",
     "{$artisan} migrate --force 2>&1",
+    "{$artisan} livewire:publish --assets 2>&1",
+    "{$artisan} filament:assets 2>&1",
     "{$artisan} optimize:clear 2>&1",
     "{$artisan} optimize 2>&1",
     "{$artisan} filament:optimize 2>&1",
