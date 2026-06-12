@@ -109,6 +109,15 @@ class ContractController extends Controller
             'signatureNotes' => $signatureNotes,
             'contractBody' => $contractBody,
             'additionalClauses' => $additionalClauses,
+            // Presentación
+            'showHeader' => $template ? (bool) $template->show_header : true,
+            'showFooter' => $template ? (bool) $template->show_footer : true,
+            'documentTitle' => $template?->document_title ?: null,
+            'documentSubtitle' => $template?->document_subtitle ?: null,
+            'documentArtReference' => $template ? ($template->document_art_reference ?? null) : null,
+            'signatureEmployeeLabel' => $template?->signature_employee_label ?: null,
+            'signatureEmployerLabel' => $template?->signature_employer_label ?: null,
+            'signatureEmployerSublabel' => $template?->signature_employer_sublabel ?: null,
         ])->setPaper('a4', 'portrait');
 
         $employeeCi = $contract->employee?->ci ?? 'sin_ci';
@@ -169,6 +178,15 @@ class ContractController extends Controller
                 ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
                 : null,
             'additionalClauses' => null,
+            // Presentación
+            'showHeader' => (bool) $contractTemplate->show_header,
+            'showFooter' => (bool) $contractTemplate->show_footer,
+            'documentTitle' => $contractTemplate->document_title ?: null,
+            'documentSubtitle' => $contractTemplate->document_subtitle ?: null,
+            'documentArtReference' => $contractTemplate->document_art_reference ?? null,
+            'signatureEmployeeLabel' => $contractTemplate->signature_employee_label ?: null,
+            'signatureEmployerLabel' => $contractTemplate->signature_employer_label ?: null,
+            'signatureEmployerSublabel' => $contractTemplate->signature_employer_sublabel ?: null,
         ])->setPaper('a4', 'portrait');
 
         $response = $pdf->stream("preview_plantilla_{$contractTemplate->type}.pdf");

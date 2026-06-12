@@ -8,7 +8,30 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 /** Plantilla de cuerpo/cláusulas por tipo de contrato, con alcance por empresa. */
 class ContractTemplate extends Model
 {
-    protected $fillable = ['company_id', 'type', 'body', 'intro_text', 'closing_text', 'signature_notes'];
+    protected $fillable = [
+        'company_id',
+        'type',
+        'body',
+        'intro_text',
+        'closing_text',
+        'signature_notes',
+        'document_title',
+        'document_subtitle',
+        'document_art_reference',
+        'signature_employee_label',
+        'signature_employer_label',
+        'signature_employer_sublabel',
+        'show_header',
+        'show_footer',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'show_header' => 'boolean',
+            'show_footer' => 'boolean',
+        ];
+    }
 
     /**
      * Empresa a la que pertenece esta plantilla.

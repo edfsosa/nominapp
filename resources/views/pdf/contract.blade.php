@@ -194,42 +194,46 @@
 <body>
 
     {{-- Encabezado de la Empresa --}}
-    <div class="company-header">
-        @if ($companyLogo)
-            <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
-        @endif
-        <div class="company-name">{{ $companyName }}</div>
-        <div class="company-info">
-            @if ($companyRuc)
-                RUC: {{ $companyRuc }}
+    @if ($showHeader ?? true)
+        <div class="company-header">
+            @if ($companyLogo)
+                <img src="{{ $companyLogo }}" alt="Logo" class="company-logo">
             @endif
-            @if ($employerNumber)
-                | Nro. Patronal: {{ $employerNumber }}
-            @endif
-        </div>
-        @if ($companyAddress)
-            <div class="company-info">{{ $companyAddress }}{{ $city ? ', ' . $city : '' }}</div>
-        @endif
-        @if ($companyPhone || $companyEmail)
+            <div class="company-name">{{ $companyName }}</div>
             <div class="company-info">
-                @if ($companyPhone)
-                    Tel: {{ $companyPhone }}
+                @if ($companyRuc)
+                    RUC: {{ $companyRuc }}
                 @endif
-                @if ($companyPhone && $companyEmail)
-                    |
-                @endif
-                @if ($companyEmail)
-                    {{ $companyEmail }}
+                @if ($employerNumber)
+                    | Nro. Patronal: {{ $employerNumber }}
                 @endif
             </div>
-        @endif
-    </div>
+            @if ($companyAddress)
+                <div class="company-info">{{ $companyAddress }}{{ $city ? ', ' . $city : '' }}</div>
+            @endif
+            @if ($companyPhone || $companyEmail)
+                <div class="company-info">
+                    @if ($companyPhone)
+                        Tel: {{ $companyPhone }}
+                    @endif
+                    @if ($companyPhone && $companyEmail)
+                        |
+                    @endif
+                    @if ($companyEmail)
+                        {{ $companyEmail }}
+                    @endif
+                </div>
+            @endif
+        </div>
+    @endif
 
     {{-- Titulo --}}
-    <div class="doc-title">CONTRATO INDIVIDUAL DE TRABAJO</div>
+    <div class="doc-title">{{ $documentTitle ?? 'CONTRATO INDIVIDUAL DE TRABAJO' }}</div>
 
     <div class="doc-subtitle">
-        @if ($contract->type === 'indefinido')
+        @if ($documentSubtitle ?? false)
+            {{ $documentSubtitle }}
+        @elseif ($contract->type === 'indefinido')
             Por Tiempo Indefinido
         @elseif ($contract->type === 'plazo_fijo')
             Por tiempo determinado o Fijo
@@ -244,7 +248,15 @@
         @endif
     </div>
 
-    <div class="doc-art">(En cumplimiento del Art. 48 del C. De T.)</div>
+    @php
+        // null = mostrar default; string vacío = ocultar; cualquier otro string = mostrar ese texto
+        $artRef = $documentArtReference ?? null;
+        $showArtRef = $artRef === null || $artRef !== '';
+        $artRefText = ($artRef !== null && $artRef !== '') ? $artRef : '(En cumplimiento del Art. 48 del C. De T.)';
+    @endphp
+    @if ($showArtRef)
+        <div class="doc-art">{{ $artRefText }}</div>
+    @endif
 
     {{-- Párrafo introductorio: solo se renderiza si fue definido en la plantilla --}}
     @if (!empty($introText))
@@ -277,15 +289,15 @@
     <div class="signature-section">
         <div class="signature-item">
             <div class="signature-line"></div>
-            <div class="signature-label">Trabajador</div>
+            <div class="signature-label">{{ $signatureEmployeeLabel ?? 'Trabajador' }}</div>
             <div class="signature-sublabel">{{ $contract->employee?->full_name }}</div>
             <div class="signature-sublabel">C.I. N.: {{ $contract->employee?->ci }}</div>
         </div>
         <div class="signature-item">
             <div class="signature-line"></div>
-            <div class="signature-label">Empleador o responsable legal</div>
+            <div class="signature-label">{{ $signatureEmployerLabel ?? 'Empleador o responsable legal' }}</div>
             <div class="signature-sublabel">{{ $companyName }}</div>
-            <div class="signature-sublabel">Firma y Sello</div>
+            <div class="signature-sublabel">{{ $signatureEmployerSublabel ?? 'Firma y Sello' }}</div>
         </div>
     </div>
 
@@ -295,13 +307,15 @@
     @endif
 
     {{-- Footer --}}
-    <div class="footer">
-        Documento generado el {{ now()->format('d/m/Y H:i') }}
-        @if ($city)
-            | {{ $city }}, Paraguay
-        @endif
-        | Contrato #{{ $contract->id }}
-    </div>
+    @if ($showFooter ?? true)
+        <div class="footer">
+            Documento generado el {{ now()->format('d/m/Y H:i') }}
+            @if ($city)
+                | {{ $city }}, Paraguay
+            @endif
+            | Contrato #{{ $contract->id }}
+        </div>
+    @endif
 
 </body>
 
