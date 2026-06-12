@@ -83,6 +83,11 @@ class ContractController extends Controller
             ? ContractTemplate::resolveVariables($template->signature_notes, $vars)
             : null;
 
+        // Body: usa el campo del contrato si tiene contenido; si no, cae a la plantilla con variables resueltas
+        if (! $contract->body && $template?->body) {
+            $contract->body = ContractTemplate::resolveVariables($template->body, $vars);
+        }
+
         $pdf = Pdf::loadView('pdf.contract', [
             'contract' => $contract,
             'companyLogo' => $companyLogo && file_exists($companyLogo) ? $companyLogo : null,
