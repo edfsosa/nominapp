@@ -133,7 +133,7 @@ class EditContractTemplate extends EditRecord
 
     protected function getRedirectUrl(): string
     {
-        return ContractTemplateResource::getUrl('index');
+        return ContractTemplateResource::getUrl('view', ['record' => $this->record]);
     }
 
     /**

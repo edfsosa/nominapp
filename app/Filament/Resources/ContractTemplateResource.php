@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractTemplateResource\Pages;
+use App\Filament\Resources\ContractTemplateResource\RelationManagers;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
@@ -296,13 +297,24 @@ class ContractTemplateResource extends Resource
     }
 
     /**
+     * @return array<class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ContractTemplateAuditsRelationManager::class,
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListContractTemplates::route('/'),
-            'edit' => Pages\EditContractTemplate::route('/{record}/edit'),
+            'index'  => Pages\ListContractTemplates::route('/'),
+            'view'   => Pages\ViewContractTemplate::route('/{record}'),
+            'edit'   => Pages\EditContractTemplate::route('/{record}/edit'),
         ];
     }
 }
