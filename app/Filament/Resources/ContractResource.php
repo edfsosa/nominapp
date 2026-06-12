@@ -346,20 +346,10 @@ class ContractResource extends Resource
                     ])
                     ->visible(fn (string $operation) => $operation === 'edit'),
 
-                Section::make('Notas')
-                    ->schema([
-                        Textarea::make('notes')
-                            ->label('Observaciones')
-                            ->placeholder('Notas adicionales sobre el contrato...')
-                            ->rows(2)
-                            ->columnSpanFull(),
-                    ]),
-
                 Section::make('Cláusulas Adicionales')
                     ->description('Cláusulas específicas para este contrato, que se agregan al final del cuerpo de la plantilla')
                     ->icon('heroicon-o-document-plus')
                     ->collapsible()
-                    ->collapsed(fn (?Model $record) => $record === null || ! $record->additional_clauses)
                     ->schema([
                         RichEditor::make('additional_clauses')
                             ->label('Cláusulas adicionales')
@@ -599,16 +589,6 @@ class ContractResource extends Resource
                         ->placeholder('Sin cláusulas adicionales'),
                 ])
                 ->visible(fn ($record) => filled($record->additional_clauses)),
-
-            InfoSection::make('Notas')
-                ->collapsible()
-                ->schema([
-                    TextEntry::make('notes')
-                        ->label('')
-                        ->placeholder('Sin notas')
-                        ->columnSpanFull(),
-                ])
-                ->visible(fn (Contract $record) => ! empty($record->notes)),
 
             InfoSection::make('Registro')
                 ->icon('heroicon-o-information-circle')
