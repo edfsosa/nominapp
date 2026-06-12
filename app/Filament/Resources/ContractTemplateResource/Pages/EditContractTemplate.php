@@ -3,8 +3,11 @@
 namespace App\Filament\Resources\ContractTemplateResource\Pages;
 
 use App\Filament\Resources\ContractTemplateResource;
+use App\Models\Company;
 use App\Models\ContractTemplate;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Get;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
@@ -22,6 +25,78 @@ class EditContractTemplate extends EditRecord
                 ->color('gray')
                 ->url(fn () => route('contract-templates.preview', $this->record))
                 ->openUrlInNewTab(),
+
+            Action::make('copy_to_company')
+                ->label('Copiar a empresa')
+                ->icon('heroicon-o-document-duplicate')
+                ->color('info')
+                ->visible(fn () => Company::active()->where('id', '!=', $this->record->company_id)->exists())
+                ->form([
+                    Select::make('target_company_id')
+                        ->label('Empresa destino')
+                        ->options(fn () => Company::active()
+                            ->where('id', '!=', $this->record->company_id)
+                            ->orderBy('name')
+                            ->pluck('name', 'id')
+                            ->toArray()
+                        )
+                        ->required()
+                        ->live(),
+
+                    \Filament\Forms\Components\Placeholder::make('overwrite_warning')
+                        ->label('')
+                        ->content(function (Get $get): ?string {
+                            $targetId = $get('target_company_id');
+                            if (! $targetId) {
+                                return null;
+                            }
+                            $exists = ContractTemplate::where('company_id', $targetId)
+                                ->where('type', $this->record->type)
+                                ->exists();
+                            if (! $exists) {
+                                return null;
+                            }
+                            $companyName = Company::find($targetId)?->name;
+
+                            return "⚠️ Ya existe una plantilla de tipo \"{$this->record->type}\" en {$companyName}. Se sobreescribirá con el contenido actual.";
+                        })
+                        ->visible(fn (Get $get): bool => filled($get('target_company_id')) &&
+                            ContractTemplate::where('company_id', $get('target_company_id'))
+                                ->where('type', $this->record->type)
+                                ->exists()
+                        ),
+                ])
+                ->modalHeading('Copiar plantilla a otra empresa')
+                ->modalSubmitActionLabel('Copiar')
+                ->action(function (array $data) {
+                    $targetId = $data['target_company_id'];
+
+                    ContractTemplate::updateOrCreate(
+                        ['company_id' => $targetId, 'type' => $this->record->type],
+                        [
+                            'intro_text'                  => $this->record->intro_text,
+                            'body'                        => $this->record->body,
+                            'closing_text'                => $this->record->closing_text,
+                            'signature_notes'             => $this->record->signature_notes,
+                            'document_title'              => $this->record->document_title,
+                            'document_subtitle'           => $this->record->document_subtitle,
+                            'document_art_reference'      => $this->record->document_art_reference,
+                            'signature_employee_label'    => $this->record->signature_employee_label,
+                            'signature_employer_label'    => $this->record->signature_employer_label,
+                            'signature_employer_sublabel' => $this->record->signature_employer_sublabel,
+                            'show_header'                 => $this->record->show_header,
+                            'show_footer'                 => $this->record->show_footer,
+                        ]
+                    );
+
+                    $companyName = Company::find($targetId)?->name;
+
+                    Notification::make()
+                        ->success()
+                        ->title('Plantilla copiada')
+                        ->body("La plantilla fue copiada a {$companyName} correctamente.")
+                        ->send();
+                }),
 
             Action::make('restore_defaults')
                 ->label('Restaurar valores base')
