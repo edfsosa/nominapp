@@ -10,6 +10,19 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Show commits being deployed
+        run: |
+          PREV_SHA=${{ github.event.before }}
+          CURR_SHA=${{ github.sha }}
+          echo "=== Commits in this deploy ==="
+          git log --oneline "${PREV_SHA}..${CURR_SHA}" 2>/dev/null || git log --oneline -10
+          echo "=============================="
+
       - name: Trigger deploy webhook
         run: |
           HTTP_STATUS=$(curl -s -o /tmp/deploy_out.json -w "%{http_code}" \
