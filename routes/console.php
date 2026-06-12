@@ -70,6 +70,20 @@ Schedule::command('vacations:generate-annual-balances')
     });
 
 /**
+ * Marcar como vencidos los contratos activos cuya end_date ya pasó
+ * Se ejecuta a las 00:05 para que los estados estén actualizados al inicio del día
+ */
+Schedule::command('contracts:expire')
+    ->dailyAt('00:05')
+    ->withoutOverlapping()
+    ->onSuccess(function () {
+        Log::info('Expiración automática de contratos completada');
+    })
+    ->onFailure(function () {
+        Log::error('Falló la expiración automática de contratos');
+    });
+
+/**
  * Notificar contratos próximos a vencer o ya vencidos
  * Se ejecuta diariamente a las 08:00 — una sola notificación por contrato (no duplica)
  */

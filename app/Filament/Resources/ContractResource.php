@@ -869,6 +869,34 @@ class ContractResource extends Resource
                             'contrato_firmado_'.($record->employee?->ci ?? 'sin_ci').'_'.$record->start_date->format('Y_m_d').'.pdf'
                         )),
 
+                    Action::make('suspend')
+                        ->label('Suspender Contrato')
+                        ->icon('heroicon-o-pause-circle')
+                        ->color('warning')
+                        ->visible(fn (Contract $record) => $record->status === 'active')
+                        ->requiresConfirmation()
+                        ->modalHeading('Suspender contrato')
+                        ->modalDescription(fn (Contract $record) => 'Se suspenderá el contrato de '.($record->employee?->full_name ?? 'empleado').'. Sus percepciones y deducciones serán desactivadas temporalmente.')
+                        ->modalSubmitActionLabel('Sí, suspender')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'suspended']);
+                            Notification::make()->success()->title('Contrato suspendido')->send();
+                        }),
+
+                    Action::make('reactivate')
+                        ->label('Reactivar Contrato')
+                        ->icon('heroicon-o-play-circle')
+                        ->color('success')
+                        ->visible(fn (Contract $record) => $record->status === 'suspended')
+                        ->requiresConfirmation()
+                        ->modalHeading('Reactivar contrato')
+                        ->modalDescription(fn (Contract $record) => 'Se reactivará el contrato de '.($record->employee?->full_name ?? 'empleado').'. Sus percepciones y deducciones serán restauradas.')
+                        ->modalSubmitActionLabel('Sí, reactivar')
+                        ->action(function (Contract $record) {
+                            $record->update(['status' => 'active']);
+                            Notification::make()->success()->title('Contrato reactivado')->send();
+                        }),
+
                     Action::make('terminate')
                         ->label('Terminar Contrato')
                         ->icon('heroicon-o-x-circle')
