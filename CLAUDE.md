@@ -1561,6 +1561,145 @@ Placeholder::make('existing_warning')
 
 El `Placeholder` debe mostrar datos relevantes del registro existente (estado, valores actuales) para que el usuario decida conscientemente si continuar.
 
+### Workflow de borrador en `CreateRecord` (dos botones de guardado)
+
+Cuando el usuario necesita guardar como borrador para previsualizar antes de activar, agregar una propiedad `$savingAsDraft` en la Page y sobreescribir `getFormActions()`:
+
+```php
+protected bool $savingAsDraft = false;
+
+protected function getFormActions(): array
+{
+    return [
+        Action::make('create')->label('Crear y activar')->action('create'),
+        Action::make('save_draft')
+            ->label('Guardar borrador')
+            ->action(function () {
+                $this->savingAsDraft = true;
+                $this->create();
+            }),
+        Action::make('cancel')->label('Cancelar')->url($this->getResource()::getUrl('index')),
+    ];
+}
+
+protected function mutateFormDataBeforeCreate(array $data): array
+{
+    $data['status'] = $this->savingAsDraft ? 'draft' : 'active';
+    return $data;
+}
+
+protected function getRedirectUrl(): string
+{
+    return $this->savingAsDraft
+        ? $this->getResource()::getUrl('view', ['record' => $this->getRecord()])
+        : $this->getResource()::getUrl('index');
+}
+```
+
+El botón "activar" usa el flow estándar de Filament; el de borrador setea la propiedad antes de llamar a `create()`. `mutateFormDataBeforeCreate()` lee la propiedad para decidir el status.
+
+### Observer para cascada de estados entre modelos relacionados
+
+Cuando el estado de un modelo debe propagar cambios a su modelo padre/relacionado, hacerlo en el observer con un guard que verifique si el relacionado tiene otro registro activo antes de cambiar su estado:
+
+```php
+public function updated(Contract $contract): void
+{
+    if (! $contract->isDirty('status')) {
+        return;
+    }
+
+    if (in_array($contract->status, ['expired', 'terminated'])) {
+        $hasOtherActive = $contract->employee->contracts()
+            ->where('id', '!=', $contract->id)
+            ->where('status', 'active')
+            ->exists();
+
+        if (! $hasOtherActive) {
+            $contract->employee->update(['status' => 'inactive']);
+        }
+    }
+}
+```
+
+**Regla:** siempre verificar si el modelo relacionado tiene otro registro que justifique mantener su estado antes de cambiarlo. Sin el guard, un empleado con dos contratos (uno que vence y otro activo) quedaría incorrectamente inactivo.
+
+### Comando de expiración automática de registros por fecha
+
+Para modelos con `end_date` o `expires_at` que deben cambiar de estado automáticamente, crear un comando diario en `app/Console/Commands/` y registrarlo en `routes/console.php` a las 00:05:
+
+```php
+// app/Console/Commands/ExpireFoo.php
+public function handle(): int
+{
+    $count = Foo::query()
+        ->where('status', 'active')
+        ->whereNotNull('end_date')
+        ->where('end_date', '<', now()->startOfDay())
+        ->update(['status' => 'expired']);
+
+    if ($count > 0) {
+        Log::info("foo:expire: {$count} registros marcados como expirados.");
+    }
+
+    return self::SUCCESS;
+}
+```
+
+```php
+// routes/console.php
+Schedule::command('foo:expire')->dailyAt('00:05')->withoutOverlapping();
+```
+
+Usar `now()->startOfDay()` (no `now()`) para evitar que registros que vencen hoy a medianoche se salteen por segundos de diferencia.
+
+### Deduplicación de notificaciones de campanita
+
+Cuando un comando diario envía notificaciones (ej. contratos por vencer), evitar duplicados verificando las notificaciones no leídas existentes antes de enviar:
+
+```php
+private function getAlreadyNotifiedIds(User $anyUser): array
+{
+    return $anyUser->unreadNotifications()
+        ->where('type', MyNotification::class)
+        ->pluck('data->entity_id')
+        ->map(fn ($id) => (int) $id)
+        ->filter()
+        ->unique()
+        ->values()
+        ->toArray();
+}
+
+// En handle():
+$alreadyNotified = $this->getAlreadyNotifiedIds($users->first());
+$pending = MyModel::whereNotIn('id', $alreadyNotified)->get();
+```
+
+La lógica: si al menos un usuario ya tiene la notificación no leída para ese registro, se asume que todos los usuarios ya fueron notificados. Al leer la notificación, el registro vuelve a ser elegible en la próxima corrida — comportamiento correcto si el estado aún persiste.
+
+### Auditoría selectiva con `auditInclude`
+
+Al implementar `Auditable` en un modelo, siempre definir `$auditInclude` para limitar qué campos se registran. Sin esto, la auditoría captura todos los campos incluyendo timestamps, FKs internas y datos que no aportan valor al historial:
+
+```php
+class Contract extends Model implements Auditable
+{
+    use \OwenIt\Auditing\Auditable;
+
+    protected array $auditInclude = [
+        'status',
+        'salary',
+        'position_id',
+        'start_date',
+        'end_date',
+        'notes',
+        // Solo los campos que el usuario ve y que tienen significado de negocio
+    ];
+}
+```
+
+Acompañar siempre con `formatAuditFieldsForPresentation()` en el modelo para mostrar valores legibles (ej. `status: 'active'` → `'Vigente'`, `position_id: 5` → `'Gerente de Ventas'`) y el `RelationManager` correspondiente para mostrarlo en la UI.
+
 ### Important Notes
 - Monetary values use `decimal:2` cast
 - `Employee::getAdvanceReferenceSalary()` does **not** yet include the weekly paid rest day for jornaleros — pending automatic calculation
