@@ -4,10 +4,28 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /** Plantilla de cuerpo/cláusulas por tipo de contrato, con alcance por empresa. */
-class ContractTemplate extends Model
+class ContractTemplate extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    protected array $auditInclude = [
+        'intro_text',
+        'body',
+        'closing_text',
+        'signature_notes',
+        'document_title',
+        'document_subtitle',
+        'signature_employee_label',
+        'signature_employer_label',
+        'signature_employer_sublabel',
+        'show_header',
+        'show_footer',
+    ];
     protected $fillable = [
         'company_id',
         'type',
@@ -147,5 +165,57 @@ class ContractTemplate extends Model
     public static function resolveVariables(string $html, array $values): string
     {
         return str_replace(array_keys($values), array_values($values), $html);
+    }
+
+    /**
+     * Formatea los campos auditados para su presentación en el RelationManager de historial.
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'intro_text'                  => 'Introducción',
+            'body'                        => 'Cuerpo / Cláusulas',
+            'closing_text'                => 'Cierre',
+            'signature_notes'             => 'Notas de firma',
+            'document_title'              => 'Título del documento',
+            'document_subtitle'           => 'Subtítulo',
+            'signature_employee_label'    => 'Etiqueta firma empleado',
+            'signature_employer_label'    => 'Etiqueta firma empleador',
+            'signature_employer_sublabel' => 'Subetiqueta firma empleador',
+            'show_header'                 => 'Mostrar encabezado',
+            'show_footer'                 => 'Mostrar pie de página',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label     = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /**
+     * Convierte el valor crudo de un campo auditado a su representación legible.
+     */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'show_header', 'show_footer' => $value ? 'Sí' : 'No',
+            'intro_text', 'body', 'closing_text', 'signature_notes' => '(texto HTML — ver plantilla)',
+            default => (string) $value,
+        };
     }
 }

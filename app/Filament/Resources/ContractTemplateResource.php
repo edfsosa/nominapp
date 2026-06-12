@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractTemplateResource\Pages;
+use App\Filament\Resources\ContractTemplateResource\RelationManagers;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
@@ -17,6 +18,7 @@ use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Set;
 use Filament\Resources\Resource;
+use Filament\Tables\Actions\Action as TableAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -248,19 +250,25 @@ class ContractTemplateResource extends Resource
                     ->icon(fn ($state) => $state ? Contract::getTypeIcon($state) : null),
 
                 TextColumn::make('sections_configured')
-                    ->label('Secciones configuradas')
-                    ->getStateUsing(function (ContractTemplate $record): string {
-                        $sections = collect([
-                            $record->intro_text ? 'Intro' : null,
-                            $record->body ? 'Cláusulas' : null,
-                            $record->closing_text ? 'Cierre' : null,
-                            $record->signature_notes ? 'Firmas' : null,
-                        ])->filter()->implode(', ');
+                    ->label('Secciones')
+                    ->getStateUsing(function (ContractTemplate $record): HtmlString {
+                        $sections = [
+                            'Intro'     => filled($record->intro_text),
+                            'Cláusulas' => filled($record->body),
+                            'Cierre'    => filled($record->closing_text),
+                            'Firmas'    => filled($record->signature_notes),
+                        ];
 
-                        return $sections ?: 'Sin personalizar';
-                    })
-                    ->badge()
-                    ->color(fn (string $state): string => $state === 'Sin personalizar' ? 'gray' : 'success'),
+                        $badges = collect($sections)->map(function (bool $filled, string $label): string {
+                            $color = $filled
+                                ? 'background:rgb(var(--color-success-100));color:rgb(var(--color-success-700));'
+                                : 'background:rgb(var(--color-warning-100));color:rgb(var(--color-warning-700));';
+
+                            return "<span style=\"{$color}display:inline-block;padding:1px 8px;border-radius:9999px;font-size:0.75rem;font-weight:500;margin:1px 2px\">{$label}</span>";
+                        })->implode('');
+
+                        return new HtmlString("<div style=\"display:flex;flex-wrap:wrap;gap:2px\">{$badges}</div>");
+                    }),
 
                 TextColumn::make('body')
                     ->label('Vista previa (cláusulas)')
@@ -274,6 +282,12 @@ class ContractTemplateResource extends Resource
                     ->sortable(),
             ])
             ->actions([
+                TableAction::make('preview_pdf')
+                    ->label('Vista Previa')
+                    ->icon('heroicon-o-eye')
+                    ->color('gray')
+                    ->url(fn (ContractTemplate $record) => route('contract-templates.preview', $record))
+                    ->openUrlInNewTab(),
                 EditAction::make()
                     ->label('Editar plantilla')
                     ->icon('heroicon-o-pencil-square')
@@ -283,13 +297,24 @@ class ContractTemplateResource extends Resource
     }
 
     /**
+     * @return array<class-string>
+     */
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\ContractTemplateAuditsRelationManager::class,
+        ];
+    }
+
+    /**
      * @return array<string, string>
      */
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListContractTemplates::route('/'),
-            'edit' => Pages\EditContractTemplate::route('/{record}/edit'),
+            'index'  => Pages\ListContractTemplates::route('/'),
+            'view'   => Pages\ViewContractTemplate::route('/{record}'),
+            'edit'   => Pages\EditContractTemplate::route('/{record}/edit'),
         ];
     }
 }

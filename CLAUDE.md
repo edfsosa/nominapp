@@ -555,6 +555,18 @@ return response()->file($path, [
 ]);
 ```
 
+**`$pdf->stream()` y caché del navegador**
+`$pdf->stream()` tampoco agrega headers no-cache por defecto. El mismo principio aplica — capturar el response y agregar los headers antes de retornarlo:
+
+```php
+$response = $pdf->stream("nombre_archivo.pdf");
+$response->headers->set('Cache-Control', 'no-store, no-cache, must-revalidate');
+$response->headers->set('Pragma', 'no-cache');
+return $response;
+```
+
+Aplica siempre que el PDF se genera en tiempo real a partir de datos que pueden cambiar (plantillas editables, recibos regenerados, etc.).
+
 **`$this->js("window.open(url, '_blank')")` para URLs dinámicas post-modal**
 Cuando la URL del PDF depende de datos del formulario del modal (ej. selección de modo), no se puede usar `->url()->openUrlInNewTab()` (que es estático). En su lugar:
 
@@ -1149,6 +1161,45 @@ public function mount(): void
 ```
 
 Esto significa que si el usuario limpia explícitamente el filtro (session guarda null), al recargar la página el filtro vuelve a 'active'. Para reportes con un default intencional, este comportamiento es aceptable.
+
+### Migraciones DDL en Laravel 12 — sin Doctrine DBAL
+
+Laravel 12 eliminó la dependencia de Doctrine DBAL. Métodos como `getDoctrineSchemaManager()`, `listTableIndexes()` y similares ya no existen. Las operaciones DDL idempotentes deben hacerse con `try/catch` y guards de Schema:
+
+**Agregar columna (idempotente):**
+```php
+if (! Schema::hasColumn('tabla', 'columna')) {
+    Schema::table('tabla', function (Blueprint $table) {
+        $table->foreignId('columna')->nullable()->constrained('otras_tablas');
+    });
+}
+```
+
+**Eliminar / agregar índice único (idempotente):**
+```php
+// ❌ No existe en Laravel 12
+$sm = Schema::getConnection()->getDoctrineSchemaManager();
+$indexes = $sm->listTableIndexes('tabla');
+
+// ✅ Correcto — try/catch para idempotencia
+try {
+    Schema::table('tabla', function (Blueprint $table) {
+        $table->dropUnique(['columna']);
+    });
+} catch (\Throwable $e) {
+    // El índice ya fue eliminado en un deploy anterior parcial — continuar
+}
+
+try {
+    Schema::table('tabla', function (Blueprint $table) {
+        $table->unique(['col1', 'col2']);
+    });
+} catch (\Throwable $e) {
+    // El índice ya existe — continuar
+}
+```
+
+El `try/catch` es necesario también para idempotencia en caso de deploys parciales (migración que falló a mitad y dejó la BD en estado intermedio).
 
 ### Diferencias de fechas con Carbon 3 (Laravel 12)
 
