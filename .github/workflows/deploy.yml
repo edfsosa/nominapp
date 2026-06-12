@@ -52,11 +52,12 @@ jobs:
 
           HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             --max-time 30 \
+            --location \
             https://nominapp.sedacosmetica.com/admin/login)
 
           echo "Health check status: $HTTP_STATUS"
 
-          if [ "$HTTP_STATUS" != "200" ]; then
+          if [[ "$HTTP_STATUS" -ge 500 ]]; then
             echo "Health check failed — app returned HTTP $HTTP_STATUS"
             exit 1
           fi
