@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ContractTemplateResource\Pages;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractTemplate;
 use Filament\Forms\Components\Actions;
@@ -68,6 +69,12 @@ class ContractTemplateResource extends Resource
     {
         return $form
             ->schema([
+                Placeholder::make('company_name_display')
+                    ->label('Empresa')
+                    ->content(fn ($record) => $record?->company?->name ?? '—')
+                    ->visible(fn ($record) => $record !== null)
+                    ->columnSpanFull(),
+
                 Tabs::make('Secciones del contrato')
                     ->tabs([
                         Tabs\Tab::make('Párrafo Introductorio')
@@ -163,6 +170,12 @@ class ContractTemplateResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('company.name')
+                    ->label('Empresa')
+                    ->badge()
+                    ->color('primary')
+                    ->visible(fn () => Company::active()->count() > 1),
+
                 TextColumn::make('type')
                     ->label('Tipo de Contrato')
                     ->formatStateUsing(fn ($state) => $state ? Contract::getTypeLabel($state) : '—')

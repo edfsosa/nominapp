@@ -103,9 +103,33 @@ class ContractResource extends Resource
                                 }
                                 $set('trial_days', 30);
                                 if ($state && ! $get('body')) {
-                                    $set('body', ContractTemplate::getForType($state)?->body);
+                                    $employeeId = $get('employee_id');
+                                    $employee = $employeeId ? \App\Models\Employee::with('branch')->find($employeeId) : null;
+                                    $companyId = $employee?->branch?->company_id;
+                                    $set('body', ContractTemplate::getForType($state, $companyId)?->body);
                                 }
                             }),
+
+                        Placeholder::make('template_warning')
+                            ->label('')
+                            ->content(new \Illuminate\Support\HtmlString(
+                                '<div style="color:#b45309;font-size:12px;">⚠️ No hay plantilla configurada para este tipo de contrato en esta empresa. El PDF se generará sin cláusulas predefinidas.</div>'
+                            ))
+                            ->visible(function (Get $get) {
+                                $type = $get('type');
+                                $employeeId = $get('employee_id');
+                                if (! $type || ! $employeeId) {
+                                    return false;
+                                }
+                                $employee = \App\Models\Employee::with('branch')->find($employeeId);
+                                $companyId = $employee?->branch?->company_id;
+                                if (! $companyId) {
+                                    return false;
+                                }
+
+                                return ! ContractTemplate::where('type', $type)->where('company_id', $companyId)->exists();
+                            })
+                            ->columnSpan(3),
                     ])
                     ->columns(3),
 

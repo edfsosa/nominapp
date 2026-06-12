@@ -70,8 +70,9 @@ class ContractController extends Controller
             employeeAge: $employeeAge,
         );
 
-        // Resolver secciones de la plantilla (si existe)
-        $template = ContractTemplate::getForType($contract->type);
+        // Resolver secciones de la plantilla (si existe), con scope por empresa
+        $companyId = $company?->id;
+        $template = ContractTemplate::getForType($contract->type, $companyId);
         $introText = $template?->intro_text
             ? ContractTemplate::resolveVariables($template->intro_text, $vars)
             : null;
