@@ -123,6 +123,9 @@ class ContractController extends Controller
         $signatureNotes = $contractTemplate->signature_notes
             ? ContractTemplate::resolveVariables($contractTemplate->signature_notes, $sampleVars)
             : null;
+        $bodyResolved = $contractTemplate->body
+            ? ContractTemplate::resolveVariables($contractTemplate->body, $sampleVars)
+            : null;
 
         // Objeto mock para que el blade funcione con datos ficticios
         $fakeEmployee = new \stdClass;
@@ -131,7 +134,7 @@ class ContractController extends Controller
 
         $fakeContract = new \stdClass;
         $fakeContract->type = $contractTemplate->type;
-        $fakeContract->body = $contractTemplate->body;
+        $fakeContract->body = $bodyResolved;
         $fakeContract->id = 'VISTA PREVIA';
         $fakeContract->employee = $fakeEmployee;
         $fakeContract->start_date = Carbon::parse('2025-01-01');
