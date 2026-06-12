@@ -14,10 +14,33 @@ return new class extends Migration
             $table->foreignId('company_id')->nullable()->constrained('companies')->after('id');
         });
 
-        // Asignar filas existentes a la primera empresa activa
-        DB::table('contract_templates')->whereNull('company_id')->update([
-            'company_id' => DB::table('companies')->where('is_active', 1)->orderBy('id')->value('id'),
-        ]);
+        // Capturar el contenido de las plantillas antes de asignar company_id
+        $existingTemplates = DB::table('contract_templates')->whereNull('company_id')->get();
+        $companies = DB::table('companies')->where('is_active', 1)->orderBy('id')->pluck('id');
+
+        if ($companies->isNotEmpty() && $existingTemplates->isNotEmpty()) {
+            // Asignar las filas originales a la primera empresa
+            DB::table('contract_templates')
+                ->whereNull('company_id')
+                ->update(['company_id' => $companies->first()]);
+
+            // Copiar cada plantilla a las demás empresas activas
+            $now = now();
+            foreach ($companies->skip(1) as $companyId) {
+                foreach ($existingTemplates as $template) {
+                    DB::table('contract_templates')->insert([
+                        'company_id'      => $companyId,
+                        'type'            => $template->type,
+                        'body'            => $template->body,
+                        'intro_text'      => $template->intro_text ?? null,
+                        'closing_text'    => $template->closing_text ?? null,
+                        'signature_notes' => $template->signature_notes ?? null,
+                        'created_at'      => $now,
+                        'updated_at'      => $now,
+                    ]);
+                }
+            }
+        }
 
         Schema::table('contract_templates', function (Blueprint $table) {
             $table->dropUnique(['type']);
