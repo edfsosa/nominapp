@@ -26,3 +26,4 @@ public/error_log
 .claude/
 .mcp.json
 boost.json
+/storage/backups/
