@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\AdvanceResource\Pages;
 
-use App\Exports\AdvancesExport;
 use App\Exports\AdvancesTemplateExport;
 use App\Filament\Resources\AdvanceResource;
 use App\Imports\AdvancesImport;
@@ -325,32 +324,6 @@ class ListAdvances extends ListRecords
                 ->color('warning')
                 ->button(),
 
-            ActionGroup::make([
-                Action::make('export')
-                    ->label('Exportar Excel')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->color('info')
-                    ->requiresConfirmation()
-                    ->modalHeading('Exportar Adelantos')
-                    ->modalDescription('Se exportarán todos los adelantos registrados.')
-                    ->modalSubmitActionLabel('Exportar')
-                    ->action(function () {
-                        Notification::make()
-                            ->title('Exportación iniciada')
-                            ->body('El archivo se descargará en un momento.')
-                            ->success()
-                            ->send();
-
-                        return Excel::download(
-                            new AdvancesExport,
-                            'adelantos_'.now()->format('Y_m_d_H_i_s').'.xlsx'
-                        );
-                    }),
-            ])
-                ->label('Exportar')
-                ->icon('heroicon-o-arrow-down-tray')
-                ->color('gray')
-                ->button(),
         ];
     }
 
