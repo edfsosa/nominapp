@@ -118,7 +118,7 @@ class BankAccountsRelationManager extends RelationManager
 
                 TextColumn::make('bank_company_id')
                     ->label('ID Empresa (banco)')
-                    ->placeholder('-')
+                    ->placeholder('Sin ID')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('account_type')
@@ -235,6 +235,7 @@ class BankAccountsRelationManager extends RelationManager
                     ->modalSubmitActionLabel('Sí, eliminar'),
             ])
             ->defaultSort('is_primary', 'desc')
+            ->paginationPageOptions([10, 25, 50, 100])
             ->emptyStateHeading('Sin cuentas bancarias')
             ->emptyStateDescription('Registrá las cuentas bancarias de la empresa.')
             ->emptyStateIcon('heroicon-o-building-library');

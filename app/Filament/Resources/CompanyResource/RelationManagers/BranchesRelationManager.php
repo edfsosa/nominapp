@@ -213,6 +213,7 @@ class BranchesRelationManager extends RelationManager
                     ->tooltip('Más acciones'),
             ])
             ->bulkActions([])
+            ->paginationPageOptions([10, 25, 50, 100])
             ->defaultSort('name')
             ->emptyStateHeading('No hay sucursales registradas')
             ->emptyStateDescription('Agrega la primera sucursal de esta empresa.')

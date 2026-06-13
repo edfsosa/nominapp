@@ -293,6 +293,42 @@ Business logic lives in `app/Services/`. Each domain has a `*Service` for orches
 - Pages: `app/Filament/Pages/` — `ManageGeneralSettings`, `ManagePayrollSettings`
 - Widgets: `app/Filament/Widgets/` — dashboard stats, attendance today, expiring contracts
 
+#### Convenciones generales de RelationManagers
+
+Las siguientes reglas aplican a **todos** los RelationManagers del proyecto, independientemente del recurso al que pertenezcan.
+
+**`isReadOnly()`**
+- Siempre declarar explícitamente `public function isReadOnly(): bool { return false; }` para que Filament no lo infiera del modo de la página padre (puede activarse en `ViewRecord`).
+
+**`form()`**
+- `->columns(1)` en el root form; los grupos de campos van en secciones o grids internos.
+- Excepción aceptada: formularios con exactamente 2 campos sin agrupación lógica pueden usar `->columns(2)`.
+
+**`table()` — layout mínimo**
+- Siempre incluir `->emptyStateHeading()`, `->emptyStateDescription()` y `->emptyStateIcon()`.
+- Siempre incluir `->defaultSort()` cuando hay un orden natural (ej. `'name'`, `'is_primary' desc`).
+- Siempre incluir `->paginationPageOptions([10, 25, 50, 100])` — nunca la opción "Todos".
+
+**`->bulkActions([])`**
+- Por defecto los RMs no tienen bulk actions: usar `->bulkActions([])`.
+- Solo agregar `DeleteBulkAction` si el modelo no tiene dependencias FK que lo hagan peligroso.
+- Si se agrega `DeleteBulkAction`, validar con `->before()` o `->action()` override según la necesidad.
+
+**Acciones de estado (domain actions)**
+- Domain actions (`mark_primary`, `toggle_status`, `approve`, etc.) van en `->actions([])`.
+- Siempre incluir `->requiresConfirmation()` + `->modalHeading()` + `->modalSubmitActionLabel('Sí, [verbo]')`.
+- `EditAction` / `DeleteAction` en la misma lista de acciones, después de las domain actions.
+
+**`placeholder('-')` → usar texto descriptivo**
+- No usar `->placeholder('-')` — usar texto significativo: `->placeholder('Sin ID')`, `->placeholder('Sin teléfono')`, etc.
+
+**RMs de solo lectura** (sin CRUD propio, el modelo tiene su propio Resource)
+- `isReadOnly(): true`
+- `->recordUrl()` apuntando al `ViewRecord` del Resource correspondiente
+- `->searchable(query: ...)` override cuando la búsqueda involucra relaciones
+- `->actions([])` y `->bulkActions([])` — ninguna acción de fila (el link al registro es suficiente)
+- Export Excel como `headerAction` si hay volumen significativo
+
 #### Convenciones de RelationManagers en EmployeeResource
 
 `app/Filament/Resources/EmployeeResource/RelationManagers/` — cada RM sigue esta estructura:
