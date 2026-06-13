@@ -89,22 +89,22 @@ class ViewLoan extends ViewRecord
                     }
                 }),
 
-            Action::make('disburse')
-                ->label('Marcar como Desembolsado')
+            Action::make('mark_disbursed')
+                ->label('Marcar como Entregado')
                 ->icon('heroicon-o-banknotes')
                 ->color('primary')
                 ->visible(fn () => $this->record->isApproved())
                 ->requiresConfirmation()
-                ->modalHeading('Marcar Préstamo como Desembolsado')
+                ->modalHeading('Marcar Préstamo como Entregado')
                 ->modalDescription(fn () => 'Se registrará que el dinero del préstamo de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. fue entregado a '.$this->record->employee->full_name.'. Las cuotas comenzarán a descontarse en la próxima nómina.')
-                ->modalSubmitActionLabel('Sí, marcar como desembolsado')
+                ->modalSubmitActionLabel('Sí, marcar como entregado')
                 ->action(function () {
                     $result = $this->record->disburse(Auth::id());
 
                     if ($result['success']) {
                         Notification::make()
                             ->success()
-                            ->title('Préstamo Desembolsado')
+                            ->title('Préstamo Marcado como Entregado')
                             ->body($result['message'])
                             ->send();
 

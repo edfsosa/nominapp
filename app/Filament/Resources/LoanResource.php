@@ -509,15 +509,15 @@ class LoanResource extends Resource
                             ->send();
                     }),
 
-                Action::make('disburse')
-                    ->label('Desembolsar')
+                Action::make('mark_disbursed')
+                    ->label('Marcar Entregado')
                     ->icon('heroicon-o-banknotes')
                     ->color('primary')
                     ->visible(fn (Loan $record) => $record->isApproved())
                     ->requiresConfirmation()
-                    ->modalHeading('Marcar como Desembolsado')
-                    ->modalDescription(fn (Loan $record) => 'Confirme que el dinero de Gs. '.number_format((float) $record->amount, 0, ',', '.').' fue entregado a '.$record->employee->full_name.'. Las cuotas comenzarán a descontarse en la próxima nómina.')
-                    ->modalSubmitActionLabel('Sí, marcar como desembolsado')
+                    ->modalHeading('Marcar Préstamo como Entregado')
+                    ->modalDescription(fn (Loan $record) => 'Confirme que el dinero de Gs. '.number_format((float) $record->amount, 0, ',', '.').' fue entregado a '.($record->employee?->full_name ?? 'empleado eliminado').'. Las cuotas comenzarán a descontarse en la próxima nómina.')
+                    ->modalSubmitActionLabel('Sí, marcar como entregado')
                     ->action(function (Loan $record) {
                         $result = $record->disburse(Auth::id());
 
