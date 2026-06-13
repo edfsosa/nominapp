@@ -1386,18 +1386,27 @@ Siempre usar `?->` al acceder a relaciones en closures de columnas — el regist
 })
 ```
 
-### Campos opcionales en Infolists (`TextEntry`, `ImageEntry`, etc.)
+### Campos opcionales en Infolists y tablas (`TextEntry`, `TextColumn`, etc.)
 
 Los campos opcionales deben mostrar un placeholder descriptivo cuando no tienen valor — no ocultarse. Un layout estable (todos los campos siempre presentes) es más fácil de escanear que uno donde los campos aparecen y desaparecen según los datos.
 
 ```php
-// ✅ Campo siempre visible, con placeholder cuando es null
+// ✅ Infolist — campo siempre visible, con placeholder cuando es null
 TextEntry::make('phone')
     ->placeholder('Sin teléfono'),
 
 TextEntry::make('nationality')
     ->placeholder('No registrada'),
+
+// ✅ Tabla — mismo principio, evitar ->default('—')
+TextColumn::make('trade_name')
+    ->placeholder('Sin nombre comercial'),
+
+TextColumn::make('city')
+    ->placeholder('Sin ciudad'),
 ```
+
+> Usar `->placeholder()` en lugar de `->default('—')` — el placeholder muestra texto gris descriptivo; el default inserta un guión negro que parece un valor real.
 
 Reservar `->hidden()` / `->visible()` para **bloques enteros** que son semánticamente irrelevantes en cierto estado — no para campos individuales vacíos:
 
