@@ -2,14 +2,13 @@
 
 namespace App\Filament\Resources\PayrollResource\Pages;
 
+use App\Filament\Pages\SalaryReport;
 use App\Filament\Resources\PayrollResource;
 use App\Models\Payroll;
+use Filament\Actions\Action;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Excel;
-use pxlrbt\FilamentExcel\Actions\Pages\ExportAction;
-use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 class ListPayrolls extends ListRecords
 {
@@ -18,16 +17,11 @@ class ListPayrolls extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            ExportAction::make()
-                ->exports([
-                    ExcelExport::make()
-                        ->fromTable()
-                        ->withFilename(fn () => 'recibos_nomina_'.now()->format('d_m_Y_H_i_s'))
-                        ->withWriterType(Excel::XLSX),
-                ])
-                ->label('Exportar a Excel')
-                ->color('info')
-                ->icon('heroicon-o-arrow-down-tray'),
+            Action::make('go_to_report')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
+                ->color('gray')
+                ->url(SalaryReport::getUrl()),
         ];
     }
 

@@ -2,15 +2,13 @@
 
 namespace App\Filament\Resources\AttendanceDayResource\Pages;
 
-use App\Exports\AttendanceDaysExport;
+use App\Filament\Pages\AttendanceReport;
 use App\Filament\Resources\AttendanceDayResource;
 use App\Models\AttendanceDay;
 use Filament\Actions\Action;
-use Filament\Notifications\Notification;
 use Filament\Resources\Components\Tab;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
-use Maatwebsite\Excel\Facades\Excel;
 
 /** Página de listado de asistencias diarias — muestra únicamente registros con estado presente. */
 class ListAttendanceDays extends ListRecords
@@ -23,26 +21,11 @@ class ListAttendanceDays extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('export_excel')
-                ->label('Exportar')
-                ->icon('heroicon-o-arrow-down-tray')
+            Action::make('go_to_report')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
                 ->color('gray')
-                ->requiresConfirmation()
-                ->modalHeading('Exportar asistencias a Excel')
-                ->modalDescription('Se exportarán los registros de presencia visibles según los filtros activos.')
-                ->modalSubmitActionLabel('Sí, exportar')
-                ->action(function () {
-                    Notification::make()
-                        ->success()
-                        ->title('Exportación lista')
-                        ->body('El listado de asistencias se está descargando.')
-                        ->send();
-
-                    return Excel::download(
-                        new AttendanceDaysExport,
-                        'asistencias_'.now()->format('Y_m_d_H_i_s').'.xlsx'
-                    );
-                }),
+                ->url(AttendanceReport::getUrl()),
 
             AttendanceDayResource::getApproveOvertimeRangeAction(),
 
