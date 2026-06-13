@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\AdvanceResource\Pages;
 
 use App\Exports\AdvancesTemplateExport;
+use App\Filament\Pages\AdvanceReport;
 use App\Filament\Resources\AdvanceResource;
 use App\Imports\AdvancesImport;
 use App\Models\Advance;
@@ -66,6 +67,12 @@ class ListAdvances extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('ver_reporte')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
+                ->color('gray')
+                ->url(AdvanceReport::getUrl()),
+
             CreateAction::make()
                 ->label('Nuevo Adelanto')
                 ->icon('heroicon-o-plus'),
