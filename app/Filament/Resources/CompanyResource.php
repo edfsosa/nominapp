@@ -18,7 +18,6 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables\Actions\Action;
-use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\TernaryFilter;
@@ -411,10 +410,11 @@ class CompanyResource extends Resource
                     ->alignCenter()
                     ->sortable(),
 
-                IconColumn::make('is_active')
-                    ->label('Activa')
-                    ->boolean()
-                    ->alignCenter()
+                TextColumn::make('is_active')
+                    ->label('Estado')
+                    ->formatStateUsing(fn ($state) => $state ? 'Activa' : 'Inactiva')
+                    ->badge()
+                    ->color(fn ($state) => $state ? 'success' : 'danger')
                     ->sortable(),
 
                 TextColumn::make('created_at')
