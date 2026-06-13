@@ -14,7 +14,6 @@ use Filament\Tables\Actions\Action;
 use Filament\Tables\Actions\ActionGroup;
 use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
-use Filament\Tables\Actions\DeleteBulkAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -213,45 +212,7 @@ class BranchesRelationManager extends RelationManager
                     ->color('gray')
                     ->tooltip('Más acciones'),
             ])
-            ->bulkActions([
-                DeleteBulkAction::make()
-                    ->label('Eliminar seleccionados')
-                    ->modalHeading('Eliminar sucursales')
-                    ->modalDescription('Se eliminarán permanentemente las sucursales seleccionadas. Las que tengan empleados asignados serán omitidas.')
-                    ->modalSubmitActionLabel('Sí, eliminar')
-                    ->action(function ($records) {
-                        $withEmployees = $records->filter(fn ($r) => $r->employees()->exists());
-                        $deletable = $records->reject(fn ($r) => $withEmployees->contains($r));
-
-                        $deletable->each->delete();
-
-                        if ($withEmployees->isNotEmpty() && $deletable->isEmpty()) {
-                            Notification::make()
-                                ->danger()
-                                ->title('No se pudo eliminar ninguna sucursal')
-                                ->body('Todas las sucursales seleccionadas tienen empleados asignados.')
-                                ->send();
-
-                            return;
-                        }
-
-                        if ($withEmployees->isNotEmpty()) {
-                            $names = $withEmployees->pluck('name')->join(', ');
-                            Notification::make()
-                                ->warning()
-                                ->title("{$deletable->count()} sucursal(es) eliminada(s)")
-                                ->body("Omitidas por tener empleados: {$names}.")
-                                ->send();
-
-                            return;
-                        }
-
-                        Notification::make()
-                            ->success()
-                            ->title("{$deletable->count()} sucursal(es) eliminada(s)")
-                            ->send();
-                    }),
-            ])
+            ->bulkActions([])
             ->defaultSort('name')
             ->emptyStateHeading('No hay sucursales registradas')
             ->emptyStateDescription('Agrega la primera sucursal de esta empresa.')
