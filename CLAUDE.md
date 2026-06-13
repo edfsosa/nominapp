@@ -497,6 +497,24 @@ No agregar comentarios redundantes que repitan lo que el nombre ya dice. El obje
 - Colores válidos: `'primary'`, `'success'`, `'warning'`, `'danger'`, `'info'`, `'gray'`
 - También inválidos: `'pink'`, `'blue'`, `'red'`, `'green'` — solo los 6 de arriba
 
+### Estados booleanos en tablas — badge en lugar de IconColumn
+
+No usar `IconColumn::boolean()` para columnas de estado activo/inactivo — el ícono ✅/❌ es ambiguo sin texto. Usar `TextColumn` con badge y label explícito:
+
+```php
+// ❌ Ambiguo — ¿qué significa el ícono?
+IconColumn::make('is_active')->boolean(),
+
+// ✅ Autoexplicativo
+TextColumn::make('is_active')
+    ->label('Estado')
+    ->formatStateUsing(fn ($state) => $state ? 'Activa' : 'Inactiva')
+    ->badge()
+    ->color(fn ($state) => $state ? 'success' : 'danger'),
+```
+
+Reservar `IconColumn::boolean()` para columnas donde el contexto hace el valor obvio (ej: columna "¿Tiene foto?" en una tabla de documentos).
+
 ### Evitar hardcoding de labels, colores y opciones
 
 Los labels, colores y opciones de campos enum/select deben centralizarse en el modelo correspondiente, nunca hardcodearse en Resources, Pages o RelationManagers. Esto facilita el mantenimiento: si se agrega un nuevo valor, se toca un solo lugar.
