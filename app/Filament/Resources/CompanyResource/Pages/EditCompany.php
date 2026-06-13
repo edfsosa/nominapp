@@ -21,7 +21,7 @@ class EditCompany extends EditRecord
             ViewAction::make()
                 ->label('Ver')
                 ->icon('heroicon-o-eye')
-                ->color('gray'),
+                ->color('primary'),
 
             DeleteAction::make()
                 ->label('Eliminar')

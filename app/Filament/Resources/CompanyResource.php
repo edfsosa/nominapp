@@ -72,7 +72,7 @@ class CompanyResource extends Resource
                             ->placeholder('Ej: 80012345-6')
                             ->required()
                             ->unique(ignoreRecord: true)
-                            ->maxLength(10)
+                            ->maxLength(20)
                             ->regex('/^\d{1,8}-\d$/')
                             ->validationMessages([
                                 'regex' => 'El formato del RUC debe ser número base + guion + dígito verificador. Ej: 80012345-6 o 1234567-1',
@@ -445,6 +445,7 @@ class CompanyResource extends Resource
                     ->url(fn (Company $record) => route('org-chart.show', $record))
                     ->openUrlInNewTab(),
             ])
+            ->paginationPageOptions([10, 25, 50, 100])
             ->defaultSort('name')
             ->emptyStateHeading('No hay empresas registradas')
             ->emptyStateDescription('Comienza agregando la primera empresa.')
