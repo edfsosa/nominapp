@@ -509,11 +509,30 @@ class LoanResource extends Resource
                             ->send();
                     }),
 
+                Action::make('disburse')
+                    ->label('Desembolsar')
+                    ->icon('heroicon-o-banknotes')
+                    ->color('primary')
+                    ->visible(fn (Loan $record) => $record->isApproved())
+                    ->requiresConfirmation()
+                    ->modalHeading('Marcar como Desembolsado')
+                    ->modalDescription(fn (Loan $record) => 'Confirme que el dinero de Gs. '.number_format((float) $record->amount, 0, ',', '.').' fue entregado a '.$record->employee->full_name.'. Las cuotas comenzarán a descontarse en la próxima nómina.')
+                    ->modalSubmitActionLabel('Sí, marcar como desembolsado')
+                    ->action(function (Loan $record) {
+                        $result = $record->disburse(Auth::id());
+
+                        Notification::make()
+                            ->title($result['success'] ? 'Préstamo Desembolsado' : 'Error')
+                            ->body($result['message'])
+                            ->{$result['success'] ? 'success' : 'danger'}()
+                            ->send();
+                    }),
+
                 Action::make('export_pdf')
                     ->label('PDF')
                     ->icon('heroicon-o-arrow-down-tray')
                     ->color('gray')
-                    ->visible(fn (Loan $record) => $record->isApproved() || $record->isPaid())
+                    ->visible(fn (Loan $record) => $record->isApproved() || $record->isDisbursed() || $record->isPaid())
                     ->url(fn (Loan $record) => route('loans.pdf', $record))
                     ->openUrlInNewTab(),
             ])

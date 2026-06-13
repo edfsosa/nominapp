@@ -102,6 +102,11 @@ class ListLoans extends ListRecords
                 ->badge($byStatus['approved'] ?? 0)
                 ->badgeColor('info'),
 
+            'disbursed' => Tab::make('Desembolsados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'disbursed'))
+                ->badge($byStatus['disbursed'] ?? 0)
+                ->badgeColor('primary'),
+
             'paid' => Tab::make('Pagados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))
                 ->badge($byStatus['paid'] ?? 0)

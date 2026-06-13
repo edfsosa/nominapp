@@ -89,6 +89,35 @@ class ViewLoan extends ViewRecord
                     }
                 }),
 
+            Action::make('disburse')
+                ->label('Marcar como Desembolsado')
+                ->icon('heroicon-o-banknotes')
+                ->color('primary')
+                ->visible(fn () => $this->record->isApproved())
+                ->requiresConfirmation()
+                ->modalHeading('Marcar Préstamo como Desembolsado')
+                ->modalDescription(fn () => 'Se registrará que el dinero del préstamo de '.number_format((float) $this->record->amount, 0, ',', '.').' Gs. fue entregado a '.$this->record->employee->full_name.'. Las cuotas comenzarán a descontarse en la próxima nómina.')
+                ->modalSubmitActionLabel('Sí, marcar como desembolsado')
+                ->action(function () {
+                    $result = $this->record->disburse(Auth::id());
+
+                    if ($result['success']) {
+                        Notification::make()
+                            ->success()
+                            ->title('Préstamo Desembolsado')
+                            ->body($result['message'])
+                            ->send();
+
+                        $this->redirect($this->getUrl(['record' => $this->record]));
+                    } else {
+                        Notification::make()
+                            ->danger()
+                            ->title('Error')
+                            ->body($result['message'])
+                            ->send();
+                    }
+                }),
+
             Action::make('cancel')
                 ->label('Cancelar')
                 ->icon('heroicon-o-minus-circle')
@@ -131,7 +160,7 @@ class ViewLoan extends ViewRecord
                 ->label('Descargar PDF')
                 ->icon('heroicon-o-arrow-down-tray')
                 ->color('gray')
-                ->visible(fn () => $this->record->isApproved() || $this->record->isPaid())
+                ->visible(fn () => $this->record->isApproved() || $this->record->isDisbursed() || $this->record->isPaid())
                 ->url(fn () => route('loans.pdf', $this->record))
                 ->openUrlInNewTab(),
 
