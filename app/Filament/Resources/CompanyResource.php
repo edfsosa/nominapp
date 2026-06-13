@@ -371,7 +371,6 @@ class CompanyResource extends Resource
                     ->color('primary')
                     ->copyable()
                     ->copyMessage('RUC copiado')
-                    ->tooltip('Haz clic para copiar el RUC')
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
@@ -382,7 +381,6 @@ class CompanyResource extends Resource
                     ->color('gray')
                     ->copyable()
                     ->copyMessage('Número patronal copiado')
-                    ->tooltip('Haz clic para copiar el número patronal')
                     ->alignCenter()
                     ->searchable()
                     ->sortable(),
