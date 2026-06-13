@@ -196,8 +196,18 @@ class BranchesRelationManager extends RelationManager
                         ->icon('heroicon-o-trash')
                         ->color('danger')
                         ->modalHeading('¿Eliminar sucursal?')
-                        ->modalDescription(fn ($record) => "¿Estás seguro de que deseas eliminar la sucursal \"{$record->name}\"? Los empleados asignados quedarán sin sucursal.")
-                        ->modalSubmitActionLabel('Sí, eliminar'),
+                        ->modalDescription(fn ($record) => "Se eliminará permanentemente la sucursal \"{$record->name}\".")
+                        ->modalSubmitActionLabel('Sí, eliminar')
+                        ->before(function ($record, $action) {
+                            if ($record->employees()->exists()) {
+                                Notification::make()
+                                    ->danger()
+                                    ->title('No se puede eliminar')
+                                    ->body("La sucursal \"{$record->name}\" tiene empleados asignados. Reasignalos antes de eliminarla.")
+                                    ->send();
+                                $action->halt();
+                            }
+                        }),
                 ])
                     ->icon('heroicon-o-ellipsis-vertical')
                     ->color('gray')
@@ -207,7 +217,40 @@ class BranchesRelationManager extends RelationManager
                 DeleteBulkAction::make()
                     ->label('Eliminar seleccionados')
                     ->modalHeading('Eliminar sucursales')
-                    ->modalDescription('¿Estás seguro de que deseas eliminar las sucursales seleccionadas? Los empleados asignados quedarán sin sucursal.'),
+                    ->modalDescription('Se eliminarán permanentemente las sucursales seleccionadas. Las que tengan empleados asignados serán omitidas.')
+                    ->modalSubmitActionLabel('Sí, eliminar')
+                    ->action(function ($records) {
+                        $withEmployees = $records->filter(fn ($r) => $r->employees()->exists());
+                        $deletable = $records->reject(fn ($r) => $withEmployees->contains($r));
+
+                        $deletable->each->delete();
+
+                        if ($withEmployees->isNotEmpty() && $deletable->isEmpty()) {
+                            Notification::make()
+                                ->danger()
+                                ->title('No se pudo eliminar ninguna sucursal')
+                                ->body('Todas las sucursales seleccionadas tienen empleados asignados.')
+                                ->send();
+
+                            return;
+                        }
+
+                        if ($withEmployees->isNotEmpty()) {
+                            $names = $withEmployees->pluck('name')->join(', ');
+                            Notification::make()
+                                ->warning()
+                                ->title("{$deletable->count()} sucursal(es) eliminada(s)")
+                                ->body("Omitidas por tener empleados: {$names}.")
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->success()
+                            ->title("{$deletable->count()} sucursal(es) eliminada(s)")
+                            ->send();
+                    }),
             ])
             ->defaultSort('name')
             ->emptyStateHeading('No hay sucursales registradas')
