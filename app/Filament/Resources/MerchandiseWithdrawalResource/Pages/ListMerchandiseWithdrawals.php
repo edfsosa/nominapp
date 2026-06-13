@@ -2,7 +2,9 @@
 
 namespace App\Filament\Resources\MerchandiseWithdrawalResource\Pages;
 
+use App\Filament\Pages\MerchandiseReport;
 use App\Filament\Resources\MerchandiseWithdrawalResource;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
 use Filament\Resources\Pages\ListRecords\Tab;
@@ -19,6 +21,12 @@ class ListMerchandiseWithdrawals extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('go_to_report')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
+                ->color('gray')
+                ->url(MerchandiseReport::getUrl()),
+
             CreateAction::make(),
         ];
     }

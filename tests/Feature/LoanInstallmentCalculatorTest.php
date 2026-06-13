@@ -99,13 +99,13 @@ function makeLoanPeriod(int $month = 3): PayrollPeriod
 /**
  * Crea un Loan para el empleado.
  *
- * @param  string  $status  'pending' | 'approved' | 'paid' | 'rejected' | 'cancelled'
+ * @param  string  $status  'pending' | 'approved' | 'disbursed' | 'paid' | 'rejected' | 'cancelled'
  */
 function makeLoan(
     Employee $employee,
     int $installmentsCount = 6,
     int $installmentAmount = 500_000,
-    string $status = 'approved',
+    string $status = 'disbursed',
 ): Loan {
     return Loan::create([
         'employee_id' => $employee->id,
@@ -348,5 +348,5 @@ it('no cierra el préstamo si aún quedan cuotas pendientes', function () {
 
     app(LoanInstallmentCalculator::class)->markInstallmentsAsPaid([$inst1->id]);
 
-    expect($loan->fresh()->status)->toBe('approved');
+    expect($loan->fresh()->status)->toBe('disbursed');
 });

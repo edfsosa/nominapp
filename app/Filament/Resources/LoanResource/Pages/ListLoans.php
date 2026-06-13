@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\LoanResource\Pages;
 
 use App\Exports\LoansExport;
+use App\Filament\Pages\LoanReport;
 use App\Filament\Resources\LoanResource;
 use App\Models\Loan;
 use Filament\Actions\Action;
@@ -51,6 +52,12 @@ class ListLoans extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('go_to_report')
+                ->label('Ver Reporte')
+                ->icon('heroicon-o-chart-bar')
+                ->color('gray')
+                ->url(LoanReport::getUrl()),
+
             Action::make('export')
                 ->label('Exportar Excel')
                 ->icon('heroicon-o-arrow-down-tray')
@@ -101,6 +108,11 @@ class ListLoans extends ListRecords
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'approved'))
                 ->badge($byStatus['approved'] ?? 0)
                 ->badgeColor('info'),
+
+            'disbursed' => Tab::make('Desembolsados')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'disbursed'))
+                ->badge($byStatus['disbursed'] ?? 0)
+                ->badgeColor('primary'),
 
             'paid' => Tab::make('Pagados')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'paid'))

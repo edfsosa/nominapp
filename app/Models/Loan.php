@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 /**
  * Préstamo otorgado a un empleado, pagadero en cuotas mensuales.
  *
- * Ciclo de vida: pending → approve() → approved → [todas las cuotas pagadas] → paid
+ * Ciclo de vida: pending → approve() → approved → disburse() → disbursed → [todas las cuotas pagadas] → paid
  *               pending → reject()  → rejected
  *               pending/approved    → cancel()  → cancelled
  *
@@ -79,6 +79,7 @@ class Loan extends Model
         return match ($status) {
             'pending' => 'Pendiente',
             'approved' => 'Aprobado',
+            'disbursed' => 'Desembolsado',
             'paid' => 'Pagado',
             'rejected' => 'Rechazado',
             'cancelled' => 'Cancelado',
@@ -94,6 +95,7 @@ class Loan extends Model
         return match ($status) {
             'pending' => 'warning',
             'approved' => 'info',
+            'disbursed' => 'primary',
             'paid' => 'success',
             'rejected' => 'danger',
             'cancelled' => 'gray',
@@ -109,6 +111,7 @@ class Loan extends Model
         return match ($status) {
             'pending' => 'heroicon-o-clock',
             'approved' => 'heroicon-o-check-badge',
+            'disbursed' => 'heroicon-o-banknotes',
             'paid' => 'heroicon-o-check-circle',
             'rejected' => 'heroicon-o-x-circle',
             'cancelled' => 'heroicon-o-minus-circle',
@@ -126,6 +129,7 @@ class Loan extends Model
         return [
             'pending' => 'Pendiente',
             'approved' => 'Aprobado',
+            'disbursed' => 'Desembolsado',
             'paid' => 'Pagado',
             'rejected' => 'Rechazado',
             'cancelled' => 'Cancelado',
@@ -158,6 +162,12 @@ class Loan extends Model
     public function isRejected(): bool
     {
         return $this->status === 'rejected';
+    }
+
+    /** Verifica si el préstamo fue desembolsado (dinero entregado al empleado, pendiente de descuento en cuotas). */
+    public function isDisbursed(): bool
+    {
+        return $this->status === 'disbursed';
     }
 
     /** Verifica si el préstamo fue cancelado. */
@@ -386,10 +396,10 @@ class Loan extends Model
      */
     public function cancel(?string $reason = null): array
     {
-        if ($this->isPaid() || $this->isCancelled() || $this->isRejected()) {
+        if (! $this->isPending() && ! $this->isApproved()) {
             return [
                 'success' => false,
-                'message' => 'No se puede cancelar un préstamo en este estado.',
+                'message' => 'Solo se pueden cancelar préstamos en estado Pendiente o Aprobado.',
             ];
         }
 
@@ -415,13 +425,41 @@ class Loan extends Model
     }
 
     /**
+     * Marca el préstamo como desembolsado (dinero entregado al empleado).
+     *
+     * Solo aplica a préstamos en estado aprobado. El descuento en cuotas
+     * se procesará en la siguiente nómina por LoanInstallmentCalculator.
+     *
+     * @param  int  $disbursedById  ID del usuario que registra el desembolso.
+     * @return array{success: bool, message: string}
+     */
+    public function disburse(int $disbursedById): array
+    {
+        if (! $this->isApproved()) {
+            return [
+                'success' => false,
+                'message' => 'Solo se pueden desembolsar préstamos aprobados.',
+            ];
+        }
+
+        $this->update([
+            'status' => 'disbursed',
+        ]);
+
+        return [
+            'success' => true,
+            'message' => 'El préstamo ha sido marcado como desembolsado.',
+        ];
+    }
+
+    /**
      * Verifica si todas las cuotas están pagadas y cierra el préstamo.
      *
      * Llamado por LoanInstallmentCalculator::markInstallmentsAsPaid().
      */
     public function checkIfPaid(): void
     {
-        if ($this->isApproved() && $this->pending_installments_count === 0) {
+        if ($this->isDisbursed() && $this->pending_installments_count === 0) {
             $this->update([
                 'status' => 'paid',
                 'outstanding_balance' => 0,
@@ -576,7 +614,7 @@ class Loan extends Model
     public static function getActiveForEmployee(int $employeeId): ?self
     {
         return static::where('employee_id', $employeeId)
-            ->whereIn('status', ['pending', 'approved'])
+            ->whereIn('status', ['pending', 'approved', 'disbursed'])
             ->first();
     }
 
@@ -586,7 +624,7 @@ class Loan extends Model
     public static function getTotalActiveDebtForEmployee(int $employeeId): float
     {
         return (float) static::where('employee_id', $employeeId)
-            ->where('status', 'approved')
+            ->whereIn('status', ['approved', 'disbursed'])
             ->sum('outstanding_balance');
     }
 

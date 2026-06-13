@@ -241,3 +241,37 @@ it('activa préstamo con interés si el PMT está dentro del límite del 25%', f
 
     expect($result['success'])->toBeTrue();
 });
+
+// ─── disburse() ──────────────────────────────────────────────────────────────
+
+it('desembolsa un préstamo aprobado y lo pone en estado disbursed', function () {
+    $employee = makeActivateEmployee();
+    $loan = makePendingLoan($employee);
+    $loan->activate(getAdminUser()->id);
+
+    $result = $loan->fresh()->disburse(getAdminUser()->id);
+
+    expect($result['success'])->toBeTrue();
+    expect($loan->fresh()->status)->toBe('disbursed');
+});
+
+it('falla al desembolsar un préstamo que no está aprobado', function () {
+    $employee = makeActivateEmployee();
+    $loan = makePendingLoan($employee);
+
+    $result = $loan->disburse(getAdminUser()->id);
+
+    expect($result['success'])->toBeFalse()
+        ->and($result['message'])->toContain('aprobados');
+});
+
+it('no puede cancelar un préstamo desembolsado', function () {
+    $employee = makeActivateEmployee();
+    $loan = makePendingLoan($employee);
+    $loan->activate(getAdminUser()->id);
+    $loan->fresh()->disburse(getAdminUser()->id);
+
+    $result = $loan->fresh()->cancel();
+
+    expect($result['success'])->toBeFalse();
+});
