@@ -8,12 +8,12 @@ use App\Models\Branch;
 use App\Models\Employee;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
-use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Actions\Action;
 use Filament\Tables\Columns\ImageColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Facades\Excel;
 
 /**
@@ -116,6 +116,7 @@ class EmployeesRelationManager extends RelationManager
             ])
             ->actions([])
             ->bulkActions([])
+            ->paginationPageOptions([10, 25, 50, 100])
             ->defaultSort('first_name')
             ->emptyStateHeading('No hay empleados registrados')
             ->emptyStateDescription('Los empleados se crean desde el módulo de Empleados.')
