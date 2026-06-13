@@ -67,7 +67,7 @@ class ListAdvances extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('ver_reporte')
+            Action::make('go_to_report')
                 ->label('Ver Reporte')
                 ->icon('heroicon-o-chart-bar')
                 ->color('gray')
