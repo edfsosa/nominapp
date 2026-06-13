@@ -364,7 +364,7 @@ class CompanyResource extends Resource
                     ->label('Nombre Comercial')
                     ->searchable()
                     ->sortable()
-                    ->default('—'),
+                    ->placeholder('Sin nombre comercial'),
 
                 TextColumn::make('ruc')
                     ->label('RUC')
@@ -392,7 +392,7 @@ class CompanyResource extends Resource
                     ->label('Ciudad')
                     ->searchable()
                     ->sortable()
-                    ->default('—')
+                    ->placeholder('Sin ciudad')
                     ->toggleable(isToggledHiddenByDefault: true),
 
                 TextColumn::make('branches_count')
