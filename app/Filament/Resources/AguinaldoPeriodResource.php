@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\AguinaldoPeriodResource\Pages;
 use App\Filament\Resources\AguinaldoPeriodResource\RelationManagers\AguinaldosRelationManager;
+use App\Filament\Resources\AguinaldoPeriodResource\RelationManagers\AuditsRelationManager;
 use App\Models\AguinaldoPeriod;
 use App\Models\Company;
 use App\Services\AguinaldoService;
@@ -302,6 +303,7 @@ class AguinaldoPeriodResource extends Resource
     {
         return [
             AguinaldosRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 
