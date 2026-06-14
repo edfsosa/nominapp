@@ -7,8 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 /**
  * Lote de acreditación bancaria masiva.
  *
- * Agrupa adelantos de salario (y en el futuro nóminas, vacaciones, aguinaldos)
- * para generar un único archivo TXT/Excel en formato Itaú.
+ * Agrupa adelantos (`advances`), recibos de nómina (`payroll`), préstamos (`loan`)
+ * o aguinaldos (`aguinaldo`) para generar un único archivo TXT en formato Itaú y
+ * registrar el resultado del banco.
  *
  * Ciclo de vida:
  *   pending → confirmed (todos aceptados por el banco)

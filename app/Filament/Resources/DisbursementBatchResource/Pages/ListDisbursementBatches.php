@@ -18,7 +18,7 @@ class ListDisbursementBatches extends ListRecords
     protected ?array $batchCounts = null;
 
     /**
-     * Obtiene conteos por estado para los badges de tabs (cacheado para evitar N+1).
+     * Obtiene conteos por tipo para los badges de tabs (cacheado para evitar N+1).
      *
      * @return array<string, mixed>
      */
@@ -26,14 +26,14 @@ class ListDisbursementBatches extends ListRecords
     {
         if ($this->batchCounts === null) {
             $counts = DisbursementBatch::query()
-                ->selectRaw('status, count(*) as total')
-                ->groupBy('status')
-                ->pluck('total', 'status')
+                ->selectRaw('type, count(*) as total')
+                ->groupBy('type')
+                ->pluck('total', 'type')
                 ->toArray();
 
             $this->batchCounts = [
                 'total' => array_sum($counts),
-                'by_status' => $counts,
+                'by_type' => $counts,
             ];
         }
 
@@ -56,31 +56,31 @@ class ListDisbursementBatches extends ListRecords
     public function getTabs(): array
     {
         $counts = $this->getBatchCounts();
-        $byStatus = $counts['by_status'];
+        $byType = $counts['by_type'];
 
         return [
             'all' => Tab::make('Todos')
                 ->badge($counts['total']),
 
-            'pending' => Tab::make('Pendientes')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'pending'))
-                ->badge($byStatus['pending'] ?? 0)
-                ->badgeColor('warning'),
-
-            'confirmed' => Tab::make('Confirmados')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'confirmed'))
-                ->badge($byStatus['confirmed'] ?? 0)
+            'advances' => Tab::make('Adelantos')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'advances'))
+                ->badge($byType['advances'] ?? 0)
                 ->badgeColor('success'),
 
-            'partially_confirmed' => Tab::make('Parcialmente confirmados')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'partially_confirmed'))
-                ->badge($byStatus['partially_confirmed'] ?? 0)
+            'payroll' => Tab::make('Planilla')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'payroll'))
+                ->badge($byType['payroll'] ?? 0)
                 ->badgeColor('info'),
 
-            'cancelled' => Tab::make('Cancelados')
-                ->modifyQueryUsing(fn (Builder $query) => $query->where('status', 'cancelled'))
-                ->badge($byStatus['cancelled'] ?? 0)
-                ->badgeColor('gray'),
+            'loan' => Tab::make('Préstamos')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'loan'))
+                ->badge($byType['loan'] ?? 0)
+                ->badgeColor('warning'),
+
+            'aguinaldo' => Tab::make('Aguinaldo')
+                ->modifyQueryUsing(fn (Builder $query) => $query->where('type', 'aguinaldo'))
+                ->badge($byType['aguinaldo'] ?? 0)
+                ->badgeColor('primary'),
         ];
     }
 
