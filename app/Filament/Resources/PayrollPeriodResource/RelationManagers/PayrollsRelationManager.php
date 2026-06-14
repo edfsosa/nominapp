@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\PayrollPeriodResource\RelationManagers;
 
+use App\Filament\Pages\SalaryReport;
 use App\Filament\Resources\PayrollResource;
 use App\Models\Branch;
 use App\Models\Department;
@@ -224,6 +225,14 @@ class PayrollsRelationManager extends RelationManager
                     ->native(false),
             ])
             ->headerActions([
+
+                Action::make('salary_report')
+                    ->label('Ver Reporte de Salarios')
+                    ->icon('heroicon-o-document-chart-bar')
+                    ->color('gray')
+                    ->url(fn () => SalaryReport::getUrl().'?tableFilters[period_id][value]='.$this->getOwnerRecord()->id)
+                    ->openUrlInNewTab()
+                    ->visible(fn () => $this->getOwnerRecord()->payrolls()->exists()),
 
                 Action::make('generate_for_employee')
                     ->label('Agregar Recibo')
