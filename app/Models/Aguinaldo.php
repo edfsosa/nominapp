@@ -5,9 +5,22 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Aguinaldo extends Model
+class Aguinaldo extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'payment_method',
+        'disbursement_batch_id',
+        'paid_at',
+    ];
+
     protected $fillable = [
         'aguinaldo_period_id',
         'employee_id',
@@ -194,5 +207,52 @@ class Aguinaldo extends Model
     public function getFormattedAguinaldoAmountAttribute(): string
     {
         return self::formatCurrency($this->aguinaldo_amount);
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'payment_method' => 'Método de pago',
+            'disbursement_batch_id' => 'Lote bancario',
+            'paid_at' => 'Fecha de pago',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::getStatusLabel($value),
+            'payment_method' => static::getPaymentMethodLabel($value),
+            'disbursement_batch_id' => "Lote #{$value}",
+            'paid_at' => \Carbon\Carbon::parse($value)->format('d/m/Y H:i'),
+            default => (string) $value,
+        };
     }
 }
