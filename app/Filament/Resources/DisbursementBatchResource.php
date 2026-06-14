@@ -389,6 +389,7 @@ class DisbursementBatchResource extends Resource
             RelationManagers\PayrollsRelationManager::class,
             RelationManagers\LoansRelationManager::class,
             RelationManagers\AguinaldosRelationManager::class,
+            RelationManagers\AuditsRelationManager::class,
         ];
     }
 
