@@ -53,6 +53,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
             'outstanding_balance' => 'Saldo Pendiente',
             'paid_installments_count' => 'Cuotas Pagadas',
             'pending_installments_count' => 'Cuotas Pendientes',
+            'payment_method' => 'Método de pago',
             'status' => 'Estado',
             'granted_at' => 'Fecha Otorgamiento',
             'granted_by_name' => 'Aprobado Por',
@@ -71,7 +72,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
             'amount', 'installments_count', 'installment_amount',
             'interest_rate', 'outstanding_balance',
             'paid_installments_count', 'pending_installments_count',
-            'status', 'granted_at', 'granted_by_name',
+            'payment_method', 'status', 'granted_at', 'granted_by_name',
         ];
     }
 
@@ -86,6 +87,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
         $employeeId = $this->filters['employee_id'] ?? null;
         $from = $this->filters['from'] ?? null;
         $to = $this->filters['to'] ?? null;
+        $paymentMethod = $this->filters['payment_method'] ?? null;
 
         return Loan::query()
             ->select([
@@ -95,6 +97,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
                 'loans.installment_amount',
                 'loans.interest_rate',
                 'loans.outstanding_balance',
+                'loans.payment_method',
                 'loans.status',
                 'loans.granted_at',
                 DB::raw("CONCAT(employees.first_name, ' ', employees.last_name) AS employee_name"),
@@ -115,6 +118,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
             ->when($employeeId, fn ($q) => $q->where('loans.employee_id', $employeeId))
             ->when($from, fn ($q) => $q->whereDate('loans.granted_at', '>=', $from))
             ->when($to, fn ($q) => $q->whereDate('loans.granted_at', '<=', $to))
+            ->when($paymentMethod, fn ($q) => $q->where('loans.payment_method', $paymentMethod))
             ->orderBy('employees.last_name')
             ->orderBy('employees.first_name')
             ->orderBy('loans.granted_at');
@@ -157,6 +161,7 @@ class LoanReportExport implements FromQuery, ShouldAutoSize, WithHeadings, WithM
             'outstanding_balance' => (float) $row->outstanding_balance,
             'paid_installments_count' => (int) $row->paid_installments_count,
             'pending_installments_count' => (int) $row->pending_installments_count,
+            'payment_method' => Loan::getPaymentMethodLabel($row->payment_method ?? 'cash'),
             'status' => Loan::getStatusLabel($row->status),
             'granted_at' => $grantedAtFormatted,
             'granted_by_name' => $row->granted_by_name ?? '',

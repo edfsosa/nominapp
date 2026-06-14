@@ -145,6 +145,41 @@ class Loan extends Model
     }
 
     // =========================================================================
+    // HELPERS ESTÁTICOS PARA MÉTODO DE PAGO
+    // =========================================================================
+
+    public static function getPaymentMethodOptions(): array
+    {
+        return [
+            'transfer' => 'Acreditación bancaria',
+            'cash' => 'Efectivo',
+        ];
+    }
+
+    public static function getPaymentMethodLabel(string $method): string
+    {
+        return self::getPaymentMethodOptions()[$method] ?? $method;
+    }
+
+    public static function getPaymentMethodColor(string $method): string
+    {
+        return match ($method) {
+            'transfer' => 'info',
+            'cash' => 'success',
+            default => 'gray',
+        };
+    }
+
+    public static function getPaymentMethodIcon(string $method): string
+    {
+        return match ($method) {
+            'transfer' => 'heroicon-o-building-library',
+            'cash' => 'heroicon-o-banknotes',
+            default => 'heroicon-o-question-mark-circle',
+        };
+    }
+
+    // =========================================================================
     // VERIFICADORES DE ESTADO
     // =========================================================================
 
