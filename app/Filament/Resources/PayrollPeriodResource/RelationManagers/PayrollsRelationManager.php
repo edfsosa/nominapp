@@ -42,6 +42,7 @@ use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Excel;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
+use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 /** Muestra y gestiona los recibos de nómina de una planilla. */
@@ -226,45 +227,49 @@ class PayrollsRelationManager extends RelationManager
             ])
             ->headerActions([
                 ExportAction::make()
-                    ->exports([
-                        ExcelExport::make()
-                            ->fromTable()
-                            ->withFilename(fn () => 'recibos_'.str_replace(' ', '_', $this->getOwnerRecord()->name).'_'.now()->format('d_m_Y_H_i_s'))
-                            ->withWriterType(Excel::XLSX),
-                    ])
                     ->label('Exportar a Excel')
                     ->color('info')
-                    ->icon('heroicon-o-arrow-down-tray'),
+                    ->icon('heroicon-o-arrow-down-tray')
+                    ->requiresConfirmation()
+                    ->modalHeading('Exportar Recibos a Excel')
+                    ->modalDescription(fn () => 'Se exportarán todos los recibos de la planilla '.$this->getOwnerRecord()->name.' con todas las columnas (CI, nombre, salarios, percepciones, deducciones, estado, método de pago).')
+                    ->modalSubmitActionLabel('Exportar')
+                    ->exports([
+                        ExcelExport::make()
+                            ->withFilename(fn () => 'recibos_'.str_replace(' ', '_', $this->getOwnerRecord()->name).'_'.now()->format('d_m_Y_H_i_s'))
+                            ->withWriterType(Excel::XLSX)
+                            ->withColumns([
+                                Column::make('employee.ci')->heading('CI'),
+                                Column::make('employee.full_name')->heading('Empleado'),
+                                Column::make('employee.activeContract.position.name')->heading('Cargo'),
+                                Column::make('status')->heading('Estado')
+                                    ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
+                                Column::make('payment_method')->heading('Método de pago')
+                                    ->formatStateUsing(fn ($state) => Payroll::getPaymentMethodLabels()[$state] ?? $state),
+                                Column::make('base_salary')->heading('Salario Base'),
+                                Column::make('total_perceptions')->heading('Percepciones'),
+                                Column::make('total_deductions')->heading('Deducciones'),
+                                Column::make('gross_salary')->heading('Salario Bruto'),
+                                Column::make('net_salary')->heading('Salario Neto'),
+                                Column::make('generated_at')->heading('Generado el')
+                                    ->formatStateUsing(fn ($state) => $state ? \Carbon\Carbon::parse($state)->format('d/m/Y H:i') : '—'),
+                            ]),
+                    ]),
 
                 Action::make('generate_for_employee')
                     ->label('Agregar Recibo')
                     ->icon('heroicon-o-user-plus')
                     ->color('primary')
-                    ->mountUsing(function (?\Filament\Forms\Form $form, Action $action) {
+                    ->mountUsing(function (\Filament\Forms\Form $form) {
                         $period = $this->getOwnerRecord();
                         $existingIds = $period->payrolls()->pluck('employee_id');
 
                         $hasAvailable = Employee::where('status', 'active')
-                            ->whereHas(
-                                'activeContract',
-                                fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
-                            )
+                            ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary'))
                             ->whereNotIn('id', $existingIds)
                             ->exists();
 
-                        if (! $hasAvailable) {
-                            Notification::make()
-                                ->warning()
-                                ->title('Sin empleados disponibles')
-                                ->body('Todos los empleados activos ya tienen recibo en esta planilla.')
-                                ->send();
-
-                            $action->halt();
-
-                            return;
-                        }
-
-                        $form?->fill();
+                        $form->fill(['has_available' => $hasAvailable]);
                     })
                     ->modalHeading('Agregar Recibo para Empleado')
                     ->modalSubmitActionLabel('Generar')
@@ -273,14 +278,18 @@ class PayrollsRelationManager extends RelationManager
                         $existingIds = $period->payrolls()->pluck('employee_id');
 
                         return [
+                            Hidden::make('has_available'),
+
+                            Placeholder::make('no_employees_notice')
+                                ->label('')
+                                ->content('Todos los empleados activos ya tienen recibo en esta planilla.')
+                                ->visible(fn (Get $get) => ! $get('has_available')),
+
                             FormSelect::make('employee_id')
                                 ->label('Empleado')
                                 ->options(
                                     Employee::where('status', 'active')
-                                        ->whereHas(
-                                            'activeContract',
-                                            fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary')
-                                        )
+                                        ->whereHas('activeContract', fn ($q) => $q->where('payroll_type', $period->frequency)->whereNotNull('salary'))
                                         ->whereNotIn('id', $existingIds)
                                         ->get()
                                         ->mapWithKeys(fn ($e) => [$e->id => "{$e->full_name} — CI: {$e->ci}"])
@@ -288,11 +297,18 @@ class PayrollsRelationManager extends RelationManager
                                 )
                                 ->searchable()
                                 ->native(false)
-                                ->required()
+                                ->required(fn (Get $get) => (bool) $get('has_available'))
+                                ->visible(fn (Get $get) => (bool) $get('has_available'))
                                 ->placeholder('Seleccione un empleado sin recibo en esta planilla'),
                         ];
                     })
-                    ->action(function (array $data, PayrollService $payrollService) {
+                    ->action(function (array $data, PayrollService $payrollService, Action $action) {
+                        if (empty($data['employee_id'])) {
+                            $action->halt();
+
+                            return;
+                        }
+
                         $period = $this->getOwnerRecord();
 
                         try {
