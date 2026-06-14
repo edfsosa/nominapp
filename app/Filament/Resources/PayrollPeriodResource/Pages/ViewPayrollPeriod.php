@@ -206,6 +206,36 @@ class ViewPayrollPeriod extends ViewRecord
 
                     return $base;
                 })
+                ->disabled(function () {
+                    return $this->record->payrolls()->whereIn('status', ['draft', 'approved'])->exists();
+                })
+                ->tooltip(function () {
+                    $draft = $this->record->payrolls()->where('status', 'draft')->count();
+                    $approvedCash = $this->record->payrolls()
+                        ->where('status', 'approved')->where('payment_method', 'cash')->count();
+                    $approvedTransfer = $this->record->payrolls()
+                        ->where('status', 'approved')->where('payment_method', 'transfer')->count();
+
+                    if ($draft === 0 && $approvedCash === 0 && $approvedTransfer === 0) {
+                        return null;
+                    }
+
+                    $parts = [];
+                    if ($draft > 0) {
+                        $noun = $draft === 1 ? 'recibo en borrador' : 'recibos en borrador';
+                        $parts[] = "{$draft} {$noun}";
+                    }
+                    if ($approvedCash > 0) {
+                        $noun = $approvedCash === 1 ? 'aprobado en efectivo sin marcar como pagado' : 'aprobados en efectivo sin marcar como pagados';
+                        $parts[] = "{$approvedCash} {$noun}";
+                    }
+                    if ($approvedTransfer > 0) {
+                        $noun = $approvedTransfer === 1 ? 'aprobado por transferencia pendiente de enviar al banco' : 'aprobados por transferencia pendientes de enviar al banco';
+                        $parts[] = "{$approvedTransfer} {$noun}";
+                    }
+
+                    return implode(' · ', $parts);
+                })
                 ->action(function () {
                     $this->record->update([
                         'status' => 'closed',
@@ -221,8 +251,7 @@ class ViewPayrollPeriod extends ViewRecord
                     $this->refreshFormData(['status', 'closed_at', 'updated_at']);
                 })
                 ->visible(fn () => $this->record->status === 'processing'
-                    && $this->record->payrolls()->exists()
-                    && $this->record->payrolls()->whereIn('status', ['draft', 'approved'])->doesntExist()),
+                    && $this->record->payrolls()->exists()),
 
             Action::make('reopen_period')
                 ->label('Reabrir Planilla')
