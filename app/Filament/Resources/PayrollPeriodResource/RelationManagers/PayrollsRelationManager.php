@@ -40,9 +40,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
 use Maatwebsite\Excel\Excel;
-use pxlrbt\FilamentExcel\Actions\Tables\ExportAction;
 use pxlrbt\FilamentExcel\Actions\Tables\ExportBulkAction;
-use pxlrbt\FilamentExcel\Columns\Column;
 use pxlrbt\FilamentExcel\Exports\ExcelExport;
 
 /** Muestra y gestiona los recibos de nómina de una planilla. */
@@ -226,35 +224,6 @@ class PayrollsRelationManager extends RelationManager
                     ->native(false),
             ])
             ->headerActions([
-                ExportAction::make()
-                    ->label('Exportar a Excel')
-                    ->color('info')
-                    ->icon('heroicon-o-arrow-down-tray')
-                    ->requiresConfirmation()
-                    ->modalHeading('Exportar Recibos a Excel')
-                    ->modalDescription(fn () => 'Se exportarán todos los recibos de la planilla '.$this->getOwnerRecord()->name.' con todas las columnas (CI, nombre, salarios, percepciones, deducciones, estado, método de pago).')
-                    ->modalSubmitActionLabel('Exportar')
-                    ->exports([
-                        ExcelExport::make()
-                            ->withFilename(fn () => 'recibos_'.str_replace(' ', '_', $this->getOwnerRecord()->name).'_'.now()->format('d_m_Y_H_i_s'))
-                            ->withWriterType(Excel::XLSX)
-                            ->withColumns([
-                                Column::make('employee.ci')->heading('CI'),
-                                Column::make('employee.full_name')->heading('Empleado'),
-                                Column::make('employee.activeContract.position.name')->heading('Cargo'),
-                                Column::make('status')->heading('Estado')
-                                    ->formatStateUsing(fn ($state) => Payroll::getStatusLabels()[$state] ?? $state),
-                                Column::make('payment_method')->heading('Método de pago')
-                                    ->formatStateUsing(fn ($state) => Payroll::getPaymentMethodLabels()[$state] ?? $state),
-                                Column::make('base_salary')->heading('Salario Base'),
-                                Column::make('total_perceptions')->heading('Percepciones'),
-                                Column::make('total_deductions')->heading('Deducciones'),
-                                Column::make('gross_salary')->heading('Salario Bruto'),
-                                Column::make('net_salary')->heading('Salario Neto'),
-                                Column::make('generated_at')->heading('Generado el')
-                                    ->formatStateUsing(fn ($state) => $state ? \Carbon\Carbon::parse($state)->format('d/m/Y H:i') : '—'),
-                            ]),
-                    ]),
 
                 Action::make('generate_for_employee')
                     ->label('Agregar Recibo')
