@@ -168,6 +168,40 @@ class ViewPayrollPeriod extends ViewRecord
                 })
                 ->visible(fn () => in_array($this->record->status, ['draft', 'processing'])),
 
+            Action::make('approve_all_payrolls')
+                ->label('Aprobar Todos')
+                ->icon('heroicon-o-check-circle')
+                ->color('success')
+                ->requiresConfirmation()
+                ->modalHeading('Aprobar Todos los Recibos')
+                ->modalSubmitActionLabel('Sí, aprobar todos')
+                ->modalDescription(function () {
+                    $count = $this->record->payrolls()->where('status', 'draft')->count();
+                    $noun = $count === 1 ? '1 recibo en borrador' : "{$count} recibos en borrador";
+
+                    return "Se aprobarán {$noun} de la planilla {$this->record->name}. ¿Desea continuar?";
+                })
+                ->action(function () {
+                    $count = $this->record->payrolls()
+                        ->where('status', 'draft')
+                        ->update([
+                            'status' => 'approved',
+                            'approved_by_id' => Auth::id(),
+                            'approved_at' => now(),
+                        ]);
+
+                    $noun = $count === 1 ? '1 recibo aprobado' : "{$count} recibos aprobados";
+
+                    Notification::make()
+                        ->success()
+                        ->title($noun)
+                        ->send();
+
+                    $this->js('window.location.reload()');
+                })
+                ->visible(fn () => $this->record->status === 'processing'
+                    && $this->record->payrolls()->where('status', 'draft')->exists()),
+
             Action::make('close_period')
                 ->label('Cerrar Planilla')
                 ->icon('heroicon-o-lock-closed')
