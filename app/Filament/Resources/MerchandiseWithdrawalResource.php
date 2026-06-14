@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\MerchandiseWithdrawalResource\Pages;
+use App\Filament\Resources\MerchandiseWithdrawalResource\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\MerchandiseWithdrawalResource\RelationManagers\InstallmentsRelationManager;
 use App\Filament\Resources\MerchandiseWithdrawalResource\RelationManagers\ItemsRelationManager;
 use App\Models\Branch;
@@ -400,6 +401,7 @@ class MerchandiseWithdrawalResource extends Resource
         return [
             ItemsRelationManager::class,
             InstallmentsRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 

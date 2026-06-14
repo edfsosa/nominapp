@@ -756,6 +756,7 @@ class PayrollResource extends Resource
     {
         return [
             RelationManagers\ItemsRelationManager::class,
+            RelationManagers\AuditsRelationManager::class,
         ];
     }
 

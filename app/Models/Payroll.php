@@ -8,11 +8,26 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Payroll extends Model
+class Payroll extends Model implements Auditable
 {
     /** @use HasFactory<\Database\Factories\PayrollFactory> */
-    use HasFactory, SoftDeletes;
+    use HasFactory, \OwenIt\Auditing\Auditable, SoftDeletes;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'approved_by_id',
+        'approved_at',
+        'disbursed_at',
+        'disbursed_by_id',
+        'disbursement_batch_id',
+        'bank_rejection_reason',
+        'notes',
+    ];
 
     protected $fillable = [
         'employee_id',
@@ -437,5 +452,57 @@ class Payroll extends Model
     public function getFormattedNetSalaryAttribute(): string
     {
         return self::formatCurrency($this->net_salary);
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'approved_by_id' => 'Aprobado por',
+            'approved_at' => 'Fecha de aprobación',
+            'disbursed_at' => 'Fecha de acreditación',
+            'disbursed_by_id' => 'Acreditado por',
+            'disbursement_batch_id' => 'Lote bancario',
+            'bank_rejection_reason' => 'Motivo de rechazo',
+            'notes' => 'Notas',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::getStatusLabel($value),
+            'approved_by_id', 'disbursed_by_id' => User::find($value)?->name ?? "ID {$value}",
+            'approved_at', 'disbursed_at' => \Carbon\Carbon::parse($value)->format('d/m/Y H:i'),
+            'disbursement_batch_id' => "Lote #{$value}",
+            'notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }

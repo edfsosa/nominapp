@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AbsenceResource\Pages;
+use App\Filament\Resources\AbsenceResource\RelationManagers\AuditsRelationManager;
 use App\Models\Absence;
 use App\Models\AttendanceDay;
 use App\Models\AttendanceEvent;
@@ -726,7 +727,7 @@ class AbsenceResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            AuditsRelationManager::class,
         ];
     }
 

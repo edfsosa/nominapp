@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\EmployeeLeaveResource\Pages;
+use App\Filament\Resources\EmployeeLeaveResource\RelationManagers\AuditsRelationManager;
 use App\Models\Absence;
 use App\Models\EmployeeLeave;
 use Carbon\Carbon;
@@ -546,6 +547,13 @@ class EmployeeLeaveResource extends Resource
      *
      * @return array<string, \Filament\Resources\Pages\PageRegistration>
      */
+    public static function getRelations(): array
+    {
+        return [
+            AuditsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
