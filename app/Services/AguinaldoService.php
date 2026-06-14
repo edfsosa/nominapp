@@ -142,6 +142,7 @@ class AguinaldoService
                 'months_worked' => count($payrolls),
                 'aguinaldo_amount' => round($totalEarned / 12, 2),
                 'generated_at' => $now,
+                'payment_method' => $employee->activeContract?->payment_method ?? 'cash',
             ]);
         });
 
