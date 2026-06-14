@@ -4,11 +4,19 @@ namespace App\Filament\Resources\AguinaldoPeriodResource\Pages;
 
 use App\Exports\AguinaldosExport;
 use App\Filament\Resources\AguinaldoPeriodResource;
+use App\Filament\Resources\DisbursementBatchResource;
+use App\Models\Aguinaldo;
+use App\Models\DisbursementBatch;
 use App\Services\AguinaldoService;
 use Filament\Actions\Action;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ViewRecord;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\HtmlString;
 use Maatwebsite\Excel\Facades\Excel;
 
 class ViewAguinaldoPeriod extends ViewRecord
@@ -85,6 +93,128 @@ class ViewAguinaldoPeriod extends ViewRecord
                     $this->refreshFormData(['status']);
                 })
                 ->visible(fn () => $this->record->isProcessing() && $this->record->pending_aguinaldos_count > 0),
+
+            Action::make('send_to_bank')
+                ->label('Enviar al Banco')
+                ->icon('heroicon-o-building-library')
+                ->color('info')
+                ->mountUsing(function (\Filament\Forms\Form $form, Action $action) {
+                    $hasAguinaldos = Aguinaldo::query()
+                        ->where('aguinaldo_period_id', $this->record->id)
+                        ->where('status', 'pending')
+                        ->where('payment_method', 'transfer')
+                        ->whereNull('disbursement_batch_id')
+                        ->exists();
+
+                    if (! $hasAguinaldos) {
+                        Notification::make()
+                            ->warning()
+                            ->title('Sin aguinaldos disponibles')
+                            ->body('No hay aguinaldos pendientes por transferencia bancaria sin lote asignado.')
+                            ->send();
+
+                        $action->halt();
+
+                        return;
+                    }
+
+                    $form->fill(['fecha_credito' => today()->format('Y-m-d')]);
+                })
+                ->modalHeading('Crear lote bancario de aguinaldo')
+                ->modalSubmitActionLabel('Crear lote')
+                ->form(function () {
+                    $missing = Aguinaldo::query()
+                        ->where('aguinaldo_period_id', $this->record->id)
+                        ->where('status', 'pending')
+                        ->where('payment_method', 'transfer')
+                        ->whereNull('disbursement_batch_id')
+                        ->whereDoesntHave('employee.bankAccounts', fn ($q) => $q->where('is_primary', true)->where('status', 'active'))
+                        ->with('employee')
+                        ->get();
+
+                    return [
+                        Placeholder::make('accounts_check')
+                            ->label('')
+                            ->content(function () use ($missing) {
+                                if ($missing->isEmpty()) {
+                                    return new HtmlString(
+                                        '<div class="rounded-lg bg-success-50 border border-success-200 p-3 text-sm text-success-700">'
+                                        .'✓ Todos los empleados tienen cuenta bancaria activa registrada.'
+                                        .'</div>'
+                                    );
+                                }
+
+                                $count = $missing->count();
+                                $label = $count === 1 ? 'empleado' : 'empleados';
+                                $names = $missing->map(fn ($a) => $a->employee->full_name)->join(', ');
+
+                                return new HtmlString(
+                                    '<div class="rounded-lg bg-danger-50 border border-danger-200 p-4 text-sm">'
+                                    .'<p class="font-semibold text-danger-700 mb-1">⚠ '.$count.' '.$label.' sin cuenta bancaria activa</p>'
+                                    .'<p class="text-danger-600 mb-2">No se puede crear el lote hasta que todos los empleados tengan cuenta bancaria registrada.</p>'
+                                    .'<p class="text-danger-700">'.$names.'</p>'
+                                    .'</div>'
+                                );
+                            }),
+
+                        DatePicker::make('fecha_credito')
+                            ->label('Fecha de acreditación')
+                            ->required()
+                            ->native(false)
+                            ->displayFormat('d/m/Y')
+                            ->closeOnDateSelection()
+                            ->helperText('Fecha en que el banco acreditará los fondos a los empleados.'),
+
+                        Textarea::make('notes')
+                            ->label('Notas')
+                            ->placeholder('Observaciones opcionales...')
+                            ->rows(2),
+                    ];
+                })
+                ->action(function (array $data) {
+                    $missing = Aguinaldo::query()
+                        ->where('aguinaldo_period_id', $this->record->id)
+                        ->where('status', 'pending')
+                        ->where('payment_method', 'transfer')
+                        ->whereNull('disbursement_batch_id')
+                        ->whereDoesntHave('employee.bankAccounts', fn ($q) => $q->where('is_primary', true)->where('status', 'active'))
+                        ->count();
+
+                    if ($missing > 0) {
+                        Notification::make()
+                            ->danger()
+                            ->title('Hay empleados sin cuenta bancaria')
+                            ->body('Registre las cuentas bancarias faltantes antes de crear el lote.')
+                            ->send();
+
+                        return;
+                    }
+
+                    $batch = DisbursementBatch::create([
+                        'type' => 'aguinaldo',
+                        'company_id' => $this->record->company_id,
+                        'fecha_credito' => $data['fecha_credito'],
+                        'notes' => $data['notes'] ?? null,
+                        'status' => 'pending',
+                        'created_by_id' => Auth::id(),
+                    ]);
+
+                    Aguinaldo::query()
+                        ->where('aguinaldo_period_id', $this->record->id)
+                        ->where('status', 'pending')
+                        ->where('payment_method', 'transfer')
+                        ->whereNull('disbursement_batch_id')
+                        ->update(['disbursement_batch_id' => $batch->id]);
+
+                    Notification::make()
+                        ->success()
+                        ->title('Lote bancario creado')
+                        ->body('El lote de aguinaldo fue creado. Descargá el TXT y confirmá el resultado bancario.')
+                        ->send();
+
+                    $this->redirect(DisbursementBatchResource::getUrl('view', ['record' => $batch]));
+                })
+                ->visible(fn () => $this->record->isProcessing()),
 
             Action::make('export_excel')
                 ->label('Exportar')

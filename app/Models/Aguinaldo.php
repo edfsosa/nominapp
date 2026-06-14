@@ -17,15 +17,17 @@ class Aguinaldo extends Model
         'pdf_path',
         'generated_at',
         'status',
+        'disbursement_batch_id',
+        'payment_method',
         'paid_at',
     ];
 
     protected $casts = [
-        'total_earned'     => 'decimal:2',
-        'months_worked'    => 'decimal:2',
+        'total_earned' => 'decimal:2',
+        'months_worked' => 'decimal:2',
         'aguinaldo_amount' => 'decimal:2',
-        'generated_at'     => 'datetime',
-        'paid_at'          => 'datetime',
+        'generated_at' => 'datetime',
+        'paid_at' => 'datetime',
     ];
 
     // =========================================================================
@@ -47,6 +49,12 @@ class Aguinaldo extends Model
         return $this->hasMany(AguinaldoItem::class);
     }
 
+    /** Lote bancario al que pertenece este aguinaldo. */
+    public function disbursementBatch(): BelongsTo
+    {
+        return $this->belongsTo(DisbursementBatch::class);
+    }
+
     // =========================================================================
     // HELPERS ESTÁTICOS PARA ESTADOS
     // =========================================================================
@@ -55,7 +63,7 @@ class Aguinaldo extends Model
     {
         return [
             'pending' => 'Pendiente',
-            'paid'    => 'Pagado',
+            'paid' => 'Pagado',
         ];
     }
 
@@ -68,8 +76,8 @@ class Aguinaldo extends Model
     {
         return match ($status) {
             'pending' => 'warning',
-            'paid'    => 'success',
-            default   => 'gray',
+            'paid' => 'success',
+            default => 'gray',
         };
     }
 
@@ -77,8 +85,8 @@ class Aguinaldo extends Model
     {
         return match ($status) {
             'pending' => 'heroicon-o-clock',
-            'paid'    => 'heroicon-o-check-circle',
-            default   => 'heroicon-o-question-mark-circle',
+            'paid' => 'heroicon-o-check-circle',
+            default => 'heroicon-o-question-mark-circle',
         };
     }
 
@@ -103,7 +111,7 @@ class Aguinaldo extends Model
     public function markAsPaid(): void
     {
         $this->update([
-            'status'  => 'paid',
+            'status' => 'paid',
             'paid_at' => now(),
         ]);
     }
@@ -111,7 +119,7 @@ class Aguinaldo extends Model
     public function markAsPending(): void
     {
         $this->update([
-            'status'  => 'pending',
+            'status' => 'pending',
             'paid_at' => null,
         ]);
     }
@@ -140,7 +148,7 @@ class Aguinaldo extends Model
             return 'Gs. 0';
         }
 
-        return 'Gs. ' . number_format($amount, 0, ',', '.');
+        return 'Gs. '.number_format($amount, 0, ',', '.');
     }
 
     public function getFormattedTotalEarnedAttribute(): string

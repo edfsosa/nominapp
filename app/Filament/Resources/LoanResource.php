@@ -104,6 +104,17 @@ class LoanResource extends Resource
                             ->placeholder('Seleccione un motivo')
                             ->required(),
 
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options([
+                                'cash' => 'Efectivo',
+                                'transfer' => 'Transferencia bancaria',
+                            ])
+                            ->default('cash')
+                            ->native(false)
+                            ->required()
+                            ->helperText('Transferencia: el préstamo se incluye en un lote bancario.'),
+
                         TextInput::make('amount')
                             ->label('Monto Total')
                             ->numeric()

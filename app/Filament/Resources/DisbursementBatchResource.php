@@ -174,19 +174,25 @@ class DisbursementBatchResource extends Resource
                                 ->badge(),
 
                             TextEntry::make('items_count')
-                                ->label(fn (DisbursementBatch $record) => $record->type === 'payroll' ? 'Cantidad de recibos' : 'Cantidad de adelantos')
+                                ->label('Cantidad')
                                 ->icon('heroicon-o-banknotes')
-                                ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
-                                    ? $record->payrolls()->count()
-                                    : $record->advances()->count()),
+                                ->getStateUsing(fn (DisbursementBatch $record) => match ($record->type) {
+                                    'payroll' => $record->payrolls()->count(),
+                                    'loan' => $record->loans()->count(),
+                                    'aguinaldo' => $record->aguinaldos()->count(),
+                                    default => $record->advances()->count(),
+                                }),
 
                             TextEntry::make('items_total')
                                 ->label('Monto total')
                                 ->icon('heroicon-o-currency-dollar')
                                 ->getStateUsing(fn (DisbursementBatch $record) => 'Gs. '.number_format(
-                                    (float) ($record->type === 'payroll'
-                                        ? $record->payrolls()->sum('net_salary')
-                                        : $record->advances()->sum('amount')),
+                                    (float) match ($record->type) {
+                                        'payroll' => $record->payrolls()->sum('net_salary'),
+                                        'loan' => $record->loans()->sum('amount'),
+                                        'aguinaldo' => $record->aguinaldos()->sum('aguinaldo_amount'),
+                                        default => $record->advances()->sum('amount'),
+                                    },
                                     0, ',', '.'
                                 )),
                         ])->columns(3),
@@ -274,9 +280,11 @@ class DisbursementBatchResource extends Resource
         return $table
             ->modifyQueryUsing(fn (Builder $query) => $query
                 ->with(['company', 'createdBy'])
-                ->withCount(['advances', 'payrolls'])
+                ->withCount(['advances', 'payrolls', 'loans', 'aguinaldos'])
                 ->withSum('advances', 'amount')
                 ->withSum('payrolls', 'net_salary')
+                ->withSum('loans', 'amount')
+                ->withSum('aguinaldos', 'aguinaldo_amount')
             )
             ->columns([
                 TextColumn::make('id')
@@ -291,7 +299,7 @@ class DisbursementBatchResource extends Resource
                     ->label('Tipo')
                     ->badge()
                     ->formatStateUsing(fn (string $state) => DisbursementBatch::getTypeLabel($state))
-                    ->color(fn (string $state) => $state === 'payroll' ? 'info' : 'success')
+                    ->color(fn (string $state) => DisbursementBatch::getTypeColor($state))
                     ->sortable(),
 
                 TextColumn::make('fecha_credito')
@@ -309,18 +317,24 @@ class DisbursementBatchResource extends Resource
 
                 TextColumn::make('items_count')
                     ->label('Ítems')
-                    ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
-                        ? $record->payrolls_count
-                        : $record->advances_count)
+                    ->getStateUsing(fn (DisbursementBatch $record) => match ($record->type) {
+                        'payroll' => $record->payrolls_count,
+                        'loan' => $record->loans_count ?? $record->loans()->count(),
+                        'aguinaldo' => $record->aguinaldos_count ?? $record->aguinaldos()->count(),
+                        default => $record->advances_count,
+                    })
                     ->badge()
                     ->color('gray')
                     ->sortable(false),
 
                 TextColumn::make('items_total')
                     ->label('Total (Gs.)')
-                    ->getStateUsing(fn (DisbursementBatch $record) => $record->type === 'payroll'
-                        ? $record->payrolls_sum_net_salary
-                        : $record->advances_sum_amount)
+                    ->getStateUsing(fn (DisbursementBatch $record) => match ($record->type) {
+                        'payroll' => $record->payrolls_sum_net_salary,
+                        'loan' => $record->loans_sum_amount ?? $record->loans()->sum('amount'),
+                        'aguinaldo' => $record->aguinaldos_sum_aguinaldo_amount ?? $record->aguinaldos()->sum('aguinaldo_amount'),
+                        default => $record->advances_sum_amount,
+                    })
                     ->numeric(0, ',', '.')
                     ->sortable(false),
 
@@ -373,6 +387,8 @@ class DisbursementBatchResource extends Resource
         return [
             RelationManagers\AdvancesRelationManager::class,
             RelationManagers\PayrollsRelationManager::class,
+            RelationManagers\LoansRelationManager::class,
+            RelationManagers\AguinaldosRelationManager::class,
         ];
     }
 

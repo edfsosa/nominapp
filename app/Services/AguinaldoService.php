@@ -73,6 +73,7 @@ class AguinaldoService
                         'aguinaldo_amount' => round($totalEarned / 12, 2),
                         'status' => 'pending',
                         'generated_at' => $now,
+                        'payment_method' => $employee->activeContract?->payment_method ?? 'cash',
                     ]);
 
                     AguinaldoItem::insert(
