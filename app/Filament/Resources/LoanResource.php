@@ -489,6 +489,31 @@ class LoanResource extends Resource
                     }),
             ])
             ->actions([
+                Action::make('change_payment_method')
+                    ->label('Cambiar método de pago')
+                    ->icon('heroicon-o-credit-card')
+                    ->color('gray')
+                    ->modalHeading('Cambiar método de pago')
+                    ->modalSubmitActionLabel('Guardar')
+                    ->fillForm(fn (Loan $record) => ['payment_method' => $record->payment_method])
+                    ->form([
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options(Loan::getPaymentMethodOptions())
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->action(function (Loan $record, array $data) {
+                        $record->update(['payment_method' => $data['payment_method']]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Método de pago actualizado')
+                            ->body('Se actualizó el método de pago de '.($record->employee?->full_name ?? 'empleado eliminado').' a '.Loan::getPaymentMethodLabel($data['payment_method']).'.')
+                            ->send();
+                    })
+                    ->visible(fn (Loan $record) => $record->isPending() || $record->isApproved()),
+
                 Action::make('activate')
                     ->label('Aprobar')
                     ->icon('heroicon-o-check')
@@ -566,6 +591,34 @@ class LoanResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('changePaymentMethodBulk')
+                        ->label('Cambiar método de pago')
+                        ->icon('heroicon-o-credit-card')
+                        ->color('gray')
+                        ->modalHeading('Cambiar método de pago')
+                        ->modalDescription('Solo se actualizarán los préstamos en estado Pendiente o Aprobado. Los demás serán ignorados.')
+                        ->modalSubmitActionLabel('Guardar')
+                        ->form([
+                            Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Loan::getPaymentMethodOptions())
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $count = $records
+                                ->filter(fn ($r) => $r->isPending() || $r->isApproved())
+                                ->each->update(['payment_method' => $data['payment_method']])
+                                ->count();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Método de pago actualizado')
+                                ->body("Se actualizaron {$count} préstamo(s) a ".Loan::getPaymentMethodLabel($data['payment_method']).'.')
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     BulkAction::make('activateBulk')
                         ->label('Aprobar')
                         ->icon('heroicon-o-check')

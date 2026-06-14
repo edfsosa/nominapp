@@ -107,7 +107,7 @@ class LoanReport extends Page implements HasTable
                         ->required(),
                 ])
                 ->action(function (array $data) {
-                    [$companyId, $branchId, $status, $employeeId, $from, $to] = $this->resolveActiveFilters();
+                    [$companyId, $branchId, $status, $employeeId, $from, $to, $paymentMethod] = $this->resolveActiveFilters();
 
                     Notification::make()
                         ->success()
@@ -123,6 +123,7 @@ class LoanReport extends Page implements HasTable
                             'employee_id' => $employeeId,
                             'from' => $from,
                             'to' => $to,
+                            'payment_method' => $paymentMethod,
                         ]),
                         'prestamos_'.now()->format('Y_m_d_H_i').'.xlsx'
                     );
@@ -208,6 +209,15 @@ class LoanReport extends Page implements HasTable
                     ->alignRight()
                     ->sortable(),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->formatStateUsing(fn ($state) => Loan::getPaymentMethodLabel($state ?? 'cash'))
+                    ->color(fn ($state) => Loan::getPaymentMethodColor($state ?? 'cash'))
+                    ->icon(fn ($state) => Loan::getPaymentMethodIcon($state ?? 'cash'))
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->formatStateUsing(fn ($state) => Loan::getStatusLabel($state))
@@ -244,6 +254,7 @@ class LoanReport extends Page implements HasTable
                 'loans.installment_amount',
                 'loans.interest_rate',
                 'loans.outstanding_balance',
+                'loans.payment_method',
                 'loans.status',
                 'loans.granted_at',
                 DB::raw("CONCAT(employees.first_name, ' ', employees.last_name) AS employee_name"),
@@ -355,6 +366,15 @@ class LoanReport extends Page implements HasTable
                 : null
             );
 
+        $filters[] = SelectFilter::make('payment_method')
+            ->label('Método de pago')
+            ->options(Loan::getPaymentMethodOptions())
+            ->placeholder('Todos')
+            ->query(fn (Builder $query, array $data) => filled($data['value'])
+                ? $query->where('loans.payment_method', $data['value'])
+                : $query
+            );
+
         $filters[] = Filter::make('period')
             ->label('Período')
             ->form([
@@ -414,6 +434,7 @@ class LoanReport extends Page implements HasTable
             isset($f['employee_id']['value']) && $f['employee_id']['value'] !== '' ? (int) $f['employee_id']['value'] : null,
             $f['period']['from_date'] ?? null,
             $f['period']['to_date'] ?? null,
+            isset($f['payment_method']['value']) && $f['payment_method']['value'] !== '' ? $f['payment_method']['value'] : null,
         ];
     }
 }
