@@ -4,8 +4,10 @@ namespace App\Filament\Resources\DisbursementBatchResource\Pages;
 
 use App\Filament\Resources\DisbursementBatchResource;
 use App\Filament\Resources\PayrollPeriodResource;
+use App\Models\Aguinaldo;
 use App\Models\CompanyBankAccount;
 use App\Models\DisbursementBatch;
+use App\Models\Loan;
 use App\Models\Payroll;
 use App\Services\BankPaymentExportService;
 use Filament\Actions\Action;
@@ -85,19 +87,37 @@ class ViewDisbursementBatch extends ViewRecord
                     $batch = $this->record;
                     $fecha = $batch->fecha_credito->format('d/m/Y');
 
-                    if ($batch->type === 'payroll') {
-                        $items = $batch->payrolls();
-                        $count = $items->count();
-                        $total = number_format((float) $items->sum('net_salary'), 0, ',', '.');
-                        $noun = $count === 1 ? 'recibo' : 'recibos';
-                    } else {
-                        $items = $batch->advances()->where('status', 'approved');
-                        $count = $items->count();
-                        $total = number_format((float) $items->sum('amount'), 0, ',', '.');
-                        $noun = $count === 1 ? 'adelanto' : 'adelantos';
-                    }
+                    [$count, $total, $noun] = match ($batch->type) {
+                        'payroll' => [
+                            $batch->payrolls()->count(),
+                            number_format((float) $batch->payrolls()->sum('net_salary'), 0, ',', '.'),
+                            'recibo',
+                        ],
+                        'loan' => [
+                            $batch->loans()->where('status', 'approved')->count(),
+                            number_format((float) $batch->loans()->where('status', 'approved')->sum('amount'), 0, ',', '.'),
+                            'préstamo',
+                        ],
+                        'aguinaldo' => [
+                            $batch->aguinaldos()->where('status', 'pending')->count(),
+                            number_format((float) $batch->aguinaldos()->where('status', 'pending')->sum('aguinaldo_amount'), 0, ',', '.'),
+                            'aguinaldo',
+                        ],
+                        default => [
+                            $batch->advances()->where('status', 'approved')->count(),
+                            number_format((float) $batch->advances()->where('status', 'approved')->sum('amount'), 0, ',', '.'),
+                            'adelanto',
+                        ],
+                    };
 
-                    return "Se generará el archivo para acreditación bancaria del {$fecha} con {$count} {$noun} por un total de Gs. {$total}.";
+                    $noun_plural = $count === 1 ? $noun : match ($noun) {
+                        'préstamo' => 'préstamos',
+                        'aguinaldo' => 'aguinaldos',
+                        'recibo' => 'recibos',
+                        default => 'adelantos',
+                    };
+
+                    return "Se generará el archivo para acreditación bancaria del {$fecha} con {$count} {$noun_plural} por un total de Gs. {$total}.";
                 })
                 ->modalSubmitActionLabel('Descargar')
                 ->action(function (Action $action) {
@@ -131,20 +151,32 @@ class ViewDisbursementBatch extends ViewRecord
 
                     $withBankAccounts = ['employee.bankAccounts' => fn ($q) => $q->where('is_primary', true)->where('status', 'active')];
 
-                    if ($batch->type === 'payroll') {
-                        $items = $batch->payrolls()
-                            ->with($withBankAccounts)
-                            ->get();
-                        $emptyMessage = 'No hay recibos en este lote para generar el TXT.';
-                        $emptyTitle = 'Sin recibos disponibles';
-                    } else {
-                        $items = $batch->advances()
-                            ->where('status', 'approved')
-                            ->with($withBankAccounts)
-                            ->get();
-                        $emptyMessage = 'No hay adelantos aprobados en este lote para generar el TXT.';
-                        $emptyTitle = 'Sin adelantos disponibles';
-                    }
+                    [$items, $amountField, $emptyTitle, $emptyMessage] = match ($batch->type) {
+                        'payroll' => [
+                            $batch->payrolls()->with($withBankAccounts)->get(),
+                            'net_salary',
+                            'Sin recibos disponibles',
+                            'No hay recibos en este lote para generar el TXT.',
+                        ],
+                        'loan' => [
+                            $batch->loans()->where('status', 'approved')->with($withBankAccounts)->get(),
+                            'amount',
+                            'Sin préstamos disponibles',
+                            'No hay préstamos aprobados en este lote para generar el TXT.',
+                        ],
+                        'aguinaldo' => [
+                            $batch->aguinaldos()->where('status', 'pending')->with($withBankAccounts)->get(),
+                            'aguinaldo_amount',
+                            'Sin aguinaldos disponibles',
+                            'No hay aguinaldos pendientes en este lote para generar el TXT.',
+                        ],
+                        default => [
+                            $batch->advances()->where('status', 'approved')->with($withBankAccounts)->get(),
+                            'amount',
+                            'Sin adelantos disponibles',
+                            'No hay adelantos aprobados en este lote para generar el TXT.',
+                        ],
+                    };
 
                     if ($items->isEmpty()) {
                         Notification::make()->warning()
@@ -168,7 +200,7 @@ class ViewDisbursementBatch extends ViewRecord
                         $params,
                         $items,
                         stampDate: false,
-                        amountField: $batch->type === 'payroll' ? 'net_salary' : 'amount',
+                        amountField: $amountField,
                     );
 
                     // Guarda el TXT en storage y registra la ruta en el lote.
@@ -195,10 +227,12 @@ class ViewDisbursementBatch extends ViewRecord
                 ->color('success')
                 ->visible(fn () => $this->record->isPending())
                 ->modalHeading('Confirmar resultado bancario')
-                ->modalDescription(fn () => $this->record->type === 'payroll'
-                    ? 'Adjuntá el comprobante del banco. Marcá los recibos rechazados (si los hay); los demás quedarán como Acreditados.'
-                    : 'Adjuntá el comprobante del banco y marcá los adelantos rechazados desde la tabla antes de confirmar. Los adelantos no rechazados quedarán como Entregados.'
-                )
+                ->modalDescription(fn () => match ($this->record->type) {
+                    'payroll' => 'Adjuntá el comprobante del banco. Marcá los recibos rechazados (si los hay); los demás quedarán como Acreditados.',
+                    'loan' => 'Adjuntá el comprobante del banco. Marcá los préstamos rechazados (si los hay); los demás quedarán como Desembolsados.',
+                    'aguinaldo' => 'Adjuntá el comprobante del banco. Marcá los aguinaldos rechazados (si los hay); los demás quedarán como Pagados.',
+                    default => 'Adjuntá el comprobante del banco y marcá los adelantos rechazados desde la tabla antes de confirmar. Los adelantos no rechazados quedarán como Entregados.',
+                })
                 ->modalSubmitActionLabel('Confirmar')
                 ->form([
                     FileUpload::make('bank_confirmation_path')
@@ -230,9 +264,46 @@ class ViewDisbursementBatch extends ViewRecord
                         )
                         ->helperText('Marcá los recibos que el banco rechazó. Los no marcados quedarán como Acreditados.')
                         ->visible(fn () => $this->record->type === 'payroll'),
+
+                    CheckboxList::make('rejected_loan_ids')
+                        ->label('Préstamos rechazados por el banco')
+                        ->options(fn () => $this->record->loans()
+                            ->where('status', 'approved')
+                            ->with('employee')
+                            ->get()
+                            ->mapWithKeys(fn (Loan $l) => [
+                                $l->id => $l->employee->full_name
+                                    .' — CI: '.$l->employee->ci
+                                    .' — Gs. '.number_format((float) $l->amount, 0, ',', '.'),
+                            ])
+                            ->toArray()
+                        )
+                        ->helperText('Marcá los préstamos que el banco rechazó. Los no marcados quedarán como Desembolsados.')
+                        ->visible(fn () => $this->record->type === 'loan'),
+
+                    CheckboxList::make('rejected_aguinaldo_ids')
+                        ->label('Aguinaldos rechazados por el banco')
+                        ->options(fn () => $this->record->aguinaldos()
+                            ->where('status', 'pending')
+                            ->with('employee')
+                            ->get()
+                            ->mapWithKeys(fn (Aguinaldo $a) => [
+                                $a->id => $a->employee->full_name
+                                    .' — CI: '.$a->employee->ci
+                                    .' — Gs. '.number_format((float) $a->aguinaldo_amount, 0, ',', '.'),
+                            ])
+                            ->toArray()
+                        )
+                        ->helperText('Marcá los aguinaldos que el banco rechazó. Los no marcados quedarán como Pagados.')
+                        ->visible(fn () => $this->record->type === 'aguinaldo'),
                 ])
                 ->action(function (array $data) {
-                    $rejectedIds = array_map('intval', $data['rejected_payroll_ids'] ?? []);
+                    $rejectedIds = match ($this->record->type) {
+                        'payroll' => array_map('intval', $data['rejected_payroll_ids'] ?? []),
+                        'loan' => array_map('intval', $data['rejected_loan_ids'] ?? []),
+                        'aguinaldo' => array_map('intval', $data['rejected_aguinaldo_ids'] ?? []),
+                        default => [],
+                    };
 
                     $result = $this->record->confirm(
                         confirmedById: Auth::id(),

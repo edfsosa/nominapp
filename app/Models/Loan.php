@@ -30,6 +30,8 @@ class Loan extends Model
         'first_installment_days',
         'outstanding_balance',
         'status',
+        'payment_method',
+        'disbursement_batch_id',
         'reason',
         'granted_at',
         'granted_by_id',
@@ -59,6 +61,12 @@ class Loan extends Model
     public function grantedBy(): BelongsTo
     {
         return $this->belongsTo(User::class, 'granted_by_id');
+    }
+
+    /** Lote bancario al que pertenece este préstamo. */
+    public function disbursementBatch(): BelongsTo
+    {
+        return $this->belongsTo(DisbursementBatch::class);
     }
 
     /** Cuotas del préstamo ordenadas por número. */

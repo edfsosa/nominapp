@@ -60,6 +60,18 @@ class DisbursementBatch extends Model
         return $this->hasMany(Payroll::class);
     }
 
+    /** Préstamos incluidos en el lote. */
+    public function loans(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Loan::class);
+    }
+
+    /** Aguinaldos incluidos en el lote. */
+    public function aguinaldos(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(Aguinaldo::class);
+    }
+
     /** Usuario que creó el lote. */
     public function createdBy(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
@@ -163,6 +175,8 @@ class DisbursementBatch extends Model
         return [
             'advances' => 'Adelantos de salario',
             'payroll' => 'Planilla de salarios',
+            'loan' => 'Préstamos',
+            'aguinaldo' => 'Aguinaldo',
         ];
     }
 
@@ -171,7 +185,20 @@ class DisbursementBatch extends Model
         return match ($type) {
             'advances' => 'Adelantos',
             'payroll' => 'Planilla',
+            'loan' => 'Préstamos',
+            'aguinaldo' => 'Aguinaldo',
             default => $type,
+        };
+    }
+
+    public static function getTypeColor(string $type): string
+    {
+        return match ($type) {
+            'advances' => 'success',
+            'payroll' => 'info',
+            'loan' => 'warning',
+            'aguinaldo' => 'primary',
+            default => 'gray',
         };
     }
 
@@ -196,13 +223,21 @@ class DisbursementBatch extends Model
             ];
         }
 
-        // Desvincular adelantos y nóminas del lote
-        $this->advances()->update(['disbursement_batch_id' => null]);
-        $this->payrolls()->update(['disbursement_batch_id' => null]);
+        match ($this->type) {
+            'payroll' => $this->payrolls()->update(['disbursement_batch_id' => null]),
+            'loan' => $this->loans()->update(['disbursement_batch_id' => null]),
+            'aguinaldo' => $this->aguinaldos()->update(['disbursement_batch_id' => null]),
+            default => $this->advances()->update(['disbursement_batch_id' => null]),
+        };
 
         $this->update(['status' => 'cancelled']);
 
-        $entity = $this->type === 'payroll' ? 'Los recibos volvieron al estado Aprobado.' : 'Los adelantos volvieron al estado Aprobado.';
+        $entity = match ($this->type) {
+            'payroll' => 'Los recibos volvieron a estar disponibles.',
+            'loan' => 'Los préstamos volvieron al estado Aprobado.',
+            'aguinaldo' => 'Los aguinaldos volvieron al estado Pendiente.',
+            default => 'Los adelantos volvieron al estado Aprobado.',
+        };
 
         return [
             'success' => true,
@@ -245,11 +280,12 @@ class DisbursementBatch extends Model
             ];
         }
 
-        if ($this->type === 'payroll') {
-            return $this->confirmPayrolls($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons);
-        }
-
-        return $this->confirmAdvances($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons);
+        return match ($this->type) {
+            'payroll' => $this->confirmPayrolls($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons),
+            'loan' => $this->confirmLoans($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons),
+            'aguinaldo' => $this->confirmAguinaldos($confirmedById, $bankConfirmationPath, $rejectedIds),
+            default => $this->confirmAdvances($confirmedById, $bankConfirmationPath, $rejectedIds, $rejectionReasons),
+        };
     }
 
     /** @param array<int> $rejectedIds @param array<int,string> $rejectionReasons */
@@ -327,6 +363,71 @@ class DisbursementBatch extends Model
         return [
             'success' => true,
             'message' => "Se acreditaron {$disbursedCount} recibos de nómina. ".count($rejectedIds).' rechazados por el banco.',
+        ];
+    }
+
+    /** @param array<int> $rejectedIds @param array<int,string> $rejectionReasons */
+    private function confirmLoans(int $confirmedById, string $bankConfirmationPath, array $rejectedIds, array $rejectionReasons): array
+    {
+        $loans = $this->loans()->where('status', 'approved')->get();
+
+        foreach ($loans as $loan) {
+            if (in_array($loan->id, $rejectedIds)) {
+                $loan->update([
+                    'disbursement_batch_id' => null,
+                    'status' => 'approved',
+                ]);
+            } else {
+                $loan->disburse($confirmedById);
+            }
+        }
+
+        $allRejected = count($rejectedIds) === $loans->count();
+        $someRejected = count($rejectedIds) > 0;
+        $status = $allRejected ? 'cancelled' : ($someRejected ? 'partially_confirmed' : 'confirmed');
+        $disbursedCount = $loans->count() - count($rejectedIds);
+
+        $this->update([
+            'status' => $status,
+            'bank_confirmation_path' => $bankConfirmationPath,
+            'confirmed_by_id' => $confirmedById,
+            'confirmed_at' => now(),
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Se desembolsaron {$disbursedCount} préstamos. ".count($rejectedIds).' rechazados por el banco.',
+        ];
+    }
+
+    /** @param array<int> $rejectedIds */
+    private function confirmAguinaldos(int $confirmedById, string $bankConfirmationPath, array $rejectedIds): array
+    {
+        $aguinaldos = $this->aguinaldos()->where('status', 'pending')->get();
+
+        foreach ($aguinaldos as $aguinaldo) {
+            if (in_array($aguinaldo->id, $rejectedIds)) {
+                $aguinaldo->update(['disbursement_batch_id' => null]);
+            } else {
+                $aguinaldo->markAsPaid();
+            }
+        }
+
+        $allRejected = count($rejectedIds) === $aguinaldos->count();
+        $someRejected = count($rejectedIds) > 0;
+        $status = $allRejected ? 'cancelled' : ($someRejected ? 'partially_confirmed' : 'confirmed');
+        $disbursedCount = $aguinaldos->count() - count($rejectedIds);
+
+        $this->update([
+            'status' => $status,
+            'bank_confirmation_path' => $bankConfirmationPath,
+            'confirmed_by_id' => $confirmedById,
+            'confirmed_at' => now(),
+        ]);
+
+        return [
+            'success' => true,
+            'message' => "Se acreditaron {$disbursedCount} aguinaldos. ".count($rejectedIds).' rechazados por el banco.',
         ];
     }
 }
