@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\WarningResource\Pages;
+use App\Filament\Resources\WarningResource\RelationManagers\AuditsRelationManager;
 use App\Models\Warning;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
@@ -353,7 +354,9 @@ class WarningResource extends Resource
 
     public static function getRelations(): array
     {
-        return [];
+        return [
+            AuditsRelationManager::class,
+        ];
     }
 
     /**
