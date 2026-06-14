@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\PayrollPeriodResource\Pages;
+use App\Filament\Resources\PayrollPeriodResource\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\PayrollPeriodResource\RelationManagers\PayrollsRelationManager;
 use App\Models\Company;
 use App\Models\PayrollPeriod;
@@ -410,6 +411,7 @@ class PayrollPeriodResource extends Resource
     {
         return [
             PayrollsRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 
