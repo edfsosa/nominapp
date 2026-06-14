@@ -7,10 +7,23 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /** Representa una licencia o permiso registrado para un empleado. */
-class EmployeeLeave extends Model
+class EmployeeLeave extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'type',
+        'generates_deduction',
+        'reason',
+    ];
+
     protected $fillable = [
         'employee_id',
         'type',
@@ -276,5 +289,52 @@ class EmployeeLeave extends Model
             'approved' => 'heroicon-o-check-circle',
             'rejected' => 'heroicon-o-x-circle',
         ];
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'type' => 'Tipo',
+            'generates_deduction' => 'Genera descuento',
+            'reason' => 'Motivo',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::getStatusOptions()[$value] ?? $value,
+            'type' => static::getTypeOptions()[$value] ?? $value,
+            'generates_deduction' => $value ? 'Sí' : 'No',
+            'reason' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }

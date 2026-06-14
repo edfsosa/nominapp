@@ -4,9 +4,24 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class Absence extends Model
+class Absence extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'reported_by_id',
+        'reviewed_at',
+        'reviewed_by_id',
+        'review_notes',
+        'employee_leave_id',
+    ];
+
     protected $fillable = [
         'employee_id',
         'attendance_day_id',
@@ -326,5 +341,55 @@ class Absence extends Model
             'deduction_amount' => $deductionAmount,
             'employment_type_label' => $employmentTypeLabel,
         ];
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'reported_by_id' => 'Reportado por',
+            'reviewed_at' => 'Fecha de revisión',
+            'reviewed_by_id' => 'Revisado por',
+            'review_notes' => 'Notas de revisión',
+            'employee_leave_id' => 'Permiso vinculado',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::getStatusLabel($value),
+            'reported_by_id', 'reviewed_by_id' => User::find($value)?->name ?? "ID {$value}",
+            'reviewed_at' => \Carbon\Carbon::parse($value)->format('d/m/Y H:i'),
+            'employee_leave_id' => "Permiso #{$value}",
+            'review_notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }
