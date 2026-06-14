@@ -7,6 +7,9 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Préstamo otorgado a un empleado, pagadero en cuotas mensuales.
@@ -19,8 +22,21 @@ use Illuminate\Support\Facades\DB;
  * de capital e interés por período. Con tasa 0%, todas las cuotas son iguales
  * y el desglose es capital = cuota, interés = 0.
  */
-class Loan extends Model
+class Loan extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** Campos auditados: solo cambios de estado y metadatos operacionales. */
+    protected array $auditInclude = [
+        'status',
+        'payment_method',
+        'granted_at',
+        'granted_by_id',
+        'disbursement_batch_id',
+        'bank_rejection_reason',
+        'notes',
+    ];
+
     protected $fillable = [
         'employee_id',
         'amount',
@@ -677,5 +693,61 @@ class Loan extends Model
     public static function getPendingCount(): int
     {
         return static::where('status', 'pending')->count();
+    }
+
+    // =========================================================================
+    // AUDITORÍA
+    // =========================================================================
+
+    /**
+     * Formatea los valores auditados para presentación en el RelationManager de historial.
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'payment_method' => 'Método de pago',
+            'granted_at' => 'Fecha de aprobación',
+            'granted_by_id' => 'Aprobado por',
+            'disbursement_batch_id' => 'Lote bancario',
+            'bank_rejection_reason' => 'Motivo de rechazo',
+            'notes' => 'Notas',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /**
+     * Convierte el valor crudo de un campo auditado a su representación legible.
+     */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::getStatusLabel($value),
+            'payment_method' => static::getPaymentMethodLabel($value),
+            'granted_by_id' => User::find($value)?->name ?? "ID {$value}",
+            'granted_at' => Carbon::parse($value)->format('d/m/Y H:i'),
+            'disbursement_batch_id' => "Lote #{$value}",
+            'notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }

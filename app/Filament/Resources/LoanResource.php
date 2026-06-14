@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\LoanResource\Pages;
+use App\Filament\Resources\LoanResource\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\LoanResource\RelationManagers\InstallmentsRelationManager;
 use App\Models\Loan;
 use App\Settings\PayrollSettings;
@@ -727,6 +728,7 @@ class LoanResource extends Resource
     {
         return [
             InstallmentsRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 
