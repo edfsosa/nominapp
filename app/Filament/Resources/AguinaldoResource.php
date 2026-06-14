@@ -8,6 +8,7 @@ use App\Models\Aguinaldo;
 use App\Models\AguinaldoPeriod;
 use App\Models\Company;
 use App\Services\AguinaldoService;
+use Filament\Forms\Components\Select;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section as InfolistSection;
 use Filament\Infolists\Components\TextEntry;
@@ -131,6 +132,15 @@ class AguinaldoResource extends Resource
                             ->label('Total a Pagar'),
                     ]),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => Aguinaldo::getPaymentMethodLabel($state))
+                    ->color(fn (string $state) => Aguinaldo::getPaymentMethodColor($state))
+                    ->icon(fn (string $state) => Aguinaldo::getPaymentMethodIcon($state))
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
@@ -179,8 +189,38 @@ class AguinaldoResource extends Resource
                     ->searchable()
                     ->native(false)
                     ->getOptionLabelFromRecordUsing(fn ($record) => $record->full_name),
+
+                SelectFilter::make('payment_method')
+                    ->label('Método de pago')
+                    ->options(Aguinaldo::getPaymentMethodOptions())
+                    ->native(false),
             ])
             ->actions([
+                Action::make('change_payment_method')
+                    ->label('Cambiar método de pago')
+                    ->icon('heroicon-o-credit-card')
+                    ->color('gray')
+                    ->modalHeading('Cambiar método de pago')
+                    ->modalSubmitActionLabel('Guardar')
+                    ->fillForm(fn (Aguinaldo $record) => ['payment_method' => $record->payment_method])
+                    ->form([
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options(Aguinaldo::getPaymentMethodOptions())
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->action(function (Aguinaldo $record, array $data) {
+                        $record->update(['payment_method' => $data['payment_method']]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Método de pago actualizado')
+                            ->body('Se actualizó el método de pago de '.($record->employee?->full_name ?? 'empleado eliminado').' a '.Aguinaldo::getPaymentMethodLabel($data['payment_method']).'.')
+                            ->send();
+                    })
+                    ->visible(fn (Aguinaldo $record) => $record->isPending() && is_null($record->disbursement_batch_id) && $record->period?->isProcessing()),
+
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
                     ->icon('heroicon-o-check-circle')
@@ -256,6 +296,34 @@ class AguinaldoResource extends Resource
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('bulk_change_payment_method')
+                        ->label('Cambiar método de pago')
+                        ->icon('heroicon-o-credit-card')
+                        ->color('gray')
+                        ->modalHeading('Cambiar método de pago')
+                        ->modalDescription('Solo se actualizarán los aguinaldos pendientes sin lote asignado.')
+                        ->modalSubmitActionLabel('Guardar')
+                        ->form([
+                            Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Aguinaldo::getPaymentMethodOptions())
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $count = $records
+                                ->filter(fn ($r) => $r->isPending() && is_null($r->disbursement_batch_id) && $r->period?->isProcessing())
+                                ->each->update(['payment_method' => $data['payment_method']])
+                                ->count();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Método de pago actualizado')
+                                ->body("Se actualizaron {$count} aguinaldo(s) a ".Aguinaldo::getPaymentMethodLabel($data['payment_method']).'.')
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     BulkAction::make('bulk_mark_paid')
                         ->label('Marcar como Pagados')
                         ->icon('heroicon-o-check-circle')
@@ -444,6 +512,13 @@ class AguinaldoResource extends Resource
                                 ->color('success')
                                 ->icon('heroicon-o-gift'),
 
+                            TextEntry::make('payment_method')
+                                ->label('Método de pago')
+                                ->badge()
+                                ->formatStateUsing(fn (string $state) => Aguinaldo::getPaymentMethodLabel($state))
+                                ->color(fn (string $state) => Aguinaldo::getPaymentMethodColor($state))
+                                ->icon(fn (string $state) => Aguinaldo::getPaymentMethodIcon($state)),
+
                             TextEntry::make('status')
                                 ->label('Estado de Pago')
                                 ->badge()
@@ -456,7 +531,7 @@ class AguinaldoResource extends Resource
                                 ->dateTime('d/m/Y H:i')
                                 ->icon('heroicon-o-check-circle')
                                 ->placeholder('Pendiente'),
-                        ])->columns(3),
+                        ])->columns(4),
                     ]),
 
                 InfolistSection::make('Información del Sistema')

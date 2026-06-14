@@ -5,6 +5,7 @@ namespace App\Filament\Resources\AguinaldoPeriodResource\RelationManagers;
 use App\Filament\Resources\AguinaldoResource;
 use App\Models\Aguinaldo;
 use App\Services\AguinaldoService;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\Group;
 use Filament\Infolists\Components\Section;
@@ -121,6 +122,15 @@ class AguinaldosRelationManager extends RelationManager
                             ->label('Total a Pagar'),
                     ]),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => Aguinaldo::getPaymentMethodLabel($state))
+                    ->color(fn (string $state) => Aguinaldo::getPaymentMethodColor($state))
+                    ->icon(fn (string $state) => Aguinaldo::getPaymentMethodIcon($state))
+                    ->sortable()
+                    ->toggleable(),
+
                 TextColumn::make('status')
                     ->label('Estado')
                     ->badge()
@@ -161,6 +171,31 @@ class AguinaldosRelationManager extends RelationManager
                     ->icon('heroicon-o-eye')
                     ->color('gray')
                     ->url(fn (Aguinaldo $record) => AguinaldoResource::getUrl('view', ['record' => $record])),
+
+                Action::make('change_payment_method')
+                    ->label('Cambiar método de pago')
+                    ->icon('heroicon-o-credit-card')
+                    ->color('gray')
+                    ->modalHeading('Cambiar método de pago')
+                    ->modalSubmitActionLabel('Guardar')
+                    ->fillForm(fn (Aguinaldo $record) => ['payment_method' => $record->payment_method])
+                    ->form([
+                        Select::make('payment_method')
+                            ->label('Método de pago')
+                            ->options(Aguinaldo::getPaymentMethodOptions())
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->action(function (Aguinaldo $record, array $data) {
+                        $record->update(['payment_method' => $data['payment_method']]);
+
+                        Notification::make()
+                            ->success()
+                            ->title('Método de pago actualizado')
+                            ->body("Se actualizó el método de pago de {$record->employee->full_name} a ".Aguinaldo::getPaymentMethodLabel($data['payment_method']).'.')
+                            ->send();
+                    })
+                    ->visible(fn (Aguinaldo $record) => $record->isPending() && is_null($record->disbursement_batch_id) && $this->getOwnerRecord()->isProcessing()),
 
                 Action::make('mark_paid')
                     ->label('Marcar Pagado')
@@ -248,6 +283,35 @@ class AguinaldosRelationManager extends RelationManager
             ])
             ->bulkActions([
                 BulkActionGroup::make([
+                    BulkAction::make('bulk_change_payment_method')
+                        ->label('Cambiar método de pago')
+                        ->icon('heroicon-o-credit-card')
+                        ->color('gray')
+                        ->modalHeading('Cambiar método de pago')
+                        ->modalDescription('Solo se actualizarán los aguinaldos pendientes sin lote asignado.')
+                        ->modalSubmitActionLabel('Guardar')
+                        ->visible(fn () => $this->getOwnerRecord()->isProcessing())
+                        ->form([
+                            Select::make('payment_method')
+                                ->label('Método de pago')
+                                ->options(Aguinaldo::getPaymentMethodOptions())
+                                ->required()
+                                ->native(false),
+                        ])
+                        ->action(function (Collection $records, array $data) {
+                            $count = $records
+                                ->filter(fn ($r) => $r->isPending() && is_null($r->disbursement_batch_id))
+                                ->each->update(['payment_method' => $data['payment_method']])
+                                ->count();
+
+                            Notification::make()
+                                ->success()
+                                ->title('Método de pago actualizado')
+                                ->body("Se actualizaron {$count} aguinaldo(s) a ".Aguinaldo::getPaymentMethodLabel($data['payment_method']).'.')
+                                ->send();
+                        })
+                        ->deselectRecordsAfterCompletion(),
+
                     BulkAction::make('bulk_mark_paid')
                         ->label('Marcar como Pagados')
                         ->icon('heroicon-o-check-circle')
