@@ -29,8 +29,6 @@ jobs:
             --max-time 300 \
             -X POST \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
-            -H "Content-Type: text/plain" \
-            -d '' \
             https://nominapp.sedacosmetica.com/deploy.php)
 
           # Print the deploy log from the server response
