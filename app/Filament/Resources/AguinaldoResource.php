@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\AguinaldoResource\Pages;
+use App\Filament\Resources\AguinaldoResource\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\AguinaldoResource\RelationManagers\ItemsRelationManager;
 use App\Models\Aguinaldo;
 use App\Models\AguinaldoPeriod;
@@ -561,6 +562,7 @@ class AguinaldoResource extends Resource
     {
         return [
             ItemsRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 
