@@ -4,14 +4,29 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
 /**
  * Amonestación laboral emitida a un empleado.
  *
  * Registro documental puro: no tiene ciclo de vida ni integración con nómina.
  */
-class Warning extends Model
+class Warning extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'type',
+        'reason',
+        'description',
+        'issued_at',
+        'notes',
+        'document_path',
+    ];
+
     protected $fillable = [
         'employee_id',
         'type',
@@ -126,5 +141,56 @@ class Warning extends Model
     public static function getReasonLabel(string $reason): string
     {
         return self::getReasonOptions()[$reason] ?? $reason;
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'type' => 'Tipo',
+            'reason' => 'Motivo',
+            'description' => 'Descripción',
+            'issued_at' => 'Fecha de emisión',
+            'notes' => 'Notas',
+            'document_path' => 'Documento firmado',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'type' => static::getTypeLabel($value),
+            'reason' => static::getReasonLabel($value),
+            'issued_at' => \Carbon\Carbon::parse($value)->format('d/m/Y'),
+            'document_path' => basename((string) $value),
+            'description',
+            'notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }
