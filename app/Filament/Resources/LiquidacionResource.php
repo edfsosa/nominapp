@@ -3,6 +3,7 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\LiquidacionResource\Pages;
+use App\Filament\Resources\LiquidacionResource\RelationManagers\AuditsRelationManager;
 use App\Filament\Resources\LiquidacionResource\RelationManagers\ItemsRelationManager;
 use App\Models\Employee;
 use App\Models\Liquidacion;
@@ -767,6 +768,7 @@ class LiquidacionResource extends Resource
     {
         return [
             ItemsRelationManager::class,
+            AuditsRelationManager::class,
         ];
     }
 
