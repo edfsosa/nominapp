@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DisbursementBatchResource\Pages;
 
+use App\Filament\Resources\AguinaldoPeriodResource;
 use App\Filament\Resources\DisbursementBatchResource;
 use App\Filament\Resources\PayrollPeriodResource;
 use App\Models\Aguinaldo;
@@ -374,6 +375,20 @@ class ViewDisbursementBatch extends ViewRecord
                 })
                 ->visible(fn () => $this->record->type === 'payroll'
                     && $this->record->payrolls()->exists()),
+
+            Action::make('view_aguinaldo_period')
+                ->label('Ver Período de Aguinaldo')
+                ->icon('heroicon-o-arrow-top-right-on-square')
+                ->color('gray')
+                ->url(function () {
+                    $periodId = $this->record->aguinaldos()->value('aguinaldo_period_id');
+
+                    return $periodId
+                        ? AguinaldoPeriodResource::getUrl('view', ['record' => $periodId])
+                        : null;
+                })
+                ->visible(fn () => $this->record->type === 'aguinaldo'
+                    && $this->record->aguinaldos()->exists()),
         ];
     }
 }
