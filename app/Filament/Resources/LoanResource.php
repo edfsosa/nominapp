@@ -412,6 +412,15 @@ class LoanResource extends Resource
                     ->icon(fn (string $state): string => Loan::getStatusIcon($state))
                     ->sortable(),
 
+                TextColumn::make('payment_method')
+                    ->label('Método de pago')
+                    ->badge()
+                    ->formatStateUsing(fn (string $state) => $state === 'transfer' ? 'Transferencia' : 'Efectivo')
+                    ->color(fn (string $state) => $state === 'transfer' ? 'info' : 'gray')
+                    ->icon(fn (string $state) => $state === 'transfer' ? 'heroicon-o-building-library' : 'heroicon-o-banknotes')
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
                 TextColumn::make('granted_at')
                     ->label('Otorgado')
                     ->date('d/m/Y')
@@ -440,6 +449,14 @@ class LoanResource extends Resource
                     ->label('Estado')
                     ->options(Loan::getStatusOptions())
                     ->multiple()
+                    ->native(false),
+
+                SelectFilter::make('payment_method')
+                    ->label('Método de pago')
+                    ->options([
+                        'cash' => 'Efectivo',
+                        'transfer' => 'Transferencia bancaria',
+                    ])
                     ->native(false),
 
                 SelectFilter::make('employee_id')
