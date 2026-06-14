@@ -6,13 +6,13 @@ use App\Filament\Pages\SalaryReport;
 use App\Filament\Resources\DisbursementBatchResource;
 use App\Filament\Resources\PayrollPeriodResource;
 use App\Models\Company;
+use App\Models\Contract;
 use App\Models\DisbursementBatch;
 use App\Models\Employee;
 use App\Models\Payroll;
-use App\Models\Contract;
 use App\Models\PayrollPeriod;
-use App\Settings\GeneralSettings;
 use App\Services\PayrollService;
+use App\Settings\GeneralSettings;
 use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\EditAction;
@@ -95,7 +95,9 @@ class ViewPayrollPeriod extends ViewRecord
                     return implode(' · ', array_filter([$companyLabel, $employeeLabel]));
                 })
                 ->action(function (PayrollService $payrollService) {
-                    $count = $payrollService->generateForPeriod($this->record);
+                    $result = $payrollService->generateForPeriod($this->record);
+                    $count = $result['generated'];
+                    $skipped = $result['skipped'];
 
                     if ($count > 0) {
                         $this->record->update(['status' => 'processing']);
@@ -139,8 +141,6 @@ class ViewPayrollPeriod extends ViewRecord
                                 ])
                                 ->send();
                         }
-
-                        $this->js('window.location.reload()');
                     } else {
                         Notification::make()
                             ->warning()
@@ -148,6 +148,23 @@ class ViewPayrollPeriod extends ViewRecord
                             ->body('Todos los empleados activos ya tienen recibo en esta planilla.')
                             ->send();
                     }
+
+                    if (! empty($skipped)) {
+                        $lines = array_map(
+                            fn ($s) => "{$s['name']} (CI: {$s['ci']}) — {$s['reason']}",
+                            $skipped
+                        );
+                        $noun = count($skipped) === 1 ? 'empleado omitido' : 'empleados omitidos';
+
+                        Notification::make()
+                            ->warning()
+                            ->title(count($skipped).' '.$noun)
+                            ->body(implode("\n", $lines))
+                            ->persistent()
+                            ->send();
+                    }
+
+                    $this->js('window.location.reload()');
                 })
                 ->visible(fn () => in_array($this->record->status, ['draft', 'processing'])),
 

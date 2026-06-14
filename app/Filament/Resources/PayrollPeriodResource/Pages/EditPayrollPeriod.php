@@ -36,7 +36,9 @@ class EditPayrollPeriod extends EditRecord
                         'Esta acción creará recibos para los empleados activos que aún no tengan uno en este período.'
                 )
                 ->action(function (PayrollService $payrollService) {
-                    $count = $payrollService->generateForPeriod($this->record);
+                    $result = $payrollService->generateForPeriod($this->record);
+                    $count = $result['generated'];
+                    $skipped = $result['skipped'];
 
                     if ($count > 0) {
                         $this->record->update([
@@ -58,6 +60,21 @@ class EditPayrollPeriod extends EditRecord
                             ->warning()
                             ->title('No se generaron recibos')
                             ->body('Todos los empleados activos ya tienen recibo en esta planilla.')
+                            ->send();
+                    }
+
+                    if (! empty($skipped)) {
+                        $lines = array_map(
+                            fn ($s) => "{$s['name']} (CI: {$s['ci']}) — {$s['reason']}",
+                            $skipped
+                        );
+                        $noun = count($skipped) === 1 ? 'empleado omitido' : 'empleados omitidos';
+
+                        Notification::make()
+                            ->warning()
+                            ->title(count($skipped).' '.$noun)
+                            ->body(implode("\n", $lines))
+                            ->persistent()
                             ->send();
                     }
                 })

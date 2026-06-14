@@ -131,9 +131,10 @@ it('generateForPeriod lanza excepción si el período no está en draft o proces
 it('generateForPeriod retorna 0 si no hay empleados activos', function () {
     $period = makePayPeriod('draft');
 
-    $count = makePayService()->generateForPeriod($period);
+    $result = makePayService()->generateForPeriod($period);
 
-    expect($count)->toBe(0);
+    expect($result['generated'])->toBe(0)
+        ->and($result['skipped'])->toBe([]);
 });
 
 it('generateForPeriod solo procesa empleados activos con contrato activo', function () {
@@ -141,9 +142,9 @@ it('generateForPeriod solo procesa empleados activos con contrato activo', funct
     makePayEmployee(status: 'inactive');
     makePayEmployee(contractStatus: 'suspended'); // empleado activo pero contrato suspendido
 
-    $count = makePayService()->generateForPeriod($period);
+    $result = makePayService()->generateForPeriod($period);
 
-    expect($count)->toBe(0)
+    expect($result['generated'])->toBe(0)
         ->and(Payroll::count())->toBe(0);
 });
 
@@ -153,9 +154,20 @@ it('generateForPeriod solo procesa empleados cuyo payroll_type coincide con la f
     makePayEmployee(payrollType: 'biweekly'); // no debe procesarse
     makePayEmployee(payrollType: 'monthly');  // sí debe procesarse
 
-    $count = makePayService()->generateForPeriod($period);
+    $result = makePayService()->generateForPeriod($period);
 
-    expect($count)->toBe(1);
+    expect($result['generated'])->toBe(1);
+});
+
+it('generateForPeriod incluye en skipped al empleado con payroll_type diferente', function () {
+    $period = makePayPeriod('draft', 'monthly');
+
+    makePayEmployee(payrollType: 'biweekly');
+
+    $result = makePayService()->generateForPeriod($period);
+
+    expect($result['skipped'])->toHaveCount(1)
+        ->and($result['skipped'][0]['reason'])->toContain('Tipo de nómina diferente');
 });
 
 it('generateForPeriod no duplica nómina si ya existe para el empleado y período', function () {
@@ -239,9 +251,10 @@ it('generateForPeriod retorna el conteo de nóminas generadas', function () {
     makePayEmployee();
     makePayEmployee();
 
-    $count = makePayService()->generateForPeriod($period);
+    $result = makePayService()->generateForPeriod($period);
 
-    expect($count)->toBe(2);
+    expect($result['generated'])->toBe(2)
+        ->and($result['skipped'])->toBe([]);
 });
 
 // ─── generateForPeriod — jornalero ───────────────────────────────────────────
@@ -251,10 +264,12 @@ it('generateForPeriod omite jornalero sin días trabajados', function () {
     $employee = makePayEmployee('jornal', 150_000);
     // Sin AttendanceDays → workedDays = 0
 
-    $count = makePayService()->generateForPeriod($period);
+    $result = makePayService()->generateForPeriod($period);
 
-    expect($count)->toBe(0)
-        ->and(Payroll::count())->toBe(0);
+    expect($result['generated'])->toBe(0)
+        ->and(Payroll::count())->toBe(0)
+        ->and($result['skipped'])->toHaveCount(1)
+        ->and($result['skipped'][0]['reason'])->toBe('Jornalero sin días trabajados en el período');
 });
 
 it('generateForPeriod calcula salario base del jornalero según días trabajados', function () {

@@ -31,7 +31,14 @@ class PayrollService
         protected PayrollPDFGenerator $payrollPDFGenerator,
     ) {}
 
-    public function generateForPeriod(PayrollPeriod $period): int
+    /**
+     * Genera recibos de nómina para todos los empleados elegibles del período.
+     *
+     * @return array{generated: int, skipped: list<array{name: string, ci: int|string, reason: string}>}
+     *
+     * @throws \InvalidArgumentException si el período no está en estado draft o processing
+     */
+    public function generateForPeriod(PayrollPeriod $period): array
     {
         // Validar estado del período
         if (! in_array($period->status, ['draft', 'processing'])) {
@@ -41,6 +48,31 @@ class PayrollService
         }
 
         $count = 0;
+        /** @var list<array{name: string, ci: int|string, reason: string}> $skipped */
+        $skipped = [];
+
+        // Detectar empleados activos excluidos por frecuencia de nómina diferente o sin salario,
+        // para informar al usuario en lugar de ignorarlos silenciosamente.
+        $excludedEmployees = Employee::query()
+            ->where('status', 'active')
+            ->whereHas('activeContract', fn ($q) => $q->where('status', 'active')
+                ->where(fn ($q2) => $q2
+                    ->where('payroll_type', '!=', $period->frequency)
+                    ->orWhereNull('salary')
+                )
+            )
+            ->when($period->company_id, fn ($q) => $q->whereHas('branch', fn ($q) => $q->where('company_id', $period->company_id)))
+            ->with('activeContract')
+            ->get();
+
+        foreach ($excludedEmployees as $emp) {
+            $contract = $emp->activeContract;
+            $reason = ($contract && is_null($contract->salary))
+                ? 'Sin salario configurado en el contrato'
+                : 'Tipo de nómina diferente ('.($contract?->payroll_type ?? '?').')';
+
+            $skipped[] = ['name' => $emp->full_name, 'ci' => $emp->ci, 'reason' => $reason];
+        }
 
         $employees = Employee::query()
             ->where('status', 'active')
@@ -77,6 +109,12 @@ class PayrollService
                         'employee_id' => $employee->id,
                         'period_id' => $period->id,
                     ]);
+
+                    $skipped[] = [
+                        'name' => $employee->full_name,
+                        'ci' => $employee->ci,
+                        'reason' => 'Jornalero sin días trabajados en el período',
+                    ];
 
                     continue;
                 }
@@ -211,10 +249,16 @@ class PayrollService
                     'period_id' => $period->id,
                     'trace' => $e->getTraceAsString(),
                 ]);
+
+                $skipped[] = [
+                    'name' => $employee->full_name,
+                    'ci' => $employee->ci,
+                    'reason' => 'Error al calcular (revisar log del servidor)',
+                ];
             }
         }
 
-        return $count;
+        return ['generated' => $count, 'skipped' => $skipped];
     }
 
     public function generateForEmployee(Employee $employee, PayrollPeriod $period): Payroll
