@@ -7,9 +7,20 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class PayrollPeriod extends Model
+class PayrollPeriod extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'status',
+        'closed_at',
+    ];
+
     protected $fillable = [
         'company_id',
         'name',
@@ -116,6 +127,49 @@ class PayrollPeriod extends Model
             'biweekly' => 'Quincena '.$start->format('d/m/Y').' - '.$end->format('d/m/Y'),
             'weekly' => 'Semana del '.$start->format('d/m/Y').' al '.$end->format('d/m/Y'),
             default => $start->format('d/m/Y').' - '.$end->format('d/m/Y'),
+        };
+    }
+
+    /**
+     * Renderiza los valores de un registro de auditoría como HTML legible para el RelationManager.
+     *
+     * @param  string  $column  'old_values' o 'new_values'
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'status' => 'Estado',
+            'closed_at' => 'Fecha de cierre',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'status' => static::statusOptions()[$value] ?? $value,
+            'closed_at' => Carbon::parse($value)->format('d/m/Y H:i'),
+            default => (string) $value,
         };
     }
 }
