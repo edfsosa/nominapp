@@ -125,6 +125,9 @@ class ContractTemplate extends Model implements Auditable
             '{horas_diarias}' => 'Horas de trabajo por día (número)',
             '{dias_laborales}' => 'Días laborales (ej: Lunes a Viernes)',
             '{tiempo_descanso}' => 'Duración del descanso / almuerzo (ej: 1 hora)',
+            '{hora_descanso_inicio}' => 'Hora de inicio del primer descanso (ej: 12:00)',
+            '{hora_descanso_fin}' => 'Hora de fin del último descanso (ej: 13:00)',
+            '{horario_descanso}' => 'Horario completo de descanso (ej: 12:00 a 13:00 y 16:00 a 16:15)',
         ];
     }
 
