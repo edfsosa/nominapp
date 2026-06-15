@@ -62,6 +62,17 @@ class ContractController extends Controller
             : null;
         $tiempoDescanso = self::formatBreakTime($breakMinutes);
 
+        $weekdayBreaks = $weekdayDay ? $weekdayDay->breaks->sortBy('start_time') : collect();
+        $horaDescansoInicio = $weekdayBreaks->isNotEmpty()
+            ? Carbon::parse($weekdayBreaks->first()->start_time)->format('H:i')
+            : null;
+        $horaDescansoFin = $weekdayBreaks->isNotEmpty()
+            ? Carbon::parse($weekdayBreaks->last()->end_time)->format('H:i')
+            : null;
+        $horarioDescanso = $weekdayBreaks->isNotEmpty()
+            ? $weekdayBreaks->map(fn ($b) => Carbon::parse($b->start_time)->format('H:i').' a '.Carbon::parse($b->end_time)->format('H:i'))->implode(' y ')
+            : null;
+
         $employeeAge = $contract->employee?->birth_date
             ? $contract->employee->birth_date->age
             : null;
@@ -104,6 +115,9 @@ class ContractController extends Controller
             dailyHours: $dailyHours,
             diasLaborales: $diasLaborales,
             tiempoDescanso: $tiempoDescanso,
+            horaDescansoInicio: $horaDescansoInicio,
+            horaDescansoFin: $horaDescansoFin,
+            horarioDescanso: $horarioDescanso,
         );
 
         // Resolver secciones de la plantilla (si existe), con scope por empresa
@@ -255,6 +269,9 @@ class ContractController extends Controller
         ?int $dailyHours = null,
         ?string $diasLaborales = null,
         ?string $tiempoDescanso = null,
+        ?string $horaDescansoInicio = null,
+        ?string $horaDescansoFin = null,
+        ?string $horarioDescanso = null,
     ): array {
         return [
             '{ciudad}' => $company?->city ?? '.............................',
@@ -302,6 +319,9 @@ class ContractController extends Controller
             '{horas_diarias}' => $dailyHours !== null ? (string) $dailyHours : '...................',
             '{dias_laborales}' => $diasLaborales ?? '...................',
             '{tiempo_descanso}' => $tiempoDescanso ?? '...................',
+            '{hora_descanso_inicio}' => $horaDescansoInicio ?? '...................',
+            '{hora_descanso_fin}' => $horaDescansoFin ?? '...................',
+            '{horario_descanso}' => $horarioDescanso ?? '...................',
         ];
     }
 
@@ -353,6 +373,9 @@ class ContractController extends Controller
             '{horas_diarias}' => '8',
             '{dias_laborales}' => 'Lunes a Viernes',
             '{tiempo_descanso}' => '1 hora',
+            '{hora_descanso_inicio}' => '12:00',
+            '{hora_descanso_fin}' => '13:00',
+            '{horario_descanso}' => '12:00 a 13:00',
         ];
     }
 
