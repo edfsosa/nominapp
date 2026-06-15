@@ -6,9 +6,24 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\HtmlString;
+use Illuminate\Support\Str;
+use OwenIt\Auditing\Contracts\Auditable;
 
-class AttendanceDay extends Model
+class AttendanceDay extends Model implements Auditable
 {
+    use \OwenIt\Auditing\Auditable;
+
+    /** @var array<int, string> Campos auditados en el historial de cambios. */
+    protected array $auditInclude = [
+        'overtime_approved',
+        'tardiness_deduction_approved',
+        'notes',
+        'manual_adjustment',
+        'extra_hours_diurnas',
+        'extra_hours_nocturnas',
+    ];
+
     protected $fillable = [
         'employee_id',
         'date',
@@ -272,5 +287,53 @@ class AttendanceDay extends Model
             'holiday' => 'Día feriado',
             'weekend' => 'Fin de semana',
         ];
+    }
+
+    /**
+     * Formatea los campos auditados para presentación en el historial de cambios.
+     *
+     * @param  string  $column  Nombre de la columna del audit ('old_values' | 'new_values')
+     * @param  mixed  $auditRecord  Instancia del audit
+     */
+    public function formatAuditFieldsForPresentation(string $column, mixed $auditRecord): HtmlString
+    {
+        $values = $auditRecord->{$column} ?? [];
+        if (empty($values)) {
+            return new HtmlString('<span class="text-gray-400 text-xs">—</span>');
+        }
+
+        $fieldLabels = [
+            'overtime_approved' => 'HE aprobadas',
+            'tardiness_deduction_approved' => 'Desc. tardanza aprobado',
+            'notes' => 'Notas',
+            'manual_adjustment' => 'Ajuste manual',
+            'extra_hours_diurnas' => 'Hrs extra diurnas',
+            'extra_hours_nocturnas' => 'Hrs extra nocturnas',
+        ];
+
+        $html = '<ul class="space-y-0.5 text-sm">';
+        foreach ($values as $key => $value) {
+            $label = $fieldLabels[$key] ?? Str::headline($key);
+            $formatted = $this->formatAuditValue($key, $value);
+            $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
+        }
+        $html .= '</ul>';
+
+        return new HtmlString($html);
+    }
+
+    /** Formatea un valor individual del audit a texto legible. */
+    private function formatAuditValue(string $key, mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '—';
+        }
+
+        return match ($key) {
+            'overtime_approved', 'tardiness_deduction_approved', 'manual_adjustment' => $value ? 'Sí' : 'No',
+            'extra_hours_diurnas', 'extra_hours_nocturnas' => number_format((float) $value, 2).' hrs',
+            'notes' => Str::limit((string) $value, 120),
+            default => (string) $value,
+        };
     }
 }

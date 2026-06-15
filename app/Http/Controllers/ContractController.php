@@ -18,7 +18,7 @@ class ContractController extends Controller
             abort(422, 'El contrato no tiene fecha de inicio definida.');
         }
 
-        $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
+        $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'employee.addresses.city', 'position', 'department']);
 
         $company = $contract->employee?->company;
 
@@ -59,6 +59,15 @@ class ContractController extends Controller
         $employee = $contract->employee;
         $genderMap = ['masculino' => 'Masculino', 'femenino' => 'Femenino'];
 
+        $principalAddress = $employee?->addresses->firstWhere('type', 'principal')
+            ?? $employee?->addresses->first();
+        $addressParts = array_filter([
+            $principalAddress?->street,
+            $principalAddress?->neighborhood,
+            $principalAddress?->city?->name,
+        ]);
+        $formattedAddress = $addressParts ? implode(', ', $addressParts) : null;
+
         // Construir mapa de variables para reemplazar tokens en las secciones de la plantilla
         $vars = self::buildVarsMap(
             contract: $contract,
@@ -72,6 +81,7 @@ class ContractController extends Controller
             trialDaysInWords: $trialDaysInWords,
             durationDescription: $durationDescription,
             employeeAge: $employeeAge,
+            formattedAddress: $formattedAddress,
         );
 
         // Resolver secciones de la plantilla (si existe), con scope por empresa
@@ -217,6 +227,7 @@ class ContractController extends Controller
         string $trialDaysInWords,
         string $durationDescription,
         ?int $employeeAge,
+        ?string $formattedAddress = null,
     ): array {
         return [
             '{ciudad}' => $company?->city ?? '.............................',
@@ -235,7 +246,7 @@ class ContractController extends Controller
             '{estado_civil_empleado}' => $employee?->marital_status_label ?? '...................',
             '{cargo}' => $contract->position?->name ?? '.....................................',
             '{nacionalidad_empleado}' => $employee?->nationality ?? '...................',
-            '{domicilio_empleado}' => $employee?->address ?? '......................................................................................................',
+            '{domicilio_empleado}' => $formattedAddress ?? '......................................................................................................',
             '{salario}' => $contract->salary !== null ? number_format((float) $contract->salary, 0, ',', '.') : '...................',
             '{salario_en_palabras}' => $contract->salary !== null ? self::numberToWords((int) $contract->salary).' guaranies' : '...................',
             '{tipo_jornada}' => $shiftTypeLabel,
@@ -244,6 +255,18 @@ class ContractController extends Controller
             '{dias_prueba}' => (string) ((int) ($contract->trial_days ?? 0)),
             '{dias_prueba_en_palabras}' => $trialDaysInWords,
             '{duracion_contrato}' => $durationDescription ?: '......',
+            '{tipo_contrato}' => Contract::getTypeLabel($contract->type),
+            '{fecha_inicio}' => $contract->start_date->format('d/m/Y'),
+            '{fecha_fin}' => $contract->end_date?->format('d/m/Y') ?? 'INDEFINIDO',
+            '{modalidad}' => $contract->work_modality ? Contract::getWorkModalityLabel($contract->work_modality) : '...................',
+            '{metodo_pago}' => match ($contract->payment_method) {
+                'cash' => 'Efectivo',
+                'debit' => 'Débito bancario',
+                'check' => 'Cheque',
+                default => $contract->payment_method ?? '...................',
+            },
+            '{tipo_salario}' => $contract->salary_type ? Contract::getSalaryTypeLabel($contract->salary_type) : '...................',
+            '{departamento}' => $contract->department?->name ?? $contract->position?->department?->name ?? '...................',
         ];
     }
 
@@ -280,6 +303,13 @@ class ContractController extends Controller
             '{dias_prueba}' => '90',
             '{dias_prueba_en_palabras}' => 'noventa',
             '{duracion_contrato}' => 'un (1) año',
+            '{tipo_contrato}' => 'Por Tiempo Indefinido',
+            '{fecha_inicio}' => '01/01/2025',
+            '{fecha_fin}' => 'INDEFINIDO',
+            '{modalidad}' => 'Presencial',
+            '{metodo_pago}' => 'Débito bancario',
+            '{tipo_salario}' => 'Mensualizado (Sueldo)',
+            '{departamento}' => 'Administración',
         ];
     }
 

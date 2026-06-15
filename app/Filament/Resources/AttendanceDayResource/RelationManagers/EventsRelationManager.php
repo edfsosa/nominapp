@@ -14,6 +14,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
@@ -150,6 +151,20 @@ class EventsRelationManager extends RelationManager
                     ->native(false)
                     ->multiple(),
             ])
+            ->headerActions([
+                CreateAction::make()
+                    ->label('Nueva marcación')
+                    ->icon('heroicon-o-plus')
+                    ->modalHeading('Agregar marcación manual')
+                    ->modalSubmitActionLabel('Agregar marcación')
+                    ->mountUsing(function (Form $form) {
+                        $form->fill([
+                            'recorded_at' => $this->getOwnerRecord()->date->format('Y-m-d').' '.now()->format('H:i'),
+                        ]);
+                    })
+                    ->mutateFormDataUsing(fn (array $data) => array_merge($data, ['source' => 'manual']))
+                    ->successNotificationTitle('Marcación agregada'),
+            ])
             ->actions([
                 ViewAction::make()
                     ->modalHeading('Detalle de Marcación'),
@@ -192,6 +207,7 @@ class EventsRelationManager extends RelationManager
                     ->mutateFormDataUsing(fn (array $data) => [
                         'event_type' => $data['event_type'],
                         'recorded_at' => Carbon::parse($data['_date'].' '.$data['time'])->format('Y-m-d H:i:s'),
+                        'source' => 'manual',
                     ]),
 
                 DeleteAction::make()

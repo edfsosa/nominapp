@@ -163,11 +163,12 @@ class EmployeeLeave extends Model implements Auditable
         $this->update($updates);
 
         // Solo justifica ausencias en licencias de día completo
-        $justifiedCount = 0;
+        $justifiedDates = [];
         if (! $this->isPartialDay()) {
             $absences = Absence::where('employee_id', $this->employee_id)
                 ->whereHas('attendanceDay', fn ($q) => $q->whereBetween('date', [$this->start_date, $this->end_date]))
                 ->whereIn('status', ['pending', 'unjustified'])
+                ->with('attendanceDay')
                 ->get();
 
             $typeLabel = self::getTypeOptions()[$this->type] ?? $this->type;
@@ -179,12 +180,14 @@ class EmployeeLeave extends Model implements Auditable
                     "Justificada por licencia: {$typeLabel} ({$period})",
                     $this->id
                 );
+                $justifiedDates[] = $absence->attendanceDay->date->copy();
             }
-
-            $justifiedCount = $absences->count();
         }
 
-        return ['justified_count' => $justifiedCount];
+        return [
+            'justified_count' => count($justifiedDates),
+            'justified_dates' => $justifiedDates,
+        ];
     }
 
     /** Rechaza la licencia. */

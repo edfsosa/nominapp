@@ -1283,6 +1283,7 @@ class AttendanceDayResource extends Resource
     {
         return [
             RelationManagers\EventsRelationManager::class,
+            RelationManagers\AuditsRelationManager::class,
         ];
     }
 
