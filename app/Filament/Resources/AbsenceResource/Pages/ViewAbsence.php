@@ -137,11 +137,18 @@ class ViewAbsence extends ViewRecord
 
                         $result = $leave->approve(Auth::id());
                         $count = $result['justified_count'];
+                        $dates = $result['justified_dates'] ?? [];
                         $typeLabel = EmployeeLeave::getTypeOptions()[$data['quick_leave_type']] ?? $data['quick_leave_type'];
+                        $prefix = "Se creó y aprobó el permiso «{$typeLabel}». ";
 
-                        $body = $count > 1
-                            ? "Se creó y aprobó el permiso «{$typeLabel}» y se justificaron {$count} ausencias automáticamente."
-                            : "Se creó y aprobó el permiso «{$typeLabel}». La ausencia fue justificada.";
+                        if ($count <= 1) {
+                            $body = $prefix.'La ausencia fue justificada.';
+                        } elseif ($count <= 5) {
+                            $dateList = collect($dates)->sortBy(fn ($d) => $d->timestamp)->map(fn ($d) => $d->translatedFormat('d/m'))->join(', ');
+                            $body = $prefix."Se justificaron {$count} ausencias: {$dateList}.";
+                        } else {
+                            $body = $prefix."Se justificaron {$count} ausencias del período automáticamente.";
+                        }
 
                         Notification::make()->success()->title('Ausencia justificada')->body($body)->send();
                         $this->record->refresh();
@@ -176,15 +183,26 @@ class ViewAbsence extends ViewRecord
                 ->color('danger')
                 ->tooltip('Marcar como injustificada y generar deducción salarial')
                 ->visible(fn () => ! $this->record->isUnjustified())
-                ->requiresConfirmation()
                 ->modalHeading(fn () => $this->record->isJustified()
                     ? 'Cambiar a Injustificada'
                     : 'Marcar como Injustificada')
-                ->modalDescription(fn () => $this->record->isJustified()
-                    ? 'Esto generará una deducción del salario del empleado.'
-                    : 'Esto generará automáticamente una deducción del salario del empleado.')
                 ->modalSubmitActionLabel('Sí, marcar injustificada')
+                ->mountUsing(function (Form $form) {
+                    $form->fill([
+                        'deduction_preview' => $this->record->employee->getAbsenceDeductionAmount(),
+                        'has_deduction' => $this->record->hasDeduction(),
+                    ]);
+                })
                 ->form([
+                    Hidden::make('deduction_preview'),
+                    Hidden::make('has_deduction'),
+
+                    Placeholder::make('deduction_amount_info')
+                        ->label('Deducción a generar')
+                        ->content(fn (Get $get): string => $get('has_deduction')
+                            ? 'Ya existe una deducción para esta ausencia — no se creará una nueva.'
+                            : 'Gs. '.number_format((float) $get('deduction_preview'), 0, ',', '.')),
+
                     Textarea::make('review_notes')
                         ->label('Notas de revisión')
                         ->placeholder('Motivo por el cual se marca como injustificada...')

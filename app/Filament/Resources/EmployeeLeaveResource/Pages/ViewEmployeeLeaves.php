@@ -64,9 +64,20 @@ class ViewEmployeeLeaves extends ViewRecord
                             ? 'El permiso fue aprobado. Se generó un descuento para la próxima nómina.'
                             : 'El permiso fue aprobado.';
                     } else {
-                        $body = $result['justified_count'] > 0
-                            ? "Se justificaron {$result['justified_count']} ausencia(s) del período automáticamente."
-                            : 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                        $count = $result['justified_count'];
+                        $dates = $result['justified_dates'] ?? [];
+
+                        if ($count === 0) {
+                            $body = 'La licencia fue aprobada. No había ausencias pendientes en el período.';
+                        } elseif ($count <= 5) {
+                            $dateList = collect($dates)
+                                ->sortBy(fn ($d) => $d->timestamp)
+                                ->map(fn ($d) => $d->translatedFormat('d/m'))
+                                ->join(', ');
+                            $body = "Se justificaron {$count} ausencia(s): {$dateList}.";
+                        } else {
+                            $body = "Se justificaron {$count} ausencias del período automáticamente.";
+                        }
                     }
 
                     Notification::make()
