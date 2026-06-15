@@ -18,7 +18,7 @@ class ContractController extends Controller
             abort(422, 'El contrato no tiene fecha de inicio definida.');
         }
 
-        $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'position', 'department']);
+        $contract->load(['employee.branch.company', 'employee.schedule.days.breaks', 'employee.addresses.city', 'position', 'department']);
 
         $company = $contract->employee?->company;
 
@@ -59,6 +59,15 @@ class ContractController extends Controller
         $employee = $contract->employee;
         $genderMap = ['masculino' => 'Masculino', 'femenino' => 'Femenino'];
 
+        $principalAddress = $employee?->addresses->firstWhere('type', 'principal')
+            ?? $employee?->addresses->first();
+        $addressParts = array_filter([
+            $principalAddress?->street,
+            $principalAddress?->neighborhood,
+            $principalAddress?->city?->name,
+        ]);
+        $formattedAddress = $addressParts ? implode(', ', $addressParts) : null;
+
         // Construir mapa de variables para reemplazar tokens en las secciones de la plantilla
         $vars = self::buildVarsMap(
             contract: $contract,
@@ -72,6 +81,7 @@ class ContractController extends Controller
             trialDaysInWords: $trialDaysInWords,
             durationDescription: $durationDescription,
             employeeAge: $employeeAge,
+            formattedAddress: $formattedAddress,
         );
 
         // Resolver secciones de la plantilla (si existe), con scope por empresa
@@ -217,6 +227,7 @@ class ContractController extends Controller
         string $trialDaysInWords,
         string $durationDescription,
         ?int $employeeAge,
+        ?string $formattedAddress = null,
     ): array {
         return [
             '{ciudad}' => $company?->city ?? '.............................',
@@ -235,7 +246,7 @@ class ContractController extends Controller
             '{estado_civil_empleado}' => $employee?->marital_status_label ?? '...................',
             '{cargo}' => $contract->position?->name ?? '.....................................',
             '{nacionalidad_empleado}' => $employee?->nationality ?? '...................',
-            '{domicilio_empleado}' => $employee?->address ?? '......................................................................................................',
+            '{domicilio_empleado}' => $formattedAddress ?? '......................................................................................................',
             '{salario}' => $contract->salary !== null ? number_format((float) $contract->salary, 0, ',', '.') : '...................',
             '{salario_en_palabras}' => $contract->salary !== null ? self::numberToWords((int) $contract->salary).' guaranies' : '...................',
             '{tipo_jornada}' => $shiftTypeLabel,
