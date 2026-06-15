@@ -207,6 +207,7 @@ class EventsRelationManager extends RelationManager
                     ->mutateFormDataUsing(fn (array $data) => [
                         'event_type' => $data['event_type'],
                         'recorded_at' => Carbon::parse($data['_date'].' '.$data['time'])->format('Y-m-d H:i:s'),
+                        'source' => 'manual',
                     ]),
 
                 DeleteAction::make()
