@@ -117,6 +117,9 @@ class ContractTemplate extends Model implements Auditable
             '{metodo_pago}' => 'Método de pago (Efectivo / Débito bancario / Cheque)',
             '{tipo_salario}' => 'Tipo de remuneración (Mensualizado / Jornalero)',
             '{departamento}' => 'Nombre del departamento del cargo',
+            '{sucursal}' => 'Nombre de la sucursal del empleado',
+            '{fecha_nacimiento_empleado}' => 'Fecha de nacimiento del empleado (dd/mm/YYYY)',
+            '{telefono_empleado}' => 'Teléfono de contacto del empleado',
         ];
     }
 

@@ -267,6 +267,9 @@ class ContractController extends Controller
             },
             '{tipo_salario}' => $contract->salary_type ? Contract::getSalaryTypeLabel($contract->salary_type) : '...................',
             '{departamento}' => $contract->department?->name ?? $contract->position?->department?->name ?? '...................',
+            '{sucursal}' => $employee?->branch?->name ?? '...................',
+            '{fecha_nacimiento_empleado}' => $employee?->birth_date?->format('d/m/Y') ?? '...................',
+            '{telefono_empleado}' => $employee?->phone ?? '...................',
         ];
     }
 
@@ -310,6 +313,9 @@ class ContractController extends Controller
             '{metodo_pago}' => 'Débito bancario',
             '{tipo_salario}' => 'Mensualizado (Sueldo)',
             '{departamento}' => 'Administración',
+            '{sucursal}' => 'Sucursal Central',
+            '{fecha_nacimiento_empleado}' => '15/03/1995',
+            '{telefono_empleado}' => '0981123456',
         ];
     }
 
