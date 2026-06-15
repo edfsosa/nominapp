@@ -16,6 +16,7 @@ use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Radio;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -457,7 +458,11 @@ class AbsenceResource extends Resource
                                 ->whereDate('end_date', '>=', $record->attendanceDay->date)
                                 ->exists();
 
-                            $form->fill(['has_approved_leaves' => $hasLeaves]);
+                            $form->fill([
+                                'has_approved_leaves' => $hasLeaves,
+                                'justify_mode' => $hasLeaves ? 'existing' : 'quick',
+                                'quick_leave_end_date' => $record->attendanceDay->date->format('Y-m-d'),
+                            ]);
                         })
                         ->form([
                             Placeholder::make('employee_info')
@@ -466,13 +471,23 @@ class AbsenceResource extends Resource
                                     .' — '
                                     .$record->attendanceDay->date->translatedFormat('l d/m/Y')),
 
-                            // Campo oculto para trasladar el resultado del mountUsing a los closures del form
                             Hidden::make('has_approved_leaves'),
+
+                            Radio::make('justify_mode')
+                                ->label('¿Cómo justificar?')
+                                ->options([
+                                    'existing' => 'Vincular a permiso ya existente',
+                                    'quick' => 'Crear permiso nuevo ahora',
+                                ])
+                                ->live()
+                                ->required(),
+
+                            // ── Modo: permiso existente ──────────────────────────
 
                             Placeholder::make('no_leaves_notice')
                                 ->label('Sin permisos disponibles')
-                                ->content('No hay permisos aprobados que cubran esta fecha. Para justificar esta ausencia, primero cree y apruebe una licencia en el módulo Licencias para el empleado y el período correspondiente.')
-                                ->visible(fn (Get $get) => ! $get('has_approved_leaves')),
+                                ->content('No hay permisos aprobados que cubran esta fecha. Seleccioná "Crear permiso nuevo ahora" para generarlo en el acto.')
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'existing' && ! $get('has_approved_leaves')),
 
                             Select::make('employee_leave_id')
                                 ->label('Permiso / Licencia')
@@ -486,22 +501,71 @@ class AbsenceResource extends Resource
                                             .' ('.$leave->start_date->format('d/m/Y').' al '.$leave->end_date->format('d/m/Y').')',
                                     ]))
                                 ->native(false)
-                                ->required(fn (Get $get) => (bool) $get('has_approved_leaves'))
+                                ->required(fn (Get $get) => $get('justify_mode') === 'existing' && (bool) $get('has_approved_leaves'))
                                 ->helperText('Solo se muestran permisos aprobados que cubren este día')
-                                ->visible(fn (Get $get) => (bool) $get('has_approved_leaves')),
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'existing' && (bool) $get('has_approved_leaves')),
 
                             Textarea::make('review_notes')
                                 ->label('Notas adicionales')
                                 ->placeholder('Observaciones opcionales...')
                                 ->rows(2)
-                                ->visible(fn (Get $get) => (bool) $get('has_approved_leaves')),
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'existing' && (bool) $get('has_approved_leaves')),
+
+                            // ── Modo: permiso rápido ─────────────────────────────
+
+                            Select::make('quick_leave_type')
+                                ->label('Tipo de permiso')
+                                ->options(EmployeeLeave::getTypeOptions())
+                                ->native(false)
+                                ->required(fn (Get $get) => $get('justify_mode') === 'quick')
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'quick'),
+
+                            DatePicker::make('quick_leave_end_date')
+                                ->label('Fecha de fin del permiso')
+                                ->native(false)
+                                ->displayFormat('d/m/Y')
+                                ->closeOnDateSelection()
+                                ->minDate(fn (Absence $record) => $record->attendanceDay->date)
+                                ->helperText(fn (Absence $record) => 'Inicio: '.$record->attendanceDay->date->format('d/m/Y').'. Ajustá si el permiso cubre más de un día.')
+                                ->required(fn (Get $get) => $get('justify_mode') === 'quick')
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'quick'),
+
+                            Textarea::make('quick_leave_reason')
+                                ->label('Motivo del permiso')
+                                ->placeholder('Descripción opcional...')
+                                ->rows(2)
+                                ->visible(fn (Get $get) => $get('justify_mode') === 'quick'),
                         ])
                         ->action(function (Absence $record, array $data, Action $action) {
+                            if ($data['justify_mode'] === 'quick') {
+                                $leave = EmployeeLeave::create([
+                                    'employee_id' => $record->employee_id,
+                                    'type' => $data['quick_leave_type'],
+                                    'start_date' => $record->attendanceDay->date,
+                                    'end_date' => $data['quick_leave_end_date'] ?? $record->attendanceDay->date,
+                                    'reason' => $data['quick_leave_reason'] ?? null,
+                                    'status' => 'pending',
+                                ]);
+
+                                $result = $leave->approve(Auth::id());
+                                $count = $result['justified_count'];
+                                $typeLabel = EmployeeLeave::getTypeOptions()[$data['quick_leave_type']] ?? $data['quick_leave_type'];
+
+                                $body = $count > 1
+                                    ? "Se creó y aprobó el permiso «{$typeLabel}» y se justificaron {$count} ausencias automáticamente."
+                                    : "Se creó y aprobó el permiso «{$typeLabel}». La ausencia fue justificada.";
+
+                                Notification::make()->success()->title('Ausencia justificada')->body($body)->send();
+
+                                return;
+                            }
+
+                            // Modo: vincular permiso existente
                             if (empty($data['employee_leave_id'])) {
                                 Notification::make()
                                     ->warning()
                                     ->title('Sin permiso seleccionado')
-                                    ->body('No hay permisos aprobados para vincular. Cree y apruebe una licencia en el módulo Licencias primero.')
+                                    ->body('No hay permisos aprobados para vincular. Seleccioná "Crear permiso nuevo ahora".')
                                     ->send();
                                 $action->halt();
 
@@ -514,11 +578,7 @@ class AbsenceResource extends Resource
                                 (int) $data['employee_leave_id']
                             );
 
-                            Notification::make()
-                                ->success()
-                                ->title('Ausencia justificada')
-                                ->body($result['message'])
-                                ->send();
+                            Notification::make()->success()->title('Ausencia justificada')->body($result['message'])->send();
                         }),
 
                     Action::make('mark_unjustified')
