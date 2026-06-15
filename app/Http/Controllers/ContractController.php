@@ -73,6 +73,29 @@ class ContractController extends Controller
             ? $weekdayBreaks->map(fn ($b) => Carbon::parse($b->start_time)->format('H:i').' a '.Carbon::parse($b->end_time)->format('H:i'))->implode(' y ')
             : null;
 
+        $horarioSemanal = null;
+        if ($weekdayDay) {
+            $wdStart = Carbon::parse($weekdayDay->start_time)->format('H:i');
+            $wdEnd = Carbon::parse($weekdayDay->end_time)->format('H:i');
+            $wdNums = $activeDayNums->filter(fn ($d) => $d <= 5);
+            $wdRange = $wdNums->count() === 1
+                ? ($dayNames[$wdNums->first()] ?? '')
+                : ($dayNames[$wdNums->first()] ?? '').' a '.($dayNames[$wdNums->last()] ?? '');
+
+            if ($saturdayDay?->is_active) {
+                $satStart = Carbon::parse($saturdayDay->start_time)->format('H:i');
+                $satEnd = Carbon::parse($saturdayDay->end_time)->format('H:i');
+                if ($satStart === $wdStart && $satEnd === $wdEnd) {
+                    $firstDayName = $dayNames[$wdNums->first()] ?? '';
+                    $horarioSemanal = "{$firstDayName} a Sábado de {$wdStart} a {$wdEnd} hs";
+                } else {
+                    $horarioSemanal = "{$wdRange} de {$wdStart} a {$wdEnd} hs, Sábados de {$satStart} a {$satEnd} hs";
+                }
+            } else {
+                $horarioSemanal = "{$wdRange} de {$wdStart} a {$wdEnd} hs";
+            }
+        }
+
         $employeeAge = $contract->employee?->birth_date
             ? $contract->employee->birth_date->age
             : null;
@@ -118,6 +141,7 @@ class ContractController extends Controller
             horaDescansoInicio: $horaDescansoInicio,
             horaDescansoFin: $horaDescansoFin,
             horarioDescanso: $horarioDescanso,
+            horarioSemanal: $horarioSemanal,
         );
 
         // Resolver secciones de la plantilla (si existe), con scope por empresa
@@ -272,6 +296,7 @@ class ContractController extends Controller
         ?string $horaDescansoInicio = null,
         ?string $horaDescansoFin = null,
         ?string $horarioDescanso = null,
+        ?string $horarioSemanal = null,
     ): array {
         return [
             '{ciudad}' => $company?->city ?? '.............................',
@@ -322,6 +347,7 @@ class ContractController extends Controller
             '{hora_descanso_inicio}' => $horaDescansoInicio ?? '...................',
             '{hora_descanso_fin}' => $horaDescansoFin ?? '...................',
             '{horario_descanso}' => $horarioDescanso ?? '...................',
+            '{horario_semanal}' => $horarioSemanal ?? '...................',
         ];
     }
 
@@ -376,6 +402,7 @@ class ContractController extends Controller
             '{hora_descanso_inicio}' => '12:00',
             '{hora_descanso_fin}' => '13:00',
             '{horario_descanso}' => '12:00 a 13:00',
+            '{horario_semanal}' => 'Lunes a Viernes de 07:00 a 17:00 hs, Sábados de 07:00 a 12:00 hs',
         ];
     }
 
