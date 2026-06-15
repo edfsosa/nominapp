@@ -255,6 +255,18 @@ class ContractController extends Controller
             '{dias_prueba}' => (string) ((int) ($contract->trial_days ?? 0)),
             '{dias_prueba_en_palabras}' => $trialDaysInWords,
             '{duracion_contrato}' => $durationDescription ?: '......',
+            '{tipo_contrato}' => Contract::getTypeLabel($contract->type),
+            '{fecha_inicio}' => $contract->start_date->format('d/m/Y'),
+            '{fecha_fin}' => $contract->end_date?->format('d/m/Y') ?? 'INDEFINIDO',
+            '{modalidad}' => $contract->work_modality ? Contract::getWorkModalityLabel($contract->work_modality) : '...................',
+            '{metodo_pago}' => match ($contract->payment_method) {
+                'cash' => 'Efectivo',
+                'debit' => 'Débito bancario',
+                'check' => 'Cheque',
+                default => $contract->payment_method ?? '...................',
+            },
+            '{tipo_salario}' => $contract->salary_type ? Contract::getSalaryTypeLabel($contract->salary_type) : '...................',
+            '{departamento}' => $contract->department?->name ?? $contract->position?->department?->name ?? '...................',
         ];
     }
 
@@ -291,6 +303,13 @@ class ContractController extends Controller
             '{dias_prueba}' => '90',
             '{dias_prueba_en_palabras}' => 'noventa',
             '{duracion_contrato}' => 'un (1) año',
+            '{tipo_contrato}' => 'Por Tiempo Indefinido',
+            '{fecha_inicio}' => '01/01/2025',
+            '{fecha_fin}' => 'INDEFINIDO',
+            '{modalidad}' => 'Presencial',
+            '{metodo_pago}' => 'Débito bancario',
+            '{tipo_salario}' => 'Mensualizado (Sueldo)',
+            '{departamento}' => 'Administración',
         ];
     }
 

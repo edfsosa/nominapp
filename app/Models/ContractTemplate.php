@@ -26,6 +26,7 @@ class ContractTemplate extends Model implements Auditable
         'show_header',
         'show_footer',
     ];
+
     protected $fillable = [
         'company_id',
         'type',
@@ -63,7 +64,7 @@ class ContractTemplate extends Model implements Auditable
      * Retorna la plantilla para el tipo de contrato y empresa dados, o null si no existe.
      * Si no se provee companyId, retorna null.
      *
-     * @param  string  $type       Tipo de contrato (ej: 'indefinido', 'plazo_fijo')
+     * @param  string  $type  Tipo de contrato (ej: 'indefinido', 'plazo_fijo')
      * @param  int|null  $companyId  ID de la empresa; si es null retorna null
      */
     public static function getForType(string $type, ?int $companyId = null): ?static
@@ -109,6 +110,13 @@ class ContractTemplate extends Model implements Auditable
             '{dias_prueba}' => 'Días de período de prueba',
             '{dias_prueba_en_palabras}' => 'Días de prueba escritos en palabras',
             '{duracion_contrato}' => 'Duración del contrato en palabras (ej: un (1) año)',
+            '{tipo_contrato}' => 'Tipo de contrato (ej: Por Tiempo Indefinido)',
+            '{fecha_inicio}' => 'Fecha de inicio del contrato (dd/mm/YYYY)',
+            '{fecha_fin}' => 'Fecha de finalización (dd/mm/YYYY o INDEFINIDO)',
+            '{modalidad}' => 'Modalidad de trabajo (Presencial / Remoto / Híbrido)',
+            '{metodo_pago}' => 'Método de pago (Efectivo / Débito bancario / Cheque)',
+            '{tipo_salario}' => 'Tipo de remuneración (Mensualizado / Jornalero)',
+            '{departamento}' => 'Nombre del departamento del cargo',
         ];
     }
 
@@ -179,22 +187,22 @@ class ContractTemplate extends Model implements Auditable
         }
 
         $fieldLabels = [
-            'intro_text'                  => 'Introducción',
-            'body'                        => 'Cuerpo / Cláusulas',
-            'closing_text'                => 'Cierre',
-            'signature_notes'             => 'Notas de firma',
-            'document_title'              => 'Título del documento',
-            'document_subtitle'           => 'Subtítulo',
-            'signature_employee_label'    => 'Etiqueta firma empleado',
-            'signature_employer_label'    => 'Etiqueta firma empleador',
+            'intro_text' => 'Introducción',
+            'body' => 'Cuerpo / Cláusulas',
+            'closing_text' => 'Cierre',
+            'signature_notes' => 'Notas de firma',
+            'document_title' => 'Título del documento',
+            'document_subtitle' => 'Subtítulo',
+            'signature_employee_label' => 'Etiqueta firma empleado',
+            'signature_employer_label' => 'Etiqueta firma empleador',
             'signature_employer_sublabel' => 'Subetiqueta firma empleador',
-            'show_header'                 => 'Mostrar encabezado',
-            'show_footer'                 => 'Mostrar pie de página',
+            'show_header' => 'Mostrar encabezado',
+            'show_footer' => 'Mostrar pie de página',
         ];
 
         $html = '<ul class="space-y-0.5 text-sm">';
         foreach ($values as $key => $value) {
-            $label     = $fieldLabels[$key] ?? Str::headline($key);
+            $label = $fieldLabels[$key] ?? Str::headline($key);
             $formatted = $this->formatAuditValue($key, $value);
             $html .= "<li><span class=\"text-gray-500\">{$label}:</span> <span class=\"font-medium\">{$formatted}</span></li>";
         }
