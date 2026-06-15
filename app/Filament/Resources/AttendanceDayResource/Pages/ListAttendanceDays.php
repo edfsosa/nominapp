@@ -42,7 +42,8 @@ class ListAttendanceDays extends ListRecords
         $stats = AttendanceDay::where('status', 'present')->selectRaw('
             COUNT(*) as total,
             SUM(CASE WHEN is_calculated = 1 THEN 1 ELSE 0 END) as calculated,
-            SUM(CASE WHEN is_calculated = 0 THEN 1 ELSE 0 END) as not_calculated
+            SUM(CASE WHEN is_calculated = 0 THEN 1 ELSE 0 END) as not_calculated,
+            SUM(CASE WHEN total_hours IS NULL THEN 1 ELSE 0 END) as incomplete
         ')->first();
 
         return [
@@ -62,6 +63,12 @@ class ListAttendanceDays extends ListRecords
                 ->badge($stats->not_calculated)
                 ->badgeColor('warning')
                 ->icon('heroicon-o-exclamation-triangle'),
+
+            'incomplete' => Tab::make('Incompletos')
+                ->modifyQueryUsing(fn (Builder $query) => $query->whereNull('total_hours'))
+                ->badge($stats->incomplete ?: null)
+                ->badgeColor('danger')
+                ->icon('heroicon-o-exclamation-circle'),
         ];
     }
 

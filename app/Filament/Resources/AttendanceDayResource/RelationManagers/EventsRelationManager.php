@@ -14,6 +14,7 @@ use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Components\ViewEntry;
 use Filament\Infolists\Infolist;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Tables\Actions\CreateAction;
 use Filament\Tables\Actions\DeleteAction;
 use Filament\Tables\Actions\EditAction;
 use Filament\Tables\Actions\ViewAction;
@@ -149,6 +150,20 @@ class EventsRelationManager extends RelationManager
                     ->options(AttendanceEvent::getEventTypeOptions())
                     ->native(false)
                     ->multiple(),
+            ])
+            ->headerActions([
+                CreateAction::make()
+                    ->label('Nueva marcación')
+                    ->icon('heroicon-o-plus')
+                    ->modalHeading('Agregar marcación manual')
+                    ->modalSubmitActionLabel('Agregar marcación')
+                    ->mountUsing(function (Form $form) {
+                        $form->fill([
+                            'recorded_at' => $this->getOwnerRecord()->date->format('Y-m-d').' '.now()->format('H:i'),
+                        ]);
+                    })
+                    ->mutateFormDataUsing(fn (array $data) => array_merge($data, ['source' => 'manual']))
+                    ->successNotificationTitle('Marcación agregada'),
             ])
             ->actions([
                 ViewAction::make()
