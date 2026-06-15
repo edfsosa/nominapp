@@ -128,6 +128,7 @@ class ContractTemplate extends Model implements Auditable
             '{hora_descanso_inicio}' => 'Hora de inicio del primer descanso (ej: 12:00)',
             '{hora_descanso_fin}' => 'Hora de fin del último descanso (ej: 13:00)',
             '{horario_descanso}' => 'Horario completo de descanso (ej: 12:00 a 13:00 y 16:00 a 16:15)',
+            '{horario_semanal}' => 'Horario semanal completo (ej: Lunes a Viernes de 07:00 a 17:00 hs, Sábados de 07:00 a 12:00 hs)',
         ];
     }
 
