@@ -9,12 +9,12 @@ use App\Models\Deduction;
 use App\Models\Employee;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Set;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Forms\Set;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
@@ -58,8 +58,10 @@ class DeductionResource extends Resource
                 Section::make('Información General')
                     ->schema([
                         TextInput::make('name')
-                            ->label('Nombre')
-                            ->placeholder('Ejemplo: Aporte Obrero IPS')
+                            ->label(fn (Get $get) => $get('type') === 'other' ? 'Concepto' : 'Nombre')
+                            ->placeholder(fn (Get $get) => $get('type') === 'other'
+                                ? 'Ej: Multa disciplinaria, Descuento por daños, Uniforme...'
+                                : 'Ejemplo: Aporte Obrero IPS')
                             ->required()
                             ->maxLength(60)
                             ->columnSpan(1),

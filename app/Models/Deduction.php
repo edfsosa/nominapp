@@ -22,12 +22,12 @@ class Deduction extends Model
     ];
 
     protected $casts = [
-        'amount'                => 'decimal:2',
-        'percent'               => 'decimal:2',
-        'is_mandatory'          => 'boolean',
-        'is_active'             => 'boolean',
-        'affects_irp'           => 'boolean',
-        'apply_judicial_limit'  => 'boolean',
+        'amount' => 'decimal:2',
+        'percent' => 'decimal:2',
+        'is_mandatory' => 'boolean',
+        'is_active' => 'boolean',
+        'affects_irp' => 'boolean',
+        'apply_judicial_limit' => 'boolean',
     ];
 
     /**
@@ -51,7 +51,7 @@ class Deduction extends Model
             ->withPivot(['start_date', 'end_date', 'custom_amount', 'notes'])
             ->withTimestamps()
             ->wherePivot('start_date', '<=', now())
-            ->where(fn($q) => $q
+            ->where(fn ($q) => $q
                 ->whereNull('employee_deductions.end_date')
                 ->orWhere('employee_deductions.end_date', '>=', now())
             );
@@ -73,7 +73,7 @@ class Deduction extends Model
     {
         return $this->hasMany(EmployeeDeduction::class)
             ->where('start_date', '<=', now())
-            ->where(fn($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
+            ->where(fn ($q) => $q->whereNull('end_date')->orWhere('end_date', '>=', now()));
     }
 
     /**
@@ -98,10 +98,11 @@ class Deduction extends Model
     public static function getTypeOptions(): array
     {
         return [
-            'legal'     => 'Legal (IPS, IRP)',
-            'judicial'  => 'Judicial (alimentaria, embargo)',
+            'legal' => 'Legal (IPS, IRP)',
+            'judicial' => 'Judicial (alimentaria, embargo)',
             'voluntary' => 'Voluntaria (seguros, cooperativas)',
-            'loan'      => 'Préstamo / Adelanto',
+            'loan' => 'Préstamo / Adelanto',
+            'other' => 'Otros',
         ];
     }
 
@@ -113,10 +114,11 @@ class Deduction extends Model
     public static function getTypeLabels(): array
     {
         return [
-            'legal'     => 'Legal',
-            'judicial'  => 'Judicial',
+            'legal' => 'Legal',
+            'judicial' => 'Judicial',
             'voluntary' => 'Voluntaria',
-            'loan'      => 'Préstamo/Adelanto',
+            'loan' => 'Préstamo/Adelanto',
+            'other' => 'Otros',
         ];
     }
 
@@ -128,10 +130,11 @@ class Deduction extends Model
     public static function getTypeColors(): array
     {
         return [
-            'legal'     => 'danger',
-            'judicial'  => 'warning',
+            'legal' => 'danger',
+            'judicial' => 'warning',
             'voluntary' => 'info',
-            'loan'      => 'primary',
+            'loan' => 'primary',
+            'other' => 'gray',
         ];
     }
 
@@ -151,7 +154,7 @@ class Deduction extends Model
 
     public static function formatPercent(mixed $value): ?string
     {
-        return $value !== null ? number_format((float) $value, 2) . '%' : null;
+        return $value !== null ? number_format((float) $value, 2).'%' : null;
     }
 
     public function calculateAmount(int $salaryBase, mixed $customAmount = null): float
