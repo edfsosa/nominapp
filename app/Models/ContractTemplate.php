@@ -120,6 +120,11 @@ class ContractTemplate extends Model implements Auditable
             '{sucursal}' => 'Nombre de la sucursal del empleado',
             '{fecha_nacimiento_empleado}' => 'Fecha de nacimiento del empleado (dd/mm/YYYY)',
             '{telefono_empleado}' => 'Teléfono de contacto del empleado',
+            '{hora_entrada}' => 'Hora de entrada al trabajo (ej: 07:00)',
+            '{hora_salida}' => 'Hora de salida del trabajo (ej: 16:00)',
+            '{horas_diarias}' => 'Horas de trabajo por día (número)',
+            '{dias_laborales}' => 'Días laborales (ej: Lunes a Viernes)',
+            '{tiempo_descanso}' => 'Duración del descanso / almuerzo (ej: 1 hora)',
         ];
     }
 

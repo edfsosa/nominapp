@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Contract;
 use App\Models\ContractTemplate;
+use App\Models\ScheduleDay;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Carbon\Carbon;
 
@@ -45,6 +46,22 @@ class ContractController extends Controller
             : app(\App\Settings\PayrollSettings::class)->daily_hours * 6;
         $weeklyHoursInWords = self::numberToWords($weeklyHours);
 
+        $startTime = $weekdayDay?->start_time
+            ? Carbon::parse($weekdayDay->start_time)->format('H:i')
+            : null;
+        $endTime = $weekdayDay?->end_time
+            ? Carbon::parse($weekdayDay->end_time)->format('H:i')
+            : null;
+        $dailyHours = $weekdayDay ? (int) $weekdayDay->scheduled_hours : null;
+        $activeDayNums = $scheduleDays->where('is_active', true)->sortBy('day_of_week')->pluck('day_of_week');
+        $dayNames = ScheduleDay::getDayOptions();
+        $diasLaborales = $activeDayNums->isNotEmpty()
+            ? ($activeDayNums->count() === 1
+                ? ($dayNames[$activeDayNums->first()] ?? null)
+                : ($dayNames[$activeDayNums->first()] ?? '').' a '.($dayNames[$activeDayNums->last()] ?? ''))
+            : null;
+        $tiempoDescanso = self::formatBreakTime($breakMinutes);
+
         $employeeAge = $contract->employee?->birth_date
             ? $contract->employee->birth_date->age
             : null;
@@ -82,6 +99,11 @@ class ContractController extends Controller
             durationDescription: $durationDescription,
             employeeAge: $employeeAge,
             formattedAddress: $formattedAddress,
+            startTime: $startTime,
+            endTime: $endTime,
+            dailyHours: $dailyHours,
+            diasLaborales: $diasLaborales,
+            tiempoDescanso: $tiempoDescanso,
         );
 
         // Resolver secciones de la plantilla (si existe), con scope por empresa
@@ -228,6 +250,11 @@ class ContractController extends Controller
         string $durationDescription,
         ?int $employeeAge,
         ?string $formattedAddress = null,
+        ?string $startTime = null,
+        ?string $endTime = null,
+        ?int $dailyHours = null,
+        ?string $diasLaborales = null,
+        ?string $tiempoDescanso = null,
     ): array {
         return [
             '{ciudad}' => $company?->city ?? '.............................',
@@ -270,6 +297,11 @@ class ContractController extends Controller
             '{sucursal}' => $employee?->branch?->name ?? '...................',
             '{fecha_nacimiento_empleado}' => $employee?->birth_date?->format('d/m/Y') ?? '...................',
             '{telefono_empleado}' => $employee?->phone ?? '...................',
+            '{hora_entrada}' => $startTime ?? '...................',
+            '{hora_salida}' => $endTime ?? '...................',
+            '{horas_diarias}' => $dailyHours !== null ? (string) $dailyHours : '...................',
+            '{dias_laborales}' => $diasLaborales ?? '...................',
+            '{tiempo_descanso}' => $tiempoDescanso ?? '...................',
         ];
     }
 
@@ -316,7 +348,37 @@ class ContractController extends Controller
             '{sucursal}' => 'Sucursal Central',
             '{fecha_nacimiento_empleado}' => '15/03/1995',
             '{telefono_empleado}' => '0981123456',
+            '{hora_entrada}' => '07:00',
+            '{hora_salida}' => '16:00',
+            '{horas_diarias}' => '8',
+            '{dias_laborales}' => 'Lunes a Viernes',
+            '{tiempo_descanso}' => '1 hora',
         ];
+    }
+
+    /**
+     * Formatea los minutos de descanso como texto legible (ej: "1 hora", "30 minutos", "1 hora y 30 minutos").
+     */
+    private static function formatBreakTime(int $minutes): string
+    {
+        if ($minutes === 0) {
+            return 'Sin descanso';
+        }
+
+        $hours = intdiv($minutes, 60);
+        $remaining = $minutes % 60;
+
+        $parts = [];
+
+        if ($hours > 0) {
+            $parts[] = $hours === 1 ? '1 hora' : "{$hours} horas";
+        }
+
+        if ($remaining > 0) {
+            $parts[] = "{$remaining} minutos";
+        }
+
+        return implode(' y ', $parts);
     }
 
     /**
