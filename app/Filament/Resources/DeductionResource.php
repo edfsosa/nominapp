@@ -58,10 +58,8 @@ class DeductionResource extends Resource
                 Section::make('Información General')
                     ->schema([
                         TextInput::make('name')
-                            ->label(fn (Get $get) => $get('type') === 'other' ? 'Concepto' : 'Nombre')
-                            ->placeholder(fn (Get $get) => $get('type') === 'other'
-                                ? 'Ej: Multa disciplinaria, Descuento por daños, Uniforme...'
-                                : 'Ejemplo: Aporte Obrero IPS')
+                            ->label('Nombre')
+                            ->placeholder('Ejemplo: Aporte Obrero IPS')
                             ->required()
                             ->maxLength(60)
                             ->columnSpan(1),
