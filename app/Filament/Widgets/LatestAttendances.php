@@ -18,19 +18,19 @@ use pxlrbt\FilamentExcel\Exports\ExcelExport;
 /** Widget de tabla: últimas marcaciones del día actual. */
 class LatestAttendances extends BaseWidget
 {
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
+
     protected static ?string $heading = 'Últimas Marcaciones de Hoy';
+
     protected static ?string $description = 'Marcaciones del día actual en tiempo real';
-    protected static ?int $sort = 3;
+
+    protected static ?int $sort = 5;
 
     /** Refresca la tabla cada 30 segundos para reflejar marcaciones nuevas. */
     protected static ?string $pollingInterval = '30s';
 
     /**
      * Configura la tabla con columnas, filtros y acciones.
-     *
-     * @param  Table $table
-     * @return Table
      */
     public function table(Table $table): Table
     {
@@ -45,31 +45,31 @@ class LatestAttendances extends BaseWidget
                 TextColumn::make('recorded_at')
                     ->label('Fecha y Hora')
                     ->dateTime('d/m/Y H:i:s')
-                    ->description(fn($record) => $record->recorded_at->diffForHumans())
+                    ->description(fn ($record) => $record->recorded_at->diffForHumans())
                     ->icon('heroicon-o-clock')
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('event_type')
                     ->label('Tipo de Evento')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                    ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state))
+                    ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                    ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state))
                     ->sortable()
                     ->searchable(),
 
                 TextColumn::make('source')
                     ->label('Canal')
-                    ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                    ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
                     ->badge()
-                    ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                    ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
+                    ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                    ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual'))
                     ->toggleable(),
 
                 TextColumn::make('employee_name')
                     ->label('Empleado')
-                    ->description(fn($record) => $record->employee_ci ? 'CI: ' . $record->employee_ci : '')
+                    ->description(fn ($record) => $record->employee_ci ? 'CI: '.$record->employee_ci : '')
                     ->sortable()
                     ->searchable()
                     ->weight('medium')
@@ -92,8 +92,7 @@ class LatestAttendances extends BaseWidget
                     ->placeholder('Todos los empleados')
                     ->relationship('employee', 'first_name')
                     ->getOptionLabelFromRecordUsing(
-                        fn($record) =>
-                        $record->first_name . ' ' . $record->last_name . ' (CI: ' . $record->ci . ')'
+                        fn ($record) => $record->first_name.' '.$record->last_name.' (CI: '.$record->ci.')'
                     )
                     ->searchable()
                     ->preload(false)
@@ -137,21 +136,21 @@ class LatestAttendances extends BaseWidget
 
                             TextEntry::make('event_type')
                                 ->label('Tipo de evento')
-                                ->formatStateUsing(fn($state) => AttendanceEvent::getEventTypeLabel($state))
+                                ->formatStateUsing(fn ($state) => AttendanceEvent::getEventTypeLabel($state))
                                 ->badge()
-                                ->color(fn($state) => AttendanceEvent::getEventTypeColor($state))
-                                ->icon(fn($state) => AttendanceEvent::getEventTypeIcon($state)),
+                                ->color(fn ($state) => AttendanceEvent::getEventTypeColor($state))
+                                ->icon(fn ($state) => AttendanceEvent::getEventTypeIcon($state)),
 
                             TextEntry::make('source')
                                 ->label('Canal')
                                 ->badge()
-                                ->formatStateUsing(fn($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
-                                ->color(fn($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
-                                ->icon(fn($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
+                                ->formatStateUsing(fn ($state) => AttendanceEvent::getSourceLabel($state ?? 'manual'))
+                                ->color(fn ($state) => AttendanceEvent::getSourceColor($state ?? 'manual'))
+                                ->icon(fn ($state) => AttendanceEvent::getSourceIcon($state ?? 'manual')),
 
                             TextEntry::make('recorded_at')
                                 ->label('Fecha y hora')
-                                ->formatStateUsing(fn($state) => $state->format('d/m/Y H:i:s') . ' — ' . $state->diffForHumans()),
+                                ->formatStateUsing(fn ($state) => $state->format('d/m/Y H:i:s').' — '.$state->diffForHumans()),
 
                             TextEntry::make('branch_name')
                                 ->label('Sucursal')
@@ -162,7 +161,7 @@ class LatestAttendances extends BaseWidget
                         ViewEntry::make('location_map')
                             ->label('Ubicación en mapa')
                             ->view('filament.resources.attendance-event.location-map')
-                            ->visible(fn(AttendanceEvent $record) => $record->hasValidLocation())
+                            ->visible(fn (AttendanceEvent $record) => $record->hasValidLocation())
                             ->columnSpanFull(),
                     ]),
             ])
@@ -173,7 +172,7 @@ class LatestAttendances extends BaseWidget
                             ExcelExport::make()
                                 ->fromTable()
                                 ->except(['created_at', 'updated_at'])
-                                ->withFilename('marcaciones_hoy_' . now()->format('d_m_Y_H_i_s')),
+                                ->withFilename('marcaciones_hoy_'.now()->format('d_m_Y_H_i_s')),
                         ])
                         ->label('Exportar seleccionados')
                         ->color('success')
