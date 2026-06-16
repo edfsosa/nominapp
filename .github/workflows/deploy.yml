@@ -30,6 +30,7 @@ jobs:
             -X POST \
             -H "Content-Type: application/json" \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
+            -d '{}' \
             https://nominapp.sedacosmetica.com/deploy.php)
 
           # Print the deploy log from the server response
