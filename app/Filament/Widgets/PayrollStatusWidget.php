@@ -89,9 +89,7 @@ class PayrollStatusWidget extends BaseWidget
                 ->url($periodUrl),
 
             Stat::make('Por Aprobar / Pagar', $pendingCount)
-                ->description($pendingCount === 0
-                    ? 'Todas las nóminas al día'
-                    : ($pendingCount === 1 ? '1 nómina pendiente de acción' : "{$pendingCount} nóminas pendientes de acción"))
+                ->description($pendingCount > 0 ? 'Nóminas en estado draft o aprobadas' : 'Todas las nóminas al día')
                 ->descriptionIcon($pendingCount > 0 ? 'heroicon-o-clock' : 'heroicon-o-check-circle')
                 ->color($pendingCount > 0 ? 'danger' : 'success')
                 ->icon('heroicon-o-clipboard-document-check')
