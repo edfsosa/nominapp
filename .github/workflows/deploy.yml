@@ -28,6 +28,7 @@ jobs:
           HTTP_STATUS=$(curl -s -o /tmp/deploy_out.json -w "%{http_code}" \
             --max-time 300 \
             -X POST \
+            -H "Content-Type: application/json" \
             -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
             https://nominapp.sedacosmetica.com/deploy.php)
 
