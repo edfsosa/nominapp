@@ -2226,3 +2226,60 @@ it('has emails', function (string $email) {
 | decoration-slice | box-decoration-slice |
 | decoration-clone | box-decoration-clone |
 </laravel-boost-guidelines>
+
+## Claude Code Plugins
+
+### Flujo de trabajo con Superpowers
+
+Antes de implementar cualquier feature o cambio significativo, usá el flujo de planificación:
+
+1. `/superpowers:brainstorm` — para explorar el enfoque antes de codear (útil en features nuevas como suspensión disciplinaria en Warnings, o nuevos calculadores)
+2. `/superpowers:write-plan` — para generar un plan de implementación paso a paso
+3. `/superpowers:execute-plan` — para ejecutar el plan en batches controlados
+
+**Cuándo usarlo en Nominapp:**
+- Features nuevas que tocan el pipeline de nómina (`PayrollService`) — siempre planificar antes
+- Nuevos módulos o Resources de Filament
+- Cambios en ciclos de vida de modelos (nuevos estados, transiciones)
+- Integraciones con calculadoras existentes
+
+**Cuándo ir directo sin planificación:**
+- Fixes puntuales (typos, labels, colores)
+- Ajustes de UI en Filament (columnas, filtros, acciones)
+- Migraciones simples sin lógica de negocio
+
+### Code Review
+
+Ejecutar `/code-review` antes de cada PR o deploy importante.
+
+**Prioridades para este proyecto:**
+- Verificar que los cambios al pipeline de nómina respetan el orden fijo de calculadoras (pasos 1–9 en `PayrollService`)
+- Idempotencia en calculadoras (`LoanInstallmentCalculator`, `AdvanceCalculator`, `MerchandiseInstallmentCalculator`)
+- Limpieza correcta en `Payroll::booted()` al eliminar nóminas
+- Ciclos de vida de modelos — las transiciones de estado deben validar el estado previo
+
+### Security Review
+
+Ejecutar `/security-review` antes de deploys que toquen:
+- `WarningController`, `ContractController` y cualquier controller con generación de PDF
+- Endpoints de asistencia y reconocimiento facial
+- Exports bancarios (`BankPaymentExportService`, `DisbursementBatch`)
+- Cualquier acción masiva (bulk actions) en Filament
+
+### Frontend Design
+
+El skill de frontend-design se activa automáticamente al trabajar en vistas Blade y componentes Livewire.
+
+**Stack de UI en este proyecto:**
+- Filament 3.3 para el panel admin — respetar los componentes nativos de Filament antes de crear custom
+- Tailwind CSS v4 con configuración CSS-first (`@theme` en lugar de `tailwind.config.js`)
+- Dark mode obligatorio si la página o componente existente lo soporta
+- Sin emojis en la UI
+- Locale `es`, moneda Guaraní (Gs.), timezone `America/Asuncion`
+
+### Memoria entre sesiones (Claude MEM)
+
+Claude MEM captura contexto automáticamente. Para maximizar su utilidad:
+- Al iniciar una sesión, mencioná el módulo en el que vas a trabajar
+- Si retomás un trabajo interrumpido, describí brevemente el último estado
+- Las decisiones de arquitectura importantes quedan registradas automáticamente
