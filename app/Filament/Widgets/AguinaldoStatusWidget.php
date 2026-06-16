@@ -79,9 +79,7 @@ class AguinaldoStatusWidget extends BaseWidget
                 ->url($periodUrl),
 
             Stat::make('Pendientes de Pago', $pending)
-                ->description($pending === 0
-                    ? 'Todos los aguinaldos pagados'
-                    : ($pending === 1 ? '1 aguinaldo por pagar' : "{$pending} aguinaldos por pagar"))
+                ->description($pending > 0 ? 'Sin marcar como pagados aún' : 'Todos los aguinaldos pagados')
                 ->descriptionIcon($pending > 0 ? 'heroicon-o-clock' : 'heroicon-o-check-circle')
                 ->color($pending > 0 ? 'warning' : 'success')
                 ->icon('heroicon-o-clipboard-document-check')
