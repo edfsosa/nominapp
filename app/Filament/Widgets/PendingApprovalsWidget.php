@@ -34,36 +34,28 @@ class PendingApprovalsWidget extends BaseWidget
 
         return [
             Stat::make('Préstamos por Aprobar', $loansPending)
-                ->description($loansPending === 0
-                    ? 'Sin solicitudes pendientes'
-                    : ($loansPending === 1 ? '1 solicitud en espera' : "{$loansPending} solicitudes en espera"))
+                ->description($loansPending > 0 ? 'Requieren aprobación' : 'Todo al día')
                 ->descriptionIcon($loansPending > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle')
                 ->color($loansPending > 0 ? 'warning' : 'success')
                 ->icon('heroicon-o-banknotes')
                 ->url(LoanResource::getUrl('index')),
 
             Stat::make('Adelantos por Aprobar', $advancesPending)
-                ->description($advancesPending === 0
-                    ? 'Sin adelantos pendientes'
-                    : ($advancesPending === 1 ? '1 adelanto en espera' : "{$advancesPending} adelantos en espera"))
+                ->description($advancesPending > 0 ? 'Requieren aprobación' : 'Todo al día')
                 ->descriptionIcon($advancesPending > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle')
                 ->color($advancesPending > 0 ? 'warning' : 'success')
                 ->icon('heroicon-o-wallet')
                 ->url(AdvanceResource::getUrl('index')),
 
             Stat::make('Ausencias por Revisar', $absencesPending)
-                ->description($absencesPending === 0
-                    ? 'Sin ausencias pendientes'
-                    : ($absencesPending === 1 ? '1 ausencia por clasificar' : "{$absencesPending} ausencias por clasificar"))
+                ->description($absencesPending > 0 ? 'Sin clasificar (justif. o no)' : 'Sin ausencias pendientes')
                 ->descriptionIcon($absencesPending > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle')
                 ->color($absencesPending > 0 ? 'danger' : 'success')
                 ->icon('heroicon-o-user-minus')
                 ->url(AbsenceResource::getUrl('index')),
 
             Stat::make('Licencias por Aprobar', $leavesPending)
-                ->description($leavesPending === 0
-                    ? 'Sin licencias pendientes'
-                    : ($leavesPending === 1 ? '1 licencia por aprobar' : "{$leavesPending} licencias por aprobar"))
+                ->description($leavesPending > 0 ? 'Requieren aprobación' : 'Todo al día')
                 ->descriptionIcon($leavesPending > 0 ? 'heroicon-o-exclamation-circle' : 'heroicon-o-check-circle')
                 ->color($leavesPending > 0 ? 'warning' : 'success')
                 ->icon('heroicon-o-calendar-days')
