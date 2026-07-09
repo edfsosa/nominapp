@@ -30,7 +30,7 @@ $homeDir = posix_getpwuid(posix_geteuid())['dir'] ?? sys_get_temp_dir();
 putenv("HOME={$homeDir}");
 putenv("COMPOSER_HOME={$homeDir}/.composer");
 
-$php      = PHP_BINARY;
+$php      = trim((string) shell_exec('which php')) ?: 'php';
 $artisan  = "{$php} artisan";
 $composer = trim((string) shell_exec('which composer')) ?: 'composer';
 $composer = "{$php} {$composer}";
