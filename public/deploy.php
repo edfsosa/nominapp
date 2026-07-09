@@ -30,9 +30,10 @@ $homeDir = posix_getpwuid(posix_geteuid())['dir'] ?? sys_get_temp_dir();
 putenv("HOME={$homeDir}");
 putenv("COMPOSER_HOME={$homeDir}/.composer");
 
-$php      = '/opt/cpanel/ea-php82/root/usr/bin/php';
+$php      = PHP_BINARY;
 $artisan  = "{$php} artisan";
-$composer = "{$php} /opt/cpanel/composer/bin/composer";
+$composer = trim((string) shell_exec('which composer')) ?: 'composer';
+$composer = "{$php} {$composer}";
 
 // Read DB credentials from .env for backup
 $envContent = (string) @file_get_contents($envPath);
@@ -60,6 +61,8 @@ $steps = [
     "{$artisan} down 2>&1 || true",
     "git pull origin main 2>&1",
     "{$composer} install --no-dev --optimize-autoloader 2>&1",
+    "npm install 2>&1",
+    "npm run build 2>&1",
     "mysqldump --host={$dbHost} --port={$dbPort} --user={$dbUser} --password=" . escapeshellarg($dbPass) . " --single-transaction --quick {$dbName} 2>&1 | gzip > " . escapeshellarg($backupFile) . " && echo 'Backup OK: {$backupFile}'",
     "{$artisan} migrate --force 2>&1",
     "{$artisan} livewire:publish --assets 2>&1",
