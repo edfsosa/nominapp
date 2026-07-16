@@ -14,7 +14,7 @@
             frameborder="0"
             style="border:0; display:block;"
             referrerpolicy="no-referrer-when-downgrade"
-            src="https://www.google.com/maps/embed/v1/place?key={{ config('services.google.maps_key') }}&q={{ $lat }},{{ $lng }}&zoom=16"
+            src="https://www.google.com/maps/embed/v1/view?key={{ config('services.google.maps_key') }}&center={{ $lat }},{{ $lng }}&zoom=16"
             allowfullscreen>
         </iframe>
     </div>
