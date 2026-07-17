@@ -11,9 +11,9 @@ on:
 
 jobs:
   deploy:
-    environment: ${{ inputs.environment }}
     uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
     with:
+      environment_name: ${{ inputs.environment }}
       run_tests: true
       run_migrations: true
     secrets: inherit
