@@ -10,10 +10,34 @@ on:
         required: true
 
 jobs:
-  deploy:
+  deploy-bar777:
+    if: ${{ inputs.environment == 'bar777' }}
+    environment: bar777
     uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
     with:
-      environment_name: ${{ inputs.environment }}
+      environment_name: bar777
       run_tests: true
       run_migrations: true
-    secrets: inherit
+    secrets:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      APP_URL: ${{ secrets.APP_URL }}
+
+  deploy-arca:
+    if: ${{ inputs.environment == 'arca' }}
+    environment: arca
+    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
+    with:
+      environment_name: arca
+      run_tests: true
+      run_migrations: true
+    secrets:
+      SSH_HOST: ${{ secrets.SSH_HOST }}
+      SSH_PORT: ${{ secrets.SSH_PORT }}
+      SSH_USER: ${{ secrets.SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+      APP_URL: ${{ secrets.APP_URL }}
