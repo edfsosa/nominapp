@@ -1,53 +1,19 @@
-name: Deploy to Production
+name: Deploy
+
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Instalacion a la que se va a deployar'
+        description: 'Instancia a la que desplegar'
+        type: choice
+        options: [bar777, arca]
         required: true
-        type: environment
+
 jobs:
   deploy:
-    name: Deploy via Webhook
-    runs-on: ubuntu-latest
     environment: ${{ inputs.environment }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4.2.2
-        with:
-          fetch-depth: 0
-      - name: Show commits being deployed
-        run: |
-          echo "=== Deploying to: ${{ inputs.environment }} ==="
-          git log --oneline -10
-      - name: Trigger deploy webhook
-        run: |
-          HTTP_STATUS=$(curl -s -o /tmp/deploy_out.json -w "%{http_code}" \
-            --max-time 300 \
-            -X POST \
-            -H "Content-Type: application/json" \
-            -H "X-Deploy-Token: ${{ secrets.DEPLOY_TOKEN }}" \
-            -d '{}' \
-            "${{ secrets.DEPLOY_URL }}")
-          echo "=== Deploy log ==="
-          cat /tmp/deploy_out.json | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('log','(no log)'))" 2>/dev/null || cat /tmp/deploy_out.json
-          echo "=================="
-          if [ "$HTTP_STATUS" != "200" ]; then
-            echo "Deploy failed - HTTP $HTTP_STATUS"
-            exit 1
-          fi
-          echo "Deploy successful!"
-      - name: Health check
-        run: |
-          echo "Waiting 10s for app to warm up..."
-          sleep 10
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            --max-time 30 \
-            --location \
-            "${{ secrets.HEALTH_CHECK_URL }}")
-          echo "Health check status: $HTTP_STATUS"
-          if [[ "$HTTP_STATUS" -ge 500 ]]; then
-            echo "Health check failed - HTTP $HTTP_STATUS"
-            exit 1
-          fi
-          echo "App is up and responding correctly."
+    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
+    with:
+      run_tests: true
+      run_migrations: true
+    secrets: inherit
