@@ -1,5 +1,7 @@
 <?php
 
+use App\Models\Branch;
+use App\Models\Company;
 use App\Models\Employee;
 use App\Models\EmployeeScheduleAssignment;
 use App\Models\Schedule;
@@ -23,12 +25,16 @@ function makeEmployee(): Employee
     static $ci = 1000000;
     $n = $ci++;
 
+    $company = Company::create(['name' => "Empresa SAS {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "Sucursal SAS {$n}", 'company_id' => $company->id]);
+
     return Employee::create([
         'first_name' => 'Test',
-        'last_name'  => 'Employee',
-        'ci'         => (string) $n,
-        'email'      => "test{$n}@test.com",
-        'status'     => 'active',
+        'last_name' => 'Employee',
+        'ci' => (string) $n,
+        'email' => "test{$n}@test.com",
+        'branch_id' => $branch->id,
+        'status' => 'active',
     ]);
 }
 
@@ -39,8 +45,8 @@ it('crea una asignación nueva correctamente', function () {
     $schedule = makeSchedule();
 
     $assignment = ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule,
+        employee: $employee,
+        schedule: $schedule,
         validFrom: Carbon::today(),
     );
 
@@ -52,19 +58,19 @@ it('crea una asignación nueva correctamente', function () {
 });
 
 it('cierra la asignación abierta anterior al crear una nueva', function () {
-    $employee  = makeEmployee();
+    $employee = makeEmployee();
     $schedule1 = makeSchedule('Horario A');
     $schedule2 = makeSchedule('Horario B');
 
     $first = ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule1,
+        employee: $employee,
+        schedule: $schedule1,
         validFrom: Carbon::today()->subDays(10),
     );
 
     ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule2,
+        employee: $employee,
+        schedule: $schedule2,
         validFrom: Carbon::today(),
     );
 
@@ -75,20 +81,20 @@ it('cierra la asignación abierta anterior al crear una nueva', function () {
 });
 
 it('no cierra una asignación anterior que ya tiene valid_until', function () {
-    $employee  = makeEmployee();
+    $employee = makeEmployee();
     $schedule1 = makeSchedule('Horario A');
     $schedule2 = makeSchedule('Horario B');
 
     $closed = ScheduleAssignmentService::assign(
-        employee:   $employee,
-        schedule:   $schedule1,
-        validFrom:  Carbon::today()->subDays(20),
+        employee: $employee,
+        schedule: $schedule1,
+        validFrom: Carbon::today()->subDays(20),
         validUntil: Carbon::today()->subDays(10),
     );
 
     ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule2,
+        employee: $employee,
+        schedule: $schedule2,
         validFrom: Carbon::today(),
     );
 
@@ -104,31 +110,31 @@ it('lanza ValidationException si valid_until es anterior a valid_from', function
     $schedule = makeSchedule();
 
     ScheduleAssignmentService::assign(
-        employee:   $employee,
-        schedule:   $schedule,
-        validFrom:  Carbon::today(),
+        employee: $employee,
+        schedule: $schedule,
+        validFrom: Carbon::today(),
         validUntil: Carbon::today()->subDay(),
     );
 })->throws(ValidationException::class);
 
 it('lanza ValidationException si hay solapamiento con asignación existente', function () {
-    $employee  = makeEmployee();
+    $employee = makeEmployee();
     $schedule1 = makeSchedule('Horario A');
     $schedule2 = makeSchedule('Horario B');
 
     // Asignación cerrada: del 1 al 20 del mes pasado
     ScheduleAssignmentService::assign(
-        employee:   $employee,
-        schedule:   $schedule1,
-        validFrom:  Carbon::today()->subDays(20),
+        employee: $employee,
+        schedule: $schedule1,
+        validFrom: Carbon::today()->subDays(20),
         validUntil: Carbon::today()->subDays(5),
     );
 
     // Intento solapar: del 10 al 15 del mes pasado
     ScheduleAssignmentService::assign(
-        employee:   $employee,
-        schedule:   $schedule2,
-        validFrom:  Carbon::today()->subDays(15),
+        employee: $employee,
+        schedule: $schedule2,
+        validFrom: Carbon::today()->subDays(15),
         validUntil: Carbon::today()->subDays(8),
     );
 })->throws(ValidationException::class);
@@ -138,8 +144,8 @@ it('permite asignar un horario con fecha de inicio futura', function () {
     $schedule = makeSchedule();
 
     $assignment = ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule,
+        employee: $employee,
+        schedule: $schedule,
         validFrom: Carbon::today()->addWeek(),
     );
 
@@ -154,8 +160,8 @@ it('cierra la asignación activa en la fecha indicada', function () {
     $schedule = makeSchedule();
 
     $assignment = ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule,
+        employee: $employee,
+        schedule: $schedule,
         validFrom: Carbon::today()->subDays(5),
     );
 
@@ -182,8 +188,8 @@ it('retorna el horario vigente para la fecha dada', function () {
     $schedule = makeSchedule();
 
     ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule,
+        employee: $employee,
+        schedule: $schedule,
         validFrom: Carbon::today()->subDays(5),
     );
 
@@ -207,20 +213,20 @@ it('cae al schedule_id legacy si no hay asignación nueva', function () {
 });
 
 it('retorna el horario correcto para una fecha histórica', function () {
-    $employee  = makeEmployee();
+    $employee = makeEmployee();
     $schedule1 = makeSchedule('Horario Enero');
     $schedule2 = makeSchedule('Horario Febrero');
 
     ScheduleAssignmentService::assign(
-        employee:   $employee,
-        schedule:   $schedule1,
-        validFrom:  Carbon::parse('2026-01-01'),
+        employee: $employee,
+        schedule: $schedule1,
+        validFrom: Carbon::parse('2026-01-01'),
         validUntil: Carbon::parse('2026-01-31'),
     );
 
     ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule2,
+        employee: $employee,
+        schedule: $schedule2,
         validFrom: Carbon::parse('2026-02-01'),
     );
 
@@ -235,8 +241,8 @@ it('retorna null para una fecha anterior a cualquier asignación', function () {
     $schedule = makeSchedule();
 
     ScheduleAssignmentService::assign(
-        employee:  $employee,
-        schedule:  $schedule,
+        employee: $employee,
+        schedule: $schedule,
         validFrom: Carbon::today(),
     );
 
@@ -251,9 +257,9 @@ it('isDayOff retorna false para un día activo', function () {
     ScheduleDay::create([
         'schedule_id' => $schedule->id,
         'day_of_week' => 1, // Lunes
-        'is_active'   => true,
-        'start_time'  => '08:00',
-        'end_time'    => '17:00',
+        'is_active' => true,
+        'start_time' => '08:00',
+        'end_time' => '17:00',
     ]);
 
     expect($schedule->isDayOff(1))->toBeFalse();
@@ -265,9 +271,9 @@ it('isDayOff retorna true para un día inactivo', function () {
     ScheduleDay::create([
         'schedule_id' => $schedule->id,
         'day_of_week' => 7, // Domingo
-        'is_active'   => false,
-        'start_time'  => null,
-        'end_time'    => null,
+        'is_active' => false,
+        'start_time' => null,
+        'end_time' => null,
     ]);
 
     expect($schedule->isDayOff(7))->toBeTrue();

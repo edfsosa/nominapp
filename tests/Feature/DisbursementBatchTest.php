@@ -246,9 +246,10 @@ it('confirm() falla si el lote de préstamos no está pendiente', function () {
 
 it('confirm() marca todos los aguinaldos como pagados y el lote como confirmed', function () {
     $employee = makeBatchEmployee();
+    $employee2 = makeBatchEmployee();
     $period = makeAguinaldoPeriod($employee->branch->company);
     $ag1 = makePendingAguinaldo($employee, $period, 500_000);
-    $ag2 = makePendingAguinaldo($employee, $period, 700_000);
+    $ag2 = makePendingAguinaldo($employee2, $period, 700_000);
     $batch = makeAguinaldoBatch($employee->branch->company, [$ag1->id, $ag2->id]);
 
     $result = $batch->confirm(
@@ -265,9 +266,10 @@ it('confirm() marca todos los aguinaldos como pagados y el lote como confirmed',
 
 it('confirm() aguinaldo con rechazo parcial deja el lote como partially_confirmed', function () {
     $employee = makeBatchEmployee();
+    $employee2 = makeBatchEmployee();
     $period = makeAguinaldoPeriod($employee->branch->company);
     $ag1 = makePendingAguinaldo($employee, $period);
-    $ag2 = makePendingAguinaldo($employee, $period);
+    $ag2 = makePendingAguinaldo($employee2, $period);
     $batch = makeAguinaldoBatch($employee->branch->company, [$ag1->id, $ag2->id]);
 
     $batch->confirm(
@@ -314,7 +316,7 @@ it('los préstamos nuevos tienen payment_method = cash por defecto', function ()
         'reason' => 'personal',
     ]);
 
-    expect($loan->payment_method)->toBe('cash');
+    expect($loan->fresh()->payment_method)->toBe('cash');
 });
 
 it('un préstamo con payment_method transfer puede asignarse a un lote', function () {
@@ -338,9 +340,10 @@ it('la relación loans() retorna los préstamos del lote', function () {
 
 it('la relación aguinaldos() retorna los aguinaldos del lote', function () {
     $employee = makeBatchEmployee();
+    $employee2 = makeBatchEmployee();
     $period = makeAguinaldoPeriod($employee->branch->company);
     $ag1 = makePendingAguinaldo($employee, $period);
-    $ag2 = makePendingAguinaldo($employee, $period);
+    $ag2 = makePendingAguinaldo($employee2, $period);
     $batch = makeAguinaldoBatch($employee->branch->company, [$ag1->id, $ag2->id]);
 
     expect($batch->aguinaldos()->count())->toBe(2);

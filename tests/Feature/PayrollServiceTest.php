@@ -36,16 +36,16 @@ uses(RefreshDatabase::class);
  */
 function makePayService(array $overrides = []): PayrollService
 {
-    $perception = $overrides['perception'] ?? \Mockery::mock(PerceptionCalculator::class);
-    $deduction = $overrides['deduction'] ?? \Mockery::mock(DeductionCalculator::class);
-    $extra = $overrides['extra'] ?? \Mockery::mock(ExtraHourCalculator::class);
-    $absence = $overrides['absence'] ?? \Mockery::mock(AbsencePenaltyCalculator::class);
-    $loan = $overrides['loan'] ?? \Mockery::mock(LoanInstallmentCalculator::class);
-    $advance = $overrides['advance'] ?? \Mockery::mock(AdvanceCalculator::class);
-    $merchandise = $overrides['merchandise'] ?? \Mockery::mock(MerchandiseInstallmentCalculator::class);
-    $family = $overrides['family'] ?? \Mockery::mock(FamilyBonusCalculator::class);
-    $restDay = $overrides['restDay'] ?? \Mockery::mock(RestDayCalculator::class);
-    $pdf = $overrides['pdf'] ?? \Mockery::mock(PayrollPDFGenerator::class);
+    $perception = $overrides['perception'] ?? Mockery::mock(PerceptionCalculator::class);
+    $deduction = $overrides['deduction'] ?? Mockery::mock(DeductionCalculator::class);
+    $extra = $overrides['extra'] ?? Mockery::mock(ExtraHourCalculator::class);
+    $absence = $overrides['absence'] ?? Mockery::mock(AbsencePenaltyCalculator::class);
+    $loan = $overrides['loan'] ?? Mockery::mock(LoanInstallmentCalculator::class);
+    $advance = $overrides['advance'] ?? Mockery::mock(AdvanceCalculator::class);
+    $merchandise = $overrides['merchandise'] ?? Mockery::mock(MerchandiseInstallmentCalculator::class);
+    $family = $overrides['family'] ?? Mockery::mock(FamilyBonusCalculator::class);
+    $restDay = $overrides['restDay'] ?? Mockery::mock(RestDayCalculator::class);
+    $pdf = $overrides['pdf'] ?? Mockery::mock(PayrollPDFGenerator::class);
 
     $emptyResult = ['total' => 0, 'ips_total' => 0, 'items' => []];
     $emptyLoanResult = ['installments' => collect()];
@@ -125,7 +125,7 @@ it('generateForPeriod lanza excepción si el período no está en draft o proces
     $period = makePayPeriod('closed');
 
     expect(fn () => makePayService()->generateForPeriod($period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('generateForPeriod retorna 0 si no hay empleados activos', function () {
@@ -187,12 +187,12 @@ it('generateForPeriod crea Payroll con los totales correctos', function () {
     $period = makePayPeriod('draft');
     $employee = makePayEmployee('mensual', 2_550_000);
 
-    $perception = \Mockery::mock(PerceptionCalculator::class);
+    $perception = Mockery::mock(PerceptionCalculator::class);
     $perception->shouldReceive('calculate')->andReturn(['total' => 200_000, 'ips_total' => 200_000, 'items' => [
         ['description' => 'Bono', 'amount' => 200_000],
     ]]);
 
-    $deduction = \Mockery::mock(DeductionCalculator::class);
+    $deduction = Mockery::mock(DeductionCalculator::class);
     $deduction->shouldReceive('calculate')->andReturn(['total' => 100_000, 'items' => [
         ['description' => 'IPS', 'amount' => 100_000],
     ]]);
@@ -213,7 +213,7 @@ it('generateForPeriod suma horas extra a total_perceptions', function () {
     $period = makePayPeriod('draft');
     $employee = makePayEmployee('mensual', 2_550_000);
 
-    $extra = \Mockery::mock(ExtraHourCalculator::class);
+    $extra = Mockery::mock(ExtraHourCalculator::class);
     $extra->shouldReceive('calculate')->andReturn(['total' => 50_000, 'hours' => 2, 'items' => [
         ['description' => 'Horas Extra Diurnas', 'amount' => 50_000],
     ]]);
@@ -228,13 +228,13 @@ it('generateForPeriod crea PayrollItems de tipo perception y deduction', functio
     $period = makePayPeriod('draft');
     $employee = makePayEmployee();
 
-    $perception = \Mockery::mock(PerceptionCalculator::class);
+    $perception = Mockery::mock(PerceptionCalculator::class);
     $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'ips_total' => 100_000, 'items' => [
         ['description' => 'Bono A', 'amount' => 60_000],
         ['description' => 'Bono B', 'amount' => 40_000],
     ]]);
 
-    $deduction = \Mockery::mock(DeductionCalculator::class);
+    $deduction = Mockery::mock(DeductionCalculator::class);
     $deduction->shouldReceive('calculate')->andReturn(['total' => 50_000, 'items' => [
         ['description' => 'IPS', 'amount' => 50_000],
     ]]);
@@ -298,7 +298,7 @@ it('generateForEmployee lanza excepción si el período no está en draft o proc
     $employee = makePayEmployee();
 
     expect(fn () => makePayService()->generateForEmployee($employee, $period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('generateForEmployee lanza excepción si ya existe nómina para el empleado y período', function () {
@@ -308,7 +308,7 @@ it('generateForEmployee lanza excepción si ya existe nómina para el empleado y
     makePayService()->generateForEmployee($employee, $period);
 
     expect(fn () => makePayService()->generateForEmployee($employee, $period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('generateForEmployee lanza excepción si el empleado no tiene contrato activo', function () {
@@ -317,16 +317,19 @@ it('generateForEmployee lanza excepción si el empleado no tiene contrato activo
     // Empleado sin contrato
     static $ci = 2000000;
     $n = $ci++;
+    $company = Company::create(['name' => "Empresa Sin Contrato {$n}", 'ruc' => "{$n}-1", 'employer_number' => $n]);
+    $branch = Branch::create(['name' => "Sucursal Sin Contrato {$n}", 'company_id' => $company->id]);
     $employee = Employee::create([
         'first_name' => 'Sin',
         'last_name' => 'Contrato',
         'ci' => (string) $n,
         'email' => "nocon{$n}@test.com",
+        'branch_id' => $branch->id,
         'status' => 'active',
     ]);
 
     expect(fn () => makePayService()->generateForEmployee($employee, $period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('generateForEmployee lanza excepción si el payroll_type no coincide con la frecuencia', function () {
@@ -334,7 +337,7 @@ it('generateForEmployee lanza excepción si el payroll_type no coincide con la f
     $employee = makePayEmployee(payrollType: 'biweekly');
 
     expect(fn () => makePayService()->generateForEmployee($employee, $period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('generateForEmployee lanza excepción si jornalero no tiene días trabajados', function () {
@@ -342,7 +345,7 @@ it('generateForEmployee lanza excepción si jornalero no tiene días trabajados'
     $employee = makePayEmployee('jornal', 150_000);
 
     expect(fn () => makePayService()->generateForEmployee($employee, $period))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 // ─── generateForEmployee — cálculo ───────────────────────────────────────────
@@ -351,7 +354,7 @@ it('generateForEmployee retorna Payroll con net_salary correcto', function () {
     $period = makePayPeriod('draft');
     $employee = makePayEmployee('mensual', 2_550_000);
 
-    $deduction = \Mockery::mock(DeductionCalculator::class);
+    $deduction = Mockery::mock(DeductionCalculator::class);
     $deduction->shouldReceive('calculate')->andReturn(['total' => 229_500, 'items' => [
         ['description' => 'IPS 9%', 'amount' => 229_500],
     ]]);
@@ -385,7 +388,7 @@ it('generateForEmployee marca cuotas de préstamo como pagadas', function () {
         'status' => 'pending',
     ]);
 
-    $loanMock = \Mockery::mock(LoanInstallmentCalculator::class);
+    $loanMock = Mockery::mock(LoanInstallmentCalculator::class);
     $loanMock->shouldReceive('calculate')->andReturn([
         'installments' => collect([$installment]),
     ]);
@@ -409,7 +412,7 @@ it('regenerateForEmployee lanza excepción si la nómina está aprobada', functi
     $payroll->update(['status' => 'approved']);
 
     expect(fn () => $service->regenerateForEmployee($payroll->fresh()))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('regenerateForEmployee lanza excepción si la nómina está pagada', function () {
@@ -421,7 +424,7 @@ it('regenerateForEmployee lanza excepción si la nómina está pagada', function
     $payroll->update(['status' => 'paid']);
 
     expect(fn () => $service->regenerateForEmployee($payroll->fresh()))
-        ->toThrow(\InvalidArgumentException::class);
+        ->toThrow(InvalidArgumentException::class);
 });
 
 it('regenerateForEmployee elimina items previos y crea nuevos', function () {
@@ -433,7 +436,7 @@ it('regenerateForEmployee elimina items previos y crea nuevos', function () {
     $countBefore = $payroll->items()->count();
 
     // Segunda generación con una percepción extra
-    $perception = \Mockery::mock(PerceptionCalculator::class);
+    $perception = Mockery::mock(PerceptionCalculator::class);
     $perception->shouldReceive('calculate')->andReturn(['total' => 100_000, 'ips_total' => 100_000, 'items' => [
         ['description' => 'Bono', 'amount' => 100_000],
     ]]);
@@ -455,7 +458,7 @@ it('regenerateForEmployee actualiza los montos en el registro existente', functi
 
     $payroll = $service->generateForEmployee($employee, $period);
 
-    $deduction = \Mockery::mock(DeductionCalculator::class);
+    $deduction = Mockery::mock(DeductionCalculator::class);
     $deduction->shouldReceive('calculate')->andReturn(['total' => 500_000, 'items' => [
         ['description' => 'Nueva deducción', 'amount' => 500_000],
     ]]);
@@ -468,5 +471,5 @@ it('regenerateForEmployee actualiza los montos en el registro existente', functi
 });
 
 afterEach(function () {
-    \Mockery::close();
+    Mockery::close();
 });

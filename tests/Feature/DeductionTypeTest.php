@@ -7,27 +7,28 @@ uses(RefreshDatabase::class);
 
 // ─── getTypeOptions / Labels / Colors ────────────────────────────────────────
 
-it('getTypeOptions retorna los 4 tipos', function () {
+it('getTypeOptions retorna los 5 tipos', function () {
     $options = Deduction::getTypeOptions();
 
-    expect($options)->toHaveKeys(['legal', 'judicial', 'voluntary', 'loan'])
-        ->and($options)->toHaveCount(4);
+    expect($options)->toHaveKeys(['legal', 'judicial', 'voluntary', 'loan', 'other'])
+        ->and($options)->toHaveCount(5);
 });
 
-it('getTypeLabels retorna etiquetas cortas para los 4 tipos', function () {
+it('getTypeLabels retorna etiquetas cortas para los 5 tipos', function () {
     $labels = Deduction::getTypeLabels();
 
     expect($labels['legal'])->toBe('Legal')
         ->and($labels['judicial'])->toBe('Judicial')
         ->and($labels['voluntary'])->toBe('Voluntaria')
-        ->and($labels['loan'])->toBe('Préstamo/Adelanto');
+        ->and($labels['loan'])->toBe('Préstamo/Adelanto')
+        ->and($labels['other'])->toBe('Otros');
 });
 
-it('getTypeColors retorna colores válidos de Filament para los 4 tipos', function () {
+it('getTypeColors retorna colores válidos de Filament para los 5 tipos', function () {
     $validColors = ['primary', 'success', 'warning', 'danger', 'info', 'gray'];
     $colors = Deduction::getTypeColors();
 
-    expect($colors)->toHaveCount(4);
+    expect($colors)->toHaveCount(5);
     foreach ($colors as $color) {
         expect($validColors)->toContain($color);
     }
@@ -38,12 +39,12 @@ it('getTypeColors retorna colores válidos de Filament para los 4 tipos', functi
 it('guarda y recupera el type correctamente', function () {
     foreach (['legal', 'judicial', 'voluntary', 'loan'] as $i => $type) {
         $d = Deduction::create([
-            'name'        => "Deducción {$type}",
-            'code'        => "T{$i}",
-            'type'        => $type,
+            'name' => "Deducción {$type}",
+            'code' => "T{$i}",
+            'type' => $type,
             'calculation' => 'fixed',
-            'amount'      => 10_000,
-            'is_active'   => true,
+            'amount' => 10_000,
+            'is_active' => true,
         ]);
 
         expect($d->fresh()->type)->toBe($type);
@@ -53,11 +54,11 @@ it('guarda y recupera el type correctamente', function () {
 it('el valor por defecto de type es legal', function () {
     // Sin pasar type explícito — la migration pone 'legal' como default
     $d = Deduction::create([
-        'name'        => 'Sin tipo explícito',
-        'code'        => 'NT01',
+        'name' => 'Sin tipo explícito',
+        'code' => 'NT01',
         'calculation' => 'fixed',
-        'amount'      => 5_000,
-        'is_active'   => true,
+        'amount' => 5_000,
+        'is_active' => true,
     ]);
 
     expect($d->fresh()->type)->toBe('legal');
