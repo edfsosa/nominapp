@@ -12,32 +12,30 @@ on:
 jobs:
   deploy-bar777:
     if: ${{ inputs.environment == 'bar777' }}
-    environment: bar777
     uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
     with:
       environment_name: bar777
       run_tests: true
       run_migrations: true
     secrets:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_PORT: ${{ secrets.SSH_PORT }}
-      SSH_USER: ${{ secrets.SSH_USER }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      APP_URL: ${{ secrets.APP_URL }}
+      SSH_HOST: ${{ secrets.BAR777_SSH_HOST }}
+      SSH_PORT: ${{ secrets.BAR777_SSH_PORT }}
+      SSH_USER: ${{ secrets.BAR777_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.BAR777_SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.BAR777_DEPLOY_PATH }}
+      APP_URL: ${{ secrets.BAR777_APP_URL }}
 
   deploy-arca:
     if: ${{ inputs.environment == 'arca' }}
-    environment: arca
     uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
     with:
       environment_name: arca
       run_tests: true
       run_migrations: true
     secrets:
-      SSH_HOST: ${{ secrets.SSH_HOST }}
-      SSH_PORT: ${{ secrets.SSH_PORT }}
-      SSH_USER: ${{ secrets.SSH_USER }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-      APP_URL: ${{ secrets.APP_URL }}
+      SSH_HOST: ${{ secrets.ARCA_SSH_HOST }}
+      SSH_PORT: ${{ secrets.ARCA_SSH_PORT }}
+      SSH_USER: ${{ secrets.ARCA_SSH_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.ARCA_SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.ARCA_DEPLOY_PATH }}
+      APP_URL: ${{ secrets.ARCA_APP_URL }}
