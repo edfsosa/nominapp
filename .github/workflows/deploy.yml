@@ -12,7 +12,9 @@ on:
 jobs:
   deploy-bar777:
     if: ${{ inputs.environment == 'bar777' }}
-    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
+    permissions:
+      contents: write
+    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@5f13ecb2a909e93fabb5a1292d62568d86b393b0 # v1.0.0
     with:
       environment_name: bar777
       run_tests: true
@@ -27,7 +29,9 @@ jobs:
 
   deploy-arca:
     if: ${{ inputs.environment == 'arca' }}
-    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@main
+    permissions:
+      contents: write
+    uses: nextup-py/deploy-actions/.github/workflows/laravel-deploy.yml@5f13ecb2a909e93fabb5a1292d62568d86b393b0 # v1.0.0
     with:
       environment_name: arca
       run_tests: true
